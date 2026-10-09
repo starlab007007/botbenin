@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useWaouhResync } from "@/lib/waouh/resync";
 import { supabase } from "@/integrations/supabase/client";
 
 export type WaouhInboxItem = {
@@ -66,6 +67,8 @@ export function useWaouhInbox(sessionId: string, authUserId: string | null) {
       setLoading(false);
     }
   }, [sessionId, authUserId, fallbackDirect]);
+
+  useWaouhResync(() => refresh());
 
   const debouncedRefresh = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

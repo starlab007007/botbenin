@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useWaouhIdentity } from "./useWaouhIdentity";
 import { toast } from "sonner";
+import { WAOUH_RESYNC_EVENT } from "@/lib/waouh/resync";
 import { primaryWaouhSmartAction, readWaouhSmartEnvelope, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const STORAGE_KEY = "waouh_chat_read_v1";
@@ -183,6 +184,7 @@ export function useGlobalChatSync() {
 
       onRead = () => recompute();
       window.addEventListener("waouh-chat-read", onRead);
+      window.addEventListener(WAOUH_RESYNC_EVENT, onRead);
 
       // Native notification listeners (skipped silently on web).
       try {
@@ -241,7 +243,10 @@ export function useGlobalChatSync() {
         if (cic) cic(startToken);
         else clearTimeout(startToken as unknown as ReturnType<typeof setTimeout>);
       }
-      if (onRead) window.removeEventListener("waouh-chat-read", onRead);
+      if (onRead) {
+        window.removeEventListener("waouh-chat-read", onRead);
+        window.removeEventListener(WAOUH_RESYNC_EVENT, onRead);
+      }
       channels.forEach((c) => supabase.removeChannel(c));
     };
   }, [ready, authUserId, sessionId, navigate]);

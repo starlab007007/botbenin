@@ -128,18 +128,43 @@ class _LiveTransactionCardState extends State<LiveTransactionCard> {
   bool _busy = false;
   List<String> _viewerIds = const <String>[];
   Timer? _timer;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     unawaited(_load());
-    // Pas de temps réel ici : un rafraîchissement léger suit la livraison et le paiement.
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshStatus());
+    // Temps réel sur la transaction ; l'interrogation lente n'est qu'un filet de sécurité.
+    try {
+      _channel = _client
+          .channel('waouh_tx_card_${widget.transactionId}_${DateTime.now().microsecondsSinceEpoch}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'waouh_transactions',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: widget.transactionId,
+            ),
+            callback: (_) => unawaited(_refreshStatus()),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'waouh_deals',
+            callback: (_) => unawaited(_refreshStatus()),
+          )
+          .subscribe();
+    } catch (_) {}
+    _timer = Timer.periodic(const Duration(seconds: 45), (_) => _refreshStatus());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    final channel = _channel;
+    if (channel != null) unawaited(_client.removeChannel(channel));
     super.dispose();
   }
 

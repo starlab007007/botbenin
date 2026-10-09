@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useWaouhResync } from '@/lib/waouh/resync';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -123,6 +124,8 @@ export const useNotifications = () => {
       }
     }
   }, [user]);
+
+  useWaouhResync(() => { if (user?.id) return fetchNotifications(); });
 
   // Setup realtime subscription
   useEffect(() => {

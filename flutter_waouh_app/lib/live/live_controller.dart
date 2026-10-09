@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgresChangeEvent, RealtimeChannel, RealtimeSubscribeStatus;
 import 'package:image_picker/image_picker.dart';
 
 import '../main.dart' as legacy;
@@ -33,11 +35,14 @@ String _waouhUuidV4() {
       '${hex.substring(20)}';
 }
 
-class LiveWaouhController extends ChangeNotifier {
+class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   LiveWaouhController(this.auth)
       : session = LiveSessionStore(),
         location = LiveLocationService() {
     auth.addListener(_onAuthChange);
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {/* binding absent (tests) */}
     chat = LiveChatService(legacy.supabase, session);
     media = LiveMediaService(legacy.supabase);
     status = LiveStatusService(legacy.supabase, media);
@@ -611,6 +616,7 @@ class LiveWaouhController extends ChangeNotifier {
         remoteLoader: _loadMainMessages,
         interval: const Duration(seconds: 4),
         bindRefresh: (refresh) => _refreshMainNow = refresh,
+        realtimeTables: const ['waouh_messages'],
       );
 
   /// Rafraîchissement immédiat du chat principal (bind par mainMessages()).
@@ -634,6 +640,7 @@ class LiveWaouhController extends ChangeNotifier {
           cacheLoader: () => _cachedConversations(archived),
           remoteLoader: () => _loadConversations(archived),
           interval: const Duration(seconds: 8),
+          realtimeTables: const ['waouh_conversations', 'waouh_messages'],
         ),
       );
 
@@ -644,6 +651,7 @@ class LiveWaouhController extends ChangeNotifier {
           cacheLoader: () => _cachedConversationMessages(conversationId),
           remoteLoader: () => _loadConversationMessages(conversationId),
           interval: const Duration(seconds: 4),
+          realtimeTables: const ['waouh_messages'],
         ),
       );
 
@@ -660,6 +668,11 @@ class LiveWaouhController extends ChangeNotifier {
             archived: archived,
           ),
           interval: const Duration(seconds: 6),
+          realtimeTables: const [
+            'waouh_negotiations',
+            'waouh_deals',
+            'waouh_notifications',
+          ],
         ),
       );
 
@@ -670,6 +683,7 @@ class LiveWaouhController extends ChangeNotifier {
           cacheLoader: () => _cachedStatuses(type),
           remoteLoader: () => _loadStatuses(type),
           interval: const Duration(seconds: 12),
+          realtimeTables: const ['waouh_statuses'],
         ),
       );
 
@@ -678,6 +692,7 @@ class LiveWaouhController extends ChangeNotifier {
         cacheLoader: _cachedNotifications,
         remoteLoader: _loadNotifications,
         interval: const Duration(seconds: 10),
+        realtimeTables: const ['waouh_notifications'],
       );
 
   Future<void> sendMain({
@@ -1450,8 +1465,29 @@ class LiveWaouhController extends ChangeNotifier {
   }
 
   Future<void> _onConnectivityChanged(bool online) async {
-    if (online) await syncPending();
+    if (online) {
+      await syncPending();
+      // Retour du réseau : tous les flux ouverts se resynchronisent tout de suite.
+      _refreshAllStreams();
+    }
     notifyListeners();
+  }
+
+  /// Retour au premier plan : les canaux temps réel ont pu être coupés par le système.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (isOnline && pendingActions > 0) unawaited(syncPending());
+    _refreshAllStreams();
+  }
+
+  final Set<Future<void> Function()> _streamRefreshers =
+      <Future<void> Function()>{};
+
+  void _refreshAllStreams() {
+    for (final refresh in List<Future<void> Function()>.of(_streamRefreshers)) {
+      unawaited(refresh());
+    }
   }
 
   Future<void> _refreshPendingCount({bool notify = true}) async {
@@ -1475,44 +1511,116 @@ class LiveWaouhController extends ChangeNotifier {
     return waouhUserMessage(error);
   }
 
+  /// Flux « cache d'abord » : cache local, lecture serveur, puis mise à jour
+  /// poussée par le temps réel (tables `realtimeTables`, la RLS limite les lignes
+  /// visibles). L'interrogation périodique reste un filet de sécurité, espacé
+  /// tant que le canal temps réel est actif.
   Stream<T> _cacheFirstPoll<T>({
     required Future<T> Function() cacheLoader,
     required Future<T> Function() remoteLoader,
     required Duration interval,
     void Function(Future<void> Function() refresh)? bindRefresh,
+    List<String> realtimeTables = const <String>[],
   }) {
     late StreamController<T> streamController;
     Timer? timer;
+    Timer? debounce;
+    RealtimeChannel? channel;
+    var realtimeLive = false;
     var loading = false;
+    var again = false;
+    var lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
 
     Future<void> refresh() async {
-      if (loading || streamController.isClosed) return;
+      if (streamController.isClosed) return;
+      if (loading) {
+        // Un changement arrivé pendant une lecture déclenche une relecture ensuite.
+        again = true;
+        return;
+      }
       loading = true;
       try {
         streamController.add(await remoteLoader());
+        lastRefresh = DateTime.now();
       } catch (exception) {
         error = _humanizeError(exception);
         notifyListeners();
       } finally {
         loading = false;
+        if (again) {
+          again = false;
+          unawaited(refresh());
+        }
+      }
+    }
+
+    void scheduleRefresh() {
+      debounce?.cancel();
+      debounce = Timer(const Duration(milliseconds: 250), () => unawaited(refresh()));
+    }
+
+    void openRealtime() {
+      if (realtimeTables.isEmpty || channel != null) return;
+      try {
+        var builder = chat.client.channel(
+          'waouh_live_${realtimeTables.join('_')}_${DateTime.now().microsecondsSinceEpoch}',
+        );
+        for (final table in realtimeTables) {
+          builder = builder.onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: table,
+            callback: (_) => scheduleRefresh(),
+          );
+        }
+        channel = builder.subscribe((status, [_]) {
+          final live = status == RealtimeSubscribeStatus.subscribed;
+          if (live && !realtimeLive) scheduleRefresh(); // rattrape ce qui a été manqué
+          realtimeLive = live;
+        });
+      } catch (_) {
+        realtimeLive = false;
+      }
+    }
+
+    Future<void> closeRealtime() async {
+      debounce?.cancel();
+      realtimeLive = false;
+      final current = channel;
+      channel = null;
+      if (current != null) {
+        try {
+          await chat.client.removeChannel(current);
+        } catch (_) {}
       }
     }
 
     bindRefresh?.call(refresh);
     streamController = StreamController<T>.broadcast(
       onListen: () {
+        _streamRefreshers.add(refresh);
         unawaited(() async {
           try {
             streamController.add(await cacheLoader());
           } catch (_) {}
           await refresh();
-          timer ??= Timer.periodic(interval, (_) => unawaited(refresh()));
+          openRealtime();
+          timer ??= Timer.periodic(interval, (_) {
+            // Temps réel actif et récent : on laisse le canal faire le travail.
+            if (realtimeLive &&
+                DateTime.now().difference(lastRefresh) < interval * 4) {
+              return;
+            }
+            unawaited(refresh());
+          });
         }());
       },
       onCancel: () {
         if (!streamController.hasListener) {
+          _streamRefreshers.remove(refresh);
           timer?.cancel();
           timer = null;
+          unawaited(closeRealtime());
         }
       },
     );
@@ -1562,6 +1670,9 @@ class LiveWaouhController extends ChangeNotifier {
   @override
   void dispose() {
     auth.removeListener(_onAuthChange);
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     unawaited(connectivity.dispose());
     agentic.dispose();
     super.dispose();

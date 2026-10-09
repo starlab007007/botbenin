@@ -1,3 +1,4 @@
+import { useWaouhResync } from "@/lib/waouh/resync";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { WaouhMessageText } from "./WaouhMessageText";
@@ -725,6 +726,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     run();
     return () => window.removeEventListener("online", run);
   }, []);
+
+  // Retour réseau / onglet : relit la dernière page du fil et fusionne (les messages manqués apparaissent).
+  useWaouhResync(async () => {
+    if (!open) return;
+    const page = await fetchPage([], null, PAGE_INITIAL);
+    if (page.messages.length > 0) setMessages((prev) => mergeMessages(prev, page.messages));
+  });
 
   const send = async () => {
     const text = input.trim();

@@ -7,6 +7,7 @@ import { useViewportTier } from '../hooks/useViewportTier';
 import { useGlobalChatSync } from '../hooks/useGlobalChatSync';
 import { useIsNative } from '../hooks/useIsNative';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { startWaouhResync } from '@/lib/waouh/resync';
 import { WebErpShell } from '../../erp/WebErpShell';
 import '../theme/mobile-theme.css';
 
@@ -25,6 +26,8 @@ export const MobileShell = () => {
   const fullscreen =
     /^\/app\/chat\/.+/.test(pathname) ||
     /^\/app\/bots\/.+/.test(pathname);
+
+  useEffect(() => startWaouhResync(), []);
 
   useEffect(() => {
     (async () => {
