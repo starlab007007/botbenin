@@ -58,15 +58,16 @@ reply = str((r or {}).get('reply', '')) if isinstance(r, dict) else ''
 check(st == 200 and ('Aucune discussion terminée' in reply or 'Discussion fermée' in reply), 'FERMER compris', reply[:100].replace('\n', ' '))
 
 # 5. Parcours réels A / B / C (vrais handlers)
-st, res = request(base + 'waouh-e2e-test', {'mode': 'parcours', 'parcours': ['A', 'B', 'C']}, H, timeout=400)
-check(st == 200 and isinstance(res, dict), 'exécution des parcours A/B/C', f'HTTP {st}')
-if isinstance(res, dict):
-    for p in res.get('results', []):
-        print(f"\n— Parcours {p['parcours']} · {p['label']} → {p['status']}")
-        for s in p['steps']:
-            line = f"   {'✅' if s['status']=='ok' else ('⚠️' if s['status']=='warn' else '❌')} {s['step']} : {s['got']}"[:230]
-            print(line); report.append(line)
-        check(p['status'] == 'ok', f"parcours {p['parcours']} ({p['label']})")
+for letter in ['A', 'B', 'C']:
+    st, res = request(base + 'waouh-e2e-test', {'mode': 'parcours', 'parcours': [letter]}, H, timeout=170)
+    check(st == 200 and isinstance(res, dict), f'exécution du parcours {letter}', f'HTTP {st}')
+    if isinstance(res, dict):
+        for p in res.get('results', []):
+            print(f"\n— Parcours {p['parcours']} · {p['label']} → {p['status']}")
+            for s_ in p['steps']:
+                line = f"   {'✅' if s_['status']=='ok' else ('⚠️' if s_['status']=='warn' else '❌')} {letter}.{s_['step']} : {s_['got']}"[:230]
+                print(line); report.append(line)
+            check(p['status'] == 'ok', f"parcours {p['parcours']} ({p['label']})")
 
 # 6. Hygiène de la file d'envoi (24 h) : échecs « numéro invalide / sans WhatsApp »
 st, rows = request(management + '/database/query', {'query': "select coalesce(left(last_error,40),'-') e, count(*) n from waouh_outbound_queue where created_at > now() - interval '24 hours' and status='failed' and coalesce(last_error,'') not like 'e2e%' group by 1 order by 2 desc limit 8"},
@@ -78,6 +79,6 @@ def emit(lines, level):
     print('::' + level + ' title=Readiness::' + text, flush=True)
 bad = [l for l in report if l.startswith('❌') or '❌' in l[:6]]
 if bad: emit(bad, 'error')
-emit([l for l in report if l not in bad][:60], 'notice')
+emit([l for l in report if l not in bad and not l.startswith('✅ fonction active')][:60], 'notice')
 print('\nRÉSULTAT :', 'PRÊT' if not failures else 'À CORRIGER → ' + '; '.join(failures))
 sys.exit(1 if failures else 0)
