@@ -2,7 +2,10 @@ import { WaouhExternalExchangeDisclosure } from '@/components/waouh/WaouhExterna
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
-import { WaouhDiscoveryCoverage, type DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
+import type { DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
+import { buildSummary, externalSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import "@/components/waouh/waouh-message-text.css";
 import { WaouhJourneyProgress } from "@/components/waouh/WaouhJourneyProgress";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -101,24 +104,21 @@ const avatarMarketIntelligence = (item: NexusDiscoveryResult) => {
   const explicitRecommendation = evidenceText(item, ["recommendation", "recommandation", "advice", "conseil", "ai_note"]);
   const details = evidenceText(item, ["details", "description", "summary", "raw_text"]);
   const reasons = item.scores?.reasons || [];
-  const source = sourceLabel(item.source_key);
   const priceFacts = [
     item.price_min != null || item.price_max != null
       ? `prix observé ${Math.round(item.price_min ?? item.price_max ?? 0)}${item.price_max != null && item.price_min != null && item.price_max !== item.price_min ? `–${Math.round(item.price_max)}` : ""} FCFA`
       : null,
     item.scores?.price_score != null ? `score prix ${Math.round(item.scores.price_score)}%` : null,
-    `source ${source}`,
   ].filter(Boolean).join(" · ");
   const comparison = [
     item.scores?.total_score != null ? `match ${Math.round(item.scores.total_score)}%` : null,
     item.scores?.relevance_score != null ? `pertinence ${Math.round(item.scores.relevance_score)}%` : null,
     item.scores?.trust_score != null ? `confiance ${Math.round(item.scores.trust_score)}%` : null,
-    `contact ${item.contact_policy.level}`,
   ].filter(Boolean).join(" · ");
   return {
-    details: details || [item.category, item.city].filter(Boolean).join(" · ") || "Aucun détail complémentaire n’est fourni par la source.",
+    details: details || [item.category, item.city].filter(Boolean).join(" · ") || "Détails à confirmer avec le vendeur.",
     market: explicitMarket || priceFacts,
-    comparison: explicitComparison || `Signal Fabric · ${comparison}`,
+    comparison: explicitComparison || comparison,
     recommendation:
       explicitRecommendation ||
       reasons.slice(0, 3).join(" · ") ||
@@ -126,15 +126,10 @@ const avatarMarketIntelligence = (item: NexusDiscoveryResult) => {
   };
 };
 
-const sourceLabel = (key?: string | null) => {
-  const value = String(key || "").toLowerCase();
-  if (value.includes("partner")) return "Partenaire";
-  if (value.includes("radar")) return "Radar";
-  if (value.includes("whatsapp")) return "WhatsApp";
-  if (value.includes("facebook")) return "Facebook";
-  if (value.includes("google")) return "Google";
-  if (value.includes("agent")) return "Agent IA";
-  return "NEXUS";
+const SUGGESTIONS: Record<string, string[]> = {
+  acheter: ["iPhone 13 Cotonou", "Moto d’occasion", "Climatiseur 12000 BTU"],
+  vendre: ["Mon téléphone", "Ma moto", "Mon réfrigérateur"],
+  demander: ["Plombier à Cotonou", "Livreur fiable", "Traiteur pour 50 personnes"],
 };
 
 const canonicalDealCandidate = (item: NexusDiscoveryResult) => {
@@ -271,10 +266,6 @@ export default function WaouhAvatarCommercePage() {
     } finally { setJourneysBusy(false); }
   };
 
-  const sources = useMemo(
-    () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
-    [sourceMix]
-  );
 
   const searchVersion = useRef(0);
   useEffect(() => {
@@ -283,10 +274,18 @@ export default function WaouhAvatarCommercePage() {
     return () => { searchVersion.current += 1; };
   }, [mode]);
 
+  const feed = useReasoningFeed();
+  const [reasonSummary, setReasonSummary] = useState<ReasonSummary | null>(null);
+  useEffect(() => { feed.reset(); setReasonSummary(null); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const search = async () => {
     const query = goal.trim();
     if (!query || busy) return;
     const version = ++searchVersion.current;
+    const ctx = { query, city: city.trim() || undefined, budget: Number(budget) || null };
+    feed.reset();
+    setReasonSummary(null);
+    feed.push(planSteps(ctx));
     setBusy(true);
     try {
       const response = await progressiveNexusDiscovery({
@@ -310,8 +309,13 @@ export default function WaouhAvatarCommercePage() {
       setSearchCompleted(true);
       setSourceMix(response.source_mix || {});
       setRationale(response.intelligence?.rationale || response.explanation || "");
+      const found = { results: response.results || [], source_mix: response.source_mix, refresh: response.refresh as any };
+      const summary = buildSummary(null, found, ctx);
+      setReasonSummary(summary);
+      feed.push([...externalSteps(found, ctx), summaryStep(summary, ctx)]);
     } catch (error: any) {
       if (version !== searchVersion.current) return;
+      feed.push([{ id: "search-error", tone: "warn", text: "La recherche n’a pas abouti. Réessayez dans un instant." }]);
       toast({
         title: "Recherche indisponible",
         description: userFacingErrorText(error, "load"),
@@ -540,54 +544,62 @@ export default function WaouhAvatarCommercePage() {
       </Dialog>
 
       <div className="mx-auto w-full max-w-5xl space-y-3 px-3 py-3 sm:px-5">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="rounded-2xl" onClick={() => navigate("/app/avatar")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-lg shadow-blue-500/15">
-            <Sparkles className="h-5 w-5" />
+        <header className="relative overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-violet-50/80 p-4 shadow-[0_24px_60px_-40px_rgba(37,99,235,.55)] sm:p-5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button type="button" aria-label="Retour" onClick={() => navigate("/app/avatar")} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-white text-slate-600 shadow-sm active:scale-95">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <BotLiveAvatar size="clamp(64px, 16vw, 96px)" state={busy || feed.pending > 0 ? "thinking" : results.length ? "talking" : "idle"} />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[clamp(20px,5vw,30px)] font-black leading-none tracking-tight text-slate-950">{copy.title}</h1>
+              <p className="mt-2 inline-block max-w-full rounded-2xl rounded-tl-sm border border-blue-100 bg-white/90 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-sm" aria-live="polite">
+                {busy ? "Je cherche pour vous…" : results.length ? `${results.length} option${results.length > 1 ? "s" : ""} trouvée${results.length > 1 ? "s" : ""}.` : copy.subtitle}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-black text-slate-950">{copy.title}</h1>
-            <p className="truncate text-[11px] font-semibold text-slate-500">Recherche · Comparaison · Contact protégé</p>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <Textarea
+              aria-label="Votre besoin"
+              rows={1}
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void search(); } }}
+              placeholder={mode === "acheter" ? "Quel produit cherchez-vous ?" : mode === "vendre" ? "Que souhaitez-vous vendre ?" : "De quoi avez-vous besoin ?"}
+              className="min-h-[48px] flex-1 resize-none rounded-2xl border-blue-100 bg-white"
+            />
+            <Button onClick={() => void search()} disabled={busy || !goal.trim()} className="h-12 shrink-0 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 font-black text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700">
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              {copy.cta}
+            </Button>
           </div>
-        </div>
+          {!goal.trim() && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {SUGGESTIONS[mode].map((chip) => (
+                <button key={chip} type="button" onClick={() => setGoal(chip)} className="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-bold text-blue-700 shadow-sm active:scale-95">{chip}</button>
+              ))}
+            </div>
+          )}
+          <details className="mt-2">
+            <summary className="flex min-h-9 cursor-pointer items-center gap-1.5 text-[11px] font-bold text-slate-500">Ville · Budget</summary>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Input value={city} onChange={(e) => setCity(e.target.value)} aria-label="Ville (facultative)" placeholder="Ville" className="rounded-xl bg-white" />
+              <Input value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} aria-label="Budget ou prix en FCFA" placeholder="Budget FCFA" inputMode="numeric" className="rounded-xl bg-white" />
+            </div>
+          </details>
+        </header>
 
-        <section className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-3">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
-          <div className="min-w-0">
-            <p className="text-xs leading-relaxed text-slate-600">{copy.subtitle}</p>
-            <p className="mt-1 text-[11px] font-medium text-blue-700">Contact protégé · Paiement après livraison</p>
-          </div>
-        </section>
+        <WaouhReasoningFeed
+          steps={feed.shown}
+          running={busy}
+          pending={feed.pending}
+          summary={reasonSummary}
+          onSkip={feed.skip}
+        />
 
-        <section className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
-          <Textarea
-            aria-label="Votre besoin"
-            rows={2}
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            placeholder={
-              mode === "acheter"
-                ? "Quel produit cherchez-vous ?"
-                : mode === "vendre"
-                  ? "Que souhaitez-vous vendre ?"
-                  : "De quoi avez-vous besoin ?"
-            }
-            className="min-h-[64px] resize-y rounded-xl"
-          />
-          <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-slate-600">Préciser · Ville et budget</summary><div className="grid grid-cols-2 gap-2">
-            <Input value={city} onChange={(e) => setCity(e.target.value)} aria-label="Ville (facultative)" placeholder="Ville" className="rounded-xl" />
-            <Input value={budget} onChange={(e) => setBudget(e.target.value)} aria-label="Budget ou prix en FCFA" placeholder="Budget FCFA" inputMode="numeric" className="rounded-xl" />
-          </div></details>
-          <Button onClick={() => void search()} disabled={busy || !goal.trim()} className="mt-2 h-11 w-full rounded-xl">
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-            {copy.cta}
-          </Button>
-        </section>
-
-        <section className="rounded-[20px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/70 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
+        <details className="group rounded-[22px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-blue-50/70 p-4 shadow-sm" open={!!activeMandate}>
+          <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden"><span className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white"><Zap className="h-4 w-4" /></span><span className="flex-1 text-sm font-black text-slate-950">Mission automatique <span className="font-semibold text-slate-500">· 72 h</span></span><span className="text-[11px] font-bold text-violet-700 group-open:hidden">Ouvrir</span></summary>
+          <div className="mt-3 hidden items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
               <Zap className="h-5 w-5" />
             </div>
@@ -792,7 +804,7 @@ export default function WaouhAvatarCommercePage() {
               </p>
             </div>
           )}
-        </section>
+        </details>
 
         {(journeysBusy || journeys.length > 0) && (
           <section className="rounded-[20px] border border-blue-100 bg-white p-4 shadow-sm">
@@ -825,27 +837,6 @@ export default function WaouhAvatarCommercePage() {
           </section>
         )}
 
-        {busy && searchCompleted && <p role="status" className="text-xs text-blue-700">Offres indexées affichées · exploration des autres sources en cours…</p>}
-        {searchCompleted && <WaouhDiscoveryCoverage refresh={refreshCoverage} count={results.length} />}
-
-        {(rationale || sources.length > 0) && (
-          <section className="rounded-[22px] border border-blue-100 bg-blue-50/60 p-4">
-            <div className="flex items-center gap-2 text-xs font-black text-slate-950">
-              <Sparkles className="h-4 w-4 text-blue-600" /> Votre Avatar a étudié le marché
-            </div>
-            {rationale && <p className="mt-2 text-[11px] font-semibold text-slate-600">{rationale}</p>}
-            {sources.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {sources.slice(0, 8).map(([source, count]) => (
-                  <Badge key={source} variant="outline" className="rounded-full bg-white text-[10px]">
-                    {sourceLabel(source)} · {count}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
         <div className="space-y-3">
           <WaouhOfferComparison results={results} />
           {results.map((item, index) => {
@@ -865,11 +856,8 @@ export default function WaouhAvatarCommercePage() {
                     <h3 className="line-clamp-2 text-sm font-semibold text-slate-950">{item.subject || item.raw_text || "Opportunité WAOUH"}</h3>
                     {(item.price_min != null || item.price_max != null) && <p className="mt-1 text-base font-semibold text-emerald-700">{Math.round(item.price_min ?? item.price_max ?? 0).toLocaleString("fr-FR")} FCFA</p>}
                     <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-500">
-                      <span>{sourceLabel(item.source_key)}</span>
-                      {item.city && <span>· {item.city}</span>}
-                      <span>· {item.contact_policy.level}</span>
-                      {(item.readiness_level || item.contact_pack?.readiness_level) && <span>· {item.readiness_level || item.contact_pack?.readiness_level}</span>}
-                      {item.actionability_score != null && <span>· Action {Math.round(item.actionability_score)}%</span>}
+                      {item.city && <span>📍 {item.city}</span>}
+                      {item.actionability_score != null && <span>· Prêt à {Math.round(item.actionability_score)}%</span>}
                     </div>
                   </div>
                   {item.scores?.total_score != null && <div className="shrink-0 text-xs font-semibold text-blue-600">{Math.round(item.scores.total_score)}%</div>}
@@ -890,13 +878,13 @@ export default function WaouhAvatarCommercePage() {
                 )}
 
                 <details className="waouh-message-details mt-2 rounded-xl border border-slate-200 px-3">
-                  <summary>Détails et analyse</summary>
+                  <summary>Analyse de Bot</summary>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {[
                     ["Détails", intelligence.details, "bg-slate-50 text-slate-800"],
-                    ["Marché réel", intelligence.market, "bg-emerald-50/70 text-emerald-950"],
+                    ["Prix observé", intelligence.market, "bg-emerald-50/70 text-emerald-950"],
                     ["Analyse comparative", intelligence.comparison, "bg-blue-50/70 text-blue-950"],
-                    ["Pourquoi WAOUH recommande", intelligence.recommendation, "bg-amber-50/80 text-amber-950"],
+                    ["Conseil de Bot", intelligence.recommendation, "bg-amber-50/80 text-amber-950"],
                   ].map(([label, value, tone]) => (
                     <div key={label} className={`rounded-2xl p-3 ${tone}`}>
                       <div className="text-[9px] font-bold uppercase tracking-wide opacity-65">{label}</div>
@@ -907,7 +895,7 @@ export default function WaouhAvatarCommercePage() {
 
                 <div className="mt-3 flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-[10px] font-semibold text-slate-600">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-blue-600" />
-                  La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
+                  Contact protégé : vos coordonnées restent privées.
                 </div>
                 </details>
 
