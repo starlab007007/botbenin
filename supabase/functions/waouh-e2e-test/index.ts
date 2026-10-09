@@ -633,11 +633,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Exécution automatisée (GitHub Actions « production-readiness ») : la clé service_role, déjà toute-puissante, est acceptée.
+    const isServiceCaller = authHeader === `Bearer ${SERVICE_ROLE}`;
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    const { data: { user }, error: authError } = isServiceCaller
+      ? { data: { user: { id: "service_role" } as any }, error: null }
+      : await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ ok: false, error: "AUTH_REQUIRED" }), {
         status: 401,
@@ -648,7 +652,7 @@ Deno.serve(async (req) => {
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const [adminRole, superRole] = await Promise.all([
+    const [adminRole, superRole] = isServiceCaller ? [{ data: true }, { data: true }] : await Promise.all([
       sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
       sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
     ]);

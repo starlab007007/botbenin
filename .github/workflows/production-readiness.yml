@@ -1,0 +1,25 @@
+name: WAOUH production readiness
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: waouh-production-readiness
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: '2.117.0'
+      - name: Deploy the end-to-end test runner
+        run: |
+          printf 'project_id = "%s"\n[api]\nenabled = true\nport = 54321\n[edge_runtime]\nenabled = true\npolicy = "per_worker"\n' "$SUPABASE_PROJECT_REF" > supabase/config.toml
+          supabase functions deploy waouh-e2e-test --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+      - name: Production readiness checks
+        run: python3 scripts/verify-production-readiness.py
