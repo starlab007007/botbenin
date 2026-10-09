@@ -21,6 +21,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCreated?: (agentId: string) => void;
+  initialTemplateId?: string | null;
 }
 
 type Product = { name: string; price_fcfa?: number | null; description?: string | null; _tempId?: string };
@@ -35,7 +36,7 @@ type PartnerBusiness = { id: string; nom_entreprise: string; code_court: string 
 
 const STEPS = ["Type & Secteur", "Personnalité", "Contenu", "Connaissances", "Test", "Connexion"];
 
-export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
+export function CreateAgentWizard({ open, onClose, onCreated, initialTemplateId }: Props) {
   const { toast } = useToast();
   const { accounts } = useWhatsAppAccounts();
   const { partner } = useWaouhPartner();
@@ -87,6 +88,12 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
   const [previewMsgs, setPreviewMsgs] = useState<Array<{ role: string; content: string }>>([]);
   const [previewInput, setPreviewInput] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !initialTemplateId) return;
+    const wanted = SECTOR_TEMPLATES.find((t) => t.id === initialTemplateId);
+    if (wanted) setTemplate(wanted);
+  }, [open, initialTemplateId]);
 
   useEffect(() => {
     setPersonaName(template.persona.name);
