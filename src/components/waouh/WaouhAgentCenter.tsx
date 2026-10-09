@@ -188,20 +188,20 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
   const activeMissionCount = data.missions.filter((mission) => !["completed", "cancelled", "failed"].includes(mission.status)).length;
   const activeWatchCount = data.watches.filter((watch) => ["active", "paused", "triggered"].includes(watch.status)).length;
 
-if (standalone) {
+  if (standalone || embedded) {
     const triggeredWatches = data.watches.filter((watch) => watch.status === "triggered").length;
     const next = !user ? null
       : pendingCount > 0 ? { tone: "amber", title: `${pendingCount} action${pendingCount > 1 ? "s" : ""} attend${pendingCount > 1 ? "ent" : ""} votre validation`, hint: "L’Avatar attend votre décision.", cta: "Valider maintenant", go: () => setTab("approvals") }
       : triggeredWatches > 0 ? { tone: "emerald", title: `${triggeredWatches} veille${triggeredWatches > 1 ? "s ont" : " a"} déclenché une alerte`, hint: "Le prix ou la disponibilité a changé.", cta: "Voir les veilles", go: () => setTab("watches") }
       : activeMissionCount === 0 ? { tone: "cyan", title: "Lancez votre première mission", hint: "WAOUH compare, contacte et négocie pour vous.", cta: "Créer une mission", go: () => { setTab("missions"); window.setTimeout(() => { const el = document.getElementById("mission-goal"); el?.scrollIntoView({ behavior: "smooth", block: "center" }); (el as HTMLTextAreaElement | null)?.focus({ preventScroll: true }); }, 80); } }
       : { tone: "emerald", title: `${activeMissionCount} mission${activeMissionCount > 1 ? "s" : ""} en cours — tout est sous contrôle`, hint: "Suivez chaque contact et relance.", cta: "Voir l’activité", go: () => setTab("activity") };
-    const toneClass = next?.tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-950" : next?.tone === "cyan" ? "border-cyan-200 bg-cyan-50 text-cyan-950" : "border-emerald-200 bg-emerald-50 text-emerald-950";
+    const toneClass = next?.tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-950" : next?.tone === "cyan" ? "border-blue-200 bg-blue-50 text-blue-950" : "border-blue-200 bg-blue-50 text-blue-950";
     return (
-      <section className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_80%_0%,rgba(14,165,164,0.08),transparent_30%),linear-gradient(180deg,#f8fbfb_0%,#ffffff_38%)]">
-        <div className="mx-auto w-full max-w-7xl space-y-3 p-3 pb-[calc(var(--shell-bottom,64px)+20px)] sm:space-y-4 sm:p-4 lg:p-5">
+      <section className={embedded ? "" : "min-h-full bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]"}>
+        <div className={embedded ? "space-y-3 sm:space-y-4" : "mx-auto w-full max-w-7xl space-y-3 p-3 pb-[calc(var(--shell-bottom,64px)+20px)] sm:space-y-4 sm:p-4 lg:p-5"}>
           {!embedded && (
-          <div className="relative overflow-hidden rounded-[24px] border border-emerald-200/70 bg-gradient-to-br from-[#062f2a] via-[#075f54] to-[#0f8d7d] p-4 text-white shadow-[0_24px_70px_-34px_rgba(5,95,86,.65)] sm:rounded-[28px] sm:p-6">
-            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-cyan-300/15 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[24px] border border-blue-200/70 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-4 text-white shadow-[0_24px_70px_-34px_rgba(37,99,235,.55)] sm:rounded-[28px] sm:p-6">
+            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-300/15 blur-3xl" />
             <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(340px,.7fr)] lg:items-end">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -211,7 +211,7 @@ if (standalone) {
                 <h1 className="text-xl font-black leading-[1.1] tracking-[-0.03em] sm:text-3xl">Missions & veille</h1>
                 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button asChild size="sm" className="min-h-[40px] rounded-xl bg-white text-emerald-900 hover:bg-emerald-50"><Link to="/app/muse"><Sparkles className="mr-2 h-4 w-4" />Ouvrir Muse</Link></Button>
+                  <Button asChild size="sm" className="min-h-[40px] rounded-xl bg-white text-blue-900 hover:bg-blue-50"><Link to="/app/muse"><Sparkles className="mr-2 h-4 w-4" />Ouvrir Muse</Link></Button>
                   <Button asChild size="sm" variant="outline" className="min-h-[40px] rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"><Link to="/app/chat/waouh">Retour au chat</Link></Button>
                   {user && <Button size="sm" variant="ghost" disabled={loading} onClick={() => void refresh()} className="min-h-[40px] rounded-xl text-white hover:bg-white/10 hover:text-white"><RefreshCw className={loading ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />Actualiser</Button>}
                 </div>
@@ -224,7 +224,7 @@ if (standalone) {
                   { label: "Activité", value: activityCount, icon: Activity, go: "activity" },
                 ].map(({ label, value, icon: Icon, go }) => (
                   <button key={label} type="button" onClick={() => user && setTab(go)} className="rounded-2xl border border-white/10 bg-white/[0.07] p-2.5 text-left transition active:scale-95 sm:p-3">
-                    <Icon className="h-4 w-4 text-emerald-100" />
+                    <Icon className="h-4 w-4 text-blue-100" />
                     <div className="mt-1.5 text-lg font-black sm:text-xl">{value}</div>
                     <div className="truncate text-[9px] font-bold uppercase tracking-wide text-white/60">{label}</div>
                   </button>
@@ -234,7 +234,7 @@ if (standalone) {
           </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className={embedded ? "grid gap-3" : "grid gap-3 md:grid-cols-2"}>
             {next && (
               <div className={`flex items-center gap-3 rounded-2xl border p-3.5 shadow-sm ${toneClass}`} role="status">
                 <div className="min-w-0 flex-1">
@@ -245,7 +245,8 @@ if (standalone) {
                 <Button size="sm" onClick={next.go} className="min-h-[44px] shrink-0 rounded-xl">{next.cta}</Button>
               </div>
             )}
-            <div className={`rounded-2xl border border-emerald-200 bg-white p-3.5 shadow-sm ${next ? "" : "md:col-span-2"}`}>
+            {!embedded && (
+            <div className={`rounded-2xl border border-blue-200 bg-white p-3.5 shadow-sm ${next ? "" : "md:col-span-2"}`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#25D366] text-white"><MessageCircle className="h-5 w-5" /></div>
                 <div className="min-w-0 flex-1">
@@ -260,10 +261,11 @@ if (standalone) {
                 ))}
               </div>
             </div>
+            )}
           </div>
 
           <div className="rounded-[22px] border border-slate-200 bg-white p-2.5 shadow-[0_20px_55px_-38px_rgba(15,23,42,.35)] sm:rounded-[24px] sm:p-4">
-{!user ? <div className="m-5 rounded-xl border bg-muted/30 p-5 text-center"><ShieldCheck className="mx-auto mb-2 h-8 w-8 text-cyan-600" /><h3 className="font-semibold">Connexion requise</h3><p className="mt-1 text-sm text-muted-foreground">Vos missions et règles vendeur sont privées et liées à votre compte.</p><Button asChild className="mt-4"><Link to="/auth">Se connecter</Link></Button></div> :
+{!user ? <div className="m-5 rounded-xl border bg-muted/30 p-5 text-center"><ShieldCheck className="mx-auto mb-2 h-8 w-8 text-blue-600" /><h3 className="font-semibold">Connexion requise</h3><p className="mt-1 text-sm text-muted-foreground">Vos missions et règles vendeur sont privées et liées à votre compte.</p><Button asChild className="mt-4"><Link to="/auth">Se connecter</Link></Button></div> :
         <Tabs value={tab} onValueChange={setTab} className="p-0">
           <TabsList className="sticky top-0 z-10 flex h-auto w-full snap-x justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50/95 p-1 backdrop-blur [scrollbar-width:none] sm:grid sm:grid-cols-5">
             <TabsTrigger value="missions" className="min-h-[44px] shrink-0 snap-start gap-1.5 rounded-xl px-3 py-2 text-xs font-black sm:px-2"><Bot className="h-3.5 w-3.5" />Missions{activeMissionCount > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[9px]">{activeMissionCount}</Badge>}</TabsTrigger>
@@ -274,25 +276,25 @@ if (standalone) {
           </TabsList>
 
           <TabsContent value="missions" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div id="mission-composer" className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-cyan-600" />Nouvelle mission d’achat</h3><div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">{MISSION_TEMPLATES.map((template) => <button key={template.label} type="button" onClick={() => { setMissionGoal(template.goal); if (template.city) setMissionCity((current) => current || template.city); }} className="min-h-[36px] shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-bold text-emerald-900 active:scale-95">{template.label}</button>)}</div><div className="space-y-2"><Textarea id="mission-goal" value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><Input value={missionCity} onChange={(event) => setMissionCity(event.target.value)} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div></div>
+            <div id="mission-composer" className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-blue-600" />Nouvelle mission d’achat</h3><div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">{MISSION_TEMPLATES.map((template) => <button key={template.label} type="button" onClick={() => { setMissionGoal(template.goal); if (template.city) setMissionCity((current) => current || template.city); }} className="min-h-[36px] shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-bold text-blue-900 active:scale-95">{template.label}</button>)}</div><div className="space-y-2"><Textarea id="mission-goal" value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><Input value={missionCity} onChange={(event) => setMissionCity(event.target.value)} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-blue-600 text-white hover:bg-blue-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div></div>
             <div className="min-w-0 space-y-3">{!blocks.missions.length && !loading && <Empty text="Aucune mission. Choisissez un modèle." />}
             <WaouhAgentBlocks blocks={blocks.missions} onAction={action} busy={!!busyAction} /></div>
           </TabsContent>
 
           <TabsContent value="watches" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-cyan-600" />Nouvelle veille</h3><div className="space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div></div>
+            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-blue-600" />Nouvelle veille</h3><div className="space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div></div>
             <div className="min-w-0 space-y-3">{!blocks.watches.length && !loading && <Empty text="Aucune veille active." />}
             <WaouhAgentBlocks blocks={blocks.watches} onAction={action} busy={!!busyAction} /></div>
           </TabsContent>
 
           <TabsContent value="approvals" className="mt-4 space-y-3">
-            <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-xs text-cyan-900 dark:border-cyan-900 dark:bg-cyan-950/20 dark:text-cyan-100">Chaque validation concerne une action précise. Jamais de paiement.</div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-100">Chaque validation concerne une action précise. Jamais de paiement.</div>
             {!blocks.approvals.length && !loading && <Empty text="Rien à valider." />}
             <WaouhAgentBlocks blocks={blocks.approvals} onAction={action} busy={!!busyAction} />
           </TabsContent>
 
           <TabsContent value="seller" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4 text-cyan-600" />Règles de l’agent vendeur</h3><div className="space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div></div>
+            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4 text-blue-600" />Règles de l’agent vendeur</h3><div className="space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div></div>
             <div className="min-w-0 space-y-3"><h3 className="text-sm font-semibold">Offres structurées</h3>
             {!blocks.offers.length && !loading && <Empty text="Aucune offre en cours." />}
             <WaouhAgentBlocks blocks={blocks.offers} onAction={action} busy={!!busyAction} /></div>

@@ -46,7 +46,7 @@ function Stat({ icon: Icon, value, label }: { icon: typeof Bot; value: number; l
   return (
     <div className="flex min-w-0 flex-col items-start rounded-2xl border border-slate-200/80 bg-white px-3 py-2 shadow-sm">
       <div className="flex w-full items-center justify-between">
-        <Icon className="h-3.5 w-3.5 text-emerald-700" />
+        <Icon className="h-3.5 w-3.5 text-blue-700" />
         <span className="text-lg font-black leading-none tracking-tight text-slate-900">{value}</span>
       </div>
       <div className="mt-1 w-full truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
@@ -54,7 +54,9 @@ function Stat({ icon: Icon, value, label }: { icon: typeof Bot; value: number; l
   );
 }
 
-export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => void }) {
+export type NexusActivity = { state: "idle" | "thinking" | "talking"; line: string };
+
+export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: string) => void; onActivity?: (activity: NexusActivity) => void }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tab, setTab] = useState("buy");
@@ -85,6 +87,15 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
   useEffect(() => {
     void refreshSummary();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!onActivity) return;
+    if (searching) onActivity({ state: "thinking", line: "Je cherche et je compare les offres…" });
+    else if (sellerLoading) onActivity({ state: "thinking", line: "J’analyse vos articles…" });
+    else if (busy) onActivity({ state: "thinking", line: "Je m’en occupe…" });
+    else if (searchResult) onActivity({ state: "talking", line: searchResult.results.length ? `J’ai trouvé ${searchResult.results.length} option(s) pour vous.` : "Rien d’assez proche, activons une veille ?" });
+    else onActivity({ state: "idle", line: "Dites-moi ce que vous cherchez." });
+  }, [searching, sellerLoading, busy, searchResult, onActivity]);
 
   const marketText = useMemo(() => {
     const market = searchResult?.market;
@@ -211,7 +222,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
   if (!user) {
     return (
       <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center">
-        <BrainCircuit className="mx-auto h-9 w-9 text-emerald-600" />
+        <BrainCircuit className="mx-auto h-9 w-9 text-blue-600" />
         <h2 className="mt-2 font-black text-slate-900">Connexion requise</h2>
         <p className="mt-1 text-sm text-slate-500">Missions, veilles et opportunités sont liées à votre compte.</p>
         <Button asChild className="mt-4 rounded-xl"><a href="/auth">Se connecter</a></Button>
@@ -247,7 +258,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
         <TabsContent value="buy" className="mt-0 space-y-3 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_18px_50px_-36px_rgba(15,23,42,.4)] lg:sticky lg:top-3">
             <div className="mb-3 flex items-center gap-2.5">
-              <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white"><Sparkles className="h-4 w-4" /></div>
+              <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white"><Sparkles className="h-4 w-4" /></div>
               <h3 className="text-sm font-black text-slate-900">Trouver pour moi</h3>
             </div>
             <Textarea
@@ -258,14 +269,14 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
             />
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
               {SUGGESTIONS.map((item) => (
-                <button key={item} type="button" onClick={() => setQuery(item)} className="min-h-[34px] shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-bold text-emerald-900 active:scale-95">{item}</button>
+                <button key={item} type="button" onClick={() => setQuery(item)} className="min-h-[34px] shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-bold text-blue-900 active:scale-95">{item}</button>
               ))}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Input value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-xl" />
               <Input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville" className="h-11 rounded-xl" />
             </div>
-            <Button className="mt-3 h-12 w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 font-black text-white shadow-lg shadow-emerald-600/20 hover:from-emerald-700 hover:to-teal-700" disabled={searching || !query.trim()} onClick={() => void runSearch()}>
+            <Button className="mt-3 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-black text-white shadow-lg shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700" disabled={searching || !query.trim()} onClick={() => void runSearch()}>
               {searching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
               Chercher et comparer
             </Button>
@@ -320,7 +331,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
                           </div>
                           <div>
                             <div className="flex justify-between text-[10px] font-bold text-slate-500"><span>{nexusScoreLabel(item.scores.total_score)}</span><span>{score}%</span></div>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-600" style={{ width: `${score}%` }} /></div>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-600" style={{ width: `${score}%` }} /></div>
                           </div>
                           {item.advice && <p className="line-clamp-2 text-[11px] leading-relaxed text-slate-500">{item.advice}</p>}
                           <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
@@ -344,7 +355,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
         <TabsContent value="sell" className="mt-0 space-y-3">
           <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><Users className="h-4 w-4" /></div>
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Users className="h-4 w-4" /></div>
               <div className="min-w-0">
                 <h3 className="text-sm font-black text-slate-900">Acheteurs compatibles</h3>
                 <p className="truncate text-[11px] text-slate-500">Vos articles face aux demandes actives.</p>
@@ -395,7 +406,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
         <TabsContent value="brain" className="mt-0">
           <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex items-center gap-2.5">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white"><BrainCircuit className="h-5 w-5" /></div>
+              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white"><BrainCircuit className="h-5 w-5" /></div>
               <div>
                 <h3 className="text-sm font-black text-slate-900">Copilote NEXUS</h3>
                 <p className="text-[11px] text-slate-500">L’IA classe et surveille, vous décidez.</p>
@@ -403,7 +414,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               {[
-                { icon: CheckCircle2, color: "text-emerald-600", title: "Prix intelligent", text: "Médiane et écart marché." },
+                { icon: CheckCircle2, color: "text-blue-600", title: "Prix intelligent", text: "Médiane et écart marché." },
                 { icon: ShieldCheck, color: "text-cyan-600", title: "Confiance", text: "Réputation et historique." },
                 { icon: Target, color: "text-violet-600", title: "Matching continu", text: "Offres et demandes rapprochées." },
               ].map(({ icon: Icon, color, title, text }) => (
