@@ -3,7 +3,7 @@ import { openNewChat } from "@/lib/waouh/newChat";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, BrainCircuit, FlaskConical, Globe2, LockKeyhole, Sparkles, Workflow } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WaouhGlobalDiscoveryPanel } from "@/components/waouh/WaouhGlobalDiscoveryPanel";
@@ -37,30 +37,22 @@ export default function WaouhNexusPage() {
   return (
     <main className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,.08),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#ffffff_55%)]">
       <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-5 sm:px-6">
-        <div className="flex items-center gap-3">
-          <Button type="button" variant="ghost" size="icon" className="rounded-2xl" onClick={() => navigate("/")}>
+        <header className="flex items-center gap-3 rounded-[28px] border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-violet-50/80 p-3 shadow-[0_24px_60px_-40px_rgba(37,99,235,.55)] sm:p-4">
+          <button type="button" aria-label="Retour" onClick={() => navigate("/")} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-white text-slate-600 shadow-sm active:scale-95">
             <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/15">
-            <Globe2 className="h-5 w-5" />
-          </div>
+          </button>
+          <BotLiveAvatar size="clamp(56px, 14vw, 84px)" state="idle" />
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-black text-slate-950">WAOUH NEXUS</h1>
-              <Badge variant="outline" className="border-cyan-200 bg-cyan-50 text-cyan-700">
-                <Sparkles className="mr-1 h-3 w-3" /> Signal Fabric
-              </Badge>
-            </div>
-            <p className="text-xs font-semibold text-slate-500">Le moteur de découverte de votre Avatar · trouver · comparer · contacter</p>
+            <h1 className="text-[clamp(18px,4.6vw,26px)] font-black leading-none tracking-tight text-slate-950">WAOUH NEXUS</h1>
+            <p className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-sm border border-blue-100 bg-white/90 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-sm">Je trouve, je compare, je contacte.</p>
           </div>
-          <Button type="button" variant="outline" className="rounded-xl" onClick={() => navigate("/app/avatar")}>
-            <BrainCircuit className="mr-2 h-4 w-4" />
-            Avatar
+          <Button type="button" variant="outline" className="h-10 shrink-0 rounded-2xl border-blue-100 bg-white px-3" onClick={() => navigate("/app/avatar")}>
+            <BrainCircuit className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Avatar</span>
           </Button>
-        </div>
+        </header>
 
         <Tabs value={tab} onValueChange={changeTab} className="space-y-3">
-          <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl border border-blue-100 bg-white p-1 shadow-sm">
             <TabsTrigger value="discover" className="rounded-xl font-bold">
               <Globe2 className="mr-2 h-4 w-4" /> Découvrir
             </TabsTrigger>

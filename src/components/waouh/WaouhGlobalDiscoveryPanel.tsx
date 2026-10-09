@@ -1,7 +1,8 @@
 import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
-import { WaouhDiscoveryCoverage } from "./WaouhDiscoveryCoverage";
+import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
+import { buildSummary, externalSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -116,6 +117,8 @@ export function WaouhGlobalDiscoveryPanel() {
   const [contactJourney, setContactJourney] = useState<NexusOpportunityJourney | null>(null);
   const [contactMessage, setContactMessage] = useState("");
   const [mandateBusy, setMandateBusy] = useState(false);
+  const feed = useReasoningFeed();
+  const [reasonSummary, setReasonSummary] = useState<ReasonSummary | null>(null);
 
   const liveSources = useMemo(
     () => (sources?.registry ?? []).filter((source) => source.operational_state === "live"),
@@ -142,6 +145,10 @@ export function WaouhGlobalDiscoveryPanel() {
     setSourceMix({});
     setContact(null);
     setContactJourney(null);
+    const ctx = { query: query.trim(), city: city.trim() || undefined, budget: Number(budget) || null };
+    feed.reset();
+    setReasonSummary(null);
+    feed.push(planSteps(ctx));
     try {
       const response = await progressiveNexusDiscovery({
         query: query.trim(),
@@ -164,6 +171,12 @@ export function WaouhGlobalDiscoveryPanel() {
       setRefreshState(response.refresh ?? {});
       setResolvedMode(response.mode);
       setIntelligence(response.intelligence ?? null);
+      {
+        const found = { results: response.results, source_mix: response.source_mix, refresh: (response.refresh ?? {}) as any };
+        const summary = buildSummary(null, found, ctx);
+        setReasonSummary(summary);
+        feed.push([...externalSteps(found, ctx), summaryStep(summary, ctx)]);
+      }
       if (mode === "auto" && response.intelligence?.city && !city.trim()) {
         setCity(response.intelligence.city);
       }
@@ -173,9 +186,9 @@ export function WaouhGlobalDiscoveryPanel() {
       if (!response.results.length) {
         toast({
           title: response.mode === "find_sellers"
-            ? "Aucun vendeur suffisamment proche pour l’instant"
-            : "Aucun acheteur suffisamment proche pour l’instant",
-          description: "Vous pouvez confier cette recherche à l’Avatar pour poursuivre la veille. Les sources indisponibles restent signalées sans bloquer le parcours.",
+            ? "Aucun vendeur assez proche pour l’instant"
+            : "Aucun acheteur assez proche pour l’instant",
+          description: "Confiez la recherche à Bot : il continue pour vous.",
         });
       }
       void loadSources();
@@ -327,173 +340,122 @@ export function WaouhGlobalDiscoveryPanel() {
   };
 
   return (
-    <Card className="overflow-hidden border-primary/20">
-      <CardContent className="space-y-4 p-3 sm:p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Globe2 className="h-4 w-4" />
-              WAOUH Global Discovery
-            </div>
-            <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-              Cherche l’offre pour la demande et la demande pour l’offre, à travers WAOUH, partenaires, Web public, Maps, signaux sociaux partagés, B2B et terrain.
-            </p>
-          </div>
-          <Badge variant="outline" className="gap-1">
-            <Wifi className="h-3 w-3" />{liveSources.length} source(s) live
-          </Badge>
-        </div>
-
+    <Card className="overflow-hidden rounded-[28px] border-blue-100 shadow-[0_24px_60px_-40px_rgba(37,99,235,.5)]">
+      <CardContent className="space-y-4 p-3 sm:p-5">
         <Tabs defaultValue="hunt">
-          <TabsList className="grid h-auto grid-cols-3">
-            <TabsTrigger value="hunt" className="gap-1 text-xs"><Search className="h-3.5 w-3.5" />Chercher partout</TabsTrigger>
-            <TabsTrigger value="share" className="gap-1 text-xs"><Share2 className="h-3.5 w-3.5" />Partager à WAOUH</TabsTrigger>
-            <TabsTrigger value="sources" className="gap-1 text-xs"><Radar className="h-3.5 w-3.5" />Sources</TabsTrigger>
+          <TabsList className="grid h-11 grid-cols-3 rounded-2xl bg-blue-50/70 p-1">
+            <TabsTrigger value="hunt" className="gap-1 rounded-xl text-xs font-bold"><Search className="h-3.5 w-3.5" />Chercher</TabsTrigger>
+            <TabsTrigger value="share" className="gap-1 rounded-xl text-xs font-bold"><Share2 className="h-3.5 w-3.5" />Partager</TabsTrigger>
+            <TabsTrigger value="sources" className="gap-1 rounded-xl text-xs font-bold"><Radar className="h-3.5 w-3.5" />Réseau</TabsTrigger>
           </TabsList>
 
           <TabsContent value="hunt" className="space-y-3">
-            <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/50 p-3 dark:border-cyan-900 dark:bg-cyan-950/20">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
-                <Sparkles className="h-4 w-4 text-cyan-600" />
-                Quel produit cherchez-vous ?
+            <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/60 to-violet-50/60 p-3 sm:p-4">
+              <div className="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Intention">
+                {([
+                  ["auto", "IA", Sparkles],
+                  ["find_sellers", "Acheter", Store],
+                  ["find_buyers", "Vendre", Users],
+                ] as const).map(([value, label, Icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === value}
+                    disabled={busy}
+                    onClick={() => { setMode(value as NexusDiscoveryMode); setIntelligence(null); }}
+                    className={`flex min-h-11 items-center justify-center gap-1.5 rounded-2xl text-xs font-black transition ${mode === value ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25" : "border border-blue-100 bg-white text-slate-600"}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />{label}
+                  </button>
+                ))}
               </div>
-              <div className="grid gap-2 sm:grid-cols-[200px_1fr]">
-                <Select disabled={busy} value={mode} onValueChange={(value) => { setMode(value as NexusDiscoveryMode); setIntelligence(null); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Mode IA · WAOUH décide</SelectItem>
-                    <SelectItem value="find_sellers">Je cherche à acheter</SelectItem>
-                    <SelectItem value="find_buyers">Je cherche à vendre</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="mt-3 flex gap-2">
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && void searchEverywhere()}
-                  placeholder={
-                    mode === "auto"
-                      ? "Ex. Je veux un S25 fiable à Cotonou / Je veux vendre 10 tonnes de soja"
-                      : mode === "find_sellers"
-                        ? "Ex. Samsung S25 256 Go, climatiseur 1,5 CV…"
-                        : "Ex. 10 tonnes soja, 50 sacs ciment…"
-                  }
+                  aria-label="Votre besoin"
+                  className="h-12 rounded-2xl border-blue-100 bg-white"
+                  placeholder={mode === "find_buyers" ? "Que vendez-vous ?" : mode === "find_sellers" ? "Que cherchez-vous ?" : "Achat, vente, service… dites-le"}
                 />
-                <details className="sm:col-span-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Préciser · Ville et budget</summary><div className="grid grid-cols-2 gap-2">
-                  <Input aria-label="Ville ou zone" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville / zone" />
-                  {mode !== "find_buyers" && <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" />}
-                </div></details>
               </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <Button className="min-h-11 w-full bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
-              {busy ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : mode === "auto" ? (
-                <Sparkles className="mr-2 h-4 w-4" />
-              ) : mode === "find_sellers" ? (
-                <Store className="mr-2 h-4 w-4" />
+
+              {!query.trim() ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {(mode === "find_buyers"
+                    ? ["10 tonnes de soja", "Mon téléphone", "50 sacs de ciment"]
+                    : mode === "find_sellers"
+                      ? ["Samsung S25 Cotonou", "Climatiseur 1,5 CV", "Moto d’occasion"]
+                      : ["Un S25 fiable à Cotonou", "Vendre 10 tonnes de soja", "Plombier à Porto-Novo"]
+                  ).map((chip) => (
+                    <button key={chip} type="button" onClick={() => setQuery(chip)} className="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-bold text-blue-700 shadow-sm active:scale-95">{chip}</button>
+                  ))}
+                </div>
               ) : (
-                <Users className="mr-2 h-4 w-4" />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-blue-500" />
+                    <Input aria-label="Ville ou zone" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville" className="h-11 rounded-2xl border-blue-100 bg-white pl-8" />
+                  </div>
+                  {mode !== "find_buyers" ? (
+                    <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-2xl border-blue-100 bg-white" />
+                  ) : (
+                    <div className="flex items-center rounded-2xl border border-dashed border-blue-100 bg-white/60 px-3 text-[11px] font-semibold text-slate-500">Bot cherche les acheteurs</div>
+                  )}
+                </div>
               )}
-              Rechercher
-            </Button>
-            <Button
-              variant="outline"
-              className="border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
-              disabled={!query.trim() || mandateBusy}
-              onClick={() => void delegateSearchToBot()}
-            >
-              {mandateBusy
-                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                : user
-                  ? <Sparkles className="mr-2 h-4 w-4" />
-                  : <LockKeyhole className="mr-2 h-4 w-4" />}
-              {user ? "Confier à Bot · 24 h" : "Se connecter pour confier à Bot"}
-            </Button>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Button className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-black text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                  Rechercher
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12 rounded-2xl border-violet-200 bg-white font-bold text-violet-800 hover:bg-violet-50"
+                  disabled={!query.trim() || mandateBusy}
+                  onClick={() => void delegateSearchToBot()}
+                >
+                  {mandateBusy
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : user
+                      ? <Sparkles className="mr-2 h-4 w-4" />
+                      : <LockKeyhole className="mr-2 h-4 w-4" />}
+                  {user ? "Confier à Bot · 24 h" : "Connexion pour confier à Bot"}
+                </Button>
+              </div>
             </div>
-            <p className="text-[10px] font-semibold text-muted-foreground">
-              Mandat semi-autonome par défaut : Bot surveille, enrichit et contacte au maximum 3 opportunités autorisées. Aucun paiement ni changement de budget.
-            </p>
 
-            {!user && <p className="text-xs text-muted-foreground">Consultez les offres indexées sans connexion. Connectez-vous pour actualiser les sources externes, contacter ou confier une mission.</p>}
-            {intelligence && (
-              <div className="rounded-xl border bg-background p-3 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Sparkles className="h-4 w-4 text-cyan-600" />
-                      Plan IA NEXUS
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {resolvedMode === "find_sellers" ? "Acheteur → vendeurs" : "Vendeur → acheteurs"}
-                      {" · "}{intelligence.normalized_query}
-                    </div>
-                  </div>
-                  <Badge variant="secondary">confiance IA {Math.round(intelligence.confidence * 100)}%</Badge>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {intelligence.priorities.slice(0, 5).map((item) => (
-                    <Badge key={`priority-${item}`} variant="outline">{item.replace(/_/g, " ")}</Badge>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {intelligence.source_families.slice(0, 8).map((item) => (
-                    <Badge key={`source-family-${item}`} variant="secondary">{item.replace(/_/g, " ")}</Badge>
-                  ))}
-                </div>
-                {intelligence.next_actions.length > 0 && (
-                  <div className="mt-2 grid gap-1 sm:grid-cols-3">
-                    {intelligence.next_actions.slice(0, 3).map((item, index) => (
-                      <div key={item} className="rounded-lg bg-muted/40 px-2 py-1.5 text-[11px]">
-                        <span className="mr-1 font-semibold">{index + 1}.</span>{item}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {intelligence.missing.length > 0 && (
-                  <div className="mt-2 text-[11px] text-muted-foreground">
-                    À préciser si utile : {intelligence.missing.join(" · ")}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {Object.keys(refreshState).length > 0 && <WaouhDiscoveryCoverage refresh={refreshState} count={results.length} />}
-            {Object.keys(sourceMix).length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(sourceMix).map(([source, count]) => (
-                  <Badge key={source} variant="secondary">{sourceLabel(source)} · {count}</Badge>
-                ))}
-
-              </div>
-            )}
+            <WaouhReasoningFeed
+              steps={feed.shown}
+              running={busy}
+              pending={feed.pending}
+              summary={reasonSummary}
+              onSkip={feed.skip}
+            />
 
             {results.length > 0 && (
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold">
-                    {resolvedMode === "find_sellers" ? "Vendeurs et offres les plus compatibles" : "Acheteurs et demandes les plus compatibles"}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Classés par pertinence, confiance, prix, proximité, fraîcheur et contactabilité.
+                    {resolvedMode === "find_sellers" ? "Meilleures offres" : "Meilleurs acheteurs"}
                   </div>
                 </div>
-                <Badge variant="outline">{results.length} résultat(s)</Badge>
+                <Badge variant="outline" className="border-blue-200 text-blue-700">{results.length}</Badge>
               </div>
             )}
 
             <div className="grid gap-2 lg:grid-cols-2">
               <WaouhOfferComparison results={results} />
               {results.map((result) => (
-                <div key={result.fabric_id} className="rounded-xl border bg-background p-3">
+                <div key={result.fabric_id} className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{result.subject ?? result.category ?? "Signal commercial"}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                        <Badge variant="outline" className="h-5 px-1.5 text-[9px]">{sourceLabel(result.source_key)}</Badge>
-                        <span>{result.intent}</span>
-                        {result.actor_type && <span>· {result.actor_type}</span>}
-                        {result.city && <span className="inline-flex items-center gap-0.5">· <MapPin className="h-3 w-3" />{result.city}</span>}
+                        {result.city && <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{result.city}</span>}
                       </div>
                     </div>
                     <div className="text-right">
@@ -510,25 +472,17 @@ export function WaouhGlobalDiscoveryPanel() {
                     </div>
                   )}
 
-                  <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Vérification et analyse</summary><div className="flex flex-wrap gap-1">
+                  <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold text-blue-700">Analyse de Bot</summary><div className="flex flex-wrap gap-1">
                     <Badge variant="secondary">confiance {Math.round(result.scores.trust_score)}%</Badge>
-                    <Badge variant="outline">{result.contact_policy.level} · {result.contact_policy.label}</Badge>
-                    {(result.readiness_level || result.contact_pack?.readiness_level) && (
-                      <Badge variant="outline" className="border-cyan-200 text-cyan-800">
-                        {result.readiness_level || result.contact_pack?.readiness_level}
-                      </Badge>
-                    )}
                     {result.actionability_score != null && (
-                      <Badge variant="outline" className="border-violet-200 text-violet-800">
-                        action {Math.round(result.actionability_score)}%
-                      </Badge>
+                      <Badge variant="outline" className="border-violet-200 text-violet-800">prêt à {Math.round(result.actionability_score)}%</Badge>
                     )}
                     {result.scores.reasons.slice(0, 2).map((reason) => <Badge key={reason} variant="outline">{reason}</Badge>)}
-                  </div><p className="mt-2 text-xs text-muted-foreground">Disponibilité, état et livraison à confirmer avec la source.</p></details>
+                  </div></details>
 
                   {(result.next_best_action || result.contact_pack?.next_best_action) && (
                     <div className="mt-2 rounded-lg bg-violet-50 px-2.5 py-2 text-[11px] font-semibold text-violet-900">
-                      Bot recommande : {(result.next_best_action || result.contact_pack?.next_best_action) === "CONTACT_NOW"
+                      Conseil de Bot : {(result.next_best_action || result.contact_pack?.next_best_action) === "CONTACT_NOW"
                         ? "contacter maintenant"
                         : (result.next_best_action || result.contact_pack?.next_best_action) === "OPEN_DEAL_ROOM"
                           ? "ouvrir le Deal Room"
@@ -540,12 +494,7 @@ export function WaouhGlobalDiscoveryPanel() {
                       {(result.best_channel || result.contact_pack?.best_channel) ? ` · ${result.best_channel || result.contact_pack?.best_channel}` : ""}
                     </div>
                   )}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {result.source_url && (
-                      <Button size="sm" variant="outline" onClick={() => window.open(result.source_url!, "_blank", "noopener,noreferrer")}>
-                        <ExternalLink className="mr-1 h-3.5 w-3.5" />Source
-                      </Button>
-                    )}
+                  <div className="mt-3 [&_button]:h-11 [&_button]:w-full [&_button]:rounded-2xl">
                     <WaouhNexusContactSheet
                       fabricId={result.fabric_id}
                       title={result.subject ?? result.category ?? "Opportunité WAOUH"}
@@ -563,7 +512,7 @@ export function WaouhGlobalDiscoveryPanel() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold">{contact.actor_name ?? contact.result?.subject ?? "Contact"}</div>
-                    <div className="text-[11px] text-muted-foreground">{contact.contact_policy.level} · {contact.contact_policy.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{contact.contact_policy.label}</div>
                   </div>
                   {contact.source_url && (
                     <Button size="sm" variant="ghost" onClick={() => window.open(contact.source_url, "_blank", "noopener,noreferrer")}>
@@ -601,10 +550,7 @@ export function WaouhGlobalDiscoveryPanel() {
 
           <TabsContent value="share" className="space-y-3">
             <div className="rounded-xl border bg-muted/20 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold"><Share2 className="h-4 w-4" />Transformer un contenu vu ailleurs en signal WAOUH</div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Collez un message WhatsApp, un post Facebook/Instagram/TikTok/Telegram, une annonce Web ou une demande B2B. WAOUH extrait l’intention et masque les coordonnées dans le texte stocké.
-              </p>
+              <div className="flex items-center gap-2 text-sm font-semibold"><Share2 className="h-4 w-4" />Partagez une annonce, Bot la comprend</div>
             </div>
             <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
               <Select value={shareOrigin} onValueChange={setShareOrigin}>
@@ -638,7 +584,7 @@ export function WaouhGlobalDiscoveryPanel() {
                 value={shareText}
                 onChange={(event) => setShareText(event.target.value)}
                 rows={5}
-                placeholder="Collez le message/post, ou ajoutez directement une capture d’écran/photo. Exemple : « Samsung A55 neuf, 175 000 F, Cotonou, tel… »"
+                placeholder="Collez le message ou ajoutez une photo"
               />
               <Button
                 type="button"
@@ -661,13 +607,13 @@ export function WaouhGlobalDiscoveryPanel() {
             )}
             <Button className="w-full" disabled={(!shareText.trim() && !shareImageUrl && !shareUrl.trim()) || busy} onClick={() => void ingestShare()}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
-              Analyser et ajouter au Signal Fabric
+              Analyser avec Bot
             </Button>
             {sharedSignal && (
               <div className="rounded-xl border p-3 text-xs">
                 <div className="font-semibold">{sharedSignal.signal.intent} · {sharedSignal.signal.product_name ?? sharedSignal.signal.category ?? "Signal"}</div>
                 <div className="mt-1 text-muted-foreground">
-                  acteur {sharedSignal.signal.actor_type} · confiance extraction {Math.round((sharedSignal.signal.confidence ?? 0) * 100)}% · contact {sharedSignal.signal.contactability_level}
+                  Compris à {Math.round((sharedSignal.signal.confidence ?? 0) * 100)}%
                 </div>
               </div>
             )}
