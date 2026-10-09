@@ -23,8 +23,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic, moneyXof } from "@/lib/waouh/agenticClient";
+import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
+import {
+  buildSummary, externalSteps, externalUnavailableStep, internalSteps, maskPhone, planSteps, sameZone, summaryStep,
+  type ExternalDiscovery, type ReasonSummary,
+} from "@/lib/waouh/liveReasoning";
 import {
   expressNexusInterest,
+  globalNexusDiscovery,
   getNexusSummary,
   getSellerOpportunities,
   nexusBadgeLabel,
@@ -71,6 +77,9 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
   const [sellerGroups, setSellerGroups] = useState<NexusSellerGroup[]>([]);
   const [sellerTotal, setSellerTotal] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const feed = useReasoningFeed();
+  const [external, setExternal] = useState<ExternalDiscovery | null>(null);
+  const [reasonSummary, setReasonSummary] = useState<ReasonSummary | null>(null);
 
   const refreshSummary = async () => {
     if (!user) return;
@@ -90,12 +99,12 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
 
   useEffect(() => {
     if (!onActivity) return;
-    if (searching) onActivity({ state: "thinking", line: "Je cherche et je compare les offres…" });
+    if (searching) onActivity({ state: "thinking", line: feed.shown[feed.shown.length - 1]?.text ?? "Je cherche et je compare les offres…" });
     else if (sellerLoading) onActivity({ state: "thinking", line: "J’analyse vos articles…" });
     else if (busy) onActivity({ state: "thinking", line: "Je m’en occupe…" });
     else if (searchResult) onActivity({ state: "talking", line: searchResult.results.length ? `J’ai trouvé ${searchResult.results.length} option(s) pour vous.` : "Rien d’assez proche, activons une veille ?" });
     else onActivity({ state: "idle", line: "Dites-moi ce que vous cherchez." });
-  }, [searching, sellerLoading, busy, searchResult, onActivity]);
+  }, [searching, sellerLoading, busy, searchResult, onActivity, feed.shown]);
 
   const marketText = useMemo(() => {
     const market = searchResult?.market;
@@ -105,35 +114,71 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
 
   const runSearch = async () => {
     const clean = query.trim();
-    if (!clean) return;
+    if (!clean || searching) return;
     if (!user) {
       toast({ title: "Connexion requise", description: "Connectez-vous pour que WAOUH mémorise et suive votre recherche." });
       return;
     }
+    const cityValue = city.trim() || undefined;
+    const budgetValue = budget ? Number(budget) : undefined;
+    const ctx = { query: clean, city: cityValue, budget: budgetValue ?? null };
+    feed.reset();
+    setSearchResult(null);
+    setExternal(null);
+    setReasonSummary(null);
     setSearching(true);
-    try {
-      const data = await searchNexus({
-        query: clean,
-        budget_max: budget ? Number(budget) : undefined,
-        city: city.trim() || undefined,
-        limit: 9,
-        persist_intent: true,
+    feed.push(planSteps(ctx));
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+      Promise.race<T>([promise, new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), ms))]);
+
+    const internalCall = searchNexus({ query: clean, budget_max: budgetValue, city: cityValue, limit: 9, persist_intent: true })
+      .then((data) => {
+        setSearchResult(data);
+        feed.push(internalSteps(data, ctx));
+        return data;
+      })
+      .catch((error) => {
+        feed.push([{ id: "int-error", tone: "warn", text: `Catalogue WAOUH indisponible : ${err(error)}` }]);
+        return null;
       });
-      setSearchResult(data);
+
+    const externalCall = withTimeout(
+      globalNexusDiscovery({ query: clean, city: cityValue, budget_max: budgetValue, limit: 12, refresh_external: true }),
+      35000,
+    )
+      .then((data) => {
+        const normalized: ExternalDiscovery = { results: data.results ?? [], source_mix: data.source_mix, refresh: data.refresh };
+        setExternal(normalized);
+        feed.push(externalSteps(normalized, ctx));
+        return normalized;
+      })
+      .catch(() => {
+        feed.push([externalUnavailableStep()]);
+        return null;
+      });
+
+    try {
+      const [internalData, externalData] = await Promise.all([internalCall, externalCall]);
+      const summary = buildSummary(internalData, externalData, ctx);
+      setReasonSummary(summary);
+      feed.push([summaryStep(summary, ctx)]);
+      if (!internalData && !externalData) {
+        toast({ title: "Recherche impossible", description: "Aucune source n’a répondu. Réessayez dans un instant.", variant: "destructive" });
+      }
       await refreshSummary();
-    } catch (error) {
-      toast({ title: "Recherche impossible", description: err(error), variant: "destructive" });
     } finally {
       setSearching(false);
     }
   };
 
   const addWatch = async () => {
-    if (!searchResult) return;
+    const watchQuery = searchResult?.query ?? query.trim();
+    if (!watchQuery) return;
     setBusy("watch");
     try {
       await invokeWaouhAgentic("watch.create", {
-        query: searchResult.query,
+        query: watchQuery,
         ...(budget ? { target_amount: Number(budget), currency: "XOF" } : {}),
         check_interval_minutes: 360,
       });
@@ -283,18 +328,23 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
           </div>
 
           <div className="min-w-0 space-y-3">
-            {!searchResult && !searching && (
+            {!feed.shown.length && !searching && (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white/60 p-6 text-center">
                 <Search className="mx-auto h-7 w-7 text-slate-300" />
-                <p className="mt-2 text-sm font-semibold text-slate-500">Vos meilleures offres apparaîtront ici.</p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">Lancez une recherche : Bot vous explique tout en direct.</p>
               </div>
             )}
-            {searching && (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-                {[0, 1, 2].map((n) => <div key={n} className="h-56 animate-pulse rounded-3xl bg-slate-100" />)}
-              </div>
-            )}
-            {searchResult && !searching && (
+            <WaouhReasoningFeed
+              steps={feed.shown}
+              running={searching}
+              pending={feed.pending}
+              summary={reasonSummary}
+              onSkip={feed.skip}
+              onWatch={searchResult || external ? () => void addWatch() : undefined}
+              watching={busy === "watch"}
+              onAdvice={searchResult || external ? () => onAsk?.(`Voici ma recherche : « ${query.trim()} »${city.trim() ? ` à ${city.trim()}` : ""}. Que me conseilles-tu pour la suite ?`) : undefined}
+            />
+            {!searching && feed.pending === 0 && (searchResult || external) && (
               <>
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -347,6 +397,40 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                     );
                   })}
                 </div>
+                {external && external.results.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">Trouvé sur les sources externes</h3>
+                      <p className="text-[11px] font-medium text-slate-500">Numéros masqués · contact uniquement avec votre accord.</p>
+                    </div>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {external.results.slice(0, 8).map((item) => {
+                        const channel = item.contact_pack?.masked_contacts?.[0];
+                        const phone = channel ? maskPhone(channel.last4) : null;
+                        const price = item.price_min ?? item.price_max;
+                        const inZone = sameZone(item.city, city);
+                        return (
+                          <article key={item.fabric_id} className="space-y-2 rounded-3xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant="secondary" className="text-[10px]">{nexusSourceLabel(item.source_key)}</Badge>
+                              {inZone && <Badge className="bg-emerald-100 text-[10px] text-emerald-800 hover:bg-emerald-100">Dans votre zone</Badge>}
+                              {item.contact_policy?.label && <Badge variant="outline" className="text-[10px]">{item.contact_policy.label}</Badge>}
+                            </div>
+                            <h4 className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">{item.subject || item.raw_text?.slice(0, 80) || "Annonce publique"}</h4>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-base font-black text-slate-950">{price ? moneyXof(price, item.currency || "XOF") : "Prix sur demande"}</span>
+                              {item.city && <span className="inline-flex items-center gap-0.5 text-[11px] text-slate-500"><MapPin className="h-3 w-3" />{item.city}</span>}
+                            </div>
+                            {phone && <div className="inline-flex items-center rounded-lg bg-slate-50 px-2 py-1 font-mono text-[11px] font-bold text-slate-700">{phone}{channel?.channel ? <span className="ml-1 font-sans font-semibold text-slate-400">· {channel.channel}</span> : null}</div>}
+                            <Button size="sm" variant="outline" className="min-h-[40px] w-full rounded-xl" onClick={() => onAsk?.(`Analyse cette annonce : ${item.subject || "annonce"}${price ? ` à ${moneyXof(price, item.currency || "XOF")}` : ""}${item.city ? ` (${item.city})` : ""}. Est-ce fiable et comment dois-je contacter le vendeur ?`)}>
+                              <BrainCircuit className="mr-1.5 h-4 w-4" />Conseil de Bot
+                            </Button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
