@@ -1717,7 +1717,7 @@ class _AvatarCommerceHero extends StatelessWidget {
                   Text(title,
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 3),
-                  const Text(
+                  Text(
                     loading ? 'Je cherche pour vous…' : 'Dites-moi ce qu’il vous faut.',
                     style: TextStyle(
                       color: WaouhPalette.muted,
