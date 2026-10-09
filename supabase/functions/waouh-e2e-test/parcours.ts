@@ -317,5 +317,12 @@ export async function cleanupParcours(sb: any, results: PResult[]) {
       .update({ status: "cancelled", last_error: "e2e parcours test" })
       .in("to_user_id", userIds)
       .in("status", ["pending", "queued", "retry"]);
+    // Les articles / deals de test ne doivent jamais rester visibles en production.
+    const articleIds = results.map((r) => r.artifacts.article_id).filter(Boolean) as string[];
+    if (articleIds.length) {
+      await sb.from("waouh_deals").update({ status: "cancelled" }).in("article_id", articleIds).not("status", "in", "(completed,cancelled)");
+      await sb.from("waouh_negotiations").update({ state: "closed" }).in("article_id", articleIds).in("state", ["proposed", "countered"]);
+      await sb.from("waouh_articles").update({ status: "paused" }).in("id", articleIds);
+    }
   } catch (e) { console.warn("[parcours] cleanup", e); }
 }
