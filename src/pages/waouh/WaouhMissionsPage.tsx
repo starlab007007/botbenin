@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Radar, UserCircle } from "lucide-react";
 import WaouhNexusDashboard, { type NexusActivity } from "@/components/waouh/WaouhNexusDashboard";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
+import { WaouhContactLedger } from "@/components/waouh/WaouhContactLedger";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 
 const VIEWS = [
@@ -81,7 +82,10 @@ export default function WaouhMissionsPage() {
             onAsk={(prompt) => openNewChat(navigate, prompt)}
           />
         ) : (
-          <WaouhAgentCenter embedded />
+          <>
+            <WaouhContactLedger />
+            <WaouhAgentCenter embedded />
+          </>
         )}
       </div>
     </div>
