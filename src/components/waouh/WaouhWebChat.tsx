@@ -104,6 +104,30 @@ function getSessionId() {
   return id;
 }
 
+const OUTBOX_MAX_AGE_MS = 30 * 60_000;
+const OUTBOX_MAX_ITEMS = 5;
+type OutboxItem = { text: string; ts: number };
+const outboxKey = (sid: string) => `waouh_outbox_${sid}`;
+function readOutbox(sid: string): OutboxItem[] {
+  try {
+    const raw = localStorage.getItem(outboxKey(sid));
+    const list = raw ? (JSON.parse(raw) as OutboxItem[]) : [];
+    return Array.isArray(list) ? list.filter((i) => i && typeof i.text === "string") : [];
+  } catch { return []; }
+}
+function writeOutbox(sid: string, list: OutboxItem[]) {
+  try {
+    if (list.length) localStorage.setItem(outboxKey(sid), JSON.stringify(list));
+    else localStorage.removeItem(outboxKey(sid));
+  } catch { /* stockage indisponible */ }
+}
+function enqueueOutbox(sid: string, text: string): boolean {
+  const list = readOutbox(sid);
+  if (list.length >= OUTBOX_MAX_ITEMS) return false;
+  writeOutbox(sid, [...list, { text, ts: Date.now() }]);
+  return true;
+}
+
 function getThreadCutoff(): string | null {
   try { return localStorage.getItem(THREAD_CUTOFF_KEY); } catch { return null; }
 }
@@ -145,6 +169,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [sending, setSending] = useState(false);
   const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
   const sendingRef = useRef(false);
+  const flushOutboxRef = useRef<() => void>(() => {});
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -593,8 +618,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     metaOverride: Record<string, unknown> = {}
   ) => {
     if ((!text && atts.length === 0) || sendingRef.current) return;
-    // Hors ligne : on ne simule pas un envoi (aucune file locale). Le texte reste dans le composeur.
+    // Hors ligne : un message texte simple est gardé dans une file locale (visible « en attente ») et
+    // renvoyé à la reconnexion. Pièces jointes / actions : refusés, le texte reste dans le composeur.
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const plainText = atts.length === 0 && Object.keys(metaOverride).length === 0 && !locationOverride;
+      if (plainText && enqueueOutbox(sessionId, text)) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `outbox-${Date.now()}`, direction: "in", text: `${text}\n⏳ En attente de connexion`, created_at: new Date().toISOString(), attachments: [] },
+        ]);
+        toast({ title: "Hors ligne", description: "Message gardé : il sera envoyé dès le retour du réseau." });
+        return;
+      }
       toast({ title: "Hors ligne", description: "Message non envoyé : reconnectez-vous puis réessayez.", variant: "destructive" });
       throw new Error("offline");
     }
@@ -662,6 +697,34 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
   };
 
+
+  // Renvoi de la file hors ligne : séquentiel, une offre vieille de plus de 30 min n'est jamais renvoyée seule.
+  flushOutboxRef.current = async () => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    const pendingItems = readOutbox(sessionId);
+    if (!pendingItems.length || sendingRef.current) return;
+    writeOutbox(sessionId, []);
+    setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("outbox-")));
+    let dropped = 0;
+    for (let i = 0; i < pendingItems.length; i++) {
+      const item = pendingItems[i];
+      if (Date.now() - item.ts > OUTBOX_MAX_AGE_MS) { dropped++; continue; }
+      try {
+        await sendCore(item.text, []);
+      } catch {
+        // Échec : on remet ce message et les suivants en file pour le prochain retour réseau.
+        writeOutbox(sessionId, pendingItems.slice(i));
+        break;
+      }
+    }
+    if (dropped) toast({ title: "Messages anciens non envoyés", description: "Certains messages écrits hors ligne datent de plus de 30 minutes et n'ont pas été renvoyés." });
+  };
+  useEffect(() => {
+    const run = () => { void flushOutboxRef.current(); };
+    window.addEventListener("online", run);
+    run();
+    return () => window.removeEventListener("online", run);
+  }, []);
 
   const send = async () => {
     const text = input.trim();

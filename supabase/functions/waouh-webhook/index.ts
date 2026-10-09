@@ -2574,7 +2574,8 @@ Deno.serve(async (req) => {
             directText: counterText,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id, counterpart_user_id: isBuyer ? neg.buyer_user_id : neg.seller_user_id },
             transaction_id: null,
-            dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
+            // Fenêtre de 5 min : un retry est dédupliqué, mais une même offre répétée plus tard (après contre-offre) est bien notifiée.
+            dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}:${Math.floor(Date.now() / 300_000)}`,
             event_type: "negotiation_counter",
           });
         }

@@ -39,6 +39,19 @@ const cloneInitForRetry = (init?: RequestInit): RequestInit | undefined => {
   return { ...init, headers };
 };
 
+// Session invitée déjà rattachée à un autre compte (409 session_claimed) : on repart d'une
+// session neuve, une seule fois par onglet, pour ne jamais réutiliser l'identité d'un autre.
+const rotateClaimedSession = async (res: Response) => {
+  try {
+    const body = await res.clone().json().catch(() => null);
+    if (body?.code !== 'session_claimed' || typeof localStorage === 'undefined') return;
+    if (sessionStorage.getItem('waouh_session_rotated') === '1') return;
+    sessionStorage.setItem('waouh_session_rotated', '1');
+    localStorage.removeItem('waouh_web_session_id');
+    window.location.reload();
+  } catch {}
+};
+
 // Hardened fetch wrapper: timeout + 1 retry to avoid hung promises on flaky networks
 // (root cause of ERR_TIMED_OUT loops on /app/chat over 2G/3G).
 const TIMEOUT_MS = 12_000;
@@ -68,6 +81,9 @@ const hardenedFetch: typeof fetch = async (originalInput, init) => {
   try {
     const res = await attempt(input, init, waouhRequestTimeout(url, init));
     void inspectResponseForQuota(res);
+    if (res.status === 409 && url.includes('/functions/v1/waouh-channel-in')) {
+      void rotateClaimedSession(res);
+    }
 
     return res;
   } catch (e: any) {

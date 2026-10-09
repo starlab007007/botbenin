@@ -972,6 +972,14 @@ Deno.serve(async (req) => {
     if (channel === "web") {
       const { data: existing } = await sb.from("waouh_users").select("*").eq("web_session_id", sessionId).maybeSingle();
       user = existing;
+      // Reprise de session : un identifiant de session déjà rattaché à un compte ne peut pas être
+      // réutilisé par un autre compte, ni par un invité (déconnecté / autre personne sur le même appareil).
+      if (user?.auth_user_id && String(user.auth_user_id) !== String(authUserId || "")) {
+        log("session claimed by another account", { session: String(sessionId).slice(0, 8) });
+        return new Response(JSON.stringify({ ok: false, code: "session_claimed", error: "session_claimed" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       if (!user) {
         const { data: created, error } = await sb.from("waouh_users").insert({
           web_session_id: sessionId, channel: "web", city,
