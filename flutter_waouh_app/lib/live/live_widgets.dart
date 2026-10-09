@@ -1173,55 +1173,46 @@ class _PremiumProduct {
   final String? workflowState;
   final String? role;
 
-  String get displayDetails {
-    if (details != null) return details!;
+  String? get displayDetails {
+    final own = _premiumClean(details);
+    if (own != null) return own;
     final known = <String>[
-      if (subtitle != null) subtitle!,
-      if (condition != null) 'État : $condition',
+      if (_premiumClean(subtitle) != null) _premiumClean(subtitle)!,
+      if (_premiumConditionLabel(condition) != null)
+        'État : ${_premiumConditionLabel(condition)}',
       if (category != null) 'Catégorie : $category',
       if (availability != null) 'Disponibilité : $availability',
     ];
-    return known.isEmpty
-        ? 'Aucun détail supplémentaire fourni par cette annonce.'
-        : known.join(' · ');
+    return known.isEmpty ? null : known.join(' · ');
   }
 
-  String get displayMarketComparison {
-    if (marketComparison?.trim().isNotEmpty == true) return marketComparison!;
+  String? get displayMarketComparison {
+    final own = _premiumClean(marketComparison);
+    if (own != null) return own;
     final facts = <String>[
-      if (priceScore != null) 'score prix ${priceScore!.round()}%',
-      if (score != null) 'match global ${score!.round()}%',
-      if (source?.trim().isNotEmpty == true) 'source $source',
+      if (priceScore != null) 'Prix ${priceScore!.round()}/100',
     ];
-    return facts.isEmpty
-        ? 'NEXUS n’a pas encore un échantillon prix suffisant pour cette offre.'
-        : 'Lecture NEXUS · ${facts.join(' · ')}';
+    return facts.isEmpty ? null : facts.join(' · ');
   }
 
-  String get displayComparativeAnalysis {
-    if (comparativeAnalysis?.trim().isNotEmpty == true) {
-      return comparativeAnalysis!;
-    }
+  String? get displayComparativeAnalysis {
+    final own = _premiumClean(comparativeAnalysis);
+    if (own != null) return own;
     final facts = <String>[
-      if (score != null) 'pertinence ${score!.round()}%',
-      if (trustScore != null) 'confiance ${trustScore!.round()}%',
-      if (priceScore != null) 'prix ${priceScore!.round()}%',
-      if (contactability?.trim().isNotEmpty == true)
-        'contact $contactability',
-      if (readiness?.trim().isNotEmpty == true) 'prêt $readiness',
-      if (actionabilityScore != null)
-        'action ${actionabilityScore!.round()}%',
-      if (bestChannel?.trim().isNotEmpty == true) 'canal $bestChannel',
+      if (score != null) 'Correspondance ${score!.round()}%',
+      if (trustScore != null) 'Confiance ${trustScore!.round()}%',
     ];
-    if (facts.isEmpty) {
-      return 'Signal encore insuffisant pour classer cette opportunité.';
-    }
-    return 'Signal Fabric · ${facts.join(' · ')}';
+    return facts.isEmpty ? null : facts.join(' · ');
   }
 
-  String get displayRecommendation {
-    if (recommendation?.trim().isNotEmpty == true) return recommendation!;
-    if (reasons.isNotEmpty) return reasons.join(' · ');
+  String? get displayRecommendation {
+    final own = _premiumClean(recommendation);
+    if (own != null) return own;
+    final fromReasons = reasons
+        .map(_premiumClean)
+        .whereType<String>()
+        .toList(growable: false);
+    if (fromReasons.isNotEmpty) return fromReasons.join(' · ');
     final facts = <String>[
       if (trustScore != null && trustScore! >= 70) 'Confiance élevée',
       if (priceScore != null && priceScore! >= 70) 'Prix compétitif',
@@ -1231,10 +1222,46 @@ class _PremiumProduct {
           contactability == 'C5')
         'Contact médié possible',
     ];
-    return facts.isEmpty
-        ? 'L’Avatar recommande de vérifier disponibilité, état et conditions avant l’accord.'
-        : facts.join(' · ');
+    return facts.isEmpty ? null : facts.join(' · ');
   }
+}
+
+/// Phrases de provenance ou de remplissage : jamais affichées, seules les
+/// informations réelles le sont (même règle que le Web).
+final RegExp _premiumFiller = RegExp(
+  r'signal découvert|source publique|détect(?:ée|é) par nexus|annonce waouh|source (?:nexus|waouh)|en cours d.enrichissement|aucun détail complémentaire|signal fabric|lecture nexus',
+  caseSensitive: false,
+);
+
+String? _premiumClean(String? value) {
+  final text = (value ?? '').trim();
+  if (text.isEmpty) return null;
+  final kept = text
+      .split(RegExp(r'\s*[·|]\s*'))
+      .where((part) =>
+          part.isNotEmpty &&
+          !_premiumFiller.hasMatch(part) &&
+          !RegExp(r'^source\b', caseSensitive: false).hasMatch(part))
+      .join(' · ')
+      .trim();
+  return kept.isEmpty ? null : kept;
+}
+
+const Map<String, String> _premiumConditions = <String, String>{
+  'new': 'Neuf',
+  'like_new': 'Comme neuf',
+  'good': 'Bon état',
+  'used': 'Occasion',
+  'fair': 'État correct',
+  'poor': 'À réparer',
+  'refurbished': 'Reconditionné',
+};
+
+String? _premiumConditionLabel(String? value) {
+  final text = (value ?? '').trim();
+  if (text.isEmpty) return null;
+  final key = text.toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
+  return _premiumConditions[key] ?? text;
 }
 
 List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
@@ -2255,15 +2282,12 @@ class _PremiumProductCard extends StatelessWidget {
                 if (product.city != null)
                   _PremiumBadge('📍 ${product.city!}', const Color(0xFFE9F7F1),
                       const Color(0xFF08745D)),
-                if (product.condition != null)
-                  _PremiumBadge(product.condition!, const Color(0xFFF1F4F8),
-                      const Color(0xFF5E6F8A)),
+                if (_premiumConditionLabel(product.condition) != null)
+                  _PremiumBadge(_premiumConditionLabel(product.condition)!,
+                      const Color(0xFFF1F4F8), const Color(0xFF5E6F8A)),
                 if (product.category != null)
                   _PremiumBadge('🏷️ ${product.category!}',
                       const Color(0xFFEEF3FA), const Color(0xFF42658B)),
-                if (product.source != null)
-                  _PremiumBadge('🛒 ${product.source!}',
-                      const Color(0xFFF1F4F8), const Color(0xFF5E6F8A)),
                 _PremiumBadge(
                     '📏 ${product.distance ?? 'Distance non communiquée'}',
                     const Color(0xFFFFF4D9),
@@ -2296,35 +2320,55 @@ class _PremiumProductCard extends StatelessWidget {
                 ]),
               ],
               const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.description_outlined,
-                  title: 'Détails',
-                  text: product.displayDetails),
-              const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.bar_chart_rounded,
-                  title: 'Marché réel',
-                  text: product.displayMarketComparison,
-                  accent: const Color(0xFF08745D),
-                  background: const Color(0xFFEAF8F2)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.compare_arrows_rounded,
-                  title: 'Analyse comparative',
-                  text: product.displayComparativeAnalysis,
-                  accent: const Color(0xFF42658B),
-                  background: const Color(0xFFF1F5FB)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.lightbulb_outline_rounded,
-                  title: product.reasons.isNotEmpty
-                      ? 'Pourquoi WAOUH le recommande'
-                      : 'Recommandation WAOUH',
-                  text: product.reasons.isNotEmpty
-                      ? product.reasons.join(' · ')
-                      : product.displayRecommendation,
-                  accent: const Color(0xFF8B6500),
-                  background: const Color(0xFFFFF8E6)),
+              if (product.displayDetails != null ||
+                  product.displayMarketComparison != null ||
+                  product.displayComparativeAnalysis != null ||
+                  product.displayRecommendation != null) ...[
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'ANALYSE DE BOT',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: Color(0xFF6D3FD1),
+                    ),
+                  ),
+                ),
+                if (product.displayDetails != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.description_outlined,
+                      title: 'Détails',
+                      text: product.displayDetails!),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayMarketComparison != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.bar_chart_rounded,
+                      title: 'Marché',
+                      text: product.displayMarketComparison!,
+                      accent: const Color(0xFF08745D),
+                      background: const Color(0xFFEAF8F2)),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayComparativeAnalysis != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.compare_arrows_rounded,
+                      title: 'Comparaison',
+                      text: product.displayComparativeAnalysis!,
+                      accent: const Color(0xFF42658B),
+                      background: const Color(0xFFF1F5FB)),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayRecommendation != null)
+                  _PremiumInformationPanel(
+                      icon: Icons.lightbulb_outline_rounded,
+                      title: 'Avis de Bot',
+                      text: product.displayRecommendation!,
+                      accent: const Color(0xFF8B6500),
+                      background: const Color(0xFFFFF8E6)),
+              ],
               const SizedBox(height: 9),
               Row(children: [
                 Icon(
@@ -2354,8 +2398,7 @@ class _PremiumProductCard extends StatelessWidget {
                     final primary = entry.key == 0;
                     final tone = _smartActionTone(action.payload);
                     return SizedBox(
-                      width:
-                          product.actions.length == 1 ? double.infinity : null,
+                      width: double.infinity,
                       child: primary
                           ? FilledButton(
                               onPressed: onPayload == null
@@ -2377,6 +2420,8 @@ class _PremiumProductCard extends StatelessWidget {
                                 backgroundColor: tone,
                                 foregroundColor: Colors.white,
                                 minimumSize: const Size(0, 46),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 10),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(11),
                                 ),
@@ -2386,8 +2431,10 @@ class _PremiumProductCard extends StatelessWidget {
                                         LiveCommerceActionKind.interest
                                     ? 'Je suis intéressé'
                                     : action.label,
+                                textAlign: TextAlign.center,
+                                softWrap: true,
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w900),
+                                    fontWeight: FontWeight.w900, height: 1.2),
                               ),
                             )
                           : OutlinedButton(
@@ -2399,13 +2446,18 @@ class _PremiumProductCard extends StatelessWidget {
                                 side: BorderSide(
                                     color: tone.withValues(alpha: .5)),
                                 minimumSize: const Size(0, 46),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 10),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(11),
                                 ),
                               ),
                               child: Text(action.label,
+                                  textAlign: TextAlign.center,
+                                  softWrap: true,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w900)),
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.2)),
                             ),
                     );
                   }).toList(),

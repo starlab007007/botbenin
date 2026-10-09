@@ -2010,13 +2010,8 @@ class _OpportunityCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         [
-                          item.sourceLabel,
                           if ((item.city ?? '').isNotEmpty) item.city!,
-                          item.contactPolicy.level,
-                          if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)
-                            item.readinessLevel ?? item.contactPack!.readiness,
-                          if (item.actionabilityScore != null || item.contactPack != null)
-                            'Action ${(item.actionabilityScore ?? item.contactPack!.actionabilityScore).round()}%',
+                          item.contactPolicy.label,
                         ].join(' · '),
                         style: const TextStyle(
                           color: WaouhPalette.muted,
@@ -2072,32 +2067,38 @@ class _OpportunityCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 10),
-            _InfoStrip(
-              icon: Icons.description_outlined,
-              text: item.detailsSummary.isEmpty
-                  ? 'Aucun détail complémentaire n’est fourni par la source.'
-                  : item.detailsSummary,
-              accent: const Color(0xFF61718D),
-            ),
-            const SizedBox(height: 7),
-            _InfoStrip(
-              icon: Icons.bar_chart_rounded,
-              text: item.marketSummary,
-              accent: const Color(0xFF159A69),
-            ),
-            const SizedBox(height: 7),
-            _InfoStrip(
-              icon: Icons.compare_arrows_rounded,
-              text: item.comparativeSummary,
-              accent: const Color(0xFF42658B),
-            ),
-            const SizedBox(height: 7),
-            _InfoStrip(
-              icon: Icons.auto_awesome_rounded,
-              text: item.recommendationSummary,
-              accent: const Color(0xFF8B6500),
-            ),
-            const SizedBox(height: 7),
+            if (item.detailsSummary.isNotEmpty) ...[
+              _InfoStrip(
+                icon: Icons.description_outlined,
+                text: item.detailsSummary,
+                accent: const Color(0xFF61718D),
+              ),
+              const SizedBox(height: 7),
+            ],
+            if (item.marketSummary.isNotEmpty) ...[
+              _InfoStrip(
+                icon: Icons.bar_chart_rounded,
+                text: item.marketSummary,
+                accent: const Color(0xFF159A69),
+              ),
+              const SizedBox(height: 7),
+            ],
+            if (item.comparativeSummary.isNotEmpty) ...[
+              _InfoStrip(
+                icon: Icons.compare_arrows_rounded,
+                text: item.comparativeSummary,
+                accent: const Color(0xFF42658B),
+              ),
+              const SizedBox(height: 7),
+            ],
+            if (item.recommendationSummary.isNotEmpty) ...[
+              _InfoStrip(
+                icon: Icons.auto_awesome_rounded,
+                text: item.recommendationSummary,
+                accent: const Color(0xFF8B6500),
+              ),
+              const SizedBox(height: 7),
+            ],
             if (item.nextBestAction != null || item.contactPack != null) ...[
               _InfoStrip(
                 icon: Icons.bolt_rounded,
@@ -2115,7 +2116,7 @@ class _OpportunityCard extends StatelessWidget {
                   : Icons.shield_outlined,
               text: item.internalArticle
                   ? 'WAOUH ouvrira un Deal Room privé. Les contacts ne sont pas révélés directement.'
-                  : 'Contact médié par NEXUS selon la politique ${item.contactPolicy.level}.',
+                  : 'Contact médié : les coordonnées restent masquées.',
               accent: WaouhPalette.blue,
             ),
             const SizedBox(height: 10),
@@ -2217,7 +2218,7 @@ class _InfoStrip extends StatelessWidget {
                 text,
                 style: const TextStyle(
                   color: WaouhPalette.muted,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                   height: 1.25,
                 ),

@@ -11,6 +11,27 @@ class NexusApiException implements Exception {
   String toString() => message;
 }
 
+final RegExp _infoFiller = RegExp(
+  r'signal découvert|source publique|détect(?:ée|é) par nexus|annonce waouh|source (?:nexus|waouh)|en cours d.enrichissement|aucun détail complémentaire|signal fabric|lecture nexus',
+  caseSensitive: false,
+);
+
+/// Retire les phrases de provenance ou de remplissage : seules les
+/// informations réelles sont affichées.
+String? _cleanInfo(String? value) {
+  final text = (value ?? '').trim();
+  if (text.isEmpty) return null;
+  final kept = text
+      .split(RegExp(r'\s*[·|]\s*'))
+      .where((part) =>
+          part.isNotEmpty &&
+          !_infoFiller.hasMatch(part) &&
+          !RegExp(r'^source\b', caseSensitive: false).hasMatch(part))
+      .join(' · ')
+      .trim();
+  return kept.isEmpty ? null : kept;
+}
+
 String _text(dynamic value, [String fallback = '']) =>
     value == null ? fallback : value.toString();
 
@@ -239,7 +260,7 @@ class NexusDiscoveryItem {
   }
 
   String get detailsSummary =>
-      _evidenceText(['details', 'description', 'summary', 'raw_text']) ??
+      _cleanInfo(_evidenceText(['details', 'description', 'summary', 'raw_text'])) ??
       [
         if (category?.trim().isNotEmpty == true) 'Catégorie : $category',
         if (city?.trim().isNotEmpty == true) 'Zone : $city',
@@ -254,14 +275,12 @@ class NexusDiscoveryItem {
       'marche_reel',
       'market_analysis',
     ]);
-    if (explicit != null) return explicit;
+    final cleanedExplicit = _cleanInfo(explicit);
+    if (cleanedExplicit != null) return cleanedExplicit;
     final facts = <String>[
       if (priceMin != null || priceMax != null)
-        'prix observé ${priceMin != null && priceMax != null && priceMin != priceMax ? '${priceMin!.round()}–${priceMax!.round()}' : (priceMin ?? priceMax)!.round()} FCFA',
-      if (scores.price > 0) 'score prix ${scores.price.round()}%',
-      if (scores.contactability > 0)
-        'contactabilité ${scores.contactability.round()}%',
-      'source $sourceLabel',
+        'Prix observé ${priceMin != null && priceMax != null && priceMin != priceMax ? '${priceMin!.round()}–${priceMax!.round()}' : (priceMin ?? priceMax)!.round()} FCFA',
+      if (scores.price > 0) 'Prix ${scores.price.round()}/100',
     ];
     return facts.join(' · ');
   }
@@ -272,14 +291,13 @@ class NexusDiscoveryItem {
       'analyse_comparative',
       'deal_label',
     ]);
-    if (explicit != null) return explicit;
+    final cleanedExplicit = _cleanInfo(explicit);
+    if (cleanedExplicit != null) return cleanedExplicit;
     final facts = <String>[
-      if (scores.total > 0) 'match ${scores.total.round()}%',
-      if (scores.relevance > 0) 'pertinence ${scores.relevance.round()}%',
-      if (scores.trust > 0) 'confiance ${scores.trust.round()}%',
-      'contact ${contactPolicy.level}',
+      if (scores.total > 0) 'Correspondance ${scores.total.round()}%',
+      if (scores.trust > 0) 'Confiance ${scores.trust.round()}%',
     ];
-    return 'Signal Fabric · ${facts.join(' · ')}';
+    return facts.join(' · ');
   }
 
   String get recommendationSummary {
@@ -290,17 +308,21 @@ class NexusDiscoveryItem {
       'conseil',
       'ai_note',
     ]);
-    if (explicit != null) return explicit;
-    if (scores.reasons.isNotEmpty) return scores.reasons.take(3).join(' · ');
+    final cleanedExplicit = _cleanInfo(explicit);
+    if (cleanedExplicit != null) return cleanedExplicit;
+    final reasons = scores.reasons
+        .map(_cleanInfo)
+        .whereType<String>()
+        .take(3)
+        .toList(growable: false);
+    if (reasons.isNotEmpty) return reasons.join(' · ');
     final facts = <String>[
       if (scores.trust >= 70) 'Confiance élevée',
       if (scores.price >= 70) 'Prix cohérent avec les signaux disponibles',
       if (contactPolicy.canBlindMessage || contactPolicy.canAutoContact)
         'Mise en relation médiée possible',
     ];
-    return facts.isEmpty
-        ? 'Vérifier disponibilité, état et conditions avant l’accord.'
-        : facts.join(' · ');
+    return facts.join(' · ');
   }
 
   String get sourceLabel {
