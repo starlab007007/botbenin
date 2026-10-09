@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { newChatRoute, openNewChat } from "@/lib/waouh/newChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
@@ -216,7 +217,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     if (!text) return;
 
     if (!user) {
-      const target = `/app/chat/waouh?prefill=${encodeURIComponent(text)}`;
+      const target = newChatRoute(text);
       navigate(buildWaouhAuthRedirect(target));
       return;
     }
@@ -226,15 +227,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       return;
     }
 
-    const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1180;
-    if (isDesktop) {
-      navigate("/");
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("waouh:avatar-ask", { detail: { prompt: text } }));
-      }, 80);
-    } else {
-      navigate(`/app/chat/waouh?prefill=${encodeURIComponent(text)}`);
-    }
+    openNewChat(navigate, text);
   }, [navigate, onAsk, user]);
 
   const submitPrompt = () => {

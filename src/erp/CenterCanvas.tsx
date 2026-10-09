@@ -74,7 +74,10 @@ export const CenterCanvas = () => {
       setActiveConvId(null);
       setActiveKey('main');
       setView('chat');
-      setTimeout(() => chatRef.current?.prefill(prompt), 60);
+      setTimeout(() => {
+        chatRef.current?.startNewThread();
+        chatRef.current?.prefill(prompt);
+      }, 60);
     },
     [setActiveKey],
   );

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { openNewChat } from "@/lib/waouh/newChat";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, MessageCircle, Radar, UserCircle } from "lucide-react";
 import WaouhNexusDashboard, { type NexusActivity } from "@/components/waouh/WaouhNexusDashboard";
@@ -77,12 +78,7 @@ export default function WaouhMissionsPage() {
         {view === "nexus" ? (
           <WaouhNexusDashboard
             onActivity={onActivity}
-            onAsk={(prompt) => {
-              navigate("/");
-              window.setTimeout(() => {
-                window.dispatchEvent(new CustomEvent("waouh:avatar-ask", { detail: { prompt } }));
-              }, 80);
-            }}
+            onAsk={(prompt) => openNewChat(navigate, prompt)}
           />
         ) : (
           <WaouhAgentCenter embedded />

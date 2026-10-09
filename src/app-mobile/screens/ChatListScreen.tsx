@@ -1,3 +1,4 @@
+import { newChatRoute } from "@/lib/waouh/newChat";
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -126,7 +127,7 @@ export default function ChatListScreen() {
     }, 420);
   };
   const askBot = (prompt: string) => {
-    const target = `/app/chat/waouh?prefill=${encodeURIComponent(prompt)}`;
+    const target = newChatRoute(prompt);
     if (!requireAuth(target)) return;
     navigate(target);
   };

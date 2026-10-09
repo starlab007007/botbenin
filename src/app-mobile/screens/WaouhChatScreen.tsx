@@ -151,7 +151,7 @@ function WaouhChatScreenInner() {
           chatRef.current?.prefillAndSend(text);
         }
       } else {
-        if (isNew) chatRef.current?.startNewThread();
+        if (isNew || prefill) chatRef.current?.startNewThread();
         if (prefill) chatRef.current?.prefill(prefill);
       }
       navigate("/app/chat/waouh", { replace: true });
