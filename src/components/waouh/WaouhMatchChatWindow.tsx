@@ -5,6 +5,7 @@ import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useWaouhResync } from "@/lib/waouh/resync";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2, Sparkles, ShieldCheck } from "lucide-react";
@@ -295,6 +296,8 @@ export function WaouhMatchChatWindow({
   useEffect(() => () => {
     if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
   }, []);
+  // Retour réseau / onglet au premier plan : relecture silencieuse du fil.
+  useWaouhResync(() => resyncRef.current?.());
 
   // Single consolidated loader. First pass uses requestIdleCallback to defer
   // past first paint; subsequent re-activations fetch silently in background.
