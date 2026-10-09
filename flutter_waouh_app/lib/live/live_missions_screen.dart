@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
+import 'avatar/bot_character.dart';
 import 'live_controller.dart';
+import 'live_nexus_find_panel.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
 
@@ -18,6 +20,9 @@ class LiveMissionsScreen extends StatefulWidget {
 
 class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
   bool initialized = false;
+  int _view = 0; // 0 = NEXUS (trouver), 1 = Suivi
+  BotExpression _bot = BotExpression.idle;
+  String _botLine = 'Dites-moi ce que vous cherchez.';
 
   @override
   void didChangeDependencies() {
@@ -47,6 +52,21 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
       },
     );
     context.go('/app/chat/waouh');
+  }
+
+  /// Règle produit : toute nouvelle demande ouvre un NOUVEAU chat.
+  Future<void> _askInNewChat(String prompt) async {
+    final controller = context.read<LiveWaouhController>();
+    await controller.startNewChat();
+    controller.setComposerSeed(
+      prompt,
+      meta: const <String, dynamic>{
+        'source': 'missions_nexus',
+        'intent': 'search',
+        'schema': 'waouh.message.v1',
+      },
+    );
+    if (mounted) context.go('/app/chat/waouh');
   }
 
   Future<void> _newMission() async {
@@ -102,14 +122,44 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
                     onMission: _newMission,
                     onWatch: _newWatch,
                     onMuse: () => context.push('/app/avatar'),
+                    bot: _view == 0 ? _bot : BotExpression.idle,
+                    line: _view == 0
+                        ? _botLine
+                        : 'Je suis vos missions et veilles.',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      showSelectedIcon: false,
+                      segments: const <ButtonSegment<int>>[
+                        ButtonSegment<int>(value: 0, label: Text('NEXUS')),
+                        ButtonSegment<int>(value: 1, label: Text('Suivi')),
+                      ],
+                      selected: <int>{_view},
+                      onSelectionChanged: (value) =>
+                          setState(() => _view = value.first),
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: LiveAgenticWorkspace(
-                    controller: agentic,
-                    onResumeMission: _resumeMission,
-                    standalone: true,
-                  ),
+                  child: _view == 0
+                      ? LiveNexusFindPanel(
+                          onExpression: (value) {
+                            if (mounted) setState(() => _bot = value);
+                          },
+                          onSpeak: (value) {
+                            if (mounted) setState(() => _botLine = value);
+                          },
+                          onAsk: _askInNewChat,
+                        )
+                      : LiveAgenticWorkspace(
+                          controller: agentic,
+                          onResumeMission: _resumeMission,
+                          standalone: true,
+                        ),
                 ),
               ],
             )
@@ -135,6 +185,8 @@ class _MissionHero extends StatelessWidget {
     required this.onMission,
     required this.onWatch,
     required this.onMuse,
+    required this.bot,
+    required this.line,
   });
 
   final int missions;
@@ -143,6 +195,8 @@ class _MissionHero extends StatelessWidget {
   final VoidCallback onMission;
   final VoidCallback onWatch;
   final VoidCallback onMuse;
+  final BotExpression bot;
+  final String line;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -159,19 +213,7 @@ class _MissionHero extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    gradient: WaouhGradients.brand,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.route_rounded,
-                    color: Colors.white,
-                    size: 23,
-                  ),
-                ),
+                BotCharacter(expression: bot, size: 56),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Column(
@@ -182,9 +224,11 @@ class _MissionHero extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 2),
-                      const Text(
-                        'WAOUH continue pour vous.',
-                        style: TextStyle(
+                      Text(
+                        line,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: WaouhPalette.muted,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
