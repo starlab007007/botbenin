@@ -54,7 +54,7 @@ export const MobileShell = () => {
 
   if (tier === 'tablet') {
     return (
-      <div className="waouh-app mobile-shell flex min-h-[100dvh]" style={{ ['--shell-bottom' as string]: '0px' }}>
+      <div className="waouh-app mobile-shell flex min-h-[100dvh]" style={{ ['--shell-bottom' as string]: '0px', ['--shell-left' as string]: `${TABLET_RAIL_WIDTH}px` }}>
         <TabletRail unreadChat={totalUnread} onOpenMenu={() => setMenuOpen(true)} />
         <div className="flex min-w-0 flex-1 flex-col" style={{ marginLeft: TABLET_RAIL_WIDTH }}>
           <OfflineBanner />

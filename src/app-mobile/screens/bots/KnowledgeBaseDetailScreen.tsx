@@ -85,7 +85,7 @@ export default function KnowledgeBaseDetailScreen() {
   const tabs = [{ id: 'structural', label: 'Infos' }, ...template.tables.map(t => ({ id: t.id, label: t.name }))];
 
   return (
-    <div className="fixed inset-0 z-40 bg-background flex flex-col">
+    <div className="fixed inset-y-0 right-0 left-[var(--shell-left,0px)] z-40 bg-background flex flex-col">
       <header
         className="sticky top-0 z-30 bg-[hsl(var(--wa-green))] text-white shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>

@@ -150,7 +150,7 @@ export default function WhatsAppScreen() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background overscroll-contain">
+    <div className="fixed inset-y-0 right-0 left-[var(--shell-left,0px)] flex flex-col bg-background overscroll-contain">
       {/* Header */}
       <header className="shrink-0 bg-[hsl(165_91%_18%)] text-white px-4 pt-3 pb-4">
         <div className="flex items-center justify-between">

@@ -236,7 +236,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#f6f8f7]">
+      <div className="fixed inset-y-0 right-0 left-[var(--shell-left,0px)] flex flex-col overflow-hidden bg-[#f6f8f7]">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5 backdrop-blur-xl">
           <button onClick={() => navigate("/")} className="rounded-xl p-2 hover:bg-slate-100" aria-label="Fermer WAOUH">
             <X className="h-5 w-5 text-slate-700" />

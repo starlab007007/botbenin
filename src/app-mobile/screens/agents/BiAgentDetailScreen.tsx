@@ -128,7 +128,7 @@ export default function BiAgentDetailScreen() {
           </CardContent></Card>
         )}
       </main>
-      <div className="fixed bottom-16 left-0 right-0 border-t bg-background p-2">
+      <div className="fixed bottom-[var(--shell-bottom,64px)] left-[var(--shell-left,0px)] right-0 border-t bg-background p-2">
         <div className="max-w-md mx-auto flex gap-2">
           <Input placeholder="Poser une question…" value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} />
           <Button onClick={ask} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button>

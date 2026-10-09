@@ -96,7 +96,7 @@ export default function DiffusionScreen() {
   }, [user, authLoading, navigate]);
 
   return (
-    <div className="fixed inset-0 bg-background flex flex-col overscroll-contain">
+    <div className="fixed inset-y-0 right-0 left-[var(--shell-left,0px)] bg-background flex flex-col overscroll-contain">
       <header
         className="shrink-0 bg-[hsl(165_91%_18%)] text-white"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
