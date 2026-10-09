@@ -6,7 +6,11 @@ const flutter = read("flutter_waouh_app/lib/live/live_app_production.dart");
 const tabs = read("src/app-mobile/layouts/BottomTabBar.tsx");
 const shell = read("src/app-mobile/layouts/MobileShell.tsx");
 const chat = read("src/app-mobile/screens/WaouhChatScreen.tsx");
-const sidebar = read("src/erp/WebErpShell.tsx");
+// Source unique des modules (barre latérale PC, rail tablette, menu complet mobile).
+const sidebar = read("src/erp/WebErpShell.tsx") + "\n" + read("src/erp/navigation.ts");
+const viewportTier = read("src/app-mobile/hooks/useViewportTier.ts");
+const menuSheet = read("src/app-mobile/layouts/WorkspaceMenuSheet.tsx");
+const tabletRail = read("src/app-mobile/layouts/TabletRail.tsx");
 const sw = read("public/sw.js");
 
 const fail = (message) => { throw new Error(`[WAOUH parity] ${message}`); };
@@ -86,21 +90,27 @@ for (const [route, token] of Object.entries(webTokens)) {
 }
 
 must(app, '<Route path="/waouh/nexus" element={<Navigate to="/app/nexus" replace />} />', "/waouh/nexus must target NEXUS");
-must(shell, "const ERP_DESKTOP_BREAKPOINT = 1180", "MobileShell desktop breakpoint must remain 1180");
+must(viewportTier, "export const DESKTOP_MIN_WIDTH = 1180", "Desktop breakpoint must remain 1180");
+must(shell, "useViewportTier", "MobileShell must use the shared viewport tiers");
+must(shell, "WorkspaceMenuSheet", "MobileShell must expose the full module menu");
+must(shell, "TabletRail", "MobileShell must render the tablet rail");
+must(menuSheet, "@/erp/navigation", "Mobile menu must read the single module source");
+must(tabletRail, "onOpenMenu", "Tablet rail must open the full module menu");
 must(chat, "window.innerWidth >= 1180", "WAOUH chat breakpoint must match MobileShell");
 if (chat.includes("window.innerWidth >= 768")) fail("Tablet still redirects away from Avatar chat");
 
+// Bots, Partenaires, Boutiques, Ventes, Diffusion… sont dans « Menu » (liste complète = barre latérale PC).
 const expectedTabs = [
   ["/app/chat", "Chat"],
-  ["/app/bots", "Bots"],
+  ["/app/missions", "Missions"],
   ["/app/ia", "IA"],
   ["/app/avatar", "Avatar"],
-  ["/app/partner", "Partenaire"],
 ];
 for (const [route, label] of expectedTabs) {
   must(tabs, `to: '${route}'`, `Bottom tab route missing: ${route}`);
   must(tabs, `label: '${label}'`, `Bottom tab label missing: ${label}`);
 }
+must(tabs, "onOpenMenu", "Bottom bar must open the full module menu");
 if (tabs.includes("label: 'WhatsApp IA'") || tabs.includes("label: 'Diffusion'")) {
   fail("Obsolete mobile bottom navigation is still present");
 }
@@ -159,5 +169,5 @@ must(sw, "const VERSION = 'v15-opportunity-os-20261004';", "Service worker cache
 
 console.log("WAOUH Flutter/Web route parity: OK");
 console.log(`Flutter reference routes checked: ${requiredFlutterRoutes.length}`);
-console.log("Responsive breakpoint parity: desktop >=1180; tablet/mobile use native-style shell");
-console.log("Bottom navigation parity: Chat · Bots · IA · Avatar · Partenaire");
+console.log("Responsive tiers: phone <640 · tablet 640-1179 (rail + menu) · desktop >=1180");
+console.log("Bottom navigation parity: Chat · Missions · IA · Avatar · Menu (19 modules)");
