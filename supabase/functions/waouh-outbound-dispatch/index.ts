@@ -8,6 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "../_shared/waouh-format.ts";
+import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
@@ -443,7 +444,8 @@ function beninPhoneCandidates(canonical: string): string[] {
   return out;
 }
 
-async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
+async function sendWahaText(base: string, session: string, chatId: string, rawText: string, headers: Record<string, string>) {
+  const text = richWhatsAppText(rawText);
   const payload = JSON.stringify({ session, chatId, text });
   let r = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
   if (r.ok) return r;
@@ -451,7 +453,8 @@ async function sendWahaText(base: string, session: string, chatId: string, text:
   return r;
 }
 
-async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string, headers: Record<string, string>) {
+async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, rawCaption: string, headers: Record<string, string>) {
+  const caption = richWhatsAppText(rawCaption);
   let r = await wahaFetch(`${base}/api/sendImage`, {
     method: "POST",
     headers,

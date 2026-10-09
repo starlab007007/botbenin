@@ -300,6 +300,7 @@ jobs:
           deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
           deno test --no-config --allow-env supabase/functions/_shared/waouh-external-exchange-test.ts supabase/functions/_shared/waouh-central-whatsapp-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-whatsapp-rich-test.ts
 
       - name: Validate external exchange transactions
         shell: bash

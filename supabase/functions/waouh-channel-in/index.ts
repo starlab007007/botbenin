@@ -3,6 +3,7 @@ import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchang
 import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
+import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
@@ -320,7 +321,9 @@ async function resolveReplyChatIds(sb: any, rawFrom: string | null, phone: strin
   return [...out];
 }
 
-async function sendWahaReply(base: string, session: string, chatIds: string[], text: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+async function sendWahaReply(base: string, session: string, chatIds: string[], rawText: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+  // Mise en forme premium WhatsApp (gras, puces, numéros emoji, signature) appliquée une seule fois, pour toutes les réponses.
+  const text = richWhatsAppText(rawText);
   if (session === CENTRAL_WAHA_SESSION && !(await centralWhatsAppHealth()).working) return {ok:false,error:"central_whatsapp_unavailable"};
   let lastError = "";
   for (const chatId of chatIds) {

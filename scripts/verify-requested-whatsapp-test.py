@@ -107,11 +107,14 @@ if re.fullmatch(r'[0-9]+@lid', str(incoming.get('from',''))): variants.append(in
 numbers = ','.join("'"+value+"'" for value in variants)
 status, rows = request(management+'/database/query',{'query':"select text from public.waouh_messages where channel='whatsapp' and direction='out' and phone_number in ("+numbers+") and created_at>='"+args.since+"' order by created_at desc limit 20"},{'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'})
 assert status==200, 'Cannot correlate Avatar reply records'
-expected = [str(row.get('text','')).strip() for row in rows if str(row.get('text','')).strip()]
+def plain(value):
+    # Messages are sent with WhatsApp rich formatting; compare the wording, not the decoration.
+    return re.sub(r'[\s*_~`•◦━✨→·]+|[0-9]\ufe0f?\u20e3|\U0001F51F',' ',str(value or '')).strip().lower()
+expected = [plain(row.get('text')) for row in rows if plain(row.get('text'))]
 matched = []
 for attempt in range(8):
     outgoing = [message for message in history() if message.get('fromMe') is True and timestamp(message)>=timestamp(incoming)]
-    matched = [message for message in outgoing if any(reply in str(message.get('body') or message.get('caption') or '') for reply in expected)]
+    matched = [message for message in outgoing if any(reply[:40] in plain(message.get('body') or message.get('caption') or '') for reply in expected)]
     if matched: break
     time.sleep(4)
 assert matched, 'No actual outgoing WhatsApp message matches the recorded Avatar reply'
