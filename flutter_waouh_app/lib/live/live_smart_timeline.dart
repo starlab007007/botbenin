@@ -114,6 +114,13 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     }
 
     final latestActionIndex = liveLatestActionableMessageIndex(widget.messages);
+    var lastResultsIndex = -1;
+    for (var i = widget.messages.length - 1; i >= 0; i--) {
+      if (liveMessageHasResults(widget.messages[i])) {
+        lastResultsIndex = i;
+        break;
+      }
+    }
     return Stack(
       children: [
         ListView.builder(
@@ -135,7 +142,7 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
             return LiveMessageBubble(
               message: message,
               actionsEnabled: enabled,
-              collapseOldResults: !enabled,
+              collapseOldResults: index < lastResultsIndex,
               onPayload: enabled ? widget.onPayload : null,
             );
           },

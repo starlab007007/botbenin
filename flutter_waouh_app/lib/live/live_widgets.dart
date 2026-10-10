@@ -923,6 +923,9 @@ List<_PremiumProduct> _safePremiumProducts(LiveMessage message) {
 ///
 /// Les actions de paiement, de contre-offre ou de livraison ne passent jamais
 /// par cette exception : elles restent pilotées par la dernière étape métier.
+bool liveMessageHasResults(LiveMessage message) =>
+    _safePremiumProducts(message).isNotEmpty;
+
 bool liveMessageHasStandaloneProductInterestActions(LiveMessage message) {
   return _safePremiumProducts(message).any(
     (product) => product.actions.any(
