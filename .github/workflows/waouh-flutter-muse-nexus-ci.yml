@@ -129,7 +129,11 @@ jobs:
           flutter test test/live_chat_premium_cards_test.dart
           flutter test test/live_access_policy_test.dart
           flutter test test/live_user_message_test.dart
-          flutter test test/live_onboarding_test.dart --reporter github
+          flutter test test/live_onboarding_test.dart > /tmp/onb.txt 2>&1 || {
+            msg="$(grep -v '^\s*$' /tmp/onb.txt | head -c 3800 | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=onboarding test::$msg"
+            exit 1
+          }
 
       - name: Build optimized arm64 test APK
         env:
