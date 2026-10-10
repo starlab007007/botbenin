@@ -765,16 +765,27 @@ class _NegotiationCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Exemple · FCFA',
-                    style: TextStyle(
-                        color: _slate, fontSize: 12, fontWeight: FontWeight.w500)),
-                const _Reveal(
-                  delayMs: 5000,
-                  child: Text('Accord à 255 000',
+                const Flexible(
+                  child: Text('Exemple · FCFA',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          color: Color(0xFF0E7F73),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800)),
+                          color: _slate,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
+                ),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: _Reveal(
+                    delayMs: 5000,
+                    child: Text('Accord à 255 000',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Color(0xFF0E7F73),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800)),
+                  ),
                 ),
               ],
             ),
