@@ -39,6 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
+import { WaouhDelegateButton } from "@/components/waouh/WaouhDelegateButton";
 import { channelLabel, resultContact } from "@/lib/waouh/resultCardData";
 import {
   getNexusSources,
@@ -933,6 +934,8 @@ export default function WaouhAvatarCommercePage() {
                   Contact protégé : vos coordonnées restent privées.
                 </div>
                 </details>
+
+                <div className="mt-3"><WaouhDelegateButton result={item} mode={mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy"} articleId={mode === "vendre" ? selectedArticle || undefined : undefined} className="h-11" /></div>
 
                 {canonicalDealCandidate(item) ? (
                   <Button

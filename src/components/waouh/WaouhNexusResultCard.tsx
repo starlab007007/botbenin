@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { BadgeCheck, CheckCircle2, ImageOff, Loader2, MapPin, Phone, Handshake, Sparkles } from "lucide-react";
-import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
+import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
+import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { moneyXof } from "@/lib/waouh/agenticClient";
 import { channelLabel, resultContact, resultPhotos } from "@/lib/waouh/resultCardData";
-import { userFacingErrorText } from "@/lib/userFacingError";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { WaouhDelegateButton } from "./WaouhDelegateButton";
 
 /**
  * Carte de résultat « prête à négocier » : photos, faits clés, contact masqué
@@ -13,7 +12,6 @@ import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
  * ou contacter soi-même. Aucun message ne part sans confirmation.
  */
 export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { result: NexusDiscoveryResult; mode: "buy" | "sell"; articleId?: string; onHandled?: () => void }) {
-  const navigate = useNavigate();
   const photos = resultPhotos(result);
   const [photo, setPhoto] = useState(0);
   const [broken, setBroken] = useState<Record<string, boolean>>({});
@@ -27,53 +25,6 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
   const facts = [result.condition, result.brand, result.model].filter((v): v is string => !!v && String(v).trim().length > 0).slice(0, 3);
   const title = result.subject ?? result.category ?? "Opportunité";
   const shown = photos[photo] && !broken[photos[photo]] ? photos[photo] : null;
-
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState("");
-
-  const delegate = async () => {
-    if (busy) return;
-    setError("");
-    if (!confirm) { setConfirm(true); return; }
-    setBusy(true);
-    try {
-      let article = articleId;
-      if (mode === "sell" && !article) {
-        const list = (await listNexusOwnedArticles()).articles ?? [];
-        if (list.length === 1) article = list[0].id;
-        else {
-          setError(list.length ? "Choisissez l’article dans « Et maintenant ? »." : "Publiez d’abord votre article.");
-          setConfirm(false);
-          return;
-        }
-      }
-      const response = await createNexusMandate({
-        mode,
-        goal: title,
-        article_id: mode === "sell" ? article : undefined,
-        autonomy_mode: "semi_autonomous",
-        max_contacts: 1,
-        max_followups: 1,
-        duration_hours: 72,
-        completion_goal: "agreement",
-        allow_waouh: true,
-        allow_public_business: true,
-        allow_blind_message: true,
-        allow_whatsapp: channel === "whatsapp",
-        origin_surface: "web_result_card",
-      });
-      await startNexusOpportunity(result.fabric_id, mode, response.mandate.id);
-      setDone(true);
-      onHandled?.();
-    } catch (err) {
-      setError(userFacingErrorText(err, "save"));
-      setConfirm(false);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <article className="overflow-hidden rounded-[26px] border border-blue-100 bg-white shadow-[0_18px_44px_-34px_rgba(37,99,235,.55)]">
@@ -119,24 +70,12 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
           <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-violet-800"><Sparkles className="mt-0.5 h-3 w-3 shrink-0" />{result.scores.reasons.slice(0, 2).join(" · ")}</p>
         )}
 
-        {error && <p role="alert" className="text-xs font-semibold text-rose-600">{error}</p>}
-
-        {done ? (
-          <button type="button" onClick={() => navigate("/app/missions?view=suivi")} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white">
-            <CheckCircle2 className="h-4 w-4" />Bot s’en occupe · Suivre
-          </button>
-        ) : (
-          <div className="grid grid-cols-[1.4fr_1fr] gap-2">
-            <button type="button" onClick={() => void delegate()} disabled={busy}
-              className={`flex h-12 items-center justify-center gap-1.5 rounded-2xl text-sm font-black text-white shadow-md active:scale-[.98] ${confirm ? "bg-gradient-to-r from-emerald-600 to-teal-600" : "bg-gradient-to-r from-blue-600 to-indigo-600"}`}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
-              {confirm ? "Confirmer" : "Confier à Bot"}
-            </button>
-            <div className="[&_button]:h-12 [&_button]:w-full [&_button]:rounded-2xl">
-              <WaouhNexusContactSheet fabricId={result.fabric_id} title={title} sourceUrl={result.source_url} contactabilityLevel={result.contact_policy.level} mode={mode} />
-            </div>
+        <div className="grid grid-cols-[1.4fr_1fr] gap-2">
+          <WaouhDelegateButton result={result} mode={mode} articleId={articleId} onHandled={onHandled} />
+          <div className="[&_button]:h-12 [&_button]:w-full [&_button]:rounded-2xl">
+            <WaouhNexusContactSheet fabricId={result.fabric_id} title={title} sourceUrl={result.source_url} contactabilityLevel={result.contact_policy.level} mode={mode} />
           </div>
-        )}
+        </div>
       </div>
     </article>
   );

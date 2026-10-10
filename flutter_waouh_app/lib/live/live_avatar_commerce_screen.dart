@@ -961,6 +961,76 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     );
   }
 
+  Future<void> _delegateToBot(NexusDiscoveryItem item) async {
+    final mode = widget.mode == LiveAvatarCommerceMode.sell
+        ? 'sell'
+        : widget.mode == LiveAvatarCommerceMode.ask
+            ? 'ask'
+            : 'buy';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confier à Bot'),
+        content: const Text(
+            'Bot contacte ce profil et prépare la négociation. Vous validez l’accord final. Aucun paiement.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _workingFabric = item.fabricId);
+    try {
+      var article = _selectedArticle;
+      if (mode == 'sell' && (article == null || article.isEmpty)) {
+        final data = await _nexus.ownedArticles();
+        final raw = data['articles'];
+        final list = raw is List ? raw.whereType<Map>().toList() : <Map>[];
+        if (list.length == 1) {
+          article = list.first['id'].toString();
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(list.isEmpty
+                  ? 'Publiez d’abord votre article.'
+                  : 'Choisissez l’article à vendre.'),
+            ));
+          }
+          return;
+        }
+      }
+      final data = await _nexus.createMandate(
+        mode: mode,
+        goal: item.title,
+        articleId: mode == 'sell' ? article : null,
+        maxContacts: 1,
+        allowPublicBusiness: true,
+        allowBlindMessage: true,
+        allowWhatsapp: item.bestChannel == 'whatsapp',
+      );
+      final mandate = data['mandate'];
+      await _nexus.startOpportunity(
+        fabricId: item.fabricId,
+        mode: mode,
+        mandateId: mandate is Map ? '${mandate['id'] ?? ''}' : '',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bot s’en occupe. Suivez-le dans Missions.')),
+      );
+      context.go('/app/missions');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de confier à Bot pour le moment. Réessayez.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _workingFabric = null);
+    }
+  }
+
   Future<void> _followOpportunity(NexusDiscoveryItem item) async {
     final targetController = TextEditingController(
       text: (item.priceMin ?? item.priceMax)?.round().toString() ?? '',
@@ -1361,6 +1431,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                           busy: _workingFabric == entry.value.fabricId,
                           onContinue: () => _continue(entry.value),
                           onFollow: () => _followOpportunity(entry.value),
+                          onDelegate: () => _delegateToBot(entry.value),
                         ),
                       ),
                     ),
@@ -1949,12 +2020,14 @@ class _OpportunityCard extends StatelessWidget {
     required this.busy,
     required this.onContinue,
     required this.onFollow,
+    required this.onDelegate,
   });
   final int rank;
   final NexusDiscoveryItem item;
   final bool busy;
   final VoidCallback onContinue;
   final VoidCallback onFollow;
+  final VoidCallback onDelegate;
 
   String? get _maskedPhone {
     var raw = '';
@@ -2202,6 +2275,15 @@ class _OpportunityCard extends StatelessWidget {
               ),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+            const SizedBox(height: 7),
+            FilledButton.tonalIcon(
+              onPressed: busy ? null : onDelegate,
+              icon: const Icon(Icons.smart_toy_rounded),
+              label: const Text('Confier à Bot'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
               ),
             ),
             const SizedBox(height: 7),
