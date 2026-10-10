@@ -1772,24 +1772,6 @@ class _GoalSurface extends StatelessWidget {
   final bool showBudget;
   final VoidCallback onSearch;
 
-  String? get _maskedPhone {
-    var raw = '';
-    final masked = item.contactPack?.maskedContacts ?? <Map<String, dynamic>>[];
-    for (final entry in masked) {
-      final value = (entry['last4'] ?? '').toString().trim();
-      if (value.isNotEmpty) {
-        raw = value;
-        break;
-      }
-    }
-    if (raw.isEmpty) {
-      final fromEvidence =
-          item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'];
-      raw = (fromEvidence ?? '').toString().trim();
-    }
-    return rs.maskPhone(raw.isEmpty ? null : raw);
-  }
-
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
@@ -1973,6 +1955,24 @@ class _OpportunityCard extends StatelessWidget {
   final bool busy;
   final VoidCallback onContinue;
   final VoidCallback onFollow;
+
+  String? get _maskedPhone {
+    var raw = '';
+    final masked = item.contactPack?.maskedContacts ?? <Map<String, dynamic>>[];
+    for (final entry in masked) {
+      final value = (entry['last4'] ?? '').toString().trim();
+      if (value.isNotEmpty) {
+        raw = value;
+        break;
+      }
+    }
+    if (raw.isEmpty) {
+      final fromEvidence =
+          item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'];
+      raw = (fromEvidence ?? '').toString().trim();
+    }
+    return rs.maskPhone(raw.isEmpty ? null : raw);
+  }
 
   String get _price {
     if (item.priceMin == null && item.priceMax == null) return 'Prix non publié';
