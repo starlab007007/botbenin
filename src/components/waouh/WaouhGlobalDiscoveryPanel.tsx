@@ -183,6 +183,7 @@ export function WaouhGlobalDiscoveryPanel() {
       setResolvedMode(response.mode);
       setIntelligence(response.intelligence ?? null);
       {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const found = { results: response.results, source_mix: response.source_mix, refresh: (response.refresh ?? {}) as any };
         const summary = buildSummary(null, found, ctx);
         setReasonSummary(summary);
