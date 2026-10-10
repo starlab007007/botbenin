@@ -1773,15 +1773,20 @@ class _GoalSurface extends StatelessWidget {
   final VoidCallback onSearch;
 
   String? get _maskedPhone {
-    String? raw;
-    for (final entry in item.contactPack?.maskedContacts ?? const <Map<String, dynamic>>[]) {
-      final v = '${entry['last4'] ?? ''}'.trim();
-      if (v.isNotEmpty) {
-        raw = v;
+    var raw = '';
+    final masked = item.contactPack?.maskedContacts ?? <Map<String, dynamic>>[];
+    for (final entry in masked) {
+      final value = (entry['last4'] ?? '').toString().trim();
+      if (value.isNotEmpty) {
+        raw = value;
         break;
       }
     }
-    raw ??= '${item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'] ?? ''}'.trim();
+    if (raw.isEmpty) {
+      final fromEvidence =
+          item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'];
+      raw = (fromEvidence ?? '').toString().trim();
+    }
     return rs.maskPhone(raw.isEmpty ? null : raw);
   }
 

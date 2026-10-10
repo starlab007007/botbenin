@@ -55,6 +55,11 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
     if (_needsArticle) _loadArticles();
   }
 
+  String _articleTitle(Map<String, dynamic> a) {
+    final t = (a['title'] ?? '').toString().trim();
+    return t.isEmpty ? 'Article' : t;
+  }
+
   Future<void> _loadArticles() async {
     try {
       final data = await widget.service.ownedArticles();
@@ -65,7 +70,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
       if (!mounted) return;
       setState(() {
         _articles = list;
-        if (list.length == 1) _articleSel = '${list.first['id']}';
+        if (list.length == 1) _articleSel = list.first['id'].toString();
       });
     } catch (_) {
       if (mounted) setState(() => _articles = <Map<String, dynamic>>[]);
@@ -265,11 +270,11 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               Wrap(spacing: 6, runSpacing: 6, children: [
                 for (final a in _articles!.take(12))
                   ChoiceChip(
-                    label: Text('${a['title'] ?? 'Article'}',
+                    label: Text(_articleTitle(a),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    selected: _articleSel == '${a['id']}',
+                    selected: _articleSel == a['id'].toString(),
                     onSelected: (_) => setState(() {
-                      _articleSel = '${a['id']}';
+                      _articleSel = a['id'].toString();
                       _confirm = false;
                       _error = '';
                     }),
