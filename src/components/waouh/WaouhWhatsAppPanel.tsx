@@ -20,8 +20,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const [providerOperational, setProviderOperational] = useState<boolean | null>(null);
   const [webhookReady, setWebhookReady] = useState(false);
 
-  const callWaha = async (action: string, payload?: any) => {
-    setLoading(true);
+  const callWaha = async (action: string, payload?: any, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-waha-control", {
         body: { action, session, ...payload },
@@ -33,16 +33,17 @@ export const WaouhWhatsAppPanel: React.FC = () => {
       }
       return data;
     } catch (e: any) {
-      toast.error(e.message || "Erreur WAHA");
+      if (!silent) toast.error(e.message || "Erreur WAHA");
       return null;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const refreshStatus = async () => {
-    const data = await callWaha("central-status");
-    if (data?.status) { setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); setProviderOperational(data.provider_operational ?? null); }
+  const refreshStatus = async (silent = false) => {
+    const data = await callWaha("central-status", undefined, silent);
+    if (data?.status) {
+      if (data.status === "WORKING") setQr(null); setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); setProviderOperational(data.provider_operational ?? null); }
   };
 
   const createSession = async () => {
@@ -68,11 +69,11 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     refreshStatus();
   };
 
-  const loadQr = async () => {
-    const data = await callWaha("get-qr");
+  const loadQr = async (silent = false) => {
+    const data = await callWaha("get-qr", undefined, silent);
     if (data?.qr) setQr(data.qr);
     else if (data?.image) setQr(data.image);
-    else if (status === "WORKING") setQr(null);
+    else if (data?.connected) setQr(null);
   };
 
   const configureWebhook = async () => {
@@ -80,7 +81,26 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (data?.webhook_ready) { toast.success("WhatsApp central relié au chat et à l’Avatar"); refreshStatus(); }
   };
 
-  useEffect(() => { refreshStatus(); }, []);
+  useEffect(() => { void refreshStatus(); }, []);
+
+  // En attente de scan : le QR WhatsApp expire en quelques secondes. On le renouvelle
+  // et on suit l'état jusqu'à la connexion, sans action de l'utilisateur.
+  useEffect(() => {
+    if (status !== "SCAN_QR_CODE") return;
+    void loadQr(true);
+    const qrTimer = window.setInterval(() => void loadQr(true), 15000);
+    const statusTimer = window.setInterval(() => void refreshStatus(true), 4000);
+    return () => { window.clearInterval(qrTimer); window.clearInterval(statusTimer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  // Démarrage en cours : on suit l'état pour afficher le QR dès qu'il est prêt.
+  useEffect(() => {
+    if (status !== "STARTING") return;
+    const t = window.setInterval(() => void refreshStatus(true), 3000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   const statusColor = status === "WORKING" && providerOperational === true && identityMatches === true ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : "bg-gray-400";
 
@@ -91,7 +111,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
           <h3 className="font-semibold">WhatsApp via WAHA</h3>
           <Badge className={statusColor + " text-white"}>{status === "WORKING" && providerOperational === false ? "À réparer" : status}</Badge>
         </div>
-        <Button variant="outline" size="sm" onClick={refreshStatus} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => void refreshStatus()} disabled={loading}>
           <RefreshCw className={"w-4 h-4 mr-1 " + (loading ? "animate-spin" : "")} /> Rafraîchir
         </Button>
       </div>
@@ -102,8 +122,9 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Label>Nom de la session</Label>
             <Input value={session} readOnly />
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
-            {providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
-            {identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
+            {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Ouvrez WhatsApp sur +229 65653468 → Appareils connectés → Scanner ce code. Il se renouvelle seul.</p>}
+            {status === "WORKING" && providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
+            {status === "WORKING" && identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={createSession} disabled={loading}>
@@ -112,7 +133,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Button onClick={startSession} disabled={loading}>
               <Power className="w-4 h-4 mr-1" /> Démarrer
             </Button>
-            <Button variant="outline" onClick={loadQr} disabled={loading}>
+            <Button variant="outline" onClick={() => void loadQr()} disabled={loading}>
               <QrCode className="w-4 h-4 mr-1" /> Charger QR
             </Button>
             <Button variant="outline" onClick={stopSession} disabled={loading}>
