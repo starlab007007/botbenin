@@ -27,6 +27,8 @@ jobs:
   validate-build:
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: flutter_waouh_app
@@ -70,6 +72,45 @@ jobs:
             echo "GOOGLE_SERVICES_JSON absent : build sans push (Firebase désactivé)"
           fi
 
+      # Signature stable : indispensable pour que chaque nouvel APK se installe PAR-DESSUS le précédent.
+      # 1) Clé officielle fournie par les secrets WAOUH_KEYSTORE_* (recommandé).
+      # 2) Sinon une clé de test générée une fois et conservée en cache (jamais commitée).
+      - name: Restore test signing key cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.waouh-signing
+          key: waouh-test-signing-v1
+
+      - name: Android signing key
+        env:
+          WAOUH_KEYSTORE_BASE64: ${{ secrets.WAOUH_KEYSTORE_BASE64 }}
+          WAOUH_KEYSTORE_PASSWORD: ${{ secrets.WAOUH_KEYSTORE_PASSWORD }}
+          WAOUH_KEY_PASSWORD: ${{ secrets.WAOUH_KEY_PASSWORD }}
+          WAOUH_KEY_ALIAS: ${{ secrets.WAOUH_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          dir="$HOME/.waouh-signing"; mkdir -p "$dir"
+          if [ -n "$WAOUH_KEYSTORE_BASE64" ]; then
+            printf '%s' "$WAOUH_KEYSTORE_BASE64" | base64 -d > "$dir/release.jks"
+            store_pw="$WAOUH_KEYSTORE_PASSWORD"; key_pw="${WAOUH_KEY_PASSWORD:-$WAOUH_KEYSTORE_PASSWORD}"; alias="${WAOUH_KEY_ALIAS:-waouhapp-upload}"
+            echo "SIGNING_MODE=official" >> "$GITHUB_ENV"
+          else
+            if [ ! -f "$dir/test.jks" ]; then
+              pw="$(openssl rand -hex 16)"
+              keytool -genkeypair -keystore "$dir/test.jks" -storepass "$pw" -keypass "$pw" -alias waouh-test \
+                -keyalg RSA -keysize 2048 -validity 9000 -dname "CN=WAOUH Test, O=STAR LAB, C=BJ"
+              printf '%s' "$pw" > "$dir/test.pw"
+            fi
+            pw="$(cat "$dir/test.pw")"
+            cp "$dir/test.jks" "$dir/release.jks"
+            store_pw="$pw"; key_pw="$pw"; alias="waouh-test"
+            echo "SIGNING_MODE=test" >> "$GITHUB_ENV"
+          fi
+          {
+            echo "storePassword=$store_pw"; echo "keyPassword=$key_pw"
+            echo "keyAlias=$alias"; echo "storeFile=$dir/release.jks"
+          } > android/key.properties
+
       - name: Dependencies
         run: flutter pub get
 
@@ -93,7 +134,9 @@ jobs:
         env:
           WAOUH_TEST_RELEASE: "1"
         run: |
-          flutter build apk             --release             --target lib/live/live_app_production.dart             --target-platform android-arm64             --split-per-abi             --obfuscate             --split-debug-info=build/symbols
+          BUILD_NUMBER="$(date +%s)"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          flutter build apk             --release             --build-number="$BUILD_NUMBER"             --target lib/live/live_app_production.dart             --target-platform android-arm64             --split-per-abi             --obfuscate             --split-debug-info=build/symbols
           test -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           sha256sum build/app/outputs/flutter-apk/app-arm64-v8a-release.apk             > build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.sha256
 
@@ -106,3 +149,27 @@ jobs:
             flutter_waouh_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.sha256
           if-no-files-found: error
           retention-days: 14
+
+      # Publication : le dernier APK de prod est toujours téléchargeable sur https://bot.bj/android/
+      - name: Publish latest Android APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          TAG=waouh-android-latest
+          OUT=flutter_waouh_app/build/app/outputs/flutter-apk
+          VERSION="$(sed -n 's/^version: \([0-9.]*\)+.*/\1/p' flutter_waouh_app/pubspec.yaml)"
+          SHA="$(cut -d' ' -f1 "$OUT/app-arm64-v8a-release.apk.sha256")"
+          cp "$OUT/app-arm64-v8a-release.apk" waouh-android-arm64.apk
+          cat > waouh-android.json <<JSON
+          {"version":"$VERSION","build":$BUILD_NUMBER,"commit":"${GITHUB_SHA}","sha256":"$SHA","signing":"$SIGNING_MODE","published_at":"$(date -u +%FT%TZ)"}
+          JSON
+          NOTES="WAOUH Android $VERSION (build $BUILD_NUMBER) — commit ${GITHUB_SHA::8}. Téléchargement : https://bot.bj/android/"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "WAOUH Android" --notes "$NOTES" --latest=false
+          else
+            gh release edit "$TAG" --title "WAOUH Android" --notes "$NOTES" --latest=false
+          fi
+          gh release upload "$TAG" waouh-android-arm64.apk waouh-android.json --clobber

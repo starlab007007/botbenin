@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>WAOUH pour Android</title>
+<style>
+  :root{--bg:#f7f5ff;--card:#fff;--ink:#1d1b2e;--mute:#6b6880;--brand:#6d28d9;--line:#e6e1f7}
+  @media (prefers-color-scheme:dark){:root{--bg:#12101d;--card:#1b1830;--ink:#f1eefc;--mute:#a29fbd;--brand:#a78bfa;--line:#2c2849}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+  main{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px 24px;text-align:center;box-shadow:0 12px 40px rgba(109,40,217,.12)}
+  img{width:72px;height:72px;border-radius:18px}
+  h1{font-size:1.4rem;margin:14px 0 4px}
+  p{margin:0;color:var(--mute)}
+  .btn{display:block;margin:22px 0 10px;padding:14px 18px;border-radius:14px;background:var(--brand);color:#fff;font-weight:600;text-decoration:none}
+  .btn[aria-disabled=true]{opacity:.5;pointer-events:none}
+  small{display:block;color:var(--mute);font-size:.8rem}
+  ol{text-align:left;color:var(--mute);font-size:.9rem;padding-left:20px;margin:18px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <img src="/icon-192.png" alt="">
+  <h1>WAOUH pour Android</h1>
+  <p id="meta">Dernière version…</p>
+  <a id="dl" class="btn" aria-disabled="true" href="https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android-arm64.apk">Télécharger l’application</a>
+  <small id="sha"></small>
+  <ol>
+    <li>Ouvrez le fichier téléchargé.</li>
+    <li>Autorisez l’installation si Android le demande.</li>
+    <li>Connectez-vous avec votre compte bot.bj.</li>
+  </ol>
+</main>
+<script>
+(function(){
+  var dl=document.getElementById('dl'),meta=document.getElementById('meta'),sha=document.getElementById('sha');
+  fetch('https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android.json',{cache:'no-store'})
+    .then(function(r){if(!r.ok)throw 0;return r.json()})
+    .then(function(m){
+      var d=new Date(m.published_at);
+      meta.textContent='Version '+m.version+' · '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+      sha.textContent='Empreinte '+String(m.sha256).slice(0,12)+'…';
+      dl.removeAttribute('aria-disabled');
+    })
+    .catch(function(){meta.textContent='Version en préparation.';dl.removeAttribute('aria-disabled')});
+})();
+</script>
+</body>
+</html>
