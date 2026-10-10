@@ -224,11 +224,11 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
                     const SizedBox(height: 8),
                     Wrap(spacing: 6, runSpacing: 6, children: [
                       for (final entry in <MapEntry<String, int>>[
-                        MapEntry('Achats', _journeys.where((j) => j.mode == 'buy').length),
-                        MapEntry('Ventes', _journeys.where((j) => j.mode == 'sell').length),
-                        MapEntry('Demandes', _journeys.where((j) => j.mode == 'ask').length),
-                        MapEntry('Négociations', _journeys.where((j) => j.stage == 'negotiating' || j.stage == 'agreed' || j.stage == 'executing').length),
-                        MapEntry('Recherches', _missions.length),
+                        MapEntry('Achats', exactOr('purchases', _journeys.where((j) => j.mode == 'buy').length)),
+                        MapEntry('Ventes', exactOr('sales', _journeys.where((j) => j.mode == 'sell').length)),
+                        MapEntry('Demandes', exactOr('requests', _journeys.where((j) => j.mode == 'ask').length)),
+                        MapEntry('Négociations', exactOr('negotiations', _journeys.where((j) => j.stage == 'negotiating' || j.stage == 'agreed').length)),
+                        MapEntry('Recherches', exactOr('searches', _missions.length)),
                       ])
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
