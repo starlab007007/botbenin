@@ -129,7 +129,7 @@ jobs:
           flutter test test/live_chat_premium_cards_test.dart
           flutter test test/live_access_policy_test.dart
           flutter test test/live_user_message_test.dart
-          flutter test test/live_onboarding_test.dart
+          flutter test test/live_onboarding_test.dart --reporter github
 
       - name: Build optimized arm64 test APK
         env:
