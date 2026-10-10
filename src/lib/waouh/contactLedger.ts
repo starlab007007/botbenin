@@ -46,6 +46,7 @@ export type LedgerRow = {
   phone: string | null;
   channel: string | null;
   progress: number;
+  mode: "buy" | "sell" | "ask";
 };
 
 export type MissionProgress = {
@@ -64,6 +65,8 @@ export type ContactLedger = {
   replied: number;
   toContact: number;
   withNumber: number;
+  /** Statistiques par type d'activité. */
+  byType: { purchases: number; sales: number; requests: number; negotiations: number; searches: number };
   rows: LedgerRow[];
   missions: MissionProgress[];
 };
@@ -91,6 +94,7 @@ export function buildLedger(
       phone,
       channel: channel ?? journey.contact_channel ?? null,
       progress: journey.progress ?? 0,
+      mode: journey.mode === "sell" ? "sell" : journey.mode === "ask" ? "ask" : "buy",
     };
   });
   const count = (...buckets: ContactBucket[]) => rows.filter((r) => buckets.includes(r.bucket)).length;
@@ -101,6 +105,13 @@ export function buildLedger(
     replied: count("replied", "agreed", "done"),
     toContact: count("to_contact"),
     withNumber: rows.filter((r) => !!r.phone).length,
+    byType: {
+      purchases: rows.filter((r) => r.mode === "buy").length,
+      sales: rows.filter((r) => r.mode === "sell").length,
+      requests: rows.filter((r) => r.mode === "ask").length,
+      negotiations: rows.filter((r) => ["replied", "agreed"].includes(r.bucket)).length,
+      searches: mandates.filter((m) => m.status === "active").length,
+    },
     rows,
     missions: mandates
       .filter((m) => m.status === "active")

@@ -187,6 +187,26 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
                       const SizedBox(width: 6),
                       tile('À contacter', toContact),
                     ]),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      for (final entry in <MapEntry<String, int>>[
+                        MapEntry('Achats', _journeys.where((j) => j.mode == 'buy').length),
+                        MapEntry('Ventes', _journeys.where((j) => j.mode == 'sell').length),
+                        MapEntry('Demandes', _journeys.where((j) => j.mode == 'ask').length),
+                        MapEntry('Négociations', _journeys.where((j) => j.stage == 'negotiating' || j.stage == 'agreed' || j.stage == 'executing').length),
+                        MapEntry('Recherches', _missions.length),
+                      ])
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: const Color(0xFFDCE7F8)),
+                          ),
+                          child: Text('${entry.key} ${entry.value}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        ),
+                    ]),
                     const SizedBox(height: 6),
                     Text('$withNumber sur $total avec un numéro masqué disponible.',
                         style: const TextStyle(

@@ -40,5 +40,8 @@ describe("contactLedger", () => {
     expect(ledger.toContact).toBe(1);
     expect(ledger.withNumber).toBe(1);
     expect(ledger.missions).toHaveLength(1);
+    expect(ledger.byType.purchases).toBe(4);
+    expect(ledger.byType.negotiations).toBe(1);
+    expect(ledger.byType.searches).toBe(1);
   });
 });

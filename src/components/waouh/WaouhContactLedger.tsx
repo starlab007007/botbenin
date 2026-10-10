@@ -103,6 +103,19 @@ export function WaouhContactLedger() {
               </div>
             ))}
           </div>
+          <div className="mt-2 flex gap-1.5 overflow-x-auto scrollbar-none" aria-label="Par type">
+            {[
+              ["Achats", ledger.byType.purchases],
+              ["Ventes", ledger.byType.sales],
+              ["Demandes", ledger.byType.requests],
+              ["Négociations", ledger.byType.negotiations],
+              ["Recherches", ledger.byType.searches],
+            ].map(([label, value]) => (
+              <span key={String(label)} className="shrink-0 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700">
+                {label} <span className="text-blue-600">{value}</span>
+              </span>
+            ))}
+          </div>
           <p className="mt-2 text-[11px] font-semibold text-slate-500">{exact?.with_number ?? ledger.withNumber} sur {exact?.total ?? ledger.total} avec un numéro masqué disponible.</p>
 
           {ledger.missions.length > 0 && (

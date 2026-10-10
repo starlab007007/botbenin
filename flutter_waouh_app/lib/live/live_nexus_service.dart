@@ -671,6 +671,7 @@ class NexusOpportunityJourney {
     required this.contactability,
     required this.progress,
     required this.nextAction,
+    this.mode = 'buy',
     this.subject,
     this.sourceKey,
     this.sourceUrl,
@@ -697,6 +698,7 @@ class NexusOpportunityJourney {
   final String contactability;
   final int progress;
   final String nextAction;
+  final String mode;
   final String? subject;
   final String? sourceKey;
   final String? sourceUrl;
@@ -725,6 +727,7 @@ class NexusOpportunityJourney {
         id: _text(json['id']),
         fabricId: _text(json['fabric_id']),
         stage: _text(json['stage'], 'discovered'),
+        mode: _text(json['mode'], 'buy'),
         contactability: _text(json['contactability_level'], 'C0'),
         progress: _number(json['progress'], 10).round(),
         nextAction: _text(json['next_action'], 'Avatar analyse la prochaine étape'),

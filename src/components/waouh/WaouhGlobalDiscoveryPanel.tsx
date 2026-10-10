@@ -1,6 +1,7 @@
 import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
+import { WaouhBotNextStep } from "./WaouhBotNextStep";
 import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
 import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -446,6 +447,17 @@ export function WaouhGlobalDiscoveryPanel() {
               summary={reasonSummary}
               onSkip={feed.skip}
             />
+
+            {results.length > 0 && !busy && feed.pending === 0 && user && (
+              <WaouhBotNextStep
+                mode={resolvedMode === "find_buyers" ? "sell" : "buy"}
+                goal={query}
+                city={city}
+                budget={Number(budget) || null}
+                results={results}
+                originSurface="web_global_discovery_next_step"
+              />
+            )}
 
             {results.length > 0 && (
               <div className="flex items-center justify-between gap-2">

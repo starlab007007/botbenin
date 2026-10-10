@@ -13,6 +13,7 @@ import 'live_models.dart';
 import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
+import 'live_bot_next_step.dart';
 import 'live_hot_labels.dart';
 import 'live_reasoning.dart' as rs;
 
@@ -1330,6 +1331,23 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             if (_response != null) ...[
               const SizedBox(height: 14),
               _SearchPoint(response: _response!, query: _goal.text, city: _city.text),
+              if (results.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                LiveBotNextStep(
+                  service: _nexus,
+                  mode: switch (widget.mode) {
+                    LiveAvatarCommerceMode.sell => 'sell',
+                    LiveAvatarCommerceMode.ask => 'ask',
+                    LiveAvatarCommerceMode.buy => 'buy',
+                  },
+                  goal: _goal.text.trim(),
+                  city: _city.text,
+                  budget: double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'), '')),
+                  items: results,
+                  articleId: widget.mode == LiveAvatarCommerceMode.sell ? _selectedArticle : null,
+                  priceFloor: widget.mode == LiveAvatarCommerceMode.sell ? double.tryParse(_priceFloor) : null,
+                ),
+              ],
               const SizedBox(height: 12),
               if (results.isEmpty)
                 _EmptyDiscovery(avatarName: avatar.name)

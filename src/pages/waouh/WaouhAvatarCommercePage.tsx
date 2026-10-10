@@ -3,6 +3,7 @@ import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import type { DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
+import { WaouhBotNextStep } from "@/components/waouh/WaouhBotNextStep";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
 import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
@@ -843,6 +844,19 @@ export default function WaouhAvatarCommercePage() {
               </div>
             )}
           </section>
+        )}
+
+        {results.length > 0 && !busy && feed.pending === 0 && (
+          <WaouhBotNextStep
+            mode={mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy"}
+            goal={goal}
+            city={city}
+            budget={Number(budget) || null}
+            results={results}
+            originSurface="web_avatar_next_step"
+            articleId={selectedArticle || undefined}
+            priceFloor={Number(priceFloor) || null}
+          />
         )}
 
         <div className="space-y-3">
