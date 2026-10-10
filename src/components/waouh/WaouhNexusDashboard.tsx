@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic, moneyXof } from "@/lib/waouh/agenticClient";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
+import { WaouhSellPhotos, WaouhMyArticleCard } from "@/components/waouh/WaouhSellPhotos";
 import {
   buildSummary, externalSteps, externalUnavailableStep, internalSteps, maskPhone, planSteps, sameZone, summaryStep,
   type ExternalDiscovery, type ReasonSummary,
@@ -69,6 +70,8 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
   const [summary, setSummary] = useState<NexusSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [sellPhotos, setSellPhotos] = useState<string[]>([]);
+  const [sellNotes, setSellNotes] = useState("");
   const [budget, setBudget] = useState("");
   const [city, setCity] = useState("Cotonou");
   const [searching, setSearching] = useState(false);
@@ -447,6 +450,11 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
               {sellerLoading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}Analyser
             </Button>
           </div>
+
+          <WaouhSellPhotos photos={sellPhotos} onPhotos={setSellPhotos} notes={sellNotes} onNotes={setSellNotes} />
+          {(sellPhotos.length > 0 || sellNotes.trim()) && (
+            <WaouhMyArticleCard title="Mon article" photos={sellPhotos} notes={sellNotes} />
+          )}
 
           {!sellerLoading && sellerGroups.length === 0 && (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-white/60 p-6 text-center text-sm font-semibold text-slate-500">Aucune opportunité. Publiez un article puis analysez.</div>

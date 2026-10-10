@@ -7,6 +7,7 @@ import {
 } from "@/hooks/waouhNotificationTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isReplyableNotif, showNotifHeadsUp } from "@/lib/waouh/notifHeadsUp";
 import { primaryWaouhSmartAction, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const TEMPLATE_TITLES: Record<string, string> = {
@@ -191,7 +192,11 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       /\/(app\/chat|waouh-chat)/.test(window.location.pathname);
     const hidden = typeof document !== "undefined" && document.visibilityState !== "visible";
     if (hidden || !onChatPage) {
-      toast(notif.title, { description: notif.body, duration: 6000 });
+      if (isReplyableNotif(notif)) {
+        showNotifHeadsUp(notif, waouhSmartRoute(notif.payload));
+      } else {
+        toast(notif.title, { description: notif.body, duration: 6000 });
+      }
     }
   }, [sessionId]);
 
@@ -335,6 +340,10 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
           const opts: NotificationOptions = {
             body, icon: "/favicon.ico", badge: "/favicon.ico",
             tag: `waouh-${row.id}`,
+            actions: [
+              { action: "reply", title: "Répondre", type: "text", placeholder: "Votre réponse…" },
+              { action: "open", title: "Ouvrir" },
+            ],
             data: {
               url: presentation.route || "/app/chat/waouh",
               action_id: presentation.primaryAction?.id || null,

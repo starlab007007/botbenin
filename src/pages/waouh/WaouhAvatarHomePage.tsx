@@ -1,3 +1,4 @@
+import { WaouhAvatarInbox } from "@/components/waouh/WaouhAvatarInbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -457,6 +458,8 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
             </div>
           </div>
         </section>
+
+        {user && <WaouhAvatarInbox authUserId={user.id} botName={profile.name} />}
 
         <section>
           <h2 className="text-base sm:text-xl font-black tracking-tight text-slate-950">Que voulez-vous faire ?</h2>

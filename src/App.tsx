@@ -99,6 +99,7 @@ const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
+import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge";
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
@@ -239,6 +240,7 @@ const AppContent = () => {
   return (
     <Suspense fallback={<DeferredRouteFallback />}>
       <OfflineBanner />
+      <WaouhQuickReplyBridge />
       <Routes>
         <Route path="/exchange" element={<WaouhGuestExchangePage />} />
                   {/* Routes avec layout principal */}

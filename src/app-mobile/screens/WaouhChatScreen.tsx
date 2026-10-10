@@ -108,11 +108,17 @@ function WaouhChatScreenInner() {
     const isNew = params.get("new") === "1";
     const autosend = params.get("autosend") === "1";
     const prefill = params.get("prefill");
-    if (!isNew && !autosend && !prefill) return;
+    const quickReply = (params.get("reply") || "").trim();
+    if (!isNew && !autosend && !prefill && !quickReply) return;
 
     const t = setTimeout(() => {
       setActiveKey("main");
-      if (autosend) {
+      if (quickReply) {
+        // Réponse rapide depuis une notification : on continue le fil de Bot avec le contexte.
+        const about = (params.get("about") || "").trim();
+        const text = about ? `Réponse à « ${about} » : ${quickReply}` : quickReply;
+        void chatRef.current?.sendNow(text);
+      } else if (autosend) {
         const intent = (params.get("intent") || "interest") as RadarIntent;
         const title = params.get("title") || "";
         const distance = params.get("distance") || "";

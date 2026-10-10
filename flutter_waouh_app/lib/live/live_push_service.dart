@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Optional native push bootstrap.
@@ -18,7 +20,13 @@ class LivePushService {
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<AuthState>? _authSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
+  StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
+  bool _localReady = false;
   bool _ready = false;
+
+  /// Réponse rapide saisie dans la notification (style Messenger) : texte + contexte.
+  static Future<void> Function(String text, Map<String, dynamic> context)? onQuickReply;
 
   /// Ouvre une route interne (renseignée par l'application au démarrage du routeur).
   static void Function(String route)? onOpenRoute;
@@ -44,6 +52,85 @@ class LivePushService {
     if (route != null) onOpenRoute?.call(route);
   }
 
+  Future<void> _initLocal() async {
+    try {
+      await _local.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          Map<String, dynamic> ctx = const <String, dynamic>{};
+          try {
+            final decoded = jsonDecode(response.payload ?? '{}');
+            if (decoded is Map) ctx = Map<String, dynamic>.from(decoded);
+          } catch (_) {}
+          final reply = (response.input ?? '').trim();
+          if (response.actionId == 'reply' && reply.isNotEmpty) {
+            unawaited(() async {
+              try {
+                await onQuickReply?.call(reply, ctx);
+              } catch (error) {
+                debugPrint('[WAOUH push] quick reply failed: $error');
+              }
+            }());
+            return;
+          }
+          final route = safeRouteFromData(ctx);
+          if (route != null) onOpenRoute?.call(route);
+        },
+      );
+      _localReady = true;
+    } catch (error) {
+      debugPrint('[WAOUH push] local notifications unavailable: $error');
+    }
+  }
+
+  /// Application ouverte : FCM n'affiche rien, on montre la notification avec « Répondre ».
+  Future<void> _showForeground(RemoteMessage message) async {
+    if (!_localReady) return;
+    final title = (message.notification?.title ?? '${message.data['title'] ?? ''}').trim();
+    final body = (message.notification?.body ?? '${message.data['body'] ?? ''}').trim();
+    if (title.isEmpty && body.isEmpty) return;
+    final ctx = <String, dynamic>{
+      ...message.data,
+      'title': title,
+      'body': body,
+    };
+    try {
+      await _local.show(
+        message.hashCode & 0x7fffffff,
+        title.isEmpty ? 'WAOUH' : title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'waouh_actions',
+            'Actions et réponses',
+            channelDescription: 'Achats, ventes et réponses de vos contacts',
+            importance: Importance.high,
+            priority: Priority.high,
+            actions: const <AndroidNotificationAction>[
+              AndroidNotificationAction(
+                'reply',
+                'Répondre',
+                inputs: <AndroidNotificationActionInput>[
+                  AndroidNotificationActionInput(label: 'Votre réponse…'),
+                ],
+                showsUserInterface: false,
+                cancelNotification: true,
+              ),
+              AndroidNotificationAction('open', 'Ouvrir', showsUserInterface: true),
+            ],
+          ),
+          iOS: const DarwinNotificationDetails(),
+        ),
+        payload: jsonEncode(ctx),
+      );
+    } catch (error) {
+      debugPrint('[WAOUH push] foreground display failed: $error');
+    }
+  }
+
   Future<void> initialize() async {
     try {
       await Firebase.initializeApp();
@@ -63,6 +150,8 @@ class LivePushService {
       debugPrint('[WAOUH push] permission request skipped: $error');
     }
 
+    await _initLocal();
+    _foregroundSubscription = FirebaseMessaging.onMessage.listen(_showForeground);
     await _registerCurrentToken();
 
     _tokenSubscription =
@@ -126,5 +215,6 @@ class LivePushService {
     await _tokenSubscription?.cancel();
     await _authSubscription?.cancel();
     await _openedSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
   }
 }

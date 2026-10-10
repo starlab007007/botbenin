@@ -39,7 +39,9 @@ BEGIN
                 jsonb_build_object('smart', jsonb_build_object(
                   'title', 'Un contact a répondu',
                   'detail', v_title || ' · Bot prépare la négociation',
-                  'route', '/app/missions?view=suivi')));
+                  'route', '/app/missions?view=suivi'),
+                  'journey_id', NEW.id, 'thread_id', NEW.thread_id, 'mode', NEW.mode,
+                  'subject', v_title, 'reply_enabled', true));
       END IF;
     END IF;
   EXCEPTION WHEN OTHERS THEN

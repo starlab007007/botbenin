@@ -5,7 +5,7 @@
 // - StaleWhileRevalidate pour images/fonts
 // - NetworkOnly pour Supabase / API / méthodes non-GET
 
-const VERSION = 'v15-opportunity-os-20261004';
+const VERSION = 'v16-quick-reply-20261010';
 const SHELL_CACHE = `botbj-shell-${VERSION}`;
 const ASSETS_CACHE = `botbj-assets-${VERSION}`;
 const RUNTIME_CACHE = `botbj-runtime-${VERSION}`;
@@ -207,7 +207,23 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
+  const base = event.notification.data?.url || '/';
+  const typed = typeof event.reply === 'string' ? event.reply.trim() : '';
+  let target = base;
+  if (event.action === 'reply' && typed) {
+    // Réponse rapide façon Messenger : le texte est envoyé à Bot dans le chat.
+    target = '/app/chat/waouh?reply=' + encodeURIComponent(typed) +
+      '&about=' + encodeURIComponent((event.notification.body || event.notification.title || '').slice(0, 160));
+  }
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => 'focus' in c);
+      if (open) {
+        return open.focus().then((c) => (c && 'navigate' in c ? c.navigate(target) : clients.openWindow(target)));
+      }
+      return clients.openWindow(target);
+    })
+  );
 });
 
 // Allow page to force activation of a waiting SW.

@@ -1,5 +1,6 @@
 import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhCityField } from "./WaouhCityField";
+import { WaouhSellPhotos, WaouhMyArticleCard } from "./WaouhSellPhotos";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhBotNextStep } from "./WaouhBotNextStep";
@@ -106,6 +107,8 @@ export function WaouhGlobalDiscoveryPanel() {
   const [city, setCity] = useState(() => urlParams.get("city") || "");
   const [budget, setBudget] = useState(() => (urlParams.get("budget") || "").replace(/\D/g, ""));
   const [busy, setBusy] = useState(false);
+  const [sellPhotos, setSellPhotos] = useState<string[]>([]);
+  const [sellNotes, setSellNotes] = useState("");
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
   const [refreshState, setRefreshState] = useState<Record<string, {
@@ -225,6 +228,8 @@ export function WaouhGlobalDiscoveryPanel() {
         autonomy_mode: "semi_autonomous",
         city: city.trim() || undefined,
         budget_max: resolvedMode === "find_sellers" && budget ? Number(budget) : undefined,
+        photos: resolvedMode === "find_buyers" && sellPhotos.length ? sellPhotos : undefined,
+        article_notes: resolvedMode === "find_buyers" && sellNotes.trim() ? sellNotes.trim() : undefined,
         max_contacts: 3,
         max_followups: 1,
         duration_hours: 24,
@@ -414,6 +419,15 @@ export function WaouhGlobalDiscoveryPanel() {
                     <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-2xl border-blue-100 bg-white" />
                   ) : (
                     <div className="flex items-center rounded-2xl border border-dashed border-blue-100 bg-white/60 px-3 text-[11px] font-semibold text-slate-500">Bot cherche les acheteurs</div>
+                  )}
+                </div>
+              )}
+
+              {mode === "find_buyers" && query.trim() && (
+                <div className="mt-3 space-y-3">
+                  <WaouhSellPhotos photos={sellPhotos} onPhotos={setSellPhotos} notes={sellNotes} onNotes={setSellNotes} />
+                  {(sellPhotos.length > 0 || sellNotes.trim()) && (
+                    <WaouhMyArticleCard title={query.trim()} city={city} photos={sellPhotos} notes={sellNotes} />
                   )}
                 </div>
               )}

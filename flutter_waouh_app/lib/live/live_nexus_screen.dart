@@ -14,6 +14,7 @@ import 'live_theme.dart';
 import 'live_guest_action_gate.dart';
 import 'user_message.dart';
 import 'live_hot_labels.dart';
+import 'live_sell_photos.dart';
 
 class LiveNexusScreen extends StatefulWidget {
   const LiveNexusScreen({super.key});
@@ -35,6 +36,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   late final LiveNexusService service;
   bool findSellers = true;
+  List<String> sellPhotos = <String>[];
+  String sellNotes = '';
   bool smartMode = true;
   bool busy = false;
   String shareOrigin = 'whatsapp';
@@ -202,6 +205,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         maxFollowups: 1,
         durationHours: 24,
         scanIntervalMinutes: 60,
+        photos: findSellers ? const <String>[] : sellPhotos,
+        articleNotes: findSellers ? '' : sellNotes,
       );
       if (!mounted) return;
       notice(
@@ -541,6 +546,21 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             ],
           ],
         ),
+        if (!smartMode && !findSellers) ...[
+          LiveSellPhotos(
+            service: service,
+            photos: sellPhotos,
+            onChanged: (v) => setState(() => sellPhotos = v),
+            onNotes: (v) => sellNotes = v,
+          ),
+          if (sellPhotos.isNotEmpty)
+            LiveMyArticleCard(
+              title: query.text.trim(),
+              photos: sellPhotos,
+              notes: sellNotes,
+              city: city.text,
+            ),
+        ],
         const SizedBox(height: 8),
         Row(
           children: [

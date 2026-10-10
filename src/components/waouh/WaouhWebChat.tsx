@@ -155,6 +155,7 @@ export type WaouhWebChatHandle = {
   focusInput: () => void;
   startNewThread: () => void;
   prefill: (text: string) => void;
+  sendNow: (text: string) => Promise<void> | void;
   prefillAndSend: (text: string, opts?: { attachments?: Att[] }) => Promise<void> | void;
 };
 
@@ -858,6 +859,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     prefill: (text: string) => {
       setInput(text);
       setTimeout(() => inputRef.current?.focus(), 0);
+    },
+    sendNow: async (text: string) => {
+      try { await sendCore(text, []); } catch { /* sendCore affiche déjà l'erreur */ }
     },
     prefillAndSend: async (text: string, opts?: { attachments?: Att[] }) => {
       // Reset thread + send immediately. Bypasses the textarea so no manual tap is needed.

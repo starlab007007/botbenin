@@ -105,6 +105,11 @@ const TITLES: Record<string, string> = {
   match: "Nouvelle correspondance",
   new_buyer: "Nouvel acheteur intéressé",
   sale_published: "Annonce publiée",
+  match_seller: "Un acheteur est intéressé",
+  match_buyer: "Annonce trouvée pour vous",
+  contact_reply: "Un contact a répondu",
+  deal_created: "Accord conclu",
+  deal_payment_request: "Confirmez le paiement",
 };
 
 const plain = (s: string) =>
@@ -174,7 +179,9 @@ async function runTick(admin: any, limit: number) {
     const list = authId ? tokensByAuth.get(authId) || [] : [];
     if (!list.length) continue;
     const c = pushContent(n);
-    const data = { route: c.route, notification_id: String(n.id), type: String(n.notification_type || "") };
+    const data: Record<string, string> = { route: c.route, notification_id: String(n.id), type: String(n.notification_type || "") };
+    const pj = n.payload?.journey_id;
+    if (pj) data.journey_id = String(pj);
     for (const token of list) {
       try {
         const r = await sendFcm(sa, token, { title: c.title, body: c.body, data });

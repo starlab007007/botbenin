@@ -95,6 +95,20 @@ class LiveWaouhProductionApp extends StatelessWidget {
           builder: (context) {
             final router = _router(context.read<legacy.AuthController>());
             LivePushService.onOpenRoute = (route) => router.go(route);
+            final liveController = context.read<LiveWaouhController>();
+            LivePushService.onQuickReply = (text, ctx) {
+              final about = '${ctx['body'] ?? ctx['title'] ?? ''}'.trim();
+              return liveController.sendMain(
+                text: about.isEmpty ? text : 'Réponse à « $about » : $text',
+                meta: <String, dynamic>{
+                  'origin_surface': 'notification_quick_reply',
+                  if ('${ctx['notification_id'] ?? ''}'.isNotEmpty)
+                    'notification_id': '${ctx['notification_id']}',
+                  if ('${ctx['journey_id'] ?? ''}'.isNotEmpty)
+                    'journey_id': '${ctx['journey_id']}',
+                },
+              );
+            };
             return MaterialApp.router(
               title: 'WaouhApp',
               debugShowCheckedModeBanner: false,
