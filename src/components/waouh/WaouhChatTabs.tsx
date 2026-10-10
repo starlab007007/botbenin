@@ -1,4 +1,5 @@
-import { Bot, Handshake, ShoppingBag, Sparkles, Target, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bot, Handshake, Search, ShoppingBag, Sparkles, Target, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
@@ -16,6 +17,12 @@ export function WaouhChatTabs({
   onClose: (key: string) => void;
   sessionId: string;
 }) {
+  const [search, setSearch] = useState<{ goal: string; status: string; count: number; open: boolean } | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setSearch((e as CustomEvent).detail ?? null);
+    window.addEventListener("waouh:chat-search", on);
+    return () => window.removeEventListener("waouh:chat-search", on);
+  }, []);
   return (
     <div className="shrink-0 border-b border-slate-200/80 bg-white/95 px-2 py-1 backdrop-blur">
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
@@ -44,6 +51,35 @@ export function WaouhChatTabs({
             </div>
           </div>
         </button>
+
+        {search && (
+          <div className={cn(
+            "flex shrink-0 items-center rounded-xl border pr-0.5 transition",
+            search.open ? "border-violet-300 bg-violet-600 text-white shadow-sm" : "border-violet-200 bg-white text-slate-700"
+          )}>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("waouh:chat-search-open"))}
+              className="flex min-w-0 items-center gap-1.5 px-2 py-1 text-left"
+            >
+              <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg", search.open ? "bg-white/15" : "bg-violet-50 text-violet-700")}>
+                <Search className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] font-black uppercase tracking-wide">Recherche</div>
+                <div className={cn("max-w-[120px] truncate text-[9px] font-semibold", search.open ? "text-white/75" : "text-slate-500")}>
+                  {search.status === "running" ? "En cours…" : search.count ? `${search.count} résultat${search.count > 1 ? "s" : ""}` : search.goal}
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={(event) => { event.stopPropagation(); window.dispatchEvent(new CustomEvent("waouh:chat-search-close")); }}
+              className="flex h-6 w-6 items-center justify-center rounded-lg hover:bg-black/10"
+              aria-label="Fermer la recherche"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {matches.map((match) => {
           const active = activeKey === match.key;

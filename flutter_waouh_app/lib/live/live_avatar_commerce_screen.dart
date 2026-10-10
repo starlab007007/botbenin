@@ -15,6 +15,7 @@ import 'live_theme.dart';
 import 'live_widgets.dart';
 import 'live_bot_next_step.dart';
 import 'live_city_field.dart';
+import 'live_sell_photos.dart';
 import 'live_hot_labels.dart';
 import 'live_reasoning.dart' as rs;
 
@@ -46,6 +47,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   List<Map<String, dynamic>> _ownedArticles = [];
   String? _selectedArticle;
   String _priceFloor = '';
+  List<String> _sellPhotos = <String>[];
+  String _sellNotes = '';
   Map<String, dynamic>? _mandate;
   String _autonomyMode = 'semi_autonomous';
   int _maxContacts = 3;
@@ -171,6 +174,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         allowWhatsapp: _allowWhatsapp, allowPublicBusiness: _allowBusiness, allowBlindMessage: _allowMediation,
         quantity: _quantity, deliveryTerms: _deliveryTerms, acceptanceTerms: _acceptanceTerms,
         scanIntervalMinutes: 60,
+        photos: widget.mode == LiveAvatarCommerceMode.sell ? _sellPhotos : const <String>[],
+        articleNotes: widget.mode == LiveAvatarCommerceMode.sell ? _sellNotes : '',
       );
       final raw = data['mandate'];
       if (raw is Map && mounted) {
@@ -1216,6 +1221,12 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               onChanged: (value) => setState(() => _selectedArticle = value),
             ),
             TextFormField(keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Prix minimum autorisé (FCFA)'), onChanged: (value) => _priceFloor = value),
+            LiveSellPhotos(
+              service: _nexus,
+              photos: _sellPhotos,
+              onChanged: (v) => setState(() => _sellPhotos = v),
+              onNotes: (v) => _sellNotes = v,
+            ),
             const SizedBox(height: 12),
           ],
           DropdownButtonFormField<String>(
@@ -1402,6 +1413,23 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             if (_response != null) ...[
               const SizedBox(height: 14),
               _SearchPoint(response: _response!, query: _goal.text, city: _city.text),
+              if (results.isNotEmpty && widget.mode == LiveAvatarCommerceMode.sell) ...[
+                const SizedBox(height: 12),
+                Builder(builder: (context) {
+                  Map<String, dynamic>? art;
+                  for (final a in _ownedArticles) {
+                    if ('${a['id']}' == _selectedArticle) art = a;
+                  }
+                  return LiveMyArticleCard(
+                    title: art != null ? '${art['title']}' : _goal.text.trim(),
+                    price: art == null ? null : double.tryParse('${art['price']}'),
+                    floor: double.tryParse(_priceFloor),
+                    city: _city.text,
+                    photos: _sellPhotos,
+                    notes: _sellNotes,
+                  );
+                }),
+              ],
               if (results.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 LiveBotNextStep(

@@ -1065,8 +1065,12 @@ class LiveNexusService {
     String acceptanceTerms = '',
     int durationHours = 72,
     int scanIntervalMinutes = 60,
+    List<String> photos = const <String>[],
+    String articleNotes = '',
   }) =>
       _invoke('nexus.mandate.create', {
+        if (photos.isNotEmpty) 'photos': photos,
+        if (articleNotes.trim().isNotEmpty) 'article_notes': articleNotes.trim(),
         if (articleId != null) 'article_id': articleId,
         if (priceFloor != null) 'price_floor': priceFloor,
         'mode': mode,

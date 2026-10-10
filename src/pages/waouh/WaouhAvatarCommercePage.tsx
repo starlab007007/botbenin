@@ -41,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import { WaouhDelegateButton } from "@/components/waouh/WaouhDelegateButton";
+import { WaouhSellPhotos, WaouhMyArticleCard } from "@/components/waouh/WaouhSellPhotos";
 import { channelLabel, resultContact } from "@/lib/waouh/resultCardData";
 import {
   getNexusSources,
@@ -185,6 +186,8 @@ export default function WaouhAvatarCommercePage() {
   const [ownedArticles, setOwnedArticles] = useState<Array<{ id: string; title: string; price: number }>>([]);
   const [selectedArticle, setSelectedArticle] = useState("");
   const [priceFloor, setPriceFloor] = useState("");
+  const [sellPhotos, setSellPhotos] = useState<string[]>([]);
+  const [sellNotes, setSellNotes] = useState("");
   useEffect(() => { if (mode === "vendre") void listNexusOwnedArticles().then(data => setOwnedArticles(data.articles)).catch(() => {}); }, [mode]);
 
   const [urlParams] = useSearchParams();
@@ -349,6 +352,8 @@ export default function WaouhAvatarCommercePage() {
         goal: query,
         article_id: mode === "vendre" ? selectedArticle : undefined,
         price_floor: mode === "vendre" ? Number(priceFloor) || undefined : undefined,
+        photos: mode === "vendre" && sellPhotos.length ? sellPhotos : undefined,
+        article_notes: mode === "vendre" && sellNotes.trim() ? sellNotes.trim() : undefined,
         autonomy_mode: autonomyMode,
         city: city.trim() || undefined,
         budget_max: Number(budget) || undefined,
@@ -713,6 +718,7 @@ export default function WaouhAvatarCommercePage() {
                 </select>
                 <Input type="number" min="1" value={priceFloor} onChange={e => setPriceFloor(e.target.value)} placeholder="Prix minimum autorisé (FCFA)" aria-label="Prix minimum autorisé" />
                 {!ownedArticles.length && <p className="text-sm">Publiez votre article avant de lancer une mission de vente.</p>}
+                <WaouhSellPhotos photos={sellPhotos} onPhotos={setSellPhotos} notes={sellNotes} onNotes={setSellNotes} />
               </div>}
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs">Résultat attendu<select aria-label="Résultat attendu" className="mt-1 w-full rounded-xl border p-2" value={completionGoal} onChange={e => setCompletionGoal(e.target.value as typeof completionGoal)}>
@@ -849,6 +855,11 @@ export default function WaouhAvatarCommercePage() {
             )}
           </section>
         )}
+
+        {mode === "vendre" && results.length > 0 && !busy && (() => {
+          const art = ownedArticles.find(a => a.id === selectedArticle);
+          return <WaouhMyArticleCard title={art?.title || goal} price={art?.price} floor={Number(priceFloor) || null} city={city} photos={sellPhotos} notes={sellNotes} />;
+        })()}
 
         {results.length > 0 && !busy && feed.pending === 0 && (
           <WaouhBotNextStep

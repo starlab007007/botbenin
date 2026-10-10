@@ -182,6 +182,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatSearch, setChatSearch] = useState<ChatSearch | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => { if (chatSearch?.id) setSearchOpen(true); }, [chatSearch?.id]);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("waouh:chat-search", {
+      detail: chatSearch ? { id: chatSearch.id, goal: chatSearch.goal, status: chatSearch.status, count: chatSearch.results.length, open: searchOpen } : null,
+    }));
+  }, [chatSearch, searchOpen]);
+  useEffect(() => {
+    const open = () => setSearchOpen(true);
+    const close = () => { setSearchOpen(false); setChatSearch(null); };
+    window.addEventListener("waouh:chat-search-open", open);
+    window.addEventListener("waouh:chat-search-close", close);
+    return () => {
+      window.removeEventListener("waouh:chat-search-open", open);
+      window.removeEventListener("waouh:chat-search-close", close);
+      window.dispatchEvent(new CustomEvent("waouh:chat-search", { detail: null }));
+    };
+  }, []);
   const searchGoalFor = (outId: string) => {
     const list = messagesRefForSearch.current;
     const at = list.findIndex((x) => x.id === outId);
@@ -1282,8 +1300,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         />
       )}
       <WaouhChatSearchWindow
-        search={chatSearch}
-        onClose={() => setChatSearch(null)}
+        search={searchOpen ? chatSearch : null}
+        onClose={() => setSearchOpen(false)}
         onAction={sending ? undefined : (txt, meta) => { setChatSearch(null); void sendCore(txt, [], null, meta ?? {}).catch(() => {}); }}
       />
     </Card>

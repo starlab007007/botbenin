@@ -687,6 +687,7 @@ export async function listNexusOwnedArticles() {
 export async function createNexusMandate(payload: {
   article_id?: string;
   price_floor?: number;
+  photos?: string[]; article_notes?: string;
   completion_goal?: "transaction" | "agreement" | "recommendations";
   quantity?: number; delivery_terms?: string; acceptance_terms?: string;
   mode: "buy" | "sell" | "ask";
