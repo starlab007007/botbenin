@@ -289,10 +289,16 @@ class LiveMessageBubble extends StatelessWidget {
                           text: _premiumIntro(displayText))),
                   const SizedBox(height: 9),
                 ],
-                _PremiumResultsGrid(
-                  products: products,
-                  onPayload: onPayload,
-                  actionsEnabled: actionsEnabled,
+                _CollapsibleResults(
+                  count: products.length,
+                  best: products.first.title,
+                  startCollapsed: DateTime.now().difference(message.createdAt) >
+                      const Duration(minutes: 5),
+                  child: _PremiumResultsGrid(
+                    products: products,
+                    onPayload: onPayload,
+                    actionsEnabled: actionsEnabled,
+                  ),
                 ),
               ],
               if (!outgoing &&
@@ -3957,6 +3963,65 @@ class LiveAttachmentStrip extends StatelessWidget {
       height: 60,
       fit: BoxFit.cover,
       fallback: fallback,
+    );
+  }
+}
+
+
+/// Barre « N résultats · meilleur choix » qui replie/déplie les résultats.
+class _CollapsibleResults extends StatefulWidget {
+  const _CollapsibleResults({
+    required this.count,
+    required this.best,
+    required this.startCollapsed,
+    required this.child,
+  });
+  final int count;
+  final String best;
+  final bool startCollapsed;
+  final Widget child;
+
+  @override
+  State<_CollapsibleResults> createState() => _CollapsibleResultsState();
+}
+
+class _CollapsibleResultsState extends State<_CollapsibleResults> {
+  late bool _open = !widget.startCollapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '${widget.count} résultat${widget.count > 1 ? 's' : ''}'
+        '${widget.best.trim().isEmpty ? '' : ' · meilleur choix : ${widget.best.trim()}'}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _open = !_open),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F4FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4D8FF)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.search, size: 16, color: Color(0xFF7C3AED)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                ),
+                Icon(_open ? Icons.expand_less : Icons.expand_more, size: 20),
+              ],
+            ),
+          ),
+        ),
+        if (_open) ...[const SizedBox(height: 8), widget.child],
+      ],
     );
   }
 }
