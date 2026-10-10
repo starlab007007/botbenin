@@ -8,6 +8,7 @@ on:
     paths:
       - 'supabase/functions/waouh-history/**'
       - 'supabase/functions/waouh-channel-in-secure/**'
+      - 'supabase/functions/register-device-token/**'
       - 'supabase/functions/_shared/waouh-auth.ts'
       - '.github/workflows/deploy-waouh-edge.yml'
 
@@ -68,4 +69,5 @@ jobs:
           set -euo pipefail
           supabase functions deploy waouh-history --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy waouh-channel-in-secure --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy register-device-token --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           echo '✅ Edge Functions WAOUH déployées'
