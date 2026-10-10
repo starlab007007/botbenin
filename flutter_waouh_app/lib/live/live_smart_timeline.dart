@@ -135,6 +135,7 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
             return LiveMessageBubble(
               message: message,
               actionsEnabled: enabled,
+              collapseOldResults: !enabled,
               onPayload: enabled ? widget.onPayload : null,
             );
           },

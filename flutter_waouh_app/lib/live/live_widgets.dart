@@ -165,10 +165,12 @@ class LiveMessageBubble extends StatelessWidget {
     required this.message,
     this.onPayload,
     this.actionsEnabled = true,
+    this.collapseOldResults = false,
   });
   final LiveMessage message;
   final ValueChanged<String>? onPayload;
   final bool actionsEnabled;
+  final bool collapseOldResults;
 
   @override
   Widget build(BuildContext context) {
@@ -292,8 +294,7 @@ class LiveMessageBubble extends StatelessWidget {
                 _CollapsibleResults(
                   count: products.length,
                   best: products.first.title,
-                  startCollapsed: DateTime.now().difference(message.createdAt) >
-                      const Duration(minutes: 5),
+                  startCollapsed: collapseOldResults,
                   child: _PremiumResultsGrid(
                     products: products,
                     onPayload: onPayload,
