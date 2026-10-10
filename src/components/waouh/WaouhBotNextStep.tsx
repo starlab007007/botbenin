@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Handshake, Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import { createNexusMandate, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
+import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 
@@ -50,6 +50,24 @@ export function WaouhBotNextStep({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ linked: number } | null>(null);
+  const [articles, setArticles] = useState<Array<{ id: string; title: string; price: number }> | null>(null);
+  const [articleSel, setArticleSel] = useState("");
+  const needsArticle = mode === "sell" && !articleId;
+  const article = articleId || articleSel;
+
+  useEffect(() => {
+    if (!needsArticle) return;
+    let alive = true;
+    listNexusOwnedArticles()
+      .then((r) => {
+        if (!alive) return;
+        const list = r.articles ?? [];
+        setArticles(list);
+        if (list.length === 1) setArticleSel(list[0].id);
+      })
+      .catch(() => { if (alive) setArticles([]); });
+    return () => { alive = false; };
+  }, [needsArticle]);
 
   const options = useMemo(() => Array.from(new Set([1, 3, 5, 10, maxPick].filter((n) => n <= maxPick))).sort((a, b) => a - b), [maxPick]);
   const picked = Math.min(count, maxPick);
@@ -58,6 +76,7 @@ export function WaouhBotNextStep({
 
   const launch = async () => {
     if (busy) return;
+    if (mode === "sell" && !article) { setError("Choisissez l’article à vendre."); return; }
     if (!confirm) { setConfirm(true); return; }
     setBusy(true);
     setError("");
@@ -65,7 +84,7 @@ export function WaouhBotNextStep({
       const response = await createNexusMandate({
         mode,
         goal: goal.trim(),
-        article_id: mode === "sell" ? articleId || undefined : undefined,
+        article_id: mode === "sell" ? article || undefined : undefined,
         price_floor: mode === "sell" ? priceFloor || undefined : undefined,
         autonomy_mode: autonomy,
         city: city?.trim() || undefined,
@@ -132,6 +151,22 @@ export function WaouhBotNextStep({
           </li>
         ))}
       </ol>
+
+      {needsArticle && articles && (
+        <div className="mt-3">
+          <div className="text-xs font-black text-slate-700">Article à vendre</div>
+          {articles.length === 0 ? (
+            <button type="button" onClick={() => navigate("/app/avatar/vendre")} className="mt-1.5 w-full rounded-2xl border border-dashed border-blue-300 bg-white px-3 py-3 text-xs font-black text-blue-700">Publier mon article d’abord</button>
+          ) : (
+            <div className="mt-1.5 flex gap-1.5 overflow-x-auto scrollbar-none">
+              {articles.slice(0, 12).map((a) => (
+                <button key={a.id} type="button" onClick={() => { setArticleSel(a.id); setConfirm(false); setError(""); }}
+                  className={`max-w-[200px] shrink-0 truncate rounded-2xl border px-3 py-2 text-[11px] font-black ${articleSel === a.id ? "border-blue-500 bg-blue-50 text-blue-800 ring-1 ring-blue-200" : "border-slate-200 bg-white text-slate-700"}`}>{a.title}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Autonomie de Bot">
         {AUTONOMY.map((item) => (

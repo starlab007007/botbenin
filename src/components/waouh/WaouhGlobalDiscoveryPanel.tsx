@@ -2,6 +2,7 @@ import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhBotNextStep } from "./WaouhBotNextStep";
+import { WaouhNexusResultCard } from "./WaouhNexusResultCard";
 import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
 import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -473,60 +474,7 @@ export function WaouhGlobalDiscoveryPanel() {
             <div className="grid gap-2 lg:grid-cols-2">
               <WaouhOfferComparison results={results} />
               {results.map((result) => (
-                <div key={result.fabric_id} className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{result.subject ?? result.category ?? "Signal commercial"}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                        {result.city && <span className="inline-flex items-center gap-0.5"><MapPin className="h-3 w-3" />{result.city}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold">{Math.round(result.scores.total_score)}%</div>
-                      <div className="text-[9px] text-muted-foreground">match</div>
-                    </div>
-                  </div>
-
-                  {(result.price_min != null || result.price_max != null) && (
-                    <div className="mt-2 text-sm font-semibold">
-                      {result.price_min != null && result.price_max != null && result.price_min !== result.price_max
-                        ? `${moneyXof(result.price_min)} – ${moneyXof(result.price_max)}`
-                        : moneyXof(result.price_min ?? result.price_max)}
-                    </div>
-                  )}
-
-                  <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold text-blue-700">Analyse de Bot</summary><div className="flex flex-wrap gap-1">
-                    <Badge variant="secondary">confiance {Math.round(result.scores.trust_score)}%</Badge>
-                    {result.actionability_score != null && (
-                      <Badge variant="outline" className="border-violet-200 text-violet-800">prêt à {Math.round(result.actionability_score)}%</Badge>
-                    )}
-                    {result.scores.reasons.slice(0, 2).map((reason) => <Badge key={reason} variant="outline">{reason}</Badge>)}
-                  </div></details>
-
-                  {(result.next_best_action || result.contact_pack?.next_best_action) && (
-                    <div className="mt-2 rounded-lg bg-violet-50 px-2.5 py-2 text-[11px] font-semibold text-violet-900">
-                      Conseil de Bot : {(result.next_best_action || result.contact_pack?.next_best_action) === "CONTACT_NOW"
-                        ? "contacter maintenant"
-                        : (result.next_best_action || result.contact_pack?.next_best_action) === "OPEN_DEAL_ROOM"
-                          ? "ouvrir le Deal Room"
-                          : (result.next_best_action || result.contact_pack?.next_best_action) === "WAIT_REPLY"
-                            ? "attendre la réponse"
-                            : (result.next_best_action || result.contact_pack?.next_best_action) === "NEGOTIATE"
-                              ? "négocier"
-                              : "enrichir le contact"}
-                      {(result.best_channel || result.contact_pack?.best_channel) ? ` · ${result.best_channel || result.contact_pack?.best_channel}` : ""}
-                    </div>
-                  )}
-                  <div className="mt-3 [&_button]:h-11 [&_button]:w-full [&_button]:rounded-2xl">
-                    <WaouhNexusContactSheet
-                      fabricId={result.fabric_id}
-                      title={result.subject ?? result.category ?? "Opportunité WAOUH"}
-                      sourceUrl={result.source_url}
-                      contactabilityLevel={result.contact_policy.level}
-                      mode={resolvedMode === "find_buyers" ? "sell" : "buy"}
-                    />
-                  </div>
-                </div>
+                <WaouhNexusResultCard key={result.fabric_id} result={result} mode={resolvedMode === "find_buyers" ? "sell" : "buy"} />
               ))}
             </div>
 

@@ -1772,6 +1772,19 @@ class _GoalSurface extends StatelessWidget {
   final bool showBudget;
   final VoidCallback onSearch;
 
+  String? get _maskedPhone {
+    String? raw;
+    for (final entry in item.contactPack?.maskedContacts ?? const <Map<String, dynamic>>[]) {
+      final v = '${entry['last4'] ?? ''}'.trim();
+      if (v.isNotEmpty) {
+        raw = v;
+        break;
+      }
+    }
+    raw ??= '${item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'] ?? ''}'.trim();
+    return rs.maskPhone(raw.isEmpty ? null : raw);
+  }
+
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
@@ -2063,6 +2076,21 @@ class _OpportunityCard extends StatelessWidget {
                 fontSize: 19,
                 fontWeight: FontWeight.w900,
               ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F8FD),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(children: [
+                const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF6366F1)),
+                const SizedBox(width: 8),
+                Text(_maskedPhone ?? 'Contact via Bot',
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800, color: WaouhPalette.ink)),
+              ]),
             ),
             const SizedBox(height: 8),
             Row(

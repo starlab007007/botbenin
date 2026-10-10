@@ -20,6 +20,7 @@ import {
   Loader2,
   MapPin,
   Pause,
+  Phone,
   Play,
   Zap,
   Radar,
@@ -38,6 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
+import { channelLabel, resultContact } from "@/lib/waouh/resultCardData";
 import {
   getNexusSources,
   type NexusSourceStatus,
@@ -867,7 +869,7 @@ export default function WaouhAvatarCommercePage() {
             return (
               <article key={item.fabric_id} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
                 {photos.length > 0 && (
-                  <div className="h-32 w-full overflow-hidden bg-slate-100 sm:h-40">
+                  <div className="aspect-[16/10] w-full overflow-hidden bg-slate-100">
                     <img src={photos[0]} alt={item.subject || "Opportunité WAOUH"} className="h-full w-full object-cover" loading="lazy" />
                   </div>
                 )}
@@ -884,6 +886,17 @@ export default function WaouhAvatarCommercePage() {
                   </div>
                   {item.scores?.total_score != null && <div className="shrink-0 text-xs font-semibold text-blue-600">{Math.round(item.scores.total_score)}%</div>}
                 </div>
+
+                {(() => {
+                  const c = resultContact(item);
+                  return (
+                    <div className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+                      <Phone className="h-4 w-4 text-indigo-500" />
+                      <span className="font-mono text-xs font-bold text-slate-700">{c.phone ?? "Contact via Bot"}</span>
+                      {c.channel && <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">{channelLabel(c.channel)}</span>}
+                    </div>
+                  );
+                })()}
 
                 {(item.next_best_action || item.contact_pack?.next_best_action) && (
                   <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-3">

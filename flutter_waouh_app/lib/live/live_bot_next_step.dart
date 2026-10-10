@@ -41,6 +41,36 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
   bool _busy = false;
   int? _linked;
   String _error = '';
+  List<Map<String, dynamic>>? _articles;
+  String _articleSel = '';
+
+  bool get _needsArticle =>
+      widget.mode == 'sell' && (widget.articleId ?? '').trim().isEmpty;
+  String get _article =>
+      (widget.articleId ?? '').trim().isNotEmpty ? widget.articleId!.trim() : _articleSel;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_needsArticle) _loadArticles();
+  }
+
+  Future<void> _loadArticles() async {
+    try {
+      final data = await widget.service.ownedArticles();
+      final raw = data['articles'];
+      final list = raw is List
+          ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        _articles = list;
+        if (list.length == 1) _articleSel = '${list.first['id']}';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _articles = <Map<String, dynamic>>[]);
+    }
+  }
 
   String get _title => switch (widget.mode) {
         'sell' => 'Bot contacte les acheteurs',
@@ -58,6 +88,10 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
 
   Future<void> _launch() async {
     if (_busy) return;
+    if (widget.mode == 'sell' && _article.isEmpty) {
+      setState(() => _error = 'Choisissez l’article à vendre.');
+      return;
+    }
     if (!_confirm) {
       setState(() => _confirm = true);
       return;
@@ -70,7 +104,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
       final data = await widget.service.createMandate(
         mode: widget.mode,
         goal: widget.goal,
-        articleId: widget.mode == 'sell' ? widget.articleId : null,
+        articleId: widget.mode == 'sell' && _article.isNotEmpty ? _article : null,
         priceFloor: widget.mode == 'sell' ? widget.priceFloor : null,
         autonomyMode: _autonomy,
         city: widget.city.trim().isEmpty ? null : widget.city.trim(),
@@ -218,6 +252,31 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               ),
           ]),
           const SizedBox(height: 10),
+          if (_needsArticle && _articles != null) ...[
+            const Text('Article à vendre',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            if (_articles!.isEmpty)
+              OutlinedButton(
+                onPressed: () => context.go('/app/avatar/vendre'),
+                child: const Text('Publier mon article d’abord'),
+              )
+            else
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final a in _articles!.take(12))
+                  ChoiceChip(
+                    label: Text('${a['title'] ?? 'Article'}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    selected: _articleSel == '${a['id']}',
+                    onSelected: (_) => setState(() {
+                      _articleSel = '${a['id']}';
+                      _confirm = false;
+                      _error = '';
+                    }),
+                  ),
+              ]),
+            const SizedBox(height: 10),
+          ],
           Row(children: [
             autonomyChip('assisted', 'Assisté', 'Je valide chaque message'),
             autonomyChip('semi_autonomous', 'Semi-auto', 'Bot contacte, je valide l’accord'),
