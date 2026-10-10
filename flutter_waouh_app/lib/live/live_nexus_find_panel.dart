@@ -326,7 +326,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
           ),
         if (_steps.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _ReasoningFeed(
+          LiveReasoningFeed(
             steps: _steps,
             running: _searching || _revealing,
             summary: _summary,
@@ -372,14 +372,15 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
   }
 }
 
-class _ReasoningFeed extends StatelessWidget {
-  const _ReasoningFeed({
+class LiveReasoningFeed extends StatelessWidget {
+  const LiveReasoningFeed({
     required this.steps,
     required this.running,
     required this.summary,
     required this.onSkip,
-    required this.onWatch,
-    required this.onAdvice,
+    this.onWatch,
+    this.onAdvice,
+    this.showActions = true,
   });
 
   final List<ReasonStep> steps;
@@ -387,7 +388,8 @@ class _ReasoningFeed extends StatelessWidget {
   final ReasonSummary? summary;
   final VoidCallback onSkip;
   final VoidCallback? onWatch;
-  final VoidCallback onAdvice;
+  final VoidCallback? onAdvice;
+  final bool showActions;
 
   static IconData _icon(ReasonTone tone) => switch (tone) {
         ReasonTone.think => Icons.psychology_alt_outlined,
@@ -588,8 +590,8 @@ class _ReasoningFeed extends StatelessWidget {
                   ),
                 ),
             ],
-            const SizedBox(height: 8),
-            Row(
+            if (showActions) const SizedBox(height: 8),
+            if (showActions) Row(
               children: [
                 Expanded(
                   child: FilledButton.icon(

@@ -12,6 +12,7 @@ import 'agentic/live_agentic_workspace.dart';
 import 'live_avatar_guide.dart';
 import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
+import 'live_chat_search_screen.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_guest_action_gate.dart';
 import 'user_message.dart';
@@ -35,6 +36,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   final optimistic = <LiveMessage>[];
   Map<String, dynamic> pendingMeta = const {};
   late final Stream<List<LiveMessage>> _messageStream;
+  final ValueNotifier<List<LiveMessage>> _searchFeed = ValueNotifier<List<LiveMessage>>(const <LiveMessage>[]);
   late final LiveWaouhController _controller;
   bool _interestInFlight = false;
   bool _interestNavigationFailed = false;
@@ -70,6 +72,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   @override
   void dispose() {
     _revealTimer?.cancel();
+    _searchFeed.dispose();
     composer.dispose();
     composerFocus.dispose();
     super.dispose();
@@ -325,6 +328,21 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       composerFocus.requestFocus();
     }
     unawaited(_deliver(local, meta));
+    if (!interested && files.isEmpty && mounted && liveIsChatSearchGoal(text, meta)) {
+      final goal = text;
+      final startedAt = local.createdAt;
+      unawaited(Navigator.of(context).push<void>(MaterialPageRoute<void>(
+        builder: (_) => LiveChatSearchScreen(
+          goal: goal,
+          startedAt: startedAt,
+          messages: _searchFeed,
+          onPayload: (payload) {
+            if (!mounted) return;
+            unawaited(_send(payload));
+          },
+        ),
+      )));
+    }
   }
 
   Future<void> _openInterestedMatch(LiveMatch match) async {
@@ -507,6 +525,9 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       _visibleMessages(snapshot.data ?? const <LiveMessage>[]),
                       DateTime.now());
                   final messages = revealed.visible;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _searchFeed.value = messages;
+                  });
                   _scheduleReveal(revealed.nextAt);
                   final waiting = optimistic
                       .any((item) => item.meta['delivery_state'] == 'sending');

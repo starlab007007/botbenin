@@ -1,4 +1,5 @@
 import { useWaouhResync } from "@/lib/waouh/resync";
+import { WaouhChatSearchWindow, type ChatSearch } from "@/components/waouh/WaouhChatSearchWindow";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { WaouhMessageText } from "./WaouhMessageText";
@@ -8,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Camera, Paperclip, Sparkles } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Paperclip, Sparkles, Search, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
@@ -80,6 +81,16 @@ type Msg = {
 };
 
 /** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */
+/** Une demande de recherche (achat, vente, demande) ouvre sa propre fenêtre « Recherche live ». */
+const SEARCH_GOAL_RE = /\b(cherche|chercher|recherche|rechercher|acheter|achète|achete|trouve|trouver|trouvez|vends?|vendre|acheteurs?|vendeurs?|besoin\s+d)/i;
+const NOT_A_SEARCH_RE = /^\s*(annuler|question\s*\d|je\s+propose|je\s+suis\s+int[ée]ress|oui\b|non\b|ok\b|merci)/i;
+export function isChatSearchGoal(text: string, meta: Record<string, unknown> = {}, hasAttachments = false): boolean {
+  if (meta.commerce_action || meta.button_payload || meta.action_id) return false;
+  const t = text.trim();
+  if (t.length < 4 || NOT_A_SEARCH_RE.test(t)) return false;
+  return SEARCH_GOAL_RE.test(t) && !hasAttachments;
+}
+
 const DEDICATED_INTENTS = new Set([
   "CONFIRM",
   "NEGOTIATE",
@@ -166,8 +177,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     } catch { return []; }
   };
   const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
+  const messagesRefForSearch = useRef<Msg[]>(messages);
+  messagesRefForSearch.current = messages;
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [chatSearch, setChatSearch] = useState<ChatSearch | null>(null);
+  const searchGoalFor = (outId: string) => {
+    const list = messagesRefForSearch.current;
+    const at = list.findIndex((x) => x.id === outId);
+    for (let i = at - 1; i >= 0; i--) if (list[i].direction === "in" && list[i].text && list[i].text !== "(image)") return list[i].text as string;
+    return "Ma recherche";
+  };
   const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
   const sendingRef = useRef(false);
   const flushOutboxRef = useRef<() => void>(() => {});
@@ -642,6 +662,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       ...prev,
       { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts },
     ]);
+    const opensSearch = isChatSearchGoal(text, metaOverride, atts.length > 0);
+    if (opensSearch) {
+      setChatSearch({ id: tempInId, goal: text, city: (locationOverride?.city && locationOverride.city.trim()) || "", status: "running", results: [], text: "" });
+    }
     try {
       const effLat = locationOverride?.lat ?? geo.lat;
       const effLng = locationOverride?.lng ?? geo.lng;
@@ -664,13 +688,20 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const respIntent: string | null = data?.intent ?? null;
       const respArticleId: string | null = data?.article_id ?? null;
       const respCounterpart: string | null = data?.counterpart_user_id ?? null;
-      setMessages((prev) => reconcileChatResponse(prev, data, {
-        id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts,
-      }));
+      const inputRow = { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts } as Msg;
+      setMessages((prev) => reconcileChatResponse(prev, data, inputRow));
+      if (opensSearch) {
+        const reply = [...reconcileChatResponse([] as Msg[], data, inputRow)].reverse().find((m) => m.direction === "out");
+        const rich = reply ? normalizeChatReply(reply) : null;
+        setChatSearch((cur) => (cur && cur.id === tempInId
+          ? { ...cur, status: "done", results: rich?.results ?? [], text: rich?.text ?? "" }
+          : cur));
+      }
 
       // v13 — la négociation ne reste jamais dans le fil principal : on ouvre
       // (ou on ré-active) la fenêtre dédiée (article × interlocuteur).
       if (respArticleId && respIntent && DEDICATED_INTENTS.has(respIntent)) {
+        setChatSearch(null);
         window.dispatchEvent(
           new CustomEvent("waouh:open-match-chat", {
             detail: {
@@ -690,6 +721,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempInId));
+      if (opensSearch) setChatSearch((cur) => (cur && cur.id === tempInId ? null : cur));
       toast({ title: "Envoi échoué", description: userFacingErrorText(e, "send"), variant: "destructive" });
       throw e;
     } finally {
@@ -995,7 +1027,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 )}
 
                 {rich.results.length > 0 && (
-                  <WaouhProductResults results={rich.results} onAction={sending ? undefined : (txt, meta) => { void sendCore(txt, [], null, meta ?? {}).catch(() => {}); }} />
+                  <button
+                    type="button"
+                    onClick={() => setChatSearch({ id: `view-${m.id}`, goal: searchGoalFor(m.id as string), city: "", status: "done", results: rich.results, text: rich.text })}
+                    className="mt-2 flex w-full items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-3 text-left shadow-sm active:scale-[.99]"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white"><Search className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black text-slate-950">{rich.results.length} résultat{rich.results.length > 1 ? "s" : ""}</span>
+                      <span className="block text-[11px] font-semibold text-slate-500">Ouvrir la recherche</span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-blue-600" />
+                  </button>
                 )}
 
                 {rich.blocks.length > 0 && (
@@ -1238,6 +1281,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           onSubmit={async (text, atts, loc) => { await sendCore(text, atts, loc ?? null); }}
         />
       )}
+      <WaouhChatSearchWindow
+        search={chatSearch}
+        onClose={() => setChatSearch(null)}
+        onAction={sending ? undefined : (txt, meta) => { setChatSearch(null); void sendCore(txt, [], null, meta ?? {}).catch(() => {}); }}
+      />
     </Card>
   );
 

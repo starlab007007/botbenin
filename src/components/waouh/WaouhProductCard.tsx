@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-message-text.css";
 import { normalizeResultCards } from "@/lib/chatReply";
 import {
@@ -721,6 +722,9 @@ export function WaouhProductCard({
                   </a>
                 </Button>
               ) : null}
+              {result.fabric_id && (
+                <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} className="h-11" />
+              )}
               <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>

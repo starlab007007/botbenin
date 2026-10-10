@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Handshake, Loader2 } from "lucide-react";
-import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
+import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity } from "@/lib/waouh/nexus";
 import { resultContact } from "@/lib/waouh/resultCardData";
 import { userFacingErrorText } from "@/lib/userFacingError";
 
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation. */
 export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled }: {
-  result: NexusDiscoveryResult;
+  result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
   className?: string;
@@ -37,7 +37,7 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
       }
       const response = await createNexusMandate({
         mode,
-        goal: result.subject ?? result.category ?? "Opportunité",
+        goal: result.subject ?? result.title ?? result.category ?? "Opportunité",
         article_id: mode === "sell" ? article : undefined,
         autonomy_mode: "semi_autonomous",
         max_contacts: 1,
