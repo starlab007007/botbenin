@@ -1,4 +1,5 @@
 import { WaouhOfferComparison } from "./WaouhOfferComparison";
+import { WaouhCityField } from "./WaouhCityField";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhBotNextStep } from "./WaouhBotNextStep";
@@ -408,10 +409,7 @@ export function WaouhGlobalDiscoveryPanel() {
                 </div>
               ) : (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-blue-500" />
-                    <Input aria-label="Ville ou zone" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville" className="h-11 rounded-2xl border-blue-100 bg-white pl-8" />
-                  </div>
+                  <WaouhCityField value={city} onChange={setCity} ariaLabel="Ville ou zone" placeholder="Ville ou quartier" />
                   {mode !== "find_buyers" ? (
                     <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-2xl border-blue-100 bg-white" />
                   ) : (

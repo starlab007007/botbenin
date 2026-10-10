@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart';
+import 'live_city_field.dart';
 import 'live_nexus_service.dart';
 import 'live_reasoning.dart';
 import 'live_theme.dart';
@@ -282,10 +283,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: TextField(
-                      controller: _city,
-                      decoration: const InputDecoration(hintText: 'Ville'),
-                    ),
+                    child: LiveCityField(controller: _city),
                   ),
                 ],
               ),

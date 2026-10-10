@@ -14,6 +14,7 @@ import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 import 'live_bot_next_step.dart';
+import 'live_city_field.dart';
 import 'live_hot_labels.dart';
 import 'live_reasoning.dart' as rs;
 
@@ -1867,12 +1868,9 @@ class _GoalSurface extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
+                  child: LiveCityField(
                     controller: city,
-                    decoration: const InputDecoration(
-                      hintText: 'Ville (optionnel)',
-                      prefixIcon: Icon(Icons.location_on_outlined, size: 18),
-                    ),
+                    hint: 'Ville ou quartier',
                   ),
                 ),
                 if (showBudget) ...[

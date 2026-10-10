@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WaouhCityField } from "./WaouhCityField";
 import { MapPin, Search, Sparkles, X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -103,10 +104,7 @@ export function WaouhQuickAsk({
               </div>
             ) : (
               <div className={`grid gap-2 ${c.budget ? "grid-cols-2" : "grid-cols-1"}`}>
-                <div className="relative">
-                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-blue-500" />
-                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Ville" aria-label="Ville" className="h-11 rounded-2xl border-blue-100 bg-white pl-8" />
-                </div>
+                <WaouhCityField value={city} onChange={setCity} placeholder="Ville ou quartier" />
                 {c.budget && (
                   <Input value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={c.budget} aria-label={c.budget} className="h-11 rounded-2xl border-blue-100 bg-white" />
                 )}

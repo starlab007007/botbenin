@@ -1,4 +1,5 @@
 import { WaouhExternalExchangeDisclosure } from '@/components/waouh/WaouhExternalExchange';
+import { WaouhCityField } from "@/components/waouh/WaouhCityField";
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
@@ -595,7 +596,7 @@ export default function WaouhAvatarCommercePage() {
           <details className="mt-2">
             <summary className="flex min-h-9 cursor-pointer items-center gap-1.5 text-[11px] font-bold text-slate-500">Ville · Budget</summary>
             <div className="grid grid-cols-2 gap-2 pt-1">
-              <Input value={city} onChange={(e) => setCity(e.target.value)} aria-label="Ville (facultative)" placeholder="Ville" className="rounded-xl bg-white" />
+              <WaouhCityField value={city} onChange={setCity} ariaLabel="Ville (facultative)" placeholder="Ville ou quartier" />
               <Input value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} aria-label="Budget ou prix en FCFA" placeholder="Budget FCFA" inputMode="numeric" className="rounded-xl bg-white" />
             </div>
           </details>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { WaouhCityField } from "./WaouhCityField";
 import {
   BellRing,
   Bot,
@@ -318,7 +319,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Input value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-xl" />
-              <Input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville" className="h-11 rounded-xl" />
+              <WaouhCityField value={city} onChange={setCity} placeholder="Ville ou quartier" />
             </div>
             <Button className="mt-3 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-black text-white shadow-lg shadow-blue-600/20 hover:from-blue-700 hover:to-indigo-700" disabled={searching || !query.trim()} onClick={() => void runSearch()}>
               {searching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
