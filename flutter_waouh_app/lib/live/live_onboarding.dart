@@ -75,6 +75,7 @@ class _LiveOnboardingGateState extends State<LiveOnboardingGate> {
 
   @override
   Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
         children: [
           widget.child,
           if (_show)

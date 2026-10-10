@@ -29,10 +29,12 @@ void main() {
     expect(find.textContaining('Votre avatar. Je cherche'), findsOneWidget);
 
     await tester.tap(find.text('Suivant'));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.textContaining('Dites-moi votre prix'), findsOneWidget);
 
     await tester.tap(find.text('Suivant'));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Commencer'), findsOneWidget);
     expect(find.text('Passer'), findsNothing);
