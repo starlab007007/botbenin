@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Hourglass, Loader2, MessageCircleReply, Phone, Radar, RefreshCw, Send, UserPlus } from "lucide-react";
-import { listNexusMandates, listNexusOpportunityJourneys } from "@/lib/waouh/nexus";
+import { useNavigate } from "react-router-dom";
+import { Handshake, Hourglass, Loader2, MessageCircleReply, Phone, Radar, RefreshCw, Send, UserPlus } from "lucide-react";
+import { listNexusMandates, listNexusOpportunityJourneys, type NexusOpportunityJourney } from "@/lib/waouh/nexus";
+import { journeyChatDetail } from "@/lib/waouh/journeyPresentation";
+import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { BUCKET_LABEL, buildLedger, type ContactBucket, type ContactLedger } from "@/lib/waouh/contactLedger";
 
@@ -33,6 +36,8 @@ const nextRun = (iso: string | null) => {
 type ExactStats = { total: number; to_contact: number; pending: number; replied: number; contacted: number; with_number: number; active_missions: number; actions_7d: number };
 
 export function WaouhContactLedger() {
+  const navigate = useNavigate();
+  const [journeyById, setJourneyById] = useState<Record<string, NexusOpportunityJourney>>({});
   const [ledger, setLedger] = useState<ContactLedger | null>(null);
   const [exact, setExact] = useState<ExactStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +51,9 @@ export function WaouhContactLedger() {
         listNexusOpportunityJourneys({ include_completed: true, limit: 50 }),
         listNexusMandates().catch(() => ({ mandates: [], intents: [] })),
       ]);
-      setLedger(buildLedger(journeys.journeys ?? journeys.items ?? [], mandates.mandates ?? []));
+      const list = (journeys.journeys ?? journeys.items ?? []) as NexusOpportunityJourney[];
+      setJourneyById(Object.fromEntries(list.map((j) => [j.id, j])));
+      setLedger(buildLedger(list, mandates.mandates ?? []));
       try {
         const { data, error } = await (supabase as any).rpc("waouh_contact_stats");
         setExact(!error && data && typeof data.total === "number" ? (data as ExactStats) : null);
@@ -71,6 +78,15 @@ export function WaouhContactLedger() {
     () => (ledger?.rows ?? []).filter((row) => filter === "all" || (filter === "replied" ? ["replied", "agreed", "done"].includes(row.bucket) : row.bucket === filter)).slice(0, 12),
     [ledger, filter],
   );
+
+  const canNegotiate = (row: { id: string; bucket: ContactBucket }) =>
+    (row.bucket === "replied" || row.bucket === "agreed") && !!journeyById[row.id]?.thread_id;
+  const toHandle = (ledger?.rows ?? []).filter((row) => row.bucket === "replied" && canNegotiate(row));
+  const negotiate = (id: string) => {
+    const journey = journeyById[id];
+    const detail = journey ? journeyChatDetail(journey) : null;
+    if (detail) openCommerceDiscussion(detail, navigate);
+  };
 
   const tiles = ledger
     ? [
@@ -138,6 +154,14 @@ export function WaouhContactLedger() {
             </div>
           )}
 
+          {toHandle.length > 0 && (
+            <div className="mt-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white p-3">
+              <div className="flex items-center gap-2 text-[13px] font-black text-emerald-800"><Handshake className="h-4 w-4" />{toHandle.length} réponse{toHandle.length > 1 ? "s" : ""} à négocier</div>
+              <p className="mt-0.5 text-[11px] font-semibold text-emerald-700/80">Bot prépare l’offre, vous validez l’accord.</p>
+              <button type="button" onClick={() => negotiate(toHandle[0].id)} className="mt-2 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2.5 text-xs font-black text-white active:scale-[.98]">Négocier avec Bot</button>
+            </div>
+          )}
+
           <div className="mt-3 flex gap-1.5 overflow-x-auto scrollbar-none" role="tablist" aria-label="Filtre contacts">
             {FILTERS.map((item) => (
               <button key={item.id} type="button" role="tab" aria-selected={filter === item.id} onClick={() => setFilter(item.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black ${filter === item.id ? "bg-blue-600 text-white" : "border border-blue-100 bg-white text-slate-600"}`}>{item.label}</button>
@@ -154,7 +178,11 @@ export function WaouhContactLedger() {
                     <Phone className="h-3 w-3 text-indigo-500" />{row.phone ?? "numéro non disponible"}
                   </div>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${CHIP[row.bucket]}`}>{BUCKET_LABEL[row.bucket]}</span>
+                {canNegotiate(row) ? (
+                  <button type="button" onClick={() => negotiate(row.id)} className="shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-[10px] font-black text-white active:scale-95">Négocier</button>
+                ) : (
+                  <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${CHIP[row.bucket]}`}>{BUCKET_LABEL[row.bucket]}</span>
+                )}
               </li>
             ))}
           </ul>

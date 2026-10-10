@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'live_controller.dart';
+import 'live_models.dart';
 import 'live_nexus_service.dart';
 import 'live_reasoning.dart' show maskPhone;
 import 'live_theme.dart';
@@ -104,6 +108,36 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
       if (mounted) setState(() { _loading = false; _failed = true; });
     }
   }
+
+  Future<void> _negotiate(NexusOpportunityJourney j) async {
+    final threadId = j.threadId?.trim() ?? '';
+    if (threadId.isEmpty) return;
+    try {
+      final controller = context.read<LiveWaouhController>();
+      final matches = await controller.notifications.loadMatches(
+        legacy.supabase.auth.currentUser?.id,
+        force: true,
+      );
+      LiveMatch? match;
+      for (final candidate in matches) {
+        if ((candidate.threadId ?? '').trim() == threadId) {
+          match = candidate;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (match != null) {
+        context.push('/app/chat/match/${Uri.encodeComponent(match.key)}', extra: match);
+      } else {
+        context.go('/app/chat');
+      }
+    } catch (_) {
+      if (mounted) context.go('/app/chat');
+    }
+  }
+
+  bool _canNegotiate(NexusOpportunityJourney j) =>
+      (j.negotiating || j.stage == 'agreed') && (j.threadId ?? '').trim().isNotEmpty;
 
   int _count(_Bucket bucket) =>
       _journeys.where((j) => _bucketOf(j.stage) == bucket).length;
@@ -299,6 +333,23 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
                               ],
                             ),
                           ),
+                          if (_canNegotiate(j))
+                            GestureDetector(
+                              onTap: () => _negotiate(j),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: const Text('Négocier',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white)),
+                              ),
+                            )
+                          else
                           Text(
                             switch (_bucketOf(j.stage)) {
                               _Bucket.pending => 'En attente',
