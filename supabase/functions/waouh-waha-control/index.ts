@@ -102,6 +102,33 @@ Deno.serve(async (req) => {
       return json({readable,messages,probes},readable ? 200 : 503);
     }
 
+    if (action === "governor-status") {
+      const { data, error } = await service.rpc("waouh_wa_governor_status");
+      return error ? json({ error: "governor_unavailable" }, 503) : json(data);
+    }
+    if (action === "governor-set" || action === "governor-resume") {
+      const clamp = (v: unknown, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v))));
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (action === "governor-resume") { patch.paused_until = null; patch.pause_reason = null; }
+      else {
+        const settings = (config && typeof config === "object" ? config : {}) as Record<string, unknown>;
+        const limits: Record<string, [number, number]> = {
+          daily_cap: [0, 5000], hourly_cap: [0, 1000], min_gap_s: [0, 600], max_gap_s: [0, 900],
+          quiet_start: [0, 23], quiet_end: [0, 23], cold_share_pct: [0, 100],
+          per_contact_day: [1, 50], per_contact_week: [1, 200],
+        };
+        for (const [key, [min, max]] of Object.entries(limits)) {
+          if (settings[key] !== undefined && Number.isFinite(Number(settings[key]))) patch[key] = clamp(settings[key], min, max);
+        }
+        if (typeof settings.enabled === "boolean") patch.enabled = settings.enabled;
+        if (Number(patch.max_gap_s ?? 25) < Number(patch.min_gap_s ?? 8)) patch.max_gap_s = patch.min_gap_s;
+      }
+      const { error } = await service.from("waouh_wa_governor_config").update(patch).eq("id", true);
+      if (error) return json({ error: "governor_update_failed" }, 500);
+      const { data } = await service.rpc("waouh_wa_governor_status");
+      return json(data);
+    }
+
     if (action === "central-status" || action === "central-connect") {
       const path = `/api/sessions/${CENTRAL_WAHA_SESSION}`;
       const current = await fetchWaha(base, path, {}, headers);

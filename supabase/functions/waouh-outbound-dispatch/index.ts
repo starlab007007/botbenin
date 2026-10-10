@@ -11,6 +11,7 @@ import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "
 import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
+import { governorKindFor, governorTakeWait, governorRecord, isProviderFailure, retryAtIso } from "../_shared/waouh-wa-governor.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -948,6 +949,19 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // 🛡️ Gouverneur : quotas, rythme humain, plage horaire, arrêt automatique.
+      const gov = await governorTakeWait(sb, governorKindFor(it.template, it.payload), it.to_phone,
+        Math.max(0, maxRunMs - (Date.now() - runStartedAt) - 10_000));
+      if (!gov.allowed) {
+        await sb.from("waouh_outbound_queue").update({
+          status: "pending",
+          attempts: it.attempts, // un report du gouverneur ne consomme pas de tentative
+          next_attempt_at: retryAtIso(gov),
+          last_error: `governor:${gov.reason}`,
+        }).eq("id", it.id);
+        skipped++; continue;
+      }
+
       let lastErr = "";
       let lastTransient = false;
       let delivered = false;
@@ -970,9 +984,11 @@ Deno.serve(async (req) => {
           if (lastTransient) break;
         }
         if (!delivered) {
+          await governorRecord(sb, gov.id, isProviderFailure(lastErr, lastTransient) ? "failed" : "released", lastErr);
           await finishFailed(lastErr || "WAHA send failed", lastTransient);
           continue;
         }
+        await governorRecord(sb, gov.id, "sent");
         const sentAt = new Date().toISOString();
         await sb.from("waouh_outbound_queue").update({
           status: "sent", sent_at: sentAt, payload: { ...it.payload, provider_message_id: providerMessageId }, last_error: usedChatId ? `delivered via ${usedChatId}` : null,
@@ -994,6 +1010,7 @@ Deno.serve(async (req) => {
         sent++;
       } catch (e: any) {
         // Erreur réseau → retry
+        await governorRecord(sb, gov.id, "failed", String(e?.message || e));
         await finishFailed(String(e.message || e), true);
       }
     }

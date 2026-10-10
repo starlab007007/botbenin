@@ -19,6 +19,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const [identityMatches, setIdentityMatches] = useState<boolean | null>(null);
   const [providerOperational, setProviderOperational] = useState<boolean | null>(null);
   const [webhookReady, setWebhookReady] = useState(false);
+  const [gov, setGov] = useState<Record<string, any> | null>(null);
+  const [govForm, setGovForm] = useState<Record<string, string>>({});
 
   const callWaha = async (action: string, payload?: any, silent = false) => {
     if (!silent) setLoading(true);
@@ -81,7 +83,29 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (data?.webhook_ready) { toast.success("WhatsApp central relié au chat et à l’Avatar"); refreshStatus(); }
   };
 
-  useEffect(() => { void refreshStatus(); }, []);
+  const GOV_FIELDS: Array<[string, string]> = [
+    ["daily_cap", "Messages par jour"], ["hourly_cap", "Par heure"],
+    ["min_gap_s", "Écart min (s)"], ["max_gap_s", "Écart max (s)"],
+    ["quiet_start", "Silence dès (h)"], ["quiet_end", "Reprise à (h)"],
+  ];
+  const applyGov = (d: Record<string, any> | null) => {
+    if (!d || d.error) return;
+    setGov(d);
+    setGovForm(Object.fromEntries(GOV_FIELDS.map(([k]) => [k, String(d[k] ?? "")])));
+  };
+  const loadGov = async () => applyGov(await callWaha("governor-status", undefined, true));
+  const saveGov = async (extra?: Record<string, unknown>) => {
+    const cfg: Record<string, unknown> = { ...extra };
+    for (const [k] of GOV_FIELDS) if (govForm[k] !== "" && govForm[k] !== undefined) cfg[k] = Number(govForm[k]);
+    const d = await callWaha("governor-set", { config: cfg });
+    if (d && !d.error) { applyGov(d); toast.success("Réglages d’envoi enregistrés"); }
+  };
+  const resumeGov = async () => {
+    const d = await callWaha("governor-resume");
+    if (d && !d.error) { applyGov(d); toast.success("Envois à froid relancés"); }
+  };
+
+  useEffect(() => { void refreshStatus(); void loadGov(); }, []);
 
   // En attente de scan : le QR WhatsApp expire en quelques secondes. On le renouvelle
   // et on suit l'état jusqu'à la connexion, sans action de l'utilisateur.
@@ -167,6 +191,43 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-4 space-y-3 border-t pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">Contrôle des envois</h4>
+          {gov && (
+            <span className="text-xs text-muted-foreground">
+              Aujourd’hui : {gov.sent_today}/{gov.daily_cap} · Échecs (1 h) : {gov.failure_rate_hour}%
+            </span>
+          )}
+        </div>
+        {gov?.paused_until && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+            <span>Envois à froid suspendus. {gov.pause_reason}</span>
+            <Button size="sm" variant="outline" onClick={resumeGov} disabled={loading}>Relancer</Button>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {GOV_FIELDS.map(([key, label]) => (
+            <div key={key}>
+              <Label className="text-xs">{label}</Label>
+              <Input type="number" inputMode="numeric" min={0} value={govForm[key] ?? ""}
+                onChange={(e) => setGovForm((f) => ({ ...f, [key]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => void saveGov()} disabled={loading || !gov}>Enregistrer</Button>
+          {gov && (
+            <Button variant="outline" onClick={() => void saveGov({ enabled: !gov.enabled })} disabled={loading}>
+              {gov.enabled ? "Désactiver le contrôle" : "Réactiver le contrôle"}
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Les réponses aux utilisateurs passent en priorité. Les messages à froid (prospection) respectent ces limites et le silence de nuit.
+        </p>
       </div>
     </Card>
   );

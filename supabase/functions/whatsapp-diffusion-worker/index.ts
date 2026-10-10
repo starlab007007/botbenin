@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { governorTakeWait, governorRecord, retryAtIso } from "../_shared/waouh-wa-governor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -188,6 +189,7 @@ serve(async (req) => {
       return json({ ok: true, processed: 0, sent: 0, failed: 0, message: "Aucun envoi prêt" });
     }
 
+    const workerStartedAt = Date.now();
     const ids = jobs.map((j: any) => j.id);
     await admin.from("wa_send_jobs").update({ status: "sending", last_error: null }).in("id", ids);
 
@@ -284,6 +286,7 @@ serve(async (req) => {
         }
 
         for (const job of list) {
+          let govId: string | undefined;
           try {
             const { data: alreadyReplied } = await admin
               .from("wa_send_jobs")
@@ -355,6 +358,15 @@ serve(async (req) => {
               throw new Error(`Numéro non inscrit sur WhatsApp (essayé: ${phoneVariants.join(", ")})`);
             }
 
+            // 🛡️ Gouverneur : quotas, rythme humain, plage horaire, arrêt automatique.
+            const gov = await governorTakeWait(admin, "cold", usedPhone, Math.max(0, 100_000 - (Date.now() - workerStartedAt)));
+            if (!gov.allowed) {
+              await admin.from("wa_send_jobs").update({ status: "queued", scheduled_at: retryAtIso(gov), last_error: `governor:${gov.reason}` }).eq("id", job.id);
+              skipped++;
+              continue;
+            }
+            govId = gov.id;
+
             let endpoint = "/api/sendText";
             const basePayload: any = { session: session.session_name };
             // Fallback automatique : si type média mais URL manquante et qu'on a un body → envoi texte
@@ -406,6 +418,8 @@ serve(async (req) => {
             let parsed: any = null;
             try { parsed = JSON.parse(text || "{}"); } catch { parsed = null; }
             if (!res.ok) throw new Error(`WAHA ${res.status}: ${text.slice(0, 300)}`);
+            await governorRecord(admin, govId, "sent");
+            govId = undefined;
 
             await admin.from("wa_send_jobs").update({
               status: "sent",
@@ -417,6 +431,7 @@ serve(async (req) => {
             }).eq("id", job.id);
             sent++;
           } catch (e: any) {
+            await governorRecord(admin, govId, "failed", String(e?.message ?? e));
             await admin.from("wa_send_jobs").update({
               status: "failed",
               last_error: (e?.message ?? "Erreur d’envoi").slice(0, 300),
