@@ -20,6 +20,7 @@ import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
+import 'live_onboarding.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
@@ -114,6 +115,8 @@ class LiveWaouhProductionApp extends StatelessWidget {
               debugShowCheckedModeBanner: false,
               theme: legacy.buildWaouhTheme(),
               routerConfig: router,
+              builder: (context, child) =>
+                  LiveOnboardingGate(child: child ?? const SizedBox.shrink()),
             );
           },
         ),
