@@ -37,6 +37,13 @@ android {
     }
 
     packaging {
+        resources {
+            excludes += [
+                'META-INF/*.version', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*',
+                'META-INF/NOTICE*', 'META-INF/*.kotlin_module', 'DebugProbesKt.bin',
+                'kotlin-tooling-metadata.json', 'kotlin/**', '**/*.kotlin_builtins'
+            ]
+        }
         jniLibs {
             // Reduces the downloadable TEST APK. Android extracts the native
             // libraries at installation time; this is not used by default
