@@ -196,6 +196,14 @@ Deno.serve(async (req) => {
         break;
       }
       case "session-start": {
+        // Session en échec : un simple « start » relance le même moteur planté.
+        // On l'arrête d'abord pour repartir d'un navigateur propre.
+        const before = await fetchWaha(base, `/api/sessions/${session}`, {}, headers).catch(() => null);
+        const beforeStatus = before?.ok ? String((await readWaha(before))?.status || "") : "";
+        if (beforeStatus === "FAILED" || beforeStatus === "STOPPED") {
+          await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers).catch(() => null);
+          await new Promise((r) => setTimeout(r, 1500));
+        }
         res = await fetchWaha(base, `/api/sessions/${session}/start`, { method: "POST" }, headers);
         const startText = await res.clone().text().catch(() => "");
         console.log(`[waha-control] session-start status=${res.status}`);
@@ -217,6 +225,17 @@ Deno.serve(async (req) => {
         break;
       case "get-qr":
         {
+          // Le QR n'existe que dans l'état SCAN_QR_CODE : sinon inutile d'essayer
+          // 9 routes (et la capture d'écran montrerait une page vide).
+          const pre = await fetchWaha(base, `/api/sessions/${session}`, {}, headers).catch(() => null);
+          const preBody = pre?.ok ? await readWaha(pre).catch(() => null) : null;
+          const preStatus = String(preBody?.status || "");
+          if (preStatus === "WORKING") {
+            return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
+          }
+          if (preStatus && preStatus !== "SCAN_QR_CODE") {
+            return json({ error: "QR non disponible", waiting: preStatus === "STARTING", status: preStatus }, 202);
+          }
           const candidates: Array<[string, "GET" | "POST"]> = [
             [`/api/${session}/auth/qr?format=image`, "GET"],
             [`/api/${session}/auth/qr?format=image`, "POST"],

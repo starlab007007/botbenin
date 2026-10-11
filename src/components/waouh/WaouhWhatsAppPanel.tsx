@@ -126,7 +126,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const statusColor = status === "WORKING" && providerOperational === true && identityMatches === true ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : "bg-gray-400";
+  const statusColor = status === "WORKING" && providerOperational === true && identityMatches === true ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : status === "FAILED" ? "bg-red-500" : "bg-gray-400";
 
   return (
     <Card className="p-4 bg-card border-[hsl(var(--waouh-border))]">
@@ -147,6 +147,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Input value={session} readOnly />
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
             {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Ouvrez WhatsApp sur +229 65653468 → Appareils connectés → Scanner ce code. Il se renouvelle seul.</p>}
+            {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage de WhatsApp… le QR apparaît dans quelques secondes.</p>}
+            {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WhatsApp (WAHA) s’est arrêté. Cliquez sur « Démarrer » pour le relancer. Si l’échec revient en boucle, redémarrez le serveur WAHA.</p>}
             {status === "WORKING" && providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
             {status === "WORKING" && identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
