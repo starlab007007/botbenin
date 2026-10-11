@@ -152,6 +152,30 @@ Deno.serve(async (req) => {
       return json(verifiedSummary, verifiedSummary.webhook_ready ? 200 : 502);
     }
 
+    if (action === "session-reset") {
+      // Dernier recours pour une session bloquée en FAILED : le profil WhatsApp Web
+      // enregistré est corrompu ou refusé. On supprime la session puis on la recrée
+      // vide (webhook central inclus) : un nouveau QR est ensuite demandé.
+      if (session !== CENTRAL_WAHA_SESSION) return json({ error: "central_only" }, 422);
+      const before = await fetchWaha(base, `/api/sessions/${session}`, {}, headers).catch(() => null);
+      const beforeBody = before?.ok ? await readWaha(before).catch(() => null) : null;
+      if (String(beforeBody?.status || "") === "WORKING") return json({ error: "session_already_working" }, 409);
+      await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers).catch(() => null);
+      await new Promise((r) => setTimeout(r, 1500));
+      const removed = await fetchWaha(base, `/api/sessions/${session}`, { method: "DELETE" }, headers).catch(() => null);
+      console.log(`[waha-control] session-reset delete status=${removed?.status}`);
+      await new Promise((r) => setTimeout(r, 2500));
+      const fresh = centralWebhookConfig({}, SUPABASE_URL, Deno.env.get("WAHA_WEBHOOK_SECRET") || "");
+      const created = await fetchWaha(base, `/api/sessions`, {
+        method: "POST",
+        body: JSON.stringify({ name: session, start: true, config: fresh }),
+      }, headers);
+      console.log(`[waha-control] session-reset create status=${created.status}`);
+      const createdBody = await readWaha(created);
+      if (createdBody?.config?.webhooks) createdBody.config.webhooks = createdBody.config.webhooks.map((hook: any) => ({ events: hook.events, url: String(hook.url || "").split("?")[0] }));
+      return json({ reset: created.ok, delete_status: removed?.status ?? 0, ...createdBody }, created.ok ? 200 : 502);
+    }
+
     let webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
     if (session === CENTRAL_WAHA_SESSION && ["session-create", "session-start"].includes(action)) {
       const previous = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);

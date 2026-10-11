@@ -65,6 +65,16 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     refreshStatus();
   };
 
+  const resetSession = async () => {
+    if (!window.confirm("Réinitialiser la session WhatsApp ? Elle sera recréée vide et un nouveau QR sera demandé.")) return;
+    const data = await callWaha("session-reset");
+    if (!data) return;
+    toast.success("Session réinitialisée. Le QR arrive dans quelques secondes.");
+    setQr(null);
+    setStatus("STARTING");
+    setTimeout(() => void refreshStatus(true), 3000);
+  };
+
   const stopSession = async () => {
     await callWaha("session-stop");
     setQr(null);
@@ -148,7 +158,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
             {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Ouvrez WhatsApp sur +229 65653468 → Appareils connectés → Scanner ce code. Il se renouvelle seul.</p>}
             {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage de WhatsApp… le QR apparaît dans quelques secondes.</p>}
-            {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WhatsApp (WAHA) s’est arrêté. Cliquez sur « Démarrer » pour le relancer. Si l’échec revient en boucle, redémarrez le serveur WAHA.</p>}
+            {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WhatsApp (WAHA) s’est arrêté. Cliquez sur « Démarrer ». Si l’échec revient, cliquez sur « Réinitialiser » : la session est recréée et un nouveau QR est demandé.</p>}
             {status === "WORKING" && providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
             {status === "WORKING" && identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
@@ -165,6 +175,11 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Button variant="outline" onClick={stopSession} disabled={loading}>
               Arrêter
             </Button>
+            {(status === "FAILED" || status === "STOPPED") && (
+              <Button variant="destructive" onClick={resetSession} disabled={loading}>
+                Réinitialiser
+              </Button>
+            )}
           </div>
 
           <div className="pt-3 border-t">
