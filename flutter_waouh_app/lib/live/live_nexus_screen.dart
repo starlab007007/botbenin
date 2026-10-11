@@ -17,7 +17,19 @@ import 'live_hot_labels.dart';
 import 'live_sell_photos.dart';
 
 class LiveNexusScreen extends StatefulWidget {
-  const LiveNexusScreen({super.key});
+  const LiveNexusScreen({
+    super.key,
+    this.initialQuery,
+    this.initialCity,
+    this.initialBudget,
+    this.autoLaunch = false,
+  });
+
+  /// Préremplissage venant du formulaire express (parité Web `?q=&go=1`).
+  final String? initialQuery;
+  final String? initialCity;
+  final String? initialBudget;
+  final bool autoLaunch;
   @override
   State<LiveNexusScreen> createState() => _LiveNexusScreenState();
 }
@@ -51,7 +63,13 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   void initState() {
     super.initState();
     service = LiveNexusService(legacy.supabase);
-    WidgetsBinding.instance.addPostFrameCallback((_) => loadSources());
+    query.text = widget.initialQuery ?? '';
+    city.text = widget.initialCity ?? '';
+    budget.text = widget.initialBudget ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      loadSources();
+      if (widget.autoLaunch && query.text.trim().isNotEmpty) runSearch();
+    });
   }
 
   @override
@@ -394,7 +412,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   border: Border.all(color: const Color(0xFFD6E3FF)),
                 ),
                 child: const Text(
-                  'Mode invité · Recherche et sources accessibles. Connectez-vous pour partager, contribuer, contacter ou confier une mission à Bot.',
+                  'Mode invité · Connectez-vous pour contacter ou confier à Bot.',
                   style: TextStyle(
                     color: Color(0xFF315BD8),
                     fontSize: 11.5,
@@ -841,7 +859,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               icon: Icons.hub_outlined,
               title: 'Signal Fabric',
               text:
-                  'Chaque source indique son état réel. Une source non configurée n’est jamais affichée comme live.',
+                  'Chaque canal affiche son état réel.',
             ),
             const SizedBox(height: 10),
             for (final source in sources)
@@ -1334,7 +1352,7 @@ class _DiscoveryCard extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: onSource,
                         icon: const Icon(Icons.open_in_new_rounded),
-                        label: const Text('Source'),
+                        label: const Text('Voir'),
                       ),
                     ),
                   if (onSource != null) const SizedBox(width: 8),

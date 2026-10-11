@@ -5,8 +5,14 @@ import 'package:provider/provider.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_controller.dart';
+import 'live_quick_ask.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
+
+Future<void> _quick(BuildContext context, LiveQuickAskKind kind) async {
+  final target = await showLiveQuickAsk(context, kind);
+  if (target != null && context.mounted) context.push(target);
+}
 
 class LiveAvatarScreen extends StatefulWidget {
   const LiveAvatarScreen({super.key});
@@ -114,7 +120,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve et compare',
                     accent: WaouhPalette.blue,
                     background: const Color(0xFFEAF3FF),
-                    onTap: () => context.push('/app/avatar/acheter'),
+                    onTap: () => _quick(context, LiveQuickAskKind.acheter),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -125,7 +131,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve des acheteurs',
                     accent: const Color(0xFFE18A27),
                     background: const Color(0xFFFFF2E2),
-                    onTap: () => context.push('/app/avatar/vendre'),
+                    onTap: () => _quick(context, LiveQuickAskKind.vendre),
                   ),
                 ),
               ],
@@ -142,7 +148,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     background: const Color(0xFFEAF9FC),
                     onTap: () {
                       avatar.showState(LiveAvatarPresenceState.searching);
-                      context.push('/app/nexus');
+                      _quick(context, LiveQuickAskKind.trouver);
                     },
                   ),
                 ),
@@ -154,7 +160,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Parlez naturellement',
                     accent: const Color(0xFF8B7CFF),
                     background: const Color(0xFFF2EFFF),
-                    onTap: () => context.push('/app/avatar/demander'),
+                    onTap: () => _quick(context, LiveQuickAskKind.demander),
                   ),
                 ),
               ],

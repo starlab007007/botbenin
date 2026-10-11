@@ -22,8 +22,21 @@ import 'live_reasoning.dart' as rs;
 enum LiveAvatarCommerceMode { buy, sell, ask }
 
 class LiveAvatarCommerceScreen extends StatefulWidget {
-  const LiveAvatarCommerceScreen({super.key, required this.mode});
+  const LiveAvatarCommerceScreen({
+    super.key,
+    required this.mode,
+    this.initialQuery,
+    this.initialCity,
+    this.initialBudget,
+    this.autoLaunch = false,
+  });
   final LiveAvatarCommerceMode mode;
+
+  /// Préremplissage venant du formulaire express (parité Web `?q=&go=1`).
+  final String? initialQuery;
+  final String? initialCity;
+  final String? initialBudget;
+  final bool autoLaunch;
 
   @override
   State<LiveAvatarCommerceScreen> createState() =>
@@ -71,6 +84,17 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   @override
   void initState() {
     super.initState();
+    _goal.text = widget.initialQuery ?? '';
+    _city.text = widget.initialCity ?? '';
+    _budget.text = widget.initialBudget ?? '';
+    if (widget.mode == LiveAvatarCommerceMode.sell) {
+      _priceFloor = widget.initialBudget ?? '';
+    }
+    if (widget.autoLaunch && _goal.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search();
+      });
+    }
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
       if (!mounted || _mandateBusy) return;
       await _loadMandate();

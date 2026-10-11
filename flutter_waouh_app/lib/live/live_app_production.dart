@@ -190,20 +190,32 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/avatar/acheter',
-              builder: (_, __) => const LiveAvatarCommerceScreen(
+              builder: (_, state) => LiveAvatarCommerceScreen(
                 mode: LiveAvatarCommerceMode.buy,
+                initialQuery: state.uri.queryParameters['q'],
+                initialCity: state.uri.queryParameters['city'],
+                initialBudget: state.uri.queryParameters['budget'],
+                autoLaunch: state.uri.queryParameters['go'] == '1',
               ),
             ),
             GoRoute(
               path: '/app/avatar/vendre',
-              builder: (_, __) => const LiveAvatarCommerceScreen(
+              builder: (_, state) => LiveAvatarCommerceScreen(
                 mode: LiveAvatarCommerceMode.sell,
+                initialQuery: state.uri.queryParameters['q'],
+                initialCity: state.uri.queryParameters['city'],
+                initialBudget: state.uri.queryParameters['budget'],
+                autoLaunch: state.uri.queryParameters['go'] == '1',
               ),
             ),
             GoRoute(
               path: '/app/avatar/demander',
-              builder: (_, __) => const LiveAvatarCommerceScreen(
+              builder: (_, state) => LiveAvatarCommerceScreen(
                 mode: LiveAvatarCommerceMode.ask,
+                initialQuery: state.uri.queryParameters['q'],
+                initialCity: state.uri.queryParameters['city'],
+                initialBudget: state.uri.queryParameters['budget'],
+                autoLaunch: state.uri.queryParameters['go'] == '1',
               ),
             ),
             GoRoute(
@@ -216,7 +228,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/nexus',
-              builder: (_, __) => const LiveNexusScreen(),
+              builder: (_, state) => LiveNexusScreen(
+                initialQuery: state.uri.queryParameters['q'],
+                initialCity: state.uri.queryParameters['city'],
+                initialBudget: state.uri.queryParameters['budget'],
+                autoLaunch: state.uri.queryParameters['go'] == '1',
+              ),
             ),
             GoRoute(
               path: '/app/bots',

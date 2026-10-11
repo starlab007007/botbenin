@@ -1,8 +1,8 @@
 {
   "schema": "waouh.release.v1",
-  "version": "18.30.0",
-  "build": 1791442563,
-  "release_id": "18.30.0+1791442563",
+  "version": "18.31.0",
+  "build": 1791697896,
+  "release_id": "18.31.0+1791697896",
   "branch": "prod",
   "project_ref": "mvynepqulhflxtyymtzs",
   "prepared_at": "2026-10-08T06:56:03.757159+00:00",
