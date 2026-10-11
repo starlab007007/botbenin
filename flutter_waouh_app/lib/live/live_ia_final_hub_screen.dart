@@ -1,13 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../main.dart' as legacy;
 import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_theme.dart';
 
 /// Onglet IA — parité Web `WaouhAiHubPage` : en-tête Bot, créer un agent,
 /// types d'agents, outils IA. Peu de texte, accès en un geste.
-class LiveIaFinalHubScreen extends StatelessWidget {
+class LiveIaFinalHubScreen extends StatefulWidget {
   const LiveIaFinalHubScreen({super.key});
+
+  @override
+  State<LiveIaFinalHubScreen> createState() => _LiveIaFinalHubScreenState();
+}
+
+class _AgentRow {
+  const _AgentRow(this.id, this.name, this.status);
+  final String id, name, status;
+}
+
+class _LiveIaFinalHubScreenState extends State<LiveIaFinalHubScreen> {
+  List<_AgentRow> _agents = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (legacy.supabase.auth.currentUser == null) return;
+    try {
+      final rows = await legacy.supabase
+          .from('waouh_ai_agents')
+          .select('id,name,status')
+          .order('created_at', ascending: false);
+      if (!mounted) return;
+      setState(() => _agents = [
+            for (final r in (rows as List))
+              _AgentRow('${r['id']}', '${r['name'] ?? 'Agent'}',
+                  '${r['status'] ?? 'draft'}'),
+          ]);
+    } catch (_) {
+      // La liste reste vide : la création fonctionne quand même.
+    }
+  }
+
+  static const _templates = <(String, String, String)>[
+    ('🛍️', 'Boutique / Commerce', 'Ami·e du magasin'),
+    ('🍽️', 'Restaurant / Food', 'Serveur virtuel'),
+    ('🩺', 'Santé / Bien-être', 'Assistant santé'),
+    ('💼', 'Services / Freelance', 'Assistant pro'),
+    ('🎓', 'Éducation / Formation', 'Assistant scolaire'),
+    ('✨', 'Autre secteur', 'Assistant'),
+  ];
+
+  static const _statusLabel = <String, (String, Color)>{
+    'active': ('Actif', Color(0xFF10B981)),
+    'paused': ('En pause', Color(0xFFF59E0B)),
+    'testing': ('Test', Color(0xFF3B82F6)),
+    'training': ('Formation', Color(0xFF8B5CF6)),
+    'draft': ('Brouillon', Color(0xFF94A3B8)),
+  };
 
   static const _types = <_AgentType>[
     _AgentType('Conversationnel', 'Répond, vend, prend RDV',
@@ -49,8 +103,71 @@ class LiveIaFinalHubScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 110),
             children: [
-              _Header(onCreate: () => context.push('/app/whatsapp/select-agent')),
+              _Header(
+                count: _agents.length,
+                onCreate: () => context.push('/app/whatsapp/select-agent'),
+              ),
               const SizedBox(height: 18),
+              if (_agents.isNotEmpty) ...[
+                const _SectionTitle('Mes agents'),
+                SizedBox(
+                  height: 104,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _agents.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) {
+                      final a = _agents[i];
+                      final st = _statusLabel[a.status] ?? _statusLabel['draft']!;
+                      return SizedBox(
+                        width: 160,
+                        child: Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => context
+                                .push('/app/whatsapp/agent/${a.id}/insights'),
+                            child: Ink(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                    color: const Color(0xFFD9E6FF)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.smart_toy_rounded,
+                                      color: WaouhPalette.blue, size: 22),
+                                  const Spacer(),
+                                  Text(a.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 13.5)),
+                                  const SizedBox(height: 3),
+                                  Row(children: [
+                                    Icon(Icons.circle, size: 7, color: st.$2),
+                                    const SizedBox(width: 5),
+                                    Text(st.$1,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: WaouhPalette.muted)),
+                                  ]),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 18),
+              ],
               const _SectionTitle('Choisir un type'),
               GridView.count(
                 crossAxisCount: typeCols,
@@ -61,6 +178,58 @@ class LiveIaFinalHubScreen extends StatelessWidget {
                 childAspectRatio: 1.25,
                 children: [
                   for (final t in _types) _TypeCard(type: t),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const _SectionTitle('Modèles prêts à l’emploi'),
+              GridView.count(
+                crossAxisCount: width >= 720 ? 6 : 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.35,
+                children: [
+                  for (final t in _templates)
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () =>
+                            context.push('/app/whatsapp/select-agent'),
+                        child: Ink(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            border:
+                                Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(t.$1, style: const TextStyle(fontSize: 24)),
+                              const Spacer(),
+                              Text(t.$2,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 12.5,
+                                      height: 1.15)),
+                              const SizedBox(height: 2),
+                              Text(t.$3,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 10.5,
+                                      color: WaouhPalette.muted)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 18),
@@ -85,8 +254,9 @@ class LiveIaFinalHubScreen extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onCreate});
+  const _Header({required this.onCreate, required this.count});
   final VoidCallback onCreate;
+  final int count;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -140,8 +310,11 @@ class _Header extends StatelessWidget {
                           ),
                           border: Border.all(color: const Color(0xFFD9E6FF)),
                         ),
-                        child: const Text('Créons votre agent.',
-                            style: TextStyle(
+                        child: Text(
+                            count > 0
+                                ? '$count agent${count > 1 ? 's' : ''} à votre service.'
+                                : 'Créons votre premier agent.',
+                            style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: Color(0xFF1E3A8A))),

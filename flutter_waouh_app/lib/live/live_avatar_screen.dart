@@ -200,7 +200,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Votre Avatar prépare et conseille. Vous validez toujours les actions sensibles.',
+                      'Vous validez toujours les actions sensibles.',
                       style: TextStyle(
                         color: WaouhPalette.muted,
                         fontSize: 11,
@@ -718,7 +718,7 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
           title: widget.editMode ? 'Personnaliser' : 'Créer mon Avatar',
           subtitle: widget.editMode
               ? 'Votre présence WAOUH'
-              : 'Choisissez sa présence et son style',
+              : 'Son style',
           back: widget.editMode,
         ),
         body: DecoratedBox(
@@ -829,7 +829,7 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'La personnalisation est enregistrée uniquement sur cet appareil. Aucun changement backend.',
+                'Enregistré sur cet appareil.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: WaouhPalette.muted,
