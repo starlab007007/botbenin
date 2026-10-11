@@ -10,6 +10,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
+import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_theme.dart';
 import 'live_guest_action_gate.dart';
 import 'user_message.dart';
@@ -395,7 +396,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         backgroundColor: WaouhPalette.pearl,
         appBar: const LiveHeader(
           title: 'WAOUH NEXUS',
-          subtitle: 'Le moteur de découverte de votre Avatar',
+          subtitle: 'Trouver · comparer · contacter',
           back: true,
         ),
         body: Column(
@@ -453,71 +454,43 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: smartMode
-                ? const Color(0xFFF0F5FF)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: smartMode
-                  ? const Color(0xFFD6E3FF)
-                  : WaouhPalette.line,
-            ),
-          ),
-          child: SwitchListTile.adaptive(
-            value: smartMode,
-            onChanged: busy
-                ? null
-                : (value) => setState(() {
-                      smartMode = value;
-                      discovery = null;
-                    }),
-            secondary: Icon(
-              Icons.auto_awesome_rounded,
-              color: smartMode
-                  ? WaouhPalette.blue
-                  : WaouhPalette.muted,
-            ),
-            title: const Text(
-              'Mode intelligent',
-              style: TextStyle(fontWeight: FontWeight.w900),
-            ),
-            subtitle: const Text(
-              'WAOUH comprend votre intention.',
-              style: TextStyle(fontSize: 11),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
+        Wrap(
+          spacing: 8,
           children: [
-            Expanded(
-              child: _ModeButton(
-                selected: !smartMode && findSellers,
-                icon: Icons.storefront_outlined,
-                title: 'Acheter',
-                subtitle: 'Trouver vendeurs',
-                onTap: () => setState(() {
-                  smartMode = false;
-                  findSellers = true;
-                  discovery = null;
-                }),
-              ),
+            ChoiceChip(
+              avatar: const Icon(Icons.auto_awesome_rounded, size: 16),
+              label: const Text('IA'),
+              selected: smartMode,
+              onSelected: busy
+                  ? null
+                  : (_) => setState(() {
+                        smartMode = true;
+                        discovery = null;
+                      }),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ModeButton(
-                selected: !smartMode && !findSellers,
-                icon: Icons.groups_2_outlined,
-                title: 'Vendre',
-                subtitle: 'Trouver acheteurs',
-                onTap: () => setState(() {
-                  smartMode = false;
-                  findSellers = false;
-                  discovery = null;
-                }),
-              ),
+            ChoiceChip(
+              avatar: const Icon(Icons.storefront_outlined, size: 16),
+              label: const Text('Acheter'),
+              selected: !smartMode && findSellers,
+              onSelected: busy
+                  ? null
+                  : (_) => setState(() {
+                        smartMode = false;
+                        findSellers = true;
+                        discovery = null;
+                      }),
+            ),
+            ChoiceChip(
+              avatar: const Icon(Icons.groups_2_outlined, size: 16),
+              label: const Text('Vendre'),
+              selected: !smartMode && !findSellers,
+              onSelected: busy
+                  ? null
+                  : (_) => setState(() {
+                        smartMode = false;
+                        findSellers = false;
+                        discovery = null;
+                      }),
             ),
           ],
         ),
@@ -909,7 +882,7 @@ class _Hero extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: WaouhGradients.airHero,
           borderRadius: BorderRadius.circular(26),
@@ -919,57 +892,60 @@ class _Hero extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: WaouhGradients.brand,
-                borderRadius: BorderRadius.circular(17),
+              width: 58,
+              height: 58,
+              padding: const EdgeInsets.all(2.5),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [
+                  Color(0xFF55DDF2),
+                  Color(0xFF4F7FFF),
+                  Color(0xFF8B7CFF),
+                ]),
               ),
-              child: const Icon(
-                Icons.travel_explore_rounded,
-                color: Colors.white,
-                size: 25,
+              child: ClipOval(
+                child: Image.asset(botAvatarAsset, fit: BoxFit.cover),
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'NEXUS',
+                  const Text(
+                    'WAOUH NEXUS',
                     style: TextStyle(
                       color: WaouhPalette.ink,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 19,
                     ),
                   ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Trouver · comparer · contacter',
-                    style: TextStyle(
-                      color: WaouhPalette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.92),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(4),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
+                      ),
+                      border: Border.all(color: const Color(0xFFD9E6FF)),
+                    ),
+                    child: const Text(
+                      'Je trouve, je compare, je contacte.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E3A8A),
+                      ),
                     ),
                   ),
                 ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white70,
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: const Color(0xFFDCE5F5)),
-              ),
-              child: Text(
-                '$liveCount live',
-                style: const TextStyle(
-                  color: WaouhPalette.blue,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
               ),
             ),
           ],
@@ -1012,7 +988,7 @@ class _Tabs extends StatelessWidget {
           unselectedLabelStyle:
               const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           tabs: [
-            const Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
+            const Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Découvrir'),
             Tab(
               icon: Icon(
                 signedIn ? Icons.share_rounded : Icons.lock_outline_rounded,
@@ -1171,85 +1147,6 @@ class _SmartPlanCard extends StatelessWidget {
       );
 }
 
-class _ModeButton extends StatelessWidget {
-  const _ModeButton({
-    required this.selected,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFEAF2FF) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Ink(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFFBFD1FF)
-                    : WaouhPalette.line,
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? WaouhPalette.blue.withValues(alpha: .10)
-                        : const Color(0xFFF4F7FC),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 19,
-                    color:
-                        selected ? WaouhPalette.blue : WaouhPalette.muted,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color:
-                        selected ? WaouhPalette.blue : WaouhPalette.ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: WaouhPalette.muted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
 class _DiscoveryCard extends StatelessWidget {
   const _DiscoveryCard({
     required this.item,
@@ -1292,8 +1189,6 @@ class _DiscoveryCard extends StatelessWidget {
                 spacing: 5,
                 runSpacing: 5,
                 children: [
-                  _Pill(sourceLabel(item.sourceKey)),
-                  _Pill(item.intent),
                   if (item.city != null) _Pill(item.city!),
                   _Pill(item.contactPolicy.level),
                   if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)

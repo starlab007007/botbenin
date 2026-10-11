@@ -1,305 +1,292 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_theme.dart';
 
+/// Onglet IA — parité Web `WaouhAiHubPage` : en-tête Bot, créer un agent,
+/// types d'agents, outils IA. Peu de texte, accès en un geste.
 class LiveIaFinalHubScreen extends StatelessWidget {
   const LiveIaFinalHubScreen({super.key});
 
-  static const modules = <_SmartModule>[
-    _SmartModule(
-      title: 'AprèsBac IA',
-      subtitle: 'Orientation intelligente, séries, filières et établissements.',
-      route: '/app/apresbac',
-      icon: Icons.school_rounded,
-      accent: Color(0xFF2563EB),
-      tags: ['Orientation', 'Filières'],
-    ),
-    _SmartModule(
-      title: 'FA IA',
-      subtitle: 'Consultation, lancer, interprétation et journal personnel.',
-      route: '/app/fa-ia',
-      icon: Icons.auto_awesome_rounded,
-      accent: Color(0xFF7C3AED),
-      tags: ['Consultation', 'Journal'],
-    ),
-    _SmartModule(
-      title: 'Conversationnel',
-      subtitle: 'Assistant intelligent et conversations WhatsApp enrichies.',
-      route: '/app/whatsapp/conversationnel',
-      icon: Icons.forum_rounded,
-      accent: Color(0xFF0F766E),
-      tags: ['Assistant', 'WhatsApp'],
-    ),
-    _SmartModule(
-      title: 'BI WAOUH IA',
-      subtitle: 'Analyse décisionnelle, indicateurs et lecture intelligente.',
-      route: '/app/whatsapp/bi',
-      icon: Icons.insights_rounded,
-      accent: Color(0xFF0369A1),
-      tags: ['Indicateurs', 'Décision'],
-    ),
-    _SmartModule(
-      title: 'Stock WAOUH IA',
-      subtitle:
-          'Import, analyse des stocks et recommandations opérationnelles.',
-      route: '/app/stock',
-      icon: Icons.inventory_2_rounded,
-      accent: Color(0xFFB45309),
-      tags: ['Stock', 'Alertes'],
-    ),
-    _SmartModule(
-      title: 'Présence QR',
-      subtitle: 'Sites, équipes, QR et suivi fiable des pointages.',
-      route: '/app/presence',
-      icon: Icons.qr_code_scanner_rounded,
-      accent: Color(0xFF047857),
-      tags: ['QR', 'Équipes'],
-    ),
-    _SmartModule(
-      title: 'Agents IA',
-      subtitle: 'Créer, sélectionner et piloter des agents spécialisés.',
-      route: '/app/whatsapp/select-agent',
-      icon: Icons.smart_toy_rounded,
-      accent: Color(0xFFBE123C),
-      tags: ['Agents', 'Automatisation'],
-    ),
-    _SmartModule(
-      title: 'Radar',
-      subtitle: 'Recherche géolocalisée intelligente et signaux de proximité.',
-      route: '/app/radar-map',
-      icon: Icons.radar_rounded,
-      accent: Color(0xFF0891B2),
-      tags: ['Proximité', 'Temps réel'],
-    ),
+  static const _types = <_AgentType>[
+    _AgentType('Conversationnel', 'Répond, vend, prend RDV',
+        Icons.forum_rounded, [Color(0xFF10B981), Color(0xFF0D9488)],
+        '/app/whatsapp/select-agent'),
+    _AgentType('BI & analyse', 'Sheets, Excel, KPI', Icons.bar_chart_rounded,
+        [Color(0xFF3B82F6), Color(0xFF4F46E5)], '/app/whatsapp/bi'),
+    _AgentType('Stock', 'Alertes et réappro', Icons.inventory_2_rounded,
+        [Color(0xFFF59E0B), Color(0xFFEA580C)], '/app/stock'),
+    _AgentType('Présence QR', 'Pointage géolocalisé', Icons.place_rounded,
+        [Color(0xFFD946EF), Color(0xFFEC4899)], '/app/presence'),
+  ];
+
+  static const _tools = <_Tool>[
+    _Tool('AprèsBac IA', Icons.school_rounded, Color(0xFF2563EB),
+        Color(0xFFEFF6FF), '/app/apresbac'),
+    _Tool('FA IA', Icons.auto_awesome_rounded, Color(0xFF7C3AED),
+        Color(0xFFF5F3FF), '/app/fa-ia'),
+    _Tool('BI WAOUH', Icons.bar_chart_rounded, Color(0xFF0369A1),
+        Color(0xFFF0F9FF), '/app/whatsapp/bi'),
+    _Tool('Stock WAOUH', Icons.inventory_2_rounded, Color(0xFFB45309),
+        Color(0xFFFFFBEB), '/app/stock'),
+    _Tool('Présence QR', Icons.qr_code_2_rounded, Color(0xFF047857),
+        Color(0xFFECFDF5), '/app/presence'),
+    _Tool('Radar', Icons.radar_rounded, Color(0xFF0E7490), Color(0xFFECFEFF),
+        '/app/radar-map'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final width = MediaQuery.sizeOf(context).width;
-    final columns = width >= 920
-        ? 3
-        : width >= 560
-            ? 2
-            : 1;
-    final ratio = columns == 1 ? 2.15 : 1.05;
-
+    final typeCols = width >= 720 ? 4 : 2;
+    final toolCols = width >= 720 ? 6 : 3;
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: WaouhGradients.air),
         child: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-              sliver: SliverToBoxAdapter(
-                child: Container(
-                  padding: const EdgeInsets.all(17),
-                  decoration: BoxDecoration(
-                    gradient: WaouhGradients.airHero,
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: const Color(0xFFDDE7F7)),
-                    boxShadow: WaouhShadows.card,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 110),
+            children: [
+              _Header(onCreate: () => context.push('/app/whatsapp/select-agent')),
+              const SizedBox(height: 18),
+              const _SectionTitle('Choisir un type'),
+              GridView.count(
+                crossAxisCount: typeCols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.25,
+                children: [
+                  for (final t in _types) _TypeCard(type: t),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const _SectionTitle('Outils IA'),
+              GridView.count(
+                crossAxisCount: toolCols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: .92,
+                children: [
+                  for (final t in _tools) _ToolTile(tool: t),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.onCreate});
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: WaouhGradients.airHero,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFDCE7F8)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: [
+                      Color(0xFF55DDF2),
+                      Color(0xFF4F7FFF),
+                      Color(0xFF8B7CFF),
+                    ]),
                   ),
-                  child: Row(
+                  child: ClipOval(
+                    child: Image.asset(botAvatarAsset, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Text('Agents IA',
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 6),
                       Container(
-                        width: 50,
-                        height: 50,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0F5FF),
-                          borderRadius: BorderRadius.circular(17),
+                          color: Colors.white.withOpacity(.92),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(4),
+                            topRight: Radius.circular(16),
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(16),
+                          ),
+                          border: Border.all(color: const Color(0xFFD9E6FF)),
                         ),
-                        child: const Icon(
-                          Icons.auto_awesome_rounded,
-                          color: WaouhPalette.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Bots & IA WAOUH',
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: WaouhPalette.ink,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            const Text(
-                              'Vos outils IA spécialisés.',
-                              style: TextStyle(
-                                color: WaouhPalette.muted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: const Text('Créons votre agent.',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1E3A8A))),
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: ratio,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _SmartModuleCard(module: modules[index]),
-                  childCount: modules.length,
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Créer un agent',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: WaouhPalette.blue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
                 ),
               ),
             ),
           ],
         ),
-      ),
-      ),
-    );
-  }
+      );
 }
 
-class _SmartModuleCard extends StatelessWidget {
-  const _SmartModuleCard({required this.module});
-  final _SmartModule module;
-
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push(module.route),
-        child: Ink(
-          decoration: BoxDecoration(
-            border: Border.all(color: WaouhPalette.line),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(15),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+      );
+}
+
+class _AgentType {
+  const _AgentType(this.label, this.hint, this.icon, this.colors, this.route);
+  final String label, hint, route;
+  final IconData icon;
+  final List<Color> colors;
+}
+
+class _TypeCard extends StatelessWidget {
+  const _TypeCard({required this.type});
+  final _AgentType type;
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => context.push(type.route),
+          child: Ink(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: type.colors),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                    color: type.colors.last.withOpacity(.28),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6)),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: module.accent.withValues(alpha: .11),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Icon(module.icon, color: module.accent),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F5FF),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: const Text(
-                        'SMART',
-                        style: TextStyle(
-                          color: WaouhPalette.blue,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .45,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                Icon(type.icon, color: Colors.white, size: 26),
                 const Spacer(),
-                Text(
-                  module.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  module.subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    ...module.tags.map(
-                      (tag) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF4F7FC),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tag,
-                            style: const TextStyle(
-                              color: WaouhPalette.muted,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 19,
-                      color: module.accent,
-                    ),
-                  ],
-                ),
+                Text(type.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(type.hint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(.92),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11)),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
-class _SmartModule {
-  const _SmartModule({
-    required this.title,
-    required this.subtitle,
-    required this.route,
-    required this.icon,
-    required this.accent,
-    required this.tags,
-  });
-
-  final String title;
-  final String subtitle;
-  final String route;
+class _Tool {
+  const _Tool(this.title, this.icon, this.color, this.bg, this.route);
+  final String title, route;
   final IconData icon;
-  final Color accent;
-  final List<String> tags;
+  final Color color, bg;
+}
+
+class _ToolTile extends StatelessWidget {
+  const _ToolTile({required this.tool});
+  final _Tool tool;
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push(tool.route),
+          child: Ink(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                      color: tool.bg, borderRadius: BorderRadius.circular(16)),
+                  child: Icon(tool.icon, color: tool.color, size: 22),
+                ),
+                const SizedBox(height: 8),
+                Text(tool.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1E293B))),
+              ],
+            ),
+          ),
+        ),
+      );
 }

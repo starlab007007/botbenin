@@ -107,8 +107,8 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
       appBar: const LiveHeader(
-        title: 'Missions & veille',
-        subtitle: 'Objectifs persistants · alertes · validations',
+        title: 'Missions',
+        subtitle: 'Trouver · Vendre · Suivre',
         back: true,
       ),
       body: auth.signedIn
@@ -208,12 +208,12 @@ class _MissionHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: WaouhGradients.missions,
+          gradient: WaouhGradients.airHero,
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0xFFDDE8F4)),
+          border: Border.all(color: const Color(0xFFDCE7F8)),
           boxShadow: WaouhShadows.card,
         ),
         child: Column(
@@ -221,143 +221,160 @@ class _MissionHero extends StatelessWidget {
           children: [
             Row(
               children: [
-                BotCharacter(expression: bot, size: 56),
-                const SizedBox(width: 11),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    BotCharacter(expression: bot, size: 60),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: const Color(0xFFBBF0DA)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, size: 6, color: Color(0xFF10B981)),
+                          SizedBox(width: 4),
+                          Text('En ligne',
+                              style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF047857))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Missions & veille',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
+                      const Text('Missions',
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w900)),
                       const SizedBox(height: 2),
-                      Text(
-                        line,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: WaouhPalette.muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                      const Text('Trouver · Vendre · Suivre',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: WaouhPalette.muted)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.92),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(4),
+                            topRight: Radius.circular(16),
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(16),
+                          ),
+                          border: Border.all(color: const Color(0xFFD9E6FF)),
                         ),
+                        child: Text(line,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1E3A8A))),
                       ),
                     ],
                   ),
                 ),
-                IconButton.filledTonal(
-                  tooltip: 'Avatar',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white70,
-                    foregroundColor: WaouhPalette.blue,
-                  ),
-                  onPressed: onMuse,
-                  icon: const Icon(Icons.face_retouching_natural_rounded, size: 20),
-                ),
               ],
             ),
-            const SizedBox(height: 13),
-            Row(
-              children: [
-                Expanded(
-                  child: _MissionMetric(
-                    label: 'Missions',
-                    value: missions,
-                    accent: WaouhPalette.blue,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _MissionMetric(
-                    label: 'Veilles',
-                    value: watches,
-                    accent: const Color(0xFF8B6CE8),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _MissionMetric(
-                    label: 'À valider',
-                    value: approvals,
-                    accent: approvals > 0
-                        ? const Color(0xFFE18B26)
-                        : const Color(0xFF7D8CA7),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 13),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onMission,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Mission'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onWatch,
-                    icon:
-                        const Icon(Icons.notifications_active_outlined, size: 18),
-                    label: const Text('Veille'),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white70,
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _HeroChip(
+                      icon: Icons.add_rounded,
+                      label: 'Mission',
+                      onTap: onMission,
+                      filled: true),
+                  const SizedBox(width: 8),
+                  _HeroChip(
+                      icon: Icons.notifications_active_outlined,
+                      label: approvals > 0 ? 'Veille · $approvals à valider' : 'Veille',
+                      onTap: onWatch),
+                  const SizedBox(width: 8),
+                  _HeroChip(
+                      icon: Icons.face_retouching_natural_rounded,
+                      label: 'Avatar',
+                      onTap: onMuse),
+                  const SizedBox(width: 8),
+                  _HeroChip(
+                      icon: Icons.radar_rounded,
+                      label: 'Radar',
+                      onTap: () => context.push('/app/radar-map')),
+                  const SizedBox(width: 8),
+                  _HeroChip(
+                      icon: Icons.chat_rounded,
+                      label: 'Studio WhatsApp IA',
+                      color: const Color(0xFF25D366),
+                      filled: true,
+                      onTap: () => context.push('/app/whatsapp')),
+                ],
+              ),
             ),
           ],
         ),
       );
 }
 
-class _MissionMetric extends StatelessWidget {
-  const _MissionMetric({
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({
+    required this.icon,
     required this.label,
-    required this.value,
-    required this.accent,
+    required this.onTap,
+    this.filled = false,
+    this.color,
   });
-
+  final IconData icon;
   final String label;
-  final int value;
-  final Color accent;
+  final VoidCallback onTap;
+  final bool filled;
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(10, 9, 8, 8),
-        decoration: BoxDecoration(
-          color: Colors.white70,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFFE2EAF5)),
+  Widget build(BuildContext context) {
+    final base = color ?? WaouhPalette.blue;
+    return Material(
+      color: filled ? base : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: filled ? base : const Color(0xFFD9E6FF)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: filled ? Colors.white : base),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: filled ? Colors.white : const Color(0xFF1E3A8A))),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$value',
-              style: TextStyle(
-                color: accent,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: WaouhPalette.muted,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
+      ),
+    );
+  }
 }
-

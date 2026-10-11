@@ -1358,42 +1358,17 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 120),
           children: [
-            _AvatarCommerceHero(
+            _CommerceHeader(
               avatar: avatar,
               title: _title,
               mode: widget.mode,
               loading: _loading,
-            ),
-            const SizedBox(height: 12),
-            if (_loadingJourneys || _journeys.isNotEmpty) ...[
-              _ActiveJourneysPanel(
-                journeys: _journeys,
-                loading: _loadingJourneys,
-                onRefresh: _loadJourneys,
-                onOpen: (journey) => journey.negotiating &&
-                        (journey.threadId ?? '').trim().isNotEmpty
-                    ? _openJourneyDealRoom(journey)
-                    : _showJourneyProgress(journey),
-                phaseLabel: _journeyBusinessPhase,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_loadingBus || _conversationBus.isNotEmpty) ...[
-              _ConversationBusPanel(
-                events: _conversationBus,
-                loading: _loadingBus,
-                onRefresh: _loadConversationBus,
-              ),
-              const SizedBox(height: 12),
-            ],
-            _GoalSurface(
+              found: results.length,
               controller: _goal,
               city: _city,
               budget: _budget,
               hint: _hint,
               cta: _cta,
-              loading: _loading,
-              showBudget: true,
               onSearch: _search,
             ),
             const SizedBox(height: 12),
@@ -1426,6 +1401,28 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            if (_loadingJourneys || _journeys.isNotEmpty) ...[
+              _ActiveJourneysPanel(
+                journeys: _journeys,
+                loading: _loadingJourneys,
+                onRefresh: _loadJourneys,
+                onOpen: (journey) => journey.negotiating &&
+                        (journey.threadId ?? '').trim().isNotEmpty
+                    ? _openJourneyDealRoom(journey)
+                    : _showJourneyProgress(journey),
+                phaseLabel: _journeyBusinessPhase,
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_loadingBus || _conversationBus.isNotEmpty) ...[
+              _ConversationBusPanel(
+                events: _conversationBus,
+                loading: _loadingBus,
+                onRefresh: _loadConversationBus,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 10),
               _InfoStrip(
@@ -1822,142 +1819,6 @@ class _ActiveJourneysPanel extends StatelessWidget {
       );
 }
 
-class _AvatarCommerceHero extends StatelessWidget {
-  const _AvatarCommerceHero({
-    required this.avatar,
-    required this.title,
-    required this.mode,
-    required this.loading,
-  });
-  final LiveAvatarController avatar;
-  final String title;
-  final LiveAvatarCommerceMode mode;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: WaouhGradients.airHero,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0xFFDCE7F8)),
-        ),
-        child: Row(
-          children: [
-            LiveAvatarVisual(
-              preset: avatar.profile.preset,
-              state: loading
-                  ? LiveAvatarPresenceState.searching
-                  : avatar.state,
-              size: 74,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 3),
-                  Text(
-                    loading ? 'Je cherche pour vous…' : 'Dites-moi ce qu’il vous faut.',
-                    style: TextStyle(
-                      color: WaouhPalette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _GoalSurface extends StatelessWidget {
-  const _GoalSurface({
-    required this.controller,
-    required this.city,
-    required this.budget,
-    required this.hint,
-    required this.cta,
-    required this.loading,
-    required this.showBudget,
-    required this.onSearch,
-  });
-  final TextEditingController controller;
-  final TextEditingController city;
-  final TextEditingController budget;
-  final String hint;
-  final String cta;
-  final bool loading;
-  final bool showBudget;
-  final VoidCallback onSearch;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: WaouhPalette.line),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
-          children: [
-            TextField(
-              controller: controller,
-              minLines: 1,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: hint,
-                prefixIcon: const Icon(Icons.auto_awesome_rounded),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: LiveCityField(
-                    controller: city,
-                    hint: 'Ville ou quartier',
-                  ),
-                ),
-                if (showBudget) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: budget,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'Budget / prix FCFA',
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: loading ? null : onSearch,
-              icon: loading
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.travel_explore_rounded),
-              label: Text(cta),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
 class _SearchPoint extends StatelessWidget {
   const _SearchPoint({required this.response, required this.query, required this.city});
   final NexusDiscoveryResponse response;
@@ -2062,6 +1923,25 @@ String _nextBestActionLabel(String? value) => switch ((value ?? '').toUpperCase(
       'DROP_LOW_QUALITY' => 'priorité faible',
       _ => 'enrichir le contact',
     };
+
+/// Parité Web `cleanLine` : jamais de provenance ni de remplissage, seulement
+/// les informations réelles.
+final _fillerRe = RegExp(
+  r'signal découvert|source publique|détect(?:ée|é) par nexus|annonce waouh|source (?:nexus|waouh)|en cours d[’\x27]enrichissement|aucun détail complémentaire',
+  caseSensitive: false,
+);
+String cleanCardLine(String? value) {
+  final text = (value ?? '').trim();
+  if (text.isEmpty) return '';
+  return text
+      .split(RegExp(r'\s*[·|]\s*'))
+      .where((part) =>
+          part.isNotEmpty &&
+          !_fillerRe.hasMatch(part) &&
+          !RegExp(r'^source\b', caseSensitive: false).hasMatch(part))
+      .join(' · ')
+      .trim();
+}
 
 class _OpportunityCard extends StatelessWidget {
   const _OpportunityCard({
@@ -2241,40 +2121,42 @@ class _OpportunityCard extends StatelessWidget {
                 spacing: 5,
                 runSpacing: 5,
                 children: item.scores.reasons
+                    .map(cleanCardLine)
+                    .where((reason) => reason.isNotEmpty)
                     .take(3)
                     .map((reason) => _SourceChip(label: reason))
                     .toList(),
               ),
             ],
             const SizedBox(height: 10),
-            if (item.detailsSummary.isNotEmpty) ...[
+            if (cleanCardLine(item.detailsSummary).isNotEmpty) ...[
               _InfoStrip(
                 icon: Icons.description_outlined,
-                text: item.detailsSummary,
+                text: cleanCardLine(item.detailsSummary),
                 accent: const Color(0xFF61718D),
               ),
               const SizedBox(height: 7),
             ],
-            if (item.marketSummary.isNotEmpty) ...[
+            if (cleanCardLine(item.marketSummary).isNotEmpty) ...[
               _InfoStrip(
                 icon: Icons.bar_chart_rounded,
-                text: item.marketSummary,
+                text: cleanCardLine(item.marketSummary),
                 accent: const Color(0xFF159A69),
               ),
               const SizedBox(height: 7),
             ],
-            if (item.comparativeSummary.isNotEmpty) ...[
+            if (cleanCardLine(item.comparativeSummary).isNotEmpty) ...[
               _InfoStrip(
                 icon: Icons.compare_arrows_rounded,
-                text: item.comparativeSummary,
+                text: cleanCardLine(item.comparativeSummary),
                 accent: const Color(0xFF42658B),
               ),
               const SizedBox(height: 7),
             ],
-            if (item.recommendationSummary.isNotEmpty) ...[
+            if (cleanCardLine(item.recommendationSummary).isNotEmpty) ...[
               _InfoStrip(
                 icon: Icons.auto_awesome_rounded,
-                text: item.recommendationSummary,
+                text: cleanCardLine(item.recommendationSummary),
                 accent: const Color(0xFF8B6500),
               ),
               const SizedBox(height: 7),
@@ -2455,4 +2337,211 @@ class _EmptyDiscovery extends StatelessWidget {
           ],
         ),
       );
+}
+
+
+/// En-tête compact (parité Web) : Bot + titre + bulle d'état, un champ,
+/// suggestions, puis « Ville · Budget » repliés.
+class _CommerceHeader extends StatefulWidget {
+  const _CommerceHeader({
+    required this.avatar,
+    required this.title,
+    required this.mode,
+    required this.loading,
+    required this.found,
+    required this.controller,
+    required this.city,
+    required this.budget,
+    required this.hint,
+    required this.cta,
+    required this.onSearch,
+  });
+  final LiveAvatarController avatar;
+  final String title;
+  final LiveAvatarCommerceMode mode;
+  final bool loading;
+  final int found;
+  final TextEditingController controller;
+  final TextEditingController city;
+  final TextEditingController budget;
+  final String hint;
+  final String cta;
+  final VoidCallback onSearch;
+
+  @override
+  State<_CommerceHeader> createState() => _CommerceHeaderState();
+}
+
+class _CommerceHeaderState extends State<_CommerceHeader> {
+  List<String> get _chips => switch (widget.mode) {
+        LiveAvatarCommerceMode.buy => const ['Samsung S25', 'Moto d’occasion', 'Climatiseur 1,5 CV'],
+        LiveAvatarCommerceMode.sell => const ['Mon téléphone', '10 tonnes de soja', 'Ma moto'],
+        LiveAvatarCommerceMode.ask => const ['Un livreur fiable', 'Traiteur pour 50 personnes', 'Un plombier'],
+      };
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onText);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onText);
+    super.dispose();
+  }
+
+  void _onText() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = widget.controller.text.trim().isEmpty;
+    final status = widget.loading
+        ? 'Je cherche pour vous…'
+        : widget.found > 0
+            ? '${widget.found} option${widget.found > 1 ? 's' : ''} trouvée${widget.found > 1 ? 's' : ''}.'
+            : 'Dites-moi ce qu’il vous faut.';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: WaouhGradients.airHero,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFDCE7F8)),
+        boxShadow: WaouhShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              LiveAvatarVisual(
+                preset: widget.avatar.profile.preset,
+                state: widget.loading
+                    ? LiveAvatarPresenceState.searching
+                    : widget.avatar.state,
+                size: 64,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.92),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(4),
+                          topRight: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                          bottomRight: Radius.circular(16),
+                        ),
+                        border: Border.all(color: const Color(0xFFD9E6FF)),
+                      ),
+                      child: Text(status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E3A8A))),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: widget.controller,
+            minLines: 1,
+            maxLines: 3,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => widget.onSearch(),
+            decoration: InputDecoration(
+              hintText: widget.hint,
+              filled: true,
+              fillColor: Colors.white,
+              prefixIcon: const Icon(Icons.auto_awesome_rounded),
+            ),
+          ),
+          if (empty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final chip in _chips)
+                  ActionChip(
+                    label: Text(chip),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFD9E6FF)),
+                    labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF315BD8),
+                        fontSize: 12),
+                    onPressed: () => widget.controller.text = chip,
+                  ),
+              ],
+            ),
+          ],
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 4),
+              dense: true,
+              title: const Text('Ville · Budget',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: WaouhPalette.muted)),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: LiveCityField(
+                          controller: widget.city, hint: 'Ville ou quartier'),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: widget.budget,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            hintText: 'Budget FCFA', filled: true, fillColor: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          FilledButton.icon(
+            onPressed: widget.loading || empty ? null : widget.onSearch,
+            icon: widget.loading
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.travel_explore_rounded),
+            label: Text(widget.cta),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
