@@ -131,23 +131,36 @@ jobs:
           flutter test test/live_user_message_test.dart
           flutter test test/live_onboarding_test.dart
 
-      - name: Build optimized arm64 test APK
+      - name: Build universal APK (arm64 + armv7)
         env:
           WAOUH_TEST_RELEASE: "1"
         run: |
           BUILD_NUMBER="$(date +%s)"
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
-          flutter build apk             --release             --build-number="$BUILD_NUMBER"             --target lib/live/live_app_production.dart             --target-platform android-arm64             --split-per-abi             --obfuscate             --split-debug-info=build/symbols
-          test -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          sha256sum build/app/outputs/flutter-apk/app-arm64-v8a-release.apk             > build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.sha256
+          flutter build apk             --release             --build-number="$BUILD_NUMBER"             --target lib/live/live_app_production.dart             --target-platform android-arm,android-arm64             --obfuscate             --split-debug-info=build/symbols
+          test -f build/app/outputs/flutter-apk/app-release.apk
+          sha256sum build/app/outputs/flutter-apk/app-release.apk             > build/app/outputs/flutter-apk/app-release.apk.sha256
+
+      - name: Verify APK is installable (signature, ABIs, alignment)
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          BT="$SDK_ROOT/build-tools/36.0.0"
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          "$BT/apksigner" verify --verbose --print-certs "$APK" | tee /tmp/sig.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true\|Verified using v3 scheme (APK Signature Scheme v3): true" /tmp/sig.txt
+          "$BT/zipalign" -c -P 16 4 "$APK" || "$BT/zipalign" -c 4 "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^package:|sdkVersion|native-code" | tee /tmp/badging.txt
+          grep -q "arm64-v8a" /tmp/badging.txt
+          grep -q "armeabi-v7a" /tmp/badging.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: waouh-muse-nexus-arm64-test
+          name: waouh-muse-nexus-test
           path: |
-            flutter_waouh_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            flutter_waouh_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk.sha256
+            flutter_waouh_app/build/app/outputs/flutter-apk/app-release.apk
+            flutter_waouh_app/build/app/outputs/flutter-apk/app-release.apk.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -162,10 +175,10 @@ jobs:
           TAG=waouh-android-latest
           OUT=flutter_waouh_app/build/app/outputs/flutter-apk
           VERSION="$(sed -n 's/^version: \([0-9.]*\)+.*/\1/p' flutter_waouh_app/pubspec.yaml)"
-          SHA="$(cut -d' ' -f1 "$OUT/app-arm64-v8a-release.apk.sha256")"
-          cp "$OUT/app-arm64-v8a-release.apk" waouh-android-arm64.apk
+          SHA="$(cut -d' ' -f1 "$OUT/app-release.apk.sha256")"
+          cp "$OUT/app-release.apk" waouh-android.apk
           cat > waouh-android.json <<JSON
-          {"version":"$VERSION","build":$BUILD_NUMBER,"commit":"${GITHUB_SHA}","sha256":"$SHA","signing":"$SIGNING_MODE","published_at":"$(date -u +%FT%TZ)"}
+          {"version":"$VERSION","build":$BUILD_NUMBER,"commit":"${GITHUB_SHA}","sha256":"$SHA","abis":["arm64-v8a","armeabi-v7a"],"size":$(stat -c %s waouh-android.apk),"signing":"$SIGNING_MODE","published_at":"$(date -u +%FT%TZ)"}
           JSON
           NOTES="WAOUH Android $VERSION (build $BUILD_NUMBER) — commit ${GITHUB_SHA::8}. Téléchargement : https://bot.bj/android/"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
@@ -173,4 +186,5 @@ jobs:
           else
             gh release edit "$TAG" --title "WAOUH Android" --notes "$NOTES" --latest=false
           fi
-          gh release upload "$TAG" waouh-android-arm64.apk waouh-android.json --clobber
+          gh release delete-asset "$TAG" waouh-android-arm64.apk -y 2>/dev/null || true
+          gh release upload "$TAG" waouh-android.apk waouh-android.json --clobber

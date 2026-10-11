@@ -25,26 +25,30 @@
   <img src="/icon-192.png" alt="">
   <h1>WAOUH pour Android</h1>
   <p id="meta">Dernière version…</p>
-  <a id="dl" class="btn" aria-disabled="true" href="https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android-arm64.apk">Télécharger l’application</a>
+  <a id="dl" class="btn" aria-disabled="true" href="https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android.apk">Télécharger l’application</a>
   <small id="sha"></small>
   <ol>
     <li>Ouvrez le fichier téléchargé.</li>
     <li>Autorisez l’installation si Android le demande.</li>
     <li>Connectez-vous avec votre compte bot.bj.</li>
   </ol>
+  <p style="margin-top:16px;font-size:.85rem">Une ancienne version est déjà installée et l’installation échoue&nbsp;? Désinstallez-la, puis réinstallez.</p>
 </main>
 <script>
 (function(){
   var dl=document.getElementById('dl'),meta=document.getElementById('meta'),sha=document.getElementById('sha');
-  fetch('https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android.json',{cache:'no-store'})
+  fetch('https://api.github.com/repos/starlab007007/botbenin/releases/tags/waouh-android-latest',{cache:'no-store'})
     .then(function(r){if(!r.ok)throw 0;return r.json()})
-    .then(function(m){
-      var d=new Date(m.published_at);
-      meta.textContent='Version '+m.version+' · '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-      sha.textContent='Empreinte '+String(m.sha256).slice(0,12)+'…';
-      dl.removeAttribute('aria-disabled');
+    .then(function(rel){
+      var apk=(rel.assets||[]).filter(function(a){return a.name==='waouh-android.apk'})[0];
+      if(!apk)throw 0;
+      var v=/Android ([0-9.]+)/.exec(rel.body||''),d=new Date(apk.updated_at);
+      meta.textContent=(v?'Version '+v[1]+' · ':'')+'mise à jour le '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+      sha.textContent=Math.round(apk.size/1048576)+' Mo · Android 7 et plus';
+      dl.href=apk.browser_download_url;
     })
-    .catch(function(){meta.textContent='Version en préparation.';dl.removeAttribute('aria-disabled')});
+    .catch(function(){meta.textContent='Dernière version';});
+  dl.removeAttribute('aria-disabled');
 })();
 </script>
 </body>
