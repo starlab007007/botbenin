@@ -26,6 +26,7 @@ import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_onboarding.dart';
 import 'live_partner_home.dart';
+import 'live_partner_money.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
@@ -346,6 +347,18 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(
               path: '/app/partner',
               builder: (_, __) => const LivePartnerHomeScreen(),
+            ),
+            GoRoute(
+              path: '/app/partner/sales',
+              builder: (_, __) => const LivePartnerMoneyScreen(kind: LiveMoneyKind.sales),
+            ),
+            GoRoute(
+              path: '/app/partner/payouts',
+              builder: (_, __) => const LivePartnerMoneyScreen(kind: LiveMoneyKind.payouts),
+            ),
+            GoRoute(
+              path: '/app/partner/payments',
+              builder: (_, __) => const LivePartnerMoneyScreen(kind: LiveMoneyKind.payments),
             ),
             GoRoute(
               path: '/app/partner/businesses',

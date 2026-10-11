@@ -43,6 +43,8 @@ const liveMenuSections = <LiveMenuSection>[
   LiveMenuSection('Commerce', [
     LiveMenuItem('Boutiques & magasins', '/app/partner/businesses', Icons.storefront_outlined),
     LiveMenuItem('Ventes', '/app/partner/sales', Icons.shopping_cart_outlined),
+    LiveMenuItem('Versements', '/app/partner/payouts', Icons.account_balance_wallet_outlined),
+    LiveMenuItem('Paiements', '/app/partner/payments', Icons.receipt_long_outlined),
     LiveMenuItem('Partenaires', '/app/partner', Icons.handshake_outlined),
   ]),
   LiveMenuSection('Services IA', [
