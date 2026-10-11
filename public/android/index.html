@@ -44,7 +44,7 @@
       if(!apk)throw 0;
       var v=/Android ([0-9.]+)/.exec(rel.body||''),d=new Date(apk.updated_at);
       meta.textContent=(v?'Version '+v[1]+' · ':'')+'mise à jour le '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-      sha.textContent=Math.round(apk.size/1048576)+' Mo · Android 7 et plus';
+      sha.textContent=Math.round(apk.size/1048576)+' Mo';
       dl.href=apk.browser_download_url;
     })
     .catch(function(){meta.textContent='Dernière version';});
