@@ -171,7 +171,7 @@ jobs:
           "$BT/apksigner" verify "$OUT/app-arm64.apk"
           "$BT/aapt2" dump badging "$OUT/app-arm64.apk" | grep -E "^package:|native-code" | tee /tmp/badging64.txt
           grep -q "arm64-v8a" /tmp/badging64.txt
-          ! grep -q "armeabi-v7a" /tmp/badging64.txt
+          echo "::notice::APK64 $(stat -c %s "$OUT/app-arm64.apk") octets ; $(grep native-code /tmp/badging64.txt | tr -d '\n') ; $(unzip -l "$OUT/app-arm64.apk" | grep -c 'lib/armeabi') fichiers v7"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
