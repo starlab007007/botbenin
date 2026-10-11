@@ -277,6 +277,18 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   final List<rs.ReasonStep> _queue = <rs.ReasonStep>[];
   Timer? _ticker;
   rs.ReasonSummary? _summary;
+  final GlobalKey _feedKey = GlobalKey();
+
+  void _followFeed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _feedKey.currentContext;
+      if (c == null || !mounted) return;
+      Scrollable.ensureVisible(c,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          alignment: 0.05);
+    });
+  }
 
   bool get _revealing => _queue.isNotEmpty;
 
@@ -291,6 +303,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         return;
       }
       setState(() => _steps.add(_queue.removeAt(0)));
+      _followFeed();
       if (_queue.isEmpty) {
         _ticker?.cancel();
         _ticker = null;
@@ -1437,13 +1450,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ),
             const SizedBox(height: 12),
             if (_steps.isNotEmpty) ...[
-              LiveReasoningFeed(
+              KeyedSubtree(
+                key: _feedKey,
+                child: LiveReasoningFeed(
                 steps: _steps,
                 running: _loading || _revealing,
                 summary: _summary,
                 onSkip: _skipReasoning,
                 showActions: false,
-              ),
+              )),
               const SizedBox(height: 12),
             ],
             Container(
