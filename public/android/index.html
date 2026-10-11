@@ -27,6 +27,7 @@
   <p id="meta">Dernière version…</p>
   <a id="dl" class="btn" aria-disabled="true" href="https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android.apk">Télécharger l’application</a>
   <small id="sha"></small>
+  <a id="dl64" href="https://github.com/starlab007007/botbenin/releases/download/waouh-android-latest/waouh-android-arm64.apk" style="display:block;margin-top:10px;font-size:.85rem">Téléphone récent&nbsp;? Version 64 bits plus légère</a>
   <ol>
     <li>Ouvrez le fichier téléchargé.</li>
     <li>Autorisez l’installation si Android le demande.</li>
@@ -46,6 +47,9 @@
       meta.textContent=(v?'Version '+v[1]+' · ':'')+'mise à jour le '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
       sha.textContent=Math.round(apk.size/1048576)+' Mo';
       dl.href=apk.browser_download_url;
+      var a64=(rel.assets||[]).filter(function(a){return a.name==='waouh-android-arm64.apk'})[0];
+      var l=document.getElementById('dl64');
+      if(a64){l.href=a64.browser_download_url;l.textContent='Téléphone récent ? Version 64 bits plus légère ('+Math.round(a64.size/1048576)+' Mo)';}else{l.style.display='none';}
     })
     .catch(function(){meta.textContent='Dernière version';});
   dl.removeAttribute('aria-disabled');
