@@ -8,7 +8,9 @@ import '../main.dart' as legacy;
 import 'access_policy.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
+import 'live_agent_type_picker.dart';
 import 'live_auth_screens.dart';
+import 'live_broadcast_screen.dart';
 import 'live_avatar_banner.dart';
 import 'live_avatar_screen.dart';
 import 'live_avatar_commerce_screen.dart';
@@ -16,11 +18,14 @@ import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
 import 'live_match_chat_v2.dart';
+import 'live_error_fallback.dart';
+import 'live_menu_sheet.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_onboarding.dart';
+import 'live_partner_home.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
@@ -39,7 +44,6 @@ import 'live_radar_map_screen.dart';
 import '../business_modules/waouh_business_modules.dart'
     hide WaouhBiWorkspaceScreen;
 import 'live_ia_agent_selector_screen.dart';
-import 'live_bots_modules_hub_screen.dart';
 import 'waouh_bi_workspace_screen.dart';
 
 import 'live_ia_final_hub_screen.dart';
@@ -110,6 +114,7 @@ class LiveWaouhProductionApp extends StatelessWidget {
                 },
               );
             };
+            ErrorWidget.builder = (details) => const LiveErrorFallback();
             return MaterialApp.router(
               title: 'WaouhApp',
               debugShowCheckedModeBanner: false,
@@ -124,7 +129,11 @@ class LiveWaouhProductionApp extends StatelessWidget {
 }
 
 GoRouter _router(legacy.AuthController auth) => GoRouter(
-      initialLocation: '/app/chat',
+      errorBuilder: (context, state) => LiveErrorFallback(
+        onRetry: () => context.go(state.uri.toString()),
+        onHome: () => context.go('/app/avatar'),
+      ),
+      initialLocation: '/app/avatar',
       refreshListenable: auth,
       redirect: (_, state) {
         final path = state.uri.path;
@@ -138,7 +147,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         return null;
       },
       routes: [
-        GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
+        GoRoute(path: '/', redirect: (_, __) => '/app/avatar'),
         GoRoute(
           path: '/app/auth',
           builder: (_, __) => const LiveOnboardingScreen(),
@@ -237,7 +246,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/bots',
-              builder: (_, __) => const LiveBotsModulesHubScreen(),
+              builder: (_, __) => const LiveIaFinalHubScreen(bots: true),
             ),
             GoRoute(
               path: '/app/apresbac',
@@ -312,11 +321,31 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/diffusion',
-              redirect: (_, __) => '/app/avatar',
+              builder: (_, __) => const LiveBroadcastScreen(),
+            ),
+            GoRoute(
+              path: '/app/agents',
+              builder: (_, __) => const LiveIaFinalHubScreen(bots: true),
+            ),
+            GoRoute(
+              path: '/app/agents/new',
+              builder: (_, __) => const LiveAgentTypePickerScreen(),
+            ),
+            GoRoute(
+              path: '/app/conversations',
+              redirect: (_, __) => '/app/chat',
+            ),
+            GoRoute(
+              path: '/app/apres-bac',
+              redirect: (_, __) => '/app/apresbac',
+            ),
+            GoRoute(
+              path: '/app/fa',
+              redirect: (_, __) => '/app/fa-ia',
             ),
             GoRoute(
               path: '/app/partner',
-              redirect: (_, __) => '/app/partner/businesses',
+              builder: (_, __) => const LivePartnerHomeScreen(),
             ),
             GoRoute(
               path: '/app/partner/businesses',
@@ -347,20 +376,22 @@ class LiveProductionShell extends StatelessWidget {
   final Widget child;
 
   int get _index {
-    if (path.startsWith('/app/bots')) return 1;
+    if (path.startsWith('/app/missions')) return 1;
     if (path.startsWith('/app/ia') ||
+        path.startsWith('/app/bots') ||
+        path.startsWith('/app/agents') ||
         path.startsWith('/app/whatsapp') ||
         path.startsWith('/app/apresbac') ||
         path.startsWith('/app/fa-ia') ||
         path.startsWith('/app/radar-map') ||
         path.startsWith('/app/stock') ||
-        path.startsWith('/app/presence')) {
+        path.startsWith('/app/presence') ||
+        path.startsWith('/app/diffusion')) {
       return 2;
     }
     if (path.startsWith('/app/avatar') ||
         path.startsWith('/app/command') ||
         path.startsWith('/app/muse') ||
-        path.startsWith('/app/missions') ||
         path.startsWith('/app/nexus')) {
       return 3;
     }
@@ -426,43 +457,80 @@ class LiveProductionShell extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
-                  child: NavigationBar(
-                    selectedIndex: _index,
-                    onDestinationSelected: (index) =>
-                        context.go(switch (index) {
-                      1 => '/app/bots',
-                      2 => '/app/ia',
-                      3 => '/app/avatar',
-                      4 => '/app/partner',
-                      _ => '/app/chat',
-                    }),
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.chat_bubble_outline_rounded),
-                        selectedIcon: Icon(Icons.chat_bubble_rounded),
-                        label: 'Chat',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.smart_toy_outlined),
-                        selectedIcon: Icon(Icons.smart_toy_rounded),
-                        label: 'Bots',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.auto_awesome_outlined),
-                        selectedIcon: Icon(Icons.auto_awesome_rounded),
-                        label: 'IA',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.account_circle_outlined),
-                        selectedIcon: Icon(Icons.account_circle_rounded),
-                        label: 'Avatar',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.storefront_outlined),
-                        selectedIcon: Icon(Icons.storefront_rounded),
-                        label: 'Partenaire',
-                      ),
-                    ],
+                  child: StreamBuilder<List<LiveMatch>>(
+                    stream: waouh.matches(),
+                    builder: (context, snap) {
+                      final unread = (snap.data ?? const <LiveMatch>[])
+                          .fold<int>(0, (sum, m) => sum + m.unreadCount);
+                      final signedIn =
+                          context.read<legacy.AuthController>().signedIn;
+                      Widget lockable(Widget icon, String route) =>
+                          !signedIn && requiresWaouhAuthentication(route)
+                              ? Badge(
+                                  backgroundColor: Colors.white,
+                                  label: const Icon(Icons.lock_rounded,
+                                      size: 9, color: Color(0xFF475569)),
+                                  child: icon,
+                                )
+                              : icon;
+                      return NavigationBar(
+                        selectedIndex: _index,
+                        onDestinationSelected: (index) {
+                          if (index == 4) {
+                            showLiveMenuSheet(
+                              context,
+                              signedIn: signedIn,
+                              currentPath: path,
+                              unreadChat: unread,
+                            );
+                            return;
+                          }
+                          context.go(switch (index) {
+                            1 => '/app/missions',
+                            2 => '/app/ia',
+                            3 => '/app/avatar',
+                            _ => '/app/chat',
+                          });
+                        },
+                        destinations: [
+                          NavigationDestination(
+                            icon: unread > 0
+                                ? Badge(
+                                    label: Text(unread > 99 ? '99+' : '$unread'),
+                                    child: const Icon(
+                                        Icons.chat_bubble_outline_rounded),
+                                  )
+                                : const Icon(Icons.chat_bubble_outline_rounded),
+                            selectedIcon: const Icon(Icons.chat_bubble_rounded),
+                            label: 'Chat',
+                          ),
+                          NavigationDestination(
+                            icon: lockable(
+                                const Icon(Icons.account_tree_outlined),
+                                '/app/missions'),
+                            selectedIcon: const Icon(Icons.account_tree_rounded),
+                            label: 'Missions',
+                          ),
+                          NavigationDestination(
+                            icon: lockable(
+                                const Icon(Icons.auto_awesome_outlined),
+                                '/app/ia'),
+                            selectedIcon: const Icon(Icons.auto_awesome_rounded),
+                            label: 'IA',
+                          ),
+                          const NavigationDestination(
+                            icon: Icon(Icons.account_circle_outlined),
+                            selectedIcon: Icon(Icons.account_circle_rounded),
+                            label: 'Avatar',
+                          ),
+                          const NavigationDestination(
+                            icon: Icon(Icons.menu_rounded),
+                            selectedIcon: Icon(Icons.menu_rounded),
+                            label: 'Menu',
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

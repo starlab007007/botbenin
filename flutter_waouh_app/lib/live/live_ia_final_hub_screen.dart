@@ -3,12 +3,16 @@ import 'package:go_router/go_router.dart';
 
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart' show botAvatarAsset;
+import 'live_agent_type_picker.dart';
 import 'live_theme.dart';
 
 /// Onglet IA — parité Web `WaouhAiHubPage` : en-tête Bot, créer un agent,
 /// types d'agents, outils IA. Peu de texte, accès en un geste.
 class LiveIaFinalHubScreen extends StatefulWidget {
-  const LiveIaFinalHubScreen({super.key});
+  const LiveIaFinalHubScreen({super.key, this.bots = false});
+
+  /// `/app/bots` : même écran que l'onglet IA, titre « Mes agents » (parité Web).
+  final bool bots;
 
   @override
   State<LiveIaFinalHubScreen> createState() => _LiveIaFinalHubScreenState();
@@ -66,7 +70,7 @@ class _LiveIaFinalHubScreenState extends State<LiveIaFinalHubScreen> {
   static const _types = <_AgentType>[
     _AgentType('Conversationnel', 'Répond, vend, prend RDV',
         Icons.forum_rounded, [Color(0xFF10B981), Color(0xFF0D9488)],
-        '/app/whatsapp/select-agent'),
+        '/app/agents/new'),
     _AgentType('BI & analyse', 'Sheets, Excel, KPI', Icons.bar_chart_rounded,
         [Color(0xFF3B82F6), Color(0xFF4F46E5)], '/app/whatsapp/bi'),
     _AgentType('Stock', 'Alertes et réappro', Icons.inventory_2_rounded,
@@ -105,7 +109,8 @@ class _LiveIaFinalHubScreenState extends State<LiveIaFinalHubScreen> {
             children: [
               _Header(
                 count: _agents.length,
-                onCreate: () => context.push('/app/whatsapp/select-agent'),
+                onCreate: () => context.push('/app/agents/new'),
+                title: widget.bots ? 'Mes agents' : 'Agents IA',
               ),
               const SizedBox(height: 18),
               if (_agents.isNotEmpty) ...[
@@ -196,8 +201,7 @@ class _LiveIaFinalHubScreenState extends State<LiveIaFinalHubScreen> {
                       borderRadius: BorderRadius.circular(18),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(18),
-                        onTap: () =>
-                            context.push('/app/whatsapp/select-agent'),
+                        onTap: () => openLiveAgentWizard(context),
                         child: Ink(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -254,7 +258,12 @@ class _LiveIaFinalHubScreenState extends State<LiveIaFinalHubScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onCreate, required this.count});
+  const _Header({
+    required this.onCreate,
+    required this.count,
+    required this.title,
+  });
+  final String title;
   final VoidCallback onCreate;
   final int count;
 
@@ -293,8 +302,8 @@ class _Header extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Agents IA',
-                          style: TextStyle(
+                      Text(title,
+                          style: const TextStyle(
                               fontSize: 24, fontWeight: FontWeight.w900)),
                       const SizedBox(height: 6),
                       Container(
@@ -372,7 +381,9 @@ class _TypeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
-          onTap: () => context.push(type.route),
+          onTap: () => type.route == '/app/agents/new'
+              ? openLiveAgentWizard(context)
+              : context.push(type.route),
           child: Ink(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(

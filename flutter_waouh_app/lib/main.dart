@@ -1618,6 +1618,11 @@ class PartnerController extends ChangeNotifier {
   Partner? partner;
   bool loading = false;
 
+  /// Chargé au moins une fois (distingue « pas encore lu » de « aucun compte »).
+  bool checked = false;
+
+  /// Lecture seule : aucun compte Partner n'est créé ni activé côté client
+  /// (parité Web `useWaouhPartner` : candidature → validation → espace).
   Future<void> ensurePartner() async {
     final uid = auth.user?.id;
     if (uid == null) return;
@@ -1629,28 +1634,44 @@ class PartnerController extends ChangeNotifier {
           .select()
           .eq('user_id', uid)
           .maybeSingle();
-      if (row != null) {
-        partner = Partner.fromJson(row);
-      } else {
-        final inserted = await supabase
-            .from('waouh_partners')
-            .insert({
-              'user_id': uid,
-              'nom': auth.profile?.fullName ?? auth.user?.email ?? 'Partenaire',
-              'email': auth.user?.email,
-              // The real mobile app (PartnerHomeScreen.tsx) silently creates
-              // the partner record as already-active: there is no manual
-              // approval step on the mobile onboarding path.
-              'statut': 'active',
-            })
-            .select()
-            .single();
-        partner = Partner.fromJson(inserted);
-      }
+      partner = row == null ? null : Partner.fromJson(row);
     } finally {
+      checked = true;
       loading = false;
       notifyListeners();
     }
+  }
+
+  /// Candidature Partner : toujours en attente de validation.
+  Future<void> applyPartner({
+    required String nom,
+    required String telephone,
+    String? whatsapp,
+    required String ville,
+    String? mobileMoneyNumber,
+    String? mobileMoneyOperator,
+  }) async {
+    final uid = auth.user?.id;
+    if (uid == null) throw StateError('Not authenticated');
+    final inserted = await supabase
+        .from('waouh_partners')
+        .insert({
+          'user_id': uid,
+          'nom': nom,
+          'email': auth.user?.email,
+          'telephone': telephone,
+          'whatsapp': (whatsapp ?? '').isEmpty ? telephone : whatsapp,
+          'ville': ville,
+          if ((mobileMoneyNumber ?? '').isNotEmpty)
+            'mobile_money_number': mobileMoneyNumber,
+          if ((mobileMoneyOperator ?? '').isNotEmpty)
+            'mobile_money_operator': mobileMoneyOperator,
+          'statut': 'pending',
+        })
+        .select()
+        .single();
+    partner = Partner.fromJson(inserted);
+    notifyListeners();
   }
 
   Stream<List<PartnerBusiness>> businesses() {

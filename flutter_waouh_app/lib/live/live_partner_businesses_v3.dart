@@ -17,9 +17,13 @@ class _LivePartnerBusinessesScreenV3State extends State<LivePartnerBusinessesScr
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final partner = context.read<legacy.PartnerController>();
-      if (partner.partner == null) partner.ensurePartner();
+      if (partner.partner == null) await partner.ensurePartner();
+      // Aucun espace Partner sans candidature validée (parité Web).
+      if (mounted && partner.partner?.status != 'active') {
+        context.go('/app/partner');
+      }
     });
   }
 
