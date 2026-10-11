@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -275,7 +276,12 @@ class LiveMessageBubble extends StatelessWidget {
               ],
               if (displayText.isNotEmpty && products.isEmpty)
                 SelectionArea(
-                  child: _LivePremiumMessageContent(text: displayText),
+                  child: _LiveRevealText(
+                    messageId: message.id,
+                    createdAt: message.createdAt,
+                    animate: !outgoing && !pending,
+                    text: displayText,
+                  ),
                 ),
               if (products.isEmpty && !outgoing) liveAvatarBlocks(message.meta),
               if (!outgoing &&
@@ -4027,5 +4033,74 @@ class _CollapsibleResultsState extends State<_CollapsibleResults> {
         if (_open) ...[const SizedBox(height: 8), widget.child],
       ],
     );
+  }
+}
+
+
+/// Affiche progressivement (mot par mot) une réponse fraîche de Bot, une seule
+/// fois par message ; les anciens messages s'affichent d'un bloc.
+final Set<String> _liveRevealedIds = <String>{};
+
+class _LiveRevealText extends StatefulWidget {
+  const _LiveRevealText({
+    required this.messageId,
+    required this.createdAt,
+    required this.animate,
+    required this.text,
+  });
+  final String messageId;
+  final DateTime createdAt;
+  final bool animate;
+  final String text;
+  @override
+  State<_LiveRevealText> createState() => _LiveRevealTextState();
+}
+
+class _LiveRevealTextState extends State<_LiveRevealText> {
+  Timer? _timer;
+  late List<String> _words;
+  int _shown = 0;
+  bool _done = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _words = widget.text.split(RegExp(r'(?<=\s)'));
+    final fresh =
+        DateTime.now().difference(widget.createdAt).inSeconds.abs() < 8;
+    final go = widget.animate &&
+        fresh &&
+        widget.text.length < 900 &&
+        !_liveRevealedIds.contains(widget.messageId);
+    _liveRevealedIds.add(widget.messageId);
+    if (!go) {
+      _shown = _words.length;
+      return;
+    }
+    _done = false;
+    final step = (_words.length / 60).ceil().clamp(1, 6);
+    _timer = Timer.periodic(const Duration(milliseconds: 28), (t) {
+      if (!mounted) return t.cancel();
+      setState(() {
+        _shown = (_shown + step).clamp(0, _words.length);
+        if (_shown >= _words.length) {
+          _done = true;
+          t.cancel();
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_done) return _LivePremiumMessageContent(text: widget.text);
+    return _LivePremiumMessageContent(
+        text: _words.take(_shown).join());
   }
 }

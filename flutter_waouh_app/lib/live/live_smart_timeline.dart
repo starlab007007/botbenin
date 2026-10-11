@@ -50,6 +50,11 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
   @override
   void didUpdateWidget(covariant LiveSmartTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // « Bot prépare sa réponse… » apparaît : on reste en bas.
+    if (widget.showAssistantHint && !oldWidget.showAssistantHint && _followTail) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToBottom(true));
+    }
     if (widget.messages.isEmpty) return;
     final newest = widget.messages.last;
     if (newest.id == _lastMessageId) return;
@@ -123,7 +128,20 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     }
     return Stack(
       children: [
-        ListView.builder(
+        NotificationListener<ScrollMetricsNotification>(
+          onNotification: (n) {
+            // Le contenu grandit (texte progressif, cartes, images) : suivre.
+            if (_followTail && n.metrics.extentAfter > 2) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollController.hasClients && _followTail) {
+                  _scrollController.jumpTo(
+                      _scrollController.position.maxScrollExtent);
+                }
+              });
+            }
+            return false;
+          },
+          child: ListView.builder(
           controller: _scrollController,
           padding: widget.padding,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -139,14 +157,20 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
                 liveMessageHasStandaloneProductInterestActions(message);
             final enabled =
                 index == latestActionIndex || standaloneProductInterest;
-            return LiveMessageBubble(
-              message: message,
-              actionsEnabled: enabled,
-              collapseOldResults: index < lastResultsIndex,
-              onPayload: enabled ? widget.onPayload : null,
+            return _EnterAnimation(
+              key: ValueKey('enter-${message.id}'),
+              animate:
+                  DateTime.now().difference(message.createdAt).inSeconds.abs() <
+                      8,
+              child: LiveMessageBubble(
+                message: message,
+                actionsEnabled: enabled,
+                collapseOldResults: index < lastResultsIndex,
+                onPayload: enabled ? widget.onPayload : null,
+              ),
             );
           },
-        ),
+        )),
         if (_unseen > 0)
           Positioned(
             right: 16,
@@ -166,6 +190,24 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
       ],
     );
   }
+}
+
+/// Apparition douce (fondu + glissement) pour un message récent.
+class _EnterAnimation extends StatelessWidget {
+  const _EnterAnimation({super.key, required this.child, required this.animate});
+  final Widget child;
+  final bool animate;
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: animate ? 0 : 1, end: 1),
+        duration: Duration(milliseconds: animate ? 260 : 0),
+        curve: Curves.easeOutCubic,
+        builder: (_, v, c) => Opacity(
+          opacity: v,
+          child: Transform.translate(offset: Offset(0, (1 - v) * 10), child: c),
+        ),
+        child: child,
+      );
 }
 
 class _AssistantHint extends StatelessWidget {

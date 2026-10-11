@@ -3698,11 +3698,41 @@ class _PromptChip extends StatelessWidget {
   );
 }
 
-class _ChatPanel extends StatelessWidget {
+class _ChatPanel extends StatefulWidget {
   const _ChatPanel({required this.messages, required this.busy});
 
   final List<LiveAgentMessage> messages;
   final bool busy;
+
+  @override
+  State<_ChatPanel> createState() => _ChatPanelState();
+}
+
+class _ChatPanelState extends State<_ChatPanel> {
+  final ScrollController _scroll = ScrollController();
+
+  List<LiveAgentMessage> get messages => widget.messages;
+  bool get busy => widget.busy;
+
+  @override
+  void didUpdateWidget(covariant _ChatPanel old) {
+    super.didUpdateWidget(old);
+    // Défilement automatique vers le dernier message / l'indicateur.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -3719,6 +3749,7 @@ class _ChatPanel extends StatelessWidget {
             ),
           )
         : ListView.builder(
+            controller: _scroll,
             padding: const EdgeInsets.all(11),
             itemCount: messages.length + (busy ? 1 : 0),
             itemBuilder: (_, index) {
