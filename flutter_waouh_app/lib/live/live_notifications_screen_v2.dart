@@ -73,7 +73,7 @@ class _LiveNotificationsScreenV2State extends State<LiveNotificationsScreenV2> {
                   ButtonSegment(
                       value: false,
                       label: Text(
-                          'Actives${unreadCount == 0 ? '' : '  $unreadCount'}')),
+                          'À voir${unreadCount == 0 ? '' : ' ($unreadCount)'}')),
                   const ButtonSegment(value: true, label: Text('Historique')),
                 ],
                 selected: {_history},
@@ -82,11 +82,29 @@ class _LiveNotificationsScreenV2State extends State<LiveNotificationsScreenV2> {
               ),
             ),
             Expanded(
-              child: items.isEmpty
+              child: snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData
+                  ? const Center(child: Text('Chargement…'))
+                  : items.isEmpty
                   ? Center(
-                      child: Text(_history
-                          ? 'Aucune notification dans l’historique.'
-                          : 'Aucune nouvelle notification.'))
+                      child: Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.notifications_none_rounded,
+                                size: 44, color: Color(0xFF94A3B8)),
+                            const SizedBox(height: 10),
+                            Text(
+                                _history
+                                    ? 'Aucune notification'
+                                    : 'Aucune action en attente',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15)),
+                          ],
+                        ),
+                      ))
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
                       itemCount: items.length,

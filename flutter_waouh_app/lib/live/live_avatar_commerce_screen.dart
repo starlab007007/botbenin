@@ -18,6 +18,7 @@ import 'live_city_field.dart';
 import 'live_sell_photos.dart';
 import 'live_hot_labels.dart';
 import 'live_reasoning.dart' as rs;
+import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 
 enum LiveAvatarCommerceMode { buy, sell, ask }
 
@@ -271,8 +272,45 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         LiveAvatarCommerceMode.ask => 'Explorer',
       };
 
+  // Raisonnement de Bot en direct (parité Web `WaouhReasoningFeed`).
+  final List<rs.ReasonStep> _steps = <rs.ReasonStep>[];
+  final List<rs.ReasonStep> _queue = <rs.ReasonStep>[];
+  Timer? _ticker;
+  rs.ReasonSummary? _summary;
+
+  bool get _revealing => _queue.isNotEmpty;
+
+  void _push(List<rs.ReasonStep> steps) {
+    if (steps.isEmpty || !mounted) return;
+    _queue.addAll(steps);
+    _ticker ??= Timer.periodic(const Duration(milliseconds: 650), (_) {
+      if (!mounted) return;
+      if (_queue.isEmpty) {
+        _ticker?.cancel();
+        _ticker = null;
+        return;
+      }
+      setState(() => _steps.add(_queue.removeAt(0)));
+      if (_queue.isEmpty) {
+        _ticker?.cancel();
+        _ticker = null;
+      }
+    });
+    setState(() {});
+  }
+
+  void _skipReasoning() {
+    _ticker?.cancel();
+    _ticker = null;
+    setState(() {
+      _steps.addAll(_queue);
+      _queue.clear();
+    });
+  }
+
   @override
   void dispose() {
+    _ticker?.cancel();
     _refreshTimer?.cancel();
     _goal.dispose();
     _city.dispose();
@@ -284,10 +322,21 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     final query = _goal.text.trim();
     if (query.isEmpty) return;
     final avatar = context.read<LiveAvatarController>();
+    final reasonCtx = rs.ReasonContext(
+      query: query,
+      city: _city.text.trim(),
+      budget: double.tryParse(_budget.text.replaceAll(RegExp(r'\D'), '')),
+    );
+    _ticker?.cancel();
+    _ticker = null;
     setState(() {
       _loading = true;
       _error = null;
+      _summary = null;
+      _steps.clear();
+      _queue.clear();
     });
+    _push(rs.planSteps(reasonCtx));
     avatar.setPersistentState(LiveAvatarPresenceState.searching);
     try {
       final budget = double.tryParse(
@@ -309,9 +358,24 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             : LiveAvatarPresenceState.found,
       );
       setState(() => _response = result);
+      final summary = rs.buildSummary(
+          const <Map<String, dynamic>>[], result, reasonCtx);
+      setState(() => _summary = summary);
+      _push(<rs.ReasonStep>[
+        ...rs.methodSteps(result.intelligence),
+        ...rs.externalSteps(result, reasonCtx),
+        rs.summaryStep(summary, reasonCtx),
+      ]);
     } catch (e) {
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.idle);
+      _push(const <rs.ReasonStep>[
+        rs.ReasonStep(
+          id: 'search-error',
+          tone: rs.ReasonTone.warn,
+          text: 'La recherche n’a pas abouti. Réessayez dans un instant.',
+        ),
+      ]);
       setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1372,6 +1436,16 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               onSearch: _search,
             ),
             const SizedBox(height: 12),
+            if (_steps.isNotEmpty) ...[
+              LiveReasoningFeed(
+                steps: _steps,
+                running: _loading || _revealing,
+                summary: _summary,
+                onSkip: _skipReasoning,
+                showActions: false,
+              ),
+              const SizedBox(height: 12),
+            ],
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,

@@ -105,6 +105,26 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
               presence: presence,
               status: status,
             ),
+            const SizedBox(height: 12),
+            _AvatarPromptBar(
+              suggestions: agentic.pendingApprovalCount > 0
+                  ? const [
+                      'Que dois-je valider ?',
+                      'Résume mes négociations',
+                      'Quelles actions sont urgentes ?'
+                    ]
+                  : agentic.activeMissionCount > 0
+                      ? const [
+                          'Où en sont mes missions ?',
+                          'Compare les meilleures options',
+                          'Que faut-il faire ensuite ?'
+                        ]
+                      : const [
+                          'Trouve-moi un bon téléphone à Cotonou',
+                          'Je veux vendre un produit',
+                          'Aide-moi à trouver un service'
+                        ],
+            ),
             const SizedBox(height: 18),
             Text(
               'Que voulez-vous faire ?',
@@ -893,5 +913,90 @@ class _PresetCard extends StatelessWidget {
             ),
           ),
         ),
+      );
+}
+
+
+/// Barre de demande libre + suggestions (parité Web : toute nouvelle demande
+/// ouvre un NOUVEAU chat avec Bot).
+class _AvatarPromptBar extends StatefulWidget {
+  const _AvatarPromptBar({required this.suggestions});
+  final List<String> suggestions;
+  @override
+  State<_AvatarPromptBar> createState() => _AvatarPromptBarState();
+}
+
+class _AvatarPromptBarState extends State<_AvatarPromptBar> {
+  final _c = TextEditingController();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ask(String text) async {
+    final value = text.trim();
+    if (value.isEmpty) return;
+    final controller = context.read<LiveWaouhController>();
+    await controller.startNewChat();
+    controller.setComposerSeed(
+      value,
+      meta: const <String, dynamic>{
+        'source': 'avatar_home',
+        'intent': 'search',
+        'schema': 'waouh.message.v1',
+      },
+    );
+    if (mounted) context.go('/app/chat/waouh');
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _c,
+            textInputAction: TextInputAction.send,
+            onSubmitted: _ask,
+            decoration: InputDecoration(
+              hintText: 'Dites-moi ce qu’il vous faut…',
+              filled: true,
+              fillColor: Colors.white,
+              prefixIcon: const Icon(Icons.auto_awesome_rounded),
+              suffixIcon: IconButton(
+                tooltip: 'Envoyer',
+                onPressed: () => _ask(_c.text),
+                icon: const Icon(Icons.send_rounded, color: WaouhPalette.blue),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: const BorderSide(color: Color(0xFFD9E6FF)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final chip in widget.suggestions)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text(chip),
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFFD9E6FF)),
+                      labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF315BD8),
+                          fontSize: 12),
+                      onPressed: () => _ask(chip),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       );
 }

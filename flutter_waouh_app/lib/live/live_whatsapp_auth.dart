@@ -32,7 +32,7 @@ class LiveWhatsAppOtpService {
   Future<void> request(String phone) async {
     final normalized = normalizePhone(phone);
     if (normalized.replaceAll(RegExp(r'[^0-9]'), '').length < 11) {
-      throw const LiveOtpException('Saisissez un numero WhatsApp valide.');
+      throw const LiveOtpException('Saisissez un numéro WhatsApp valide.');
     }
     try {
       final response = await client.functions.invoke(
@@ -45,10 +45,10 @@ class LiveWhatsAppOtpService {
       }
       final warning = data['warn']?.toString();
       if (warning == 'send_failed') {
-        throw const LiveOtpException('Le code ne peut pas etre envoye sur WhatsApp pour le moment. Reessayez dans quelques instants.');
+        throw const LiveOtpException('Le code ne peut pas être envoyé sur WhatsApp pour le moment. Réessayez dans quelques instants.');
       }
       if (warning == 'waha_not_configured') {
-        throw const LiveOtpException('Le canal WhatsApp de verification est temporairement indisponible.');
+        throw const LiveOtpException('Le canal WhatsApp de vérification est temporairement indisponible.');
       }
     } on FunctionException catch (error) {
       throw LiveOtpException(_message(_code(error.details)));
@@ -59,7 +59,7 @@ class LiveWhatsAppOtpService {
     final normalized = normalizePhone(phone);
     final cleanCode = code.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleanCode.length != 6) {
-      throw const LiveOtpException('Saisissez le code a 6 chiffres recu sur WhatsApp.');
+      throw const LiveOtpException('Saisissez le code à 6 chiffres reçu sur WhatsApp.');
     }
     try {
       final response = await client.functions.invoke(
@@ -115,12 +115,12 @@ class LiveWhatsAppOtpService {
   }
 
   String _message(String? code) => switch (code) {
-    'no_code' => 'Aucun code actif pour ce numero. Demandez un nouveau code.',
-    'expired' => 'Ce code a expire. Demandez-en un nouveau.',
+    'no_code' => 'Aucun code actif pour ce numéro. Demandez un nouveau code.',
+    'expired' => 'Ce code a expiré. Demandez-en un nouveau.',
     'invalid_code' => 'Code incorrect. Verifiez les 6 chiffres puis reessayez.',
     'too_many_attempts' => 'Trop de tentatives. Demandez un nouveau code.',
     'phone required' || 'invalid phone' => 'Numero WhatsApp invalide.',
-    _ => 'Verification WhatsApp impossible. Reessayez.',
+    _ => 'Verification WhatsApp impossible. Réessayez.',
   };
 }
 
@@ -161,7 +161,7 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
       if (!mounted) return;
       setState(() { sent = true; isNewUser = false; secondsLeft = 300; });
       _startTimer();
-      _message('Code envoye sur WhatsApp. Il expire dans 5 minutes.', success: true);
+      _message('Code envoyé sur WhatsApp. Il expire dans 5 minutes.', success: true);
     } catch (error) {
       _message(waouhUserMessage(error, action: 'login'));
     } finally {
@@ -250,14 +250,14 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
           ),
           const SizedBox(height: 24),
           Text(
-            !sent ? 'Connectez-vous avec WhatsApp' : profileStep ? 'Bienvenue dans WaouhApp' : 'Code recu sur WhatsApp',
+            !sent ? 'Connectez-vous avec WhatsApp' : profileStep ? 'Bienvenue dans WaouhApp' : 'Code reçu sur WhatsApp',
             textAlign: TextAlign.center,
             style: WaouhText.h1.copyWith(fontSize: 25),
           ),
           const SizedBox(height: 10),
           Text(
             !sent
-                ? 'Nous envoyons un code unique a six chiffres sur votre numero WhatsApp.'
+                ? 'Nous envoyons un code unique à six chiffres sur votre numéro WhatsApp.'
                 : profileStep
                     ? 'Ajoutez votre nom pour terminer la creation du compte.'
                     : 'Saisissez le code a 6 chiffres. Ne le partagez avec personne.',
@@ -284,13 +284,13 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
             ),
             const SizedBox(height: 8),
             Text(
-              secondsLeft > 0 ? 'Code valide encore ${secondsLeft ~/ 60}:${(secondsLeft % 60).toString().padLeft(2, '0')}' : 'Le code a expire.',
+              secondsLeft > 0 ? 'Code valide encore ${secondsLeft ~/ 60}:${(secondsLeft % 60).toString().padLeft(2, '0')}' : 'Le code a expiré.',
               textAlign: TextAlign.center,
               style: WaouhText.caption,
             ),
             TextButton(
               onPressed: loading || secondsLeft > 0 ? null : _send,
-              child: const Text('Renvoyer un code'),
+              child: const Text('Renvoyer le code'),
             ),
           ],
           if (profileStep) ...[
@@ -313,7 +313,7 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
           ),
           if (sent && !profileStep) TextButton(
             onPressed: loading ? null : () => setState(() { sent = false; code.clear(); secondsLeft = 0; timer?.cancel(); }),
-            child: const Text('Modifier le numero'),
+            child: const Text('Modifier le numéro'),
           ),
         ],
       ),

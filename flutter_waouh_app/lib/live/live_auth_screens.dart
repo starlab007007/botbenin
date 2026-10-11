@@ -46,7 +46,7 @@ class LiveOnboardingScreen extends StatelessWidget {
       ),
       (
         Icons.handshake_rounded,
-        'Negocier',
+        'Négocier',
         'Proposez votre prix',
         WaouhPalette.orange
       ),
@@ -91,13 +91,13 @@ class LiveOnboardingScreen extends StatelessWidget {
                             style: WaouhText.onDark(WaouhText.display)),
                         const SizedBox(height: WaouhSpace.md),
                         Text(
-                          'Envoyez un message.',
+                          'Envoie un message.',
                           textAlign: TextAlign.center,
                           style: WaouhText.onDark(
                               WaouhText.h1.copyWith(fontSize: 26)),
                         ),
                         Text(
-                          'Le monde achete.',
+                          'Le monde achète.',
                           textAlign: TextAlign.center,
                           style: WaouhText.h1.copyWith(
                             fontSize: 26,
@@ -200,9 +200,22 @@ class LiveOnboardingScreen extends StatelessWidget {
                               child: const Text('Continuer avec Email'),
                             ),
                           ),
-                          const SizedBox(height: WaouhSpace.md),
+                          const SizedBox(height: WaouhSpace.sm),
+                          TextButton(
+                            onPressed: () => context.go('/app/avatar'),
+                            child: const Text('Continuer sans compte',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700)),
+                          ),
                           Text(
-                            'En continuant, vous acceptez nos conditions d\'utilisation.',
+                            'La consultation est libre. Une connexion est demandée seulement pour agir.',
+                            textAlign: TextAlign.center,
+                            style: WaouhText.onDarkMuted(WaouhText.caption),
+                          ),
+                          const SizedBox(height: WaouhSpace.sm),
+                          Text(
+                            'En vous connectant, vous acceptez nos conditions d\'utilisation.',
                             textAlign: TextAlign.center,
                             style: WaouhText.onDarkMuted(WaouhText.caption),
                           ),
@@ -297,7 +310,7 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
       if (!mounted) return;
       if (tab == 2) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email de reinitialisation envoye.')),
+          const SnackBar(content: Text('Email de réinitialisation envoyé.')),
         );
         setState(() => tab = 0);
         return;
@@ -320,7 +333,7 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
     final title = switch (tab) {
       0 => 'Se connecter',
       1 => 'Creer un compte',
-      _ => 'Mot de passe oublie',
+      _ => 'Mot de passe oublié',
     };
     final cta = switch (tab) {
       0 => 'Se connecter',
@@ -345,7 +358,7 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
               children: [
                 _segment('Connexion', 0),
                 _segment('Inscription', 1),
-                _segment('Mdp oublie', 2),
+                _segment('Mot de passe', 2),
               ],
             ),
           ),
@@ -466,7 +479,7 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
               padding: const EdgeInsets.only(top: WaouhSpace.sm),
               child: TextButton(
                 onPressed: () => setState(() => tab = 2),
-                child: const Text('Mot de passe oublie ?'),
+                child: const Text('Mot de passe oublié ?'),
               ),
             ),
         ],
@@ -641,7 +654,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
           ),
           const SizedBox(height: WaouhSpace.xl),
           if (step == 'phone') ...[
-            const Text('Numero WhatsApp', style: WaouhText.h3),
+            const Text('Numéro WhatsApp', style: WaouhText.h3),
             const SizedBox(height: WaouhSpace.sm),
             TextField(
               controller: phone,
@@ -650,7 +663,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
             ),
             const SizedBox(height: WaouhSpace.sm),
             Text(
-              'Le code sera envoye directement sur WhatsApp. Assurez-vous que ce numero possede un compte WhatsApp actif.',
+              'Le code sera envoyé directement sur WhatsApp. Assurez-vous que ce numéro possède un compte WhatsApp actif.',
               style: WaouhText.caption,
             ),
             const SizedBox(height: WaouhSpace.xl),
@@ -670,7 +683,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
               ),
             ),
           ] else if (step == 'otp') ...[
-            Text('Code recu sur ${phone.text}',
+            Text('Code reçu sur ${phone.text}',
                 textAlign: TextAlign.center, style: WaouhText.h3),
             const SizedBox(height: WaouhSpace.lg),
             TextField(
@@ -698,17 +711,17 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Verifier'),
+                    : const Text('Vérifier'),
               ),
             ),
             Center(
               child: TextButton(
                 onPressed: () => setState(() => sent = false),
-                child: const Text('Modifier le numero'),
+                child: const Text('Modifier le numéro'),
               ),
             ),
           ] else ...[
-            const Text('Completez votre profil',
+            const Text('Complétez votre profil',
                 style: WaouhText.h1, textAlign: TextAlign.center),
             const SizedBox(height: WaouhSpace.xs),
             Text(
@@ -729,7 +742,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: WaouhSpace.sm),
-            Text('Utile pour recuperer votre compte.',
+            Text('Utile pour récupérer votre compte.',
                 style: WaouhText.caption),
             const SizedBox(height: WaouhSpace.xl),
             SizedBox(
