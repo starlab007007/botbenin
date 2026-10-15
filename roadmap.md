@@ -1,5 +1,6 @@
 # Roadmap
 
-- [ ] WAOUH : diagnostic de bout en bout envoi/réception messages + notifications + photos (chat appli Flutter ↔ WhatsApp)
-- [ ] WAOUH : fenêtres de chat épurées (pas d'historique encombrant, parcours dégagé) — web + Flutter
-- [ ] FITILA (dépôt starlab007007/bariba-lex-builder, Supabase dvswhjawiooprghzeyol) — bloqué : projet hors de ce workspace, en attente de décision utilisateur
+- [x] WAOUH : fenêtres de chat épurées (web + Flutter)
+- [x] WAOUH : diagnostic messages/notifications/photos appli ↔ WhatsApp + correctif photos reçues
+- [ ] WAOUH : reconnecter la session WhatsApp « WaouhApp » (bloqué : scan QR par l'utilisateur), puis test réel bout en bout
+- [ ] FITILA — bloqué : projet hors de ce workspace

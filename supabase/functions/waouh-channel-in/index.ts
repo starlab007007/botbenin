@@ -206,9 +206,17 @@ async function rehostMedia(sb: any, sourceUrl: string, mime: string): Promise<st
     if (WAHA_API_KEY && WAHA_BASE_URL && sourceUrl.startsWith(WAHA_BASE_URL.replace(/\/$/, ""))) {
       headers["X-Api-Key"] = WAHA_API_KEY;
     }
-    const res = await fetch(sourceUrl, { headers });
-    if (!res.ok) {
-      console.warn("[rehostMedia] fetch failed", res.status, sourceUrl);
+    // WAHA peut servir le fichier avec un léger retard : 3 essais bornés.
+    let res: Response | null = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        res = await fetch(sourceUrl, { headers, signal: AbortSignal.timeout(8000) });
+        if (res.ok) break;
+      } catch (_e) { res = null; }
+      await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+    }
+    if (!res || !res.ok) {
+      console.warn("[rehostMedia] fetch failed", res?.status ?? "network", sourceUrl);
       return null;
     }
     const buf = new Uint8Array(await res.arrayBuffer());

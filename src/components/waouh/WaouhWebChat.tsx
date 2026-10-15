@@ -177,7 +177,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       return cutoff ? all.filter((m) => m.created_at >= cutoff) : all;
     } catch { return []; }
   };
-  const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
+  // Écran épuré : le fil s'ouvre vide. L'ancien historique ne se charge que
+  // sur demande explicite (« Voir l'historique »).
+  void readMainSnapshot;
+  const openedAtRef = useRef<string>(new Date().toISOString());
+  const [messages, setMessages] = useState<Msg[]>([]);
   const messagesRefForSearch = useRef<Msg[]>(messages);
   messagesRefForSearch.current = messages;
   const [input, setInput] = useState("");
@@ -451,8 +455,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   const loadOlder = async () => {
     if (loadingOlder || !hasMore) return;
-    const oldest = messages[0]?.created_at;
-    if (!oldest) return;
+    const oldest = messages[0]?.created_at ?? openedAtRef.current;
     setLoadingOlder(true);
     const el = scrollRef.current;
     const prevHeight = el?.scrollHeight ?? 0;
@@ -493,16 +496,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const { data } = await supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
       return Array.from(new Set((data ?? []).map((u: any) => u.id)));
     })();
-    // History resolves server-side from sessionId+authUserId; no need to wait on users.
-    const historyPromise = fetchPage([], null, PAGE_INITIAL);
+    // Pas de rechargement automatique de l'historique : fil dégagé à l'ouverture.
+    void PAGE_INITIAL;
+    setHasMore(true);
 
-    Promise.all([usersPromise, historyPromise]).then(([ids, page]) => {
+    usersPromise.then((ids) => {
       if (!active) return;
       setWaouhIds(ids);
-      setHasMore(page.hasMore);
-      if (page.messages.length > 0) {
-        setMessages((prev) => mergeMessages(prev, page.messages));
-      }
       if (uid) {
         supabase
           .from("waouh_users")
@@ -588,7 +588,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   useEffect(() => {
     const node = topSentinelRef.current;
     const root = scrollRef.current;
-    if (!node || !root || !hasMore) return;
+    // Chargement manuel uniquement (bouton) tant qu'aucun historique n'est affiché.
+    // Chargement 100 % manuel via le bouton « Voir l'historique ».
+    if (true || !node || !root || !hasMore) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) loadOlder();
@@ -935,8 +937,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
-          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
-            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          <div ref={topSentinelRef} className="flex items-center justify-center py-1">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="rounded-full px-3 py-1 text-[11px] text-muted-foreground hover:bg-muted/60 transition-colors">
+              {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "Voir l'historique"}
+            </button>
           </div>
         )}
         {messages.length === 0 && (

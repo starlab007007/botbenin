@@ -423,7 +423,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                               {item.city && <span className="inline-flex items-center gap-0.5 text-[11px] text-slate-500"><MapPin className="h-3 w-3" />{item.city}</span>}
                             </div>
                             {phone && <div className="inline-flex items-center rounded-lg bg-slate-50 px-2 py-1 font-mono text-[11px] font-bold text-slate-700">{phone}{channel?.channel ? <span className="ml-1 font-sans font-semibold text-slate-400">· {channel.channel}</span> : null}</div>}
-                            <Button size="sm" variant="outline" className="min-h-[40px] w-full rounded-xl" onClick={() => onAsk?.(`Analyse cette annonce : ${item.subject || "annonce"}${price ? ` à ${moneyXof(price, item.currency || "XOF")}` : ""}${item.city ? ` (${item.city})` : ""}. Est-ce fiable et comment dois-je contacter le vendeur ?`)}>
+                            <Button size="sm" variant="outline" className="min-h-[40px] w-full rounded-xl" onClick={() => onAsk?.(`Analyse cette annonce : ${item.subject || "annonce"}${price ? ` à ${moneyXof(price, item.currency || "XOF")}` : ""}${item.city ? ` (${item.city})` : ""}. Est-ce fiable et comment ouvrir la discussion avec le vendeur ?`)}>
                               <BrainCircuit className="mr-1.5 h-4 w-4" />Conseil de Bot
                             </Button>
                           </article>
