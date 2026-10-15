@@ -78,7 +78,8 @@ type SeedNotif = {
 };
 
 const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
-const PAGE_INITIAL = 10;
+// Fenêtre épurée : seuls les 3 derniers échanges, le reste sur demande.
+const PAGE_INITIAL = 3;
 const PAGE_OLDER = 20;
 
 const mergeMsgs = mergeChatRows<Msg>;
@@ -126,7 +127,7 @@ export function WaouhMatchChatWindow({
   };
 
   // Bootstrap from cache so closing/reopening or switching tabs keeps history.
-  const initialCached = getCached?.(match.key) ?? [];
+  const initialCached = (getCached?.(match.key) ?? []).slice(-PAGE_INITIAL);
   const [messages, setMessagesState] = useState<Msg[]>(() => initialCached);
   const [input, setInput] = useState("");
   // Parcours v3 : « Poser une question » → le prochain message part au vendeur.
@@ -359,7 +360,8 @@ export function WaouhMatchChatWindow({
   useEffect(() => {
     const node = topSentinelRef.current;
     const root = scrollRef.current;
-    if (!node || !root || !hasMore) return;
+    // Chargement manuel uniquement (bouton « Voir plus »).
+    if (true || !node || !root || !hasMore) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) loadOlder();
@@ -1023,8 +1025,10 @@ export function WaouhMatchChatWindow({
 
 
         {hasMore && (
-          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
-            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          <div ref={topSentinelRef} className="flex items-center justify-center py-1">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="rounded-full px-3 py-1 text-[11px] text-muted-foreground hover:bg-muted/60 transition-colors">
+              {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "Voir plus"}
+            </button>
           </div>
         )}
 
