@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "12.2.3"
   }
   public: {
     Tables: {
@@ -6302,6 +6302,487 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_admin_control_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          id: string
+          module_key: string
+        }
+        Insert: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          module_key: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          module_key?: string
+        }
+        Relationships: []
+      }
+      waouh_admin_module_controls: {
+        Row: {
+          automation_enabled: boolean
+          created_at: string
+          description: string | null
+          enabled: boolean
+          label: string
+          maintenance_message: string | null
+          metadata: Json
+          module_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          automation_enabled?: boolean
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          label: string
+          maintenance_message?: string | null
+          metadata?: Json
+          module_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          automation_enabled?: boolean
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          label?: string
+          maintenance_message?: string | null
+          metadata?: Json
+          module_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      waouh_agent_approvals: {
+        Row: {
+          action_summary: string
+          action_type: string
+          context: Json
+          created_at: string
+          decided_at: string | null
+          decision_note: string | null
+          expires_at: string
+          id: string
+          mission_id: string | null
+          owner_id: string
+          status: string
+          step_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_summary: string
+          action_type: string
+          context?: Json
+          created_at?: string
+          decided_at?: string | null
+          decision_note?: string | null
+          expires_at?: string
+          id?: string
+          mission_id?: string | null
+          owner_id: string
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_summary?: string
+          action_type?: string
+          context?: Json
+          created_at?: string
+          decided_at?: string | null
+          decision_note?: string | null
+          expires_at?: string
+          id?: string
+          mission_id?: string | null
+          owner_id?: string
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_approvals_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_agent_approvals_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_audit_log: {
+        Row: {
+          actor_id: string | null
+          actor_type: string
+          correlation_id: string
+          created_at: string
+          details: Json
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          id: string
+          mission_id: string | null
+          owner_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_type?: string
+          correlation_id?: string
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          id?: string
+          mission_id?: string | null
+          owner_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_type?: string
+          correlation_id?: string
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          id?: string
+          mission_id?: string | null
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_audit_log_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_intents: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          intent_type: string
+          mission_id: string
+          normalized_query: string
+          owner_id: string
+          slots: Json
+          source_message_id: string | null
+          version: number
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          intent_type: string
+          mission_id: string
+          normalized_query: string
+          owner_id: string
+          slots?: Json
+          source_message_id?: string | null
+          version?: number
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          intent_type?: string
+          mission_id?: string
+          normalized_query?: string
+          owner_id?: string
+          slots?: Json
+          source_message_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_intents_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_missions: {
+        Row: {
+          channel: string
+          completed_at: string | null
+          constraints: Json
+          created_at: string
+          current_plan_id: string | null
+          goal: string
+          id: string
+          last_error: string | null
+          locale: string
+          next_run_at: string | null
+          owner_id: string
+          preferences: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          completed_at?: string | null
+          constraints?: Json
+          created_at?: string
+          current_plan_id?: string | null
+          goal: string
+          id?: string
+          last_error?: string | null
+          locale?: string
+          next_run_at?: string | null
+          owner_id: string
+          preferences?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          completed_at?: string | null
+          constraints?: Json
+          created_at?: string
+          current_plan_id?: string | null
+          goal?: string
+          id?: string
+          last_error?: string | null
+          locale?: string
+          next_run_at?: string | null
+          owner_id?: string
+          preferences?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_missions_current_plan_fk"
+            columns: ["current_plan_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_outbox: {
+        Row: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count: number
+          created_at: string
+          dedupe_key: string
+          delivered_at: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          mission_id: string | null
+          next_attempt_at: string
+          owner_id: string
+          payload: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count?: number
+          created_at?: string
+          dedupe_key: string
+          delivered_at?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          mission_id?: string | null
+          next_attempt_at?: string
+          owner_id: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aggregate_id?: string
+          aggregate_type?: string
+          attempt_count?: number
+          created_at?: string
+          dedupe_key?: string
+          delivered_at?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          mission_id?: string | null
+          next_attempt_at?: string
+          owner_id?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_outbox_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_plans: {
+        Row: {
+          activated_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          mission_id: string
+          owner_id: string
+          rationale: string | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          mission_id: string
+          owner_id: string
+          rationale?: string | null
+          status?: string
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          activated_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          mission_id?: string
+          owner_id?: string
+          rationale?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_plans_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_agent_steps: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          input: Json
+          last_error: string | null
+          max_attempts: number
+          mission_id: string
+          output: Json
+          owner_id: string
+          plan_id: string
+          requires_approval: boolean
+          sequence_no: number
+          started_at: string | null
+          status: string
+          tool_name: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          input?: Json
+          last_error?: string | null
+          max_attempts?: number
+          mission_id: string
+          output?: Json
+          owner_id: string
+          plan_id: string
+          requires_approval?: boolean
+          sequence_no: number
+          started_at?: string | null
+          status?: string
+          tool_name: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          input?: Json
+          last_error?: string | null
+          max_attempts?: number
+          mission_id?: string
+          output?: Json
+          owner_id?: string
+          plan_id?: string
+          requires_approval?: boolean
+          sequence_no?: number
+          started_at?: string | null
+          status?: string
+          tool_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_agent_steps_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_agent_steps_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_ai_agent_chunks: {
         Row: {
           agent_id: string
@@ -6635,6 +7116,11 @@ export type Database = {
       waouh_articles: {
         Row: {
           address_description: string | null
+          ai_attributes: Json
+          ai_canonical_key: string | null
+          ai_quality_score: number | null
+          ai_visual_fingerprint: Json
+          barcode_type: string | null
           brand: string | null
           category: string
           city: string | null
@@ -6644,8 +7130,10 @@ export type Database = {
           currency: string
           description: string | null
           expires_at: string
+          gtin: string | null
           id: string
           interests_count: number
+          last_verified_at: string | null
           location: unknown
           market_price_max: number | null
           market_price_min: number | null
@@ -6665,6 +7153,11 @@ export type Database = {
         }
         Insert: {
           address_description?: string | null
+          ai_attributes?: Json
+          ai_canonical_key?: string | null
+          ai_quality_score?: number | null
+          ai_visual_fingerprint?: Json
+          barcode_type?: string | null
           brand?: string | null
           category: string
           city?: string | null
@@ -6674,8 +7167,10 @@ export type Database = {
           currency?: string
           description?: string | null
           expires_at?: string
+          gtin?: string | null
           id?: string
           interests_count?: number
+          last_verified_at?: string | null
           location?: unknown
           market_price_max?: number | null
           market_price_min?: number | null
@@ -6695,6 +7190,11 @@ export type Database = {
         }
         Update: {
           address_description?: string | null
+          ai_attributes?: Json
+          ai_canonical_key?: string | null
+          ai_quality_score?: number | null
+          ai_visual_fingerprint?: Json
+          barcode_type?: string | null
           brand?: string | null
           category?: string
           city?: string | null
@@ -6704,8 +7204,10 @@ export type Database = {
           currency?: string
           description?: string | null
           expires_at?: string
+          gtin?: string | null
           id?: string
           interests_count?: number
+          last_verified_at?: string | null
           location?: unknown
           market_price_max?: number | null
           market_price_min?: number | null
@@ -6912,6 +7414,191 @@ export type Database = {
           radius_m?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      waouh_avatar_contact_limits: {
+        Row: {
+          endpoint: string
+          journey_id: string
+          owner_id: string
+          reserved_at: string
+        }
+        Insert: {
+          endpoint: string
+          journey_id: string
+          owner_id: string
+          reserved_at?: string
+        }
+        Update: {
+          endpoint?: string
+          journey_id?: string
+          owner_id?: string
+          reserved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_avatar_contact_limits_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_avatar_mandates: {
+        Row: {
+          allow_blind_message: boolean
+          allow_email: boolean
+          allow_public_business: boolean
+          allow_sms_rcs: boolean
+          allow_waouh: boolean
+          allow_whatsapp: boolean
+          autonomy_mode: string
+          budget_max: number | null
+          city: string | null
+          contacted_count: number
+          created_at: string
+          expires_at: string
+          goal: string
+          id: string
+          last_run_at: string | null
+          max_contacts: number
+          max_followups: number
+          metadata: Json
+          min_actionability_score: number
+          min_match_score: number
+          mode: string
+          next_run_at: string | null
+          normalized_query: string | null
+          owner_id: string
+          qualified_count: number
+          replied_count: number
+          require_approval_for_c1: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allow_blind_message?: boolean
+          allow_email?: boolean
+          allow_public_business?: boolean
+          allow_sms_rcs?: boolean
+          allow_waouh?: boolean
+          allow_whatsapp?: boolean
+          autonomy_mode?: string
+          budget_max?: number | null
+          city?: string | null
+          contacted_count?: number
+          created_at?: string
+          expires_at?: string
+          goal: string
+          id?: string
+          last_run_at?: string | null
+          max_contacts?: number
+          max_followups?: number
+          metadata?: Json
+          min_actionability_score?: number
+          min_match_score?: number
+          mode: string
+          next_run_at?: string | null
+          normalized_query?: string | null
+          owner_id: string
+          qualified_count?: number
+          replied_count?: number
+          require_approval_for_c1?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allow_blind_message?: boolean
+          allow_email?: boolean
+          allow_public_business?: boolean
+          allow_sms_rcs?: boolean
+          allow_waouh?: boolean
+          allow_whatsapp?: boolean
+          autonomy_mode?: string
+          budget_max?: number | null
+          city?: string | null
+          contacted_count?: number
+          created_at?: string
+          expires_at?: string
+          goal?: string
+          id?: string
+          last_run_at?: string | null
+          max_contacts?: number
+          max_followups?: number
+          metadata?: Json
+          min_actionability_score?: number
+          min_match_score?: number
+          mode?: string
+          next_run_at?: string | null
+          normalized_query?: string | null
+          owner_id?: string
+          qualified_count?: number
+          replied_count?: number
+          require_approval_for_c1?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      waouh_avatar_prefs: {
+        Row: {
+          auth_user_id: string
+          cadence: string
+          created_at: string
+          last_briefing_at: string | null
+          last_digest: string | null
+          notify_digest: boolean
+          notify_events: boolean
+          quiet_end: number
+          quiet_start: number
+          updated_at: string
+          welcome: boolean
+        }
+        Insert: {
+          auth_user_id: string
+          cadence?: string
+          created_at?: string
+          last_briefing_at?: string | null
+          last_digest?: string | null
+          notify_digest?: boolean
+          notify_events?: boolean
+          quiet_end?: number
+          quiet_start?: number
+          updated_at?: string
+          welcome?: boolean
+        }
+        Update: {
+          auth_user_id?: string
+          cadence?: string
+          created_at?: string
+          last_briefing_at?: string | null
+          last_digest?: string | null
+          notify_digest?: boolean
+          notify_events?: boolean
+          quiet_end?: number
+          quiet_start?: number
+          updated_at?: string
+          welcome?: boolean
+        }
+        Relationships: []
+      }
+      waouh_avatar_worker_leases: {
+        Row: {
+          expires_at: string
+          name: string
+          token: string
+        }
+        Insert: {
+          expires_at: string
+          name: string
+          token: string
+        }
+        Update: {
+          expires_at?: string
+          name?: string
+          token?: string
         }
         Relationships: []
       }
@@ -7152,6 +7839,8 @@ export type Database = {
       }
       waouh_buyer_profiles: {
         Row: {
+          ai_intent: Json
+          ai_priority_score: number | null
           category: string | null
           contact_whatsapp: string | null
           created_at: string
@@ -7172,6 +7861,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_intent?: Json
+          ai_priority_score?: number | null
           category?: string | null
           contact_whatsapp?: string | null
           created_at?: string
@@ -7192,6 +7883,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_intent?: Json
+          ai_priority_score?: number | null
           category?: string | null
           contact_whatsapp?: string | null
           created_at?: string
@@ -7380,6 +8073,147 @@ export type Database = {
           },
         ]
       }
+      waouh_commerce_actions: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          idem: string
+          response: Json | null
+          status: string
+          thread_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          idem: string
+          response?: Json | null
+          status?: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          idem?: string
+          response?: Json | null
+          status?: string
+          thread_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      waouh_commerce_entities: {
+        Row: {
+          canonical_key: string | null
+          city: string | null
+          country_code: string
+          created_at: string
+          entity_type: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          metadata: Json
+          primary_name: string | null
+          source_keys: string[]
+          trust_score: number
+          updated_at: string
+          verification_state: string
+        }
+        Insert: {
+          canonical_key?: string | null
+          city?: string | null
+          country_code?: string
+          created_at?: string
+          entity_type?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          primary_name?: string | null
+          source_keys?: string[]
+          trust_score?: number
+          updated_at?: string
+          verification_state?: string
+        }
+        Update: {
+          canonical_key?: string | null
+          city?: string | null
+          country_code?: string
+          created_at?: string
+          entity_type?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata?: Json
+          primary_name?: string | null
+          source_keys?: string[]
+          trust_score?: number
+          updated_at?: string
+          verification_state?: string
+        }
+        Relationships: []
+      }
+      waouh_commerce_events: {
+        Row: {
+          actor_role: string | null
+          actor_user_id: string | null
+          article_id: string | null
+          correlation_id: string | null
+          created_at: string
+          deal_id: string | null
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          id: string
+          negotiation_id: string | null
+          next_state: string | null
+          payload: Json
+          previous_state: string | null
+          thread_id: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          article_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          id?: string
+          negotiation_id?: string | null
+          next_state?: string | null
+          payload?: Json
+          previous_state?: string | null
+          thread_id?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          actor_role?: string | null
+          actor_user_id?: string | null
+          article_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          id?: string
+          negotiation_id?: string | null
+          next_state?: string | null
+          payload?: Json
+          previous_state?: string | null
+          thread_id?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: []
+      }
       waouh_commission_settings: {
         Row: {
           bonus_volume: Json | null
@@ -7409,6 +8243,186 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      waouh_contact_packs: {
+        Row: {
+          actionability_score: number
+          available_channels: Json
+          best_channel: string | null
+          contactability_level: string
+          created_at: string
+          entity_id: string | null
+          expires_at: string | null
+          fabric_id: string
+          fallback_channels: Json
+          last_enriched_at: string | null
+          last_verified_at: string | null
+          masked_contacts: Json
+          message_template: string | null
+          metadata: Json
+          next_best_action: string
+          readiness_level: string
+          readiness_score: number
+          source_key: string | null
+          updated_at: string
+          verification: Json
+        }
+        Insert: {
+          actionability_score?: number
+          available_channels?: Json
+          best_channel?: string | null
+          contactability_level?: string
+          created_at?: string
+          entity_id?: string | null
+          expires_at?: string | null
+          fabric_id: string
+          fallback_channels?: Json
+          last_enriched_at?: string | null
+          last_verified_at?: string | null
+          masked_contacts?: Json
+          message_template?: string | null
+          metadata?: Json
+          next_best_action?: string
+          readiness_level?: string
+          readiness_score?: number
+          source_key?: string | null
+          updated_at?: string
+          verification?: Json
+        }
+        Update: {
+          actionability_score?: number
+          available_channels?: Json
+          best_channel?: string | null
+          contactability_level?: string
+          created_at?: string
+          entity_id?: string | null
+          expires_at?: string | null
+          fabric_id?: string
+          fallback_channels?: Json
+          last_enriched_at?: string | null
+          last_verified_at?: string | null
+          masked_contacts?: Json
+          message_template?: string | null
+          metadata?: Json
+          next_best_action?: string
+          readiness_level?: string
+          readiness_score?: number
+          source_key?: string | null
+          updated_at?: string
+          verification?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_contact_packs_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_commerce_entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_conversation_bus_events: {
+        Row: {
+          article_id: string | null
+          channel: string
+          counterparty_auth_user_id: string | null
+          created_at: string
+          deal_id: string | null
+          direction: string
+          event_type: string
+          external_ref: string | null
+          fabric_id: string | null
+          id: string
+          journey_id: string | null
+          mandate_id: string | null
+          negotiation_id: string | null
+          owner_id: string | null
+          payload: Json
+          status: string
+          thread_id: string | null
+        }
+        Insert: {
+          article_id?: string | null
+          channel?: string
+          counterparty_auth_user_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          direction?: string
+          event_type: string
+          external_ref?: string | null
+          fabric_id?: string | null
+          id?: string
+          journey_id?: string | null
+          mandate_id?: string | null
+          negotiation_id?: string | null
+          owner_id?: string | null
+          payload?: Json
+          status?: string
+          thread_id?: string | null
+        }
+        Update: {
+          article_id?: string | null
+          channel?: string
+          counterparty_auth_user_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          direction?: string
+          event_type?: string
+          external_ref?: string | null
+          fabric_id?: string | null
+          id?: string
+          journey_id?: string | null
+          mandate_id?: string | null
+          negotiation_id?: string | null
+          owner_id?: string | null
+          payload?: Json
+          status?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_conversation_bus_events_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_conversation_bus_events_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_conversation_bus_events_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_conversation_bus_events_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_avatar_mandates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_conversation_bus_events_negotiation_id_fkey"
+            columns: ["negotiation_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_negotiations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_conversation_bus_events_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_conversations: {
         Row: {
@@ -7507,8 +8521,12 @@ export type Database = {
           amount: number
           article_id: string | null
           assigned_at: string | null
+          buyer_payment_selected_at: string | null
           buyer_user_id: string
           cancelled_at: string | null
+          commission_amount: number | null
+          commission_rate: number | null
+          commission_status: string
           courier_name: string | null
           courier_phone: string | null
           courier_user_id: string | null
@@ -7517,6 +8535,7 @@ export type Database = {
           dropoff_address: string | null
           eta_at: string | null
           eta_minutes: number | null
+          fulfillment_mode: string
           id: string
           negotiation_id: string | null
           notes: string | null
@@ -7525,7 +8544,9 @@ export type Database = {
           payment_status: string
           picked_up_at: string | null
           pickup_address: string | null
+          seller_confirmed_at: string | null
           seller_user_id: string
+          settlement_completed_at: string | null
           status: string
           thread_id: string | null
           updated_at: string
@@ -7534,8 +8555,12 @@ export type Database = {
           amount?: number
           article_id?: string | null
           assigned_at?: string | null
+          buyer_payment_selected_at?: string | null
           buyer_user_id: string
           cancelled_at?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_status?: string
           courier_name?: string | null
           courier_phone?: string | null
           courier_user_id?: string | null
@@ -7544,6 +8569,7 @@ export type Database = {
           dropoff_address?: string | null
           eta_at?: string | null
           eta_minutes?: number | null
+          fulfillment_mode?: string
           id?: string
           negotiation_id?: string | null
           notes?: string | null
@@ -7552,7 +8578,9 @@ export type Database = {
           payment_status?: string
           picked_up_at?: string | null
           pickup_address?: string | null
+          seller_confirmed_at?: string | null
           seller_user_id: string
+          settlement_completed_at?: string | null
           status?: string
           thread_id?: string | null
           updated_at?: string
@@ -7561,8 +8589,12 @@ export type Database = {
           amount?: number
           article_id?: string | null
           assigned_at?: string | null
+          buyer_payment_selected_at?: string | null
           buyer_user_id?: string
           cancelled_at?: string | null
+          commission_amount?: number | null
+          commission_rate?: number | null
+          commission_status?: string
           courier_name?: string | null
           courier_phone?: string | null
           courier_user_id?: string | null
@@ -7571,6 +8603,7 @@ export type Database = {
           dropoff_address?: string | null
           eta_at?: string | null
           eta_minutes?: number | null
+          fulfillment_mode?: string
           id?: string
           negotiation_id?: string | null
           notes?: string | null
@@ -7579,7 +8612,9 @@ export type Database = {
           payment_status?: string
           picked_up_at?: string | null
           pickup_address?: string | null
+          seller_confirmed_at?: string | null
           seller_user_id?: string
+          settlement_completed_at?: string | null
           status?: string
           thread_id?: string | null
           updated_at?: string
@@ -7669,6 +8704,117 @@ export type Database = {
           },
         ]
       }
+      waouh_discovery_sources: {
+        Row: {
+          capabilities: Json
+          connector_mode: string
+          created_at: string
+          default_contactability: string
+          family: string
+          id: string
+          label: string
+          metadata: Json
+          operational_state: string
+          source_key: string
+          supports_business: boolean
+          supports_buy: boolean
+          supports_contact: boolean
+          supports_sell: boolean
+          trust_weight: number
+          updated_at: string
+        }
+        Insert: {
+          capabilities?: Json
+          connector_mode: string
+          created_at?: string
+          default_contactability?: string
+          family: string
+          id?: string
+          label: string
+          metadata?: Json
+          operational_state?: string
+          source_key: string
+          supports_business?: boolean
+          supports_buy?: boolean
+          supports_contact?: boolean
+          supports_sell?: boolean
+          trust_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          capabilities?: Json
+          connector_mode?: string
+          created_at?: string
+          default_contactability?: string
+          family?: string
+          id?: string
+          label?: string
+          metadata?: Json
+          operational_state?: string
+          source_key?: string
+          supports_business?: boolean
+          supports_buy?: boolean
+          supports_contact?: boolean
+          supports_sell?: boolean
+          trust_weight?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      waouh_domain_policies: {
+        Row: {
+          access_mode: string
+          active: boolean
+          agent_identity_required: boolean
+          allowed_actions: string[]
+          api_base_url: string | null
+          created_at: string
+          domain: string
+          id: string
+          last_reviewed_at: string | null
+          rate_limit_per_minute: number
+          review_notes: string | null
+          reviewed_by: string | null
+          robots_reviewed: boolean
+          terms_reviewed: boolean
+          updated_at: string
+        }
+        Insert: {
+          access_mode: string
+          active?: boolean
+          agent_identity_required?: boolean
+          allowed_actions?: string[]
+          api_base_url?: string | null
+          created_at?: string
+          domain: string
+          id?: string
+          last_reviewed_at?: string | null
+          rate_limit_per_minute?: number
+          review_notes?: string | null
+          reviewed_by?: string | null
+          robots_reviewed?: boolean
+          terms_reviewed?: boolean
+          updated_at?: string
+        }
+        Update: {
+          access_mode?: string
+          active?: boolean
+          agent_identity_required?: boolean
+          allowed_actions?: string[]
+          api_base_url?: string | null
+          created_at?: string
+          domain?: string
+          id?: string
+          last_reviewed_at?: string | null
+          rate_limit_per_minute?: number
+          review_notes?: string | null
+          reviewed_by?: string | null
+          robots_reviewed?: boolean
+          terms_reviewed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_e2e_test_runs: {
         Row: {
           created_at: string
@@ -7707,6 +8853,342 @@ export type Database = {
           triggered_by?: string | null
         }
         Relationships: []
+      }
+      waouh_entity_contacts: {
+        Row: {
+          avg_reply_delay_seconds: number | null
+          channel: string
+          consent_state: string
+          contactability_level: string
+          created_at: string
+          entity_id: string
+          failure_count: number
+          id: string
+          is_public_business: boolean
+          is_whatsapp_reachable: boolean | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          metrics: Json
+          preferred_rank: number
+          public_value: string | null
+          reply_count: number
+          sent_count: number
+          source_key: string
+          updated_at: string
+          value_encrypted: string | null
+          value_hash: string | null
+          value_last4: string | null
+          verification_status: string
+          verified_at: string | null
+        }
+        Insert: {
+          avg_reply_delay_seconds?: number | null
+          channel: string
+          consent_state?: string
+          contactability_level?: string
+          created_at?: string
+          entity_id: string
+          failure_count?: number
+          id?: string
+          is_public_business?: boolean
+          is_whatsapp_reachable?: boolean | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          metrics?: Json
+          preferred_rank?: number
+          public_value?: string | null
+          reply_count?: number
+          sent_count?: number
+          source_key: string
+          updated_at?: string
+          value_encrypted?: string | null
+          value_hash?: string | null
+          value_last4?: string | null
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Update: {
+          avg_reply_delay_seconds?: number | null
+          channel?: string
+          consent_state?: string
+          contactability_level?: string
+          created_at?: string
+          entity_id?: string
+          failure_count?: number
+          id?: string
+          is_public_business?: boolean
+          is_whatsapp_reachable?: boolean | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          metrics?: Json
+          preferred_rank?: number
+          public_value?: string | null
+          reply_count?: number
+          sent_count?: number
+          source_key?: string
+          updated_at?: string
+          value_encrypted?: string | null
+          value_hash?: string | null
+          value_last4?: string | null
+          verification_status?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_entity_contacts_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_commerce_entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_external_agreements: {
+        Row: {
+          counterparty_accepted_at: string | null
+          created_at: string
+          id: string
+          journey_id: string
+          owner_accepted_at: string | null
+          payment_received_at: string | null
+          payment_reported_at: string | null
+          proposed_by: string
+          received_at: string | null
+          shipped_at: string | null
+          superseded_at: string | null
+          terms: Json
+        }
+        Insert: {
+          counterparty_accepted_at?: string | null
+          created_at?: string
+          id?: string
+          journey_id: string
+          owner_accepted_at?: string | null
+          payment_received_at?: string | null
+          payment_reported_at?: string | null
+          proposed_by: string
+          received_at?: string | null
+          shipped_at?: string | null
+          superseded_at?: string | null
+          terms: Json
+        }
+        Update: {
+          counterparty_accepted_at?: string | null
+          created_at?: string
+          id?: string
+          journey_id?: string
+          owner_accepted_at?: string | null
+          payment_received_at?: string | null
+          payment_reported_at?: string | null
+          proposed_by?: string
+          received_at?: string | null
+          shipped_at?: string | null
+          superseded_at?: string | null
+          terms?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_external_agreements_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_external_commerce_signals: {
+        Row: {
+          actor_handle: string | null
+          actor_name: string | null
+          actor_type: string
+          ai_extraction: Json
+          availability: string | null
+          brand: string | null
+          canonical_key: string | null
+          category: string | null
+          city: string | null
+          condition: string | null
+          confidence: number
+          contact_consent_basis: string
+          contact_phone_last4: string | null
+          contact_summary: Json
+          contactability_level: string
+          country_code: string
+          created_at: string
+          currency: string
+          entity_id: string | null
+          evidence: Json
+          expires_at: string | null
+          has_whatsapp: boolean
+          id: string
+          intent: string
+          latitude: number | null
+          longitude: number | null
+          model: string | null
+          observed_at: string
+          photo_urls: string[]
+          price_max: number | null
+          price_min: number | null
+          primary_photo_url: string | null
+          product_name: string | null
+          quantity: number | null
+          raw_text: string | null
+          source_external_id: string | null
+          source_id: string | null
+          source_key: string
+          source_url: string | null
+          status: string
+          submitted_by: string | null
+          trust_score: number
+          unit: string | null
+          updated_at: string
+          whatsapp_phone_last4: string | null
+        }
+        Insert: {
+          actor_handle?: string | null
+          actor_name?: string | null
+          actor_type?: string
+          ai_extraction?: Json
+          availability?: string | null
+          brand?: string | null
+          canonical_key?: string | null
+          category?: string | null
+          city?: string | null
+          condition?: string | null
+          confidence?: number
+          contact_consent_basis?: string
+          contact_phone_last4?: string | null
+          contact_summary?: Json
+          contactability_level?: string
+          country_code?: string
+          created_at?: string
+          currency?: string
+          entity_id?: string | null
+          evidence?: Json
+          expires_at?: string | null
+          has_whatsapp?: boolean
+          id?: string
+          intent?: string
+          latitude?: number | null
+          longitude?: number | null
+          model?: string | null
+          observed_at?: string
+          photo_urls?: string[]
+          price_max?: number | null
+          price_min?: number | null
+          primary_photo_url?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          raw_text?: string | null
+          source_external_id?: string | null
+          source_id?: string | null
+          source_key: string
+          source_url?: string | null
+          status?: string
+          submitted_by?: string | null
+          trust_score?: number
+          unit?: string | null
+          updated_at?: string
+          whatsapp_phone_last4?: string | null
+        }
+        Update: {
+          actor_handle?: string | null
+          actor_name?: string | null
+          actor_type?: string
+          ai_extraction?: Json
+          availability?: string | null
+          brand?: string | null
+          canonical_key?: string | null
+          category?: string | null
+          city?: string | null
+          condition?: string | null
+          confidence?: number
+          contact_consent_basis?: string
+          contact_phone_last4?: string | null
+          contact_summary?: Json
+          contactability_level?: string
+          country_code?: string
+          created_at?: string
+          currency?: string
+          entity_id?: string | null
+          evidence?: Json
+          expires_at?: string | null
+          has_whatsapp?: boolean
+          id?: string
+          intent?: string
+          latitude?: number | null
+          longitude?: number | null
+          model?: string | null
+          observed_at?: string
+          photo_urls?: string[]
+          price_max?: number | null
+          price_min?: number | null
+          primary_photo_url?: string | null
+          product_name?: string | null
+          quantity?: number | null
+          raw_text?: string | null
+          source_external_id?: string | null
+          source_id?: string | null
+          source_key?: string
+          source_url?: string | null
+          status?: string
+          submitted_by?: string | null
+          trust_score?: number
+          unit?: string | null
+          updated_at?: string
+          whatsapp_phone_last4?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_external_commerce_signals_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_commerce_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_external_commerce_signals_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_discovery_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_external_invites: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          journey_id: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          journey_id: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          journey_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_external_invites_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_external_listings: {
         Row: {
@@ -7911,6 +9393,142 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_market_snapshots: {
+        Row: {
+          average_amount: number | null
+          canonical_key: string | null
+          category: string | null
+          city: string | null
+          currency: string
+          id: string
+          max_amount: number | null
+          median_amount: number | null
+          min_amount: number | null
+          observed_at: string
+          owner_id: string | null
+          query: string
+          sample_count: number
+          source_mix: Json
+        }
+        Insert: {
+          average_amount?: number | null
+          canonical_key?: string | null
+          category?: string | null
+          city?: string | null
+          currency?: string
+          id?: string
+          max_amount?: number | null
+          median_amount?: number | null
+          min_amount?: number | null
+          observed_at?: string
+          owner_id?: string | null
+          query: string
+          sample_count?: number
+          source_mix?: Json
+        }
+        Update: {
+          average_amount?: number | null
+          canonical_key?: string | null
+          category?: string | null
+          city?: string | null
+          currency?: string
+          id?: string
+          max_amount?: number | null
+          median_amount?: number | null
+          min_amount?: number | null
+          observed_at?: string
+          owner_id?: string | null
+          query?: string
+          sample_count?: number
+          source_mix?: Json
+        }
+        Relationships: []
+      }
+      waouh_media_assets: {
+        Row: {
+          alt_text: string | null
+          article_id: string | null
+          business_id: string | null
+          created_at: string
+          id: string
+          media_type: string
+          metadata: Json
+          mime_type: string
+          mission_id: string | null
+          owner_id: string
+          scan_status: string
+          sha256: string | null
+          size_bytes: number
+          status: string
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          alt_text?: string | null
+          article_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          media_type: string
+          metadata?: Json
+          mime_type: string
+          mission_id?: string | null
+          owner_id: string
+          scan_status?: string
+          sha256?: string | null
+          size_bytes?: number
+          status?: string
+          storage_bucket: string
+          storage_path: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          alt_text?: string | null
+          article_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          id?: string
+          media_type?: string
+          metadata?: Json
+          mime_type?: string
+          mission_id?: string | null
+          owner_id?: string
+          scan_status?: string
+          sha256?: string | null
+          size_bytes?: number
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_media_assets_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_media_assets_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_media_assets_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_messages: {
         Row: {
           article_id: string | null
@@ -8071,6 +9689,138 @@ export type Database = {
           },
         ]
       }
+      waouh_nexus_matches: {
+        Row: {
+          article_id: string
+          availability_score: number
+          buyer_auth_id: string | null
+          buyer_profile_id: string
+          created_at: string
+          freshness_score: number
+          id: string
+          last_evaluated_at: string
+          location_score: number
+          price_score: number
+          reasons: Json
+          relevance_score: number
+          seller_auth_id: string | null
+          source: string
+          status: string
+          total_score: number
+          trust_score: number
+          updated_at: string
+        }
+        Insert: {
+          article_id: string
+          availability_score?: number
+          buyer_auth_id?: string | null
+          buyer_profile_id: string
+          created_at?: string
+          freshness_score?: number
+          id?: string
+          last_evaluated_at?: string
+          location_score?: number
+          price_score?: number
+          reasons?: Json
+          relevance_score?: number
+          seller_auth_id?: string | null
+          source?: string
+          status?: string
+          total_score?: number
+          trust_score?: number
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string
+          availability_score?: number
+          buyer_auth_id?: string | null
+          buyer_profile_id?: string
+          created_at?: string
+          freshness_score?: number
+          id?: string
+          last_evaluated_at?: string
+          location_score?: number
+          price_score?: number
+          reasons?: Json
+          relevance_score?: number
+          seller_auth_id?: string | null
+          source?: string
+          status?: string
+          total_score?: number
+          trust_score?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_nexus_matches_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_nexus_matches_buyer_profile_id_fkey"
+            columns: ["buyer_profile_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_buyer_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_nexus_preferences: {
+        Row: {
+          auto_negotiate: boolean
+          availability_weight: number
+          contact_mode: string
+          created_at: string
+          freshness_weight: number
+          location_weight: number
+          max_auto_discount_percent: number | null
+          metadata: Json
+          mode: string
+          owner_id: string
+          preferred_city: string | null
+          price_weight: number
+          relevance_weight: number
+          trust_weight: number
+          updated_at: string
+        }
+        Insert: {
+          auto_negotiate?: boolean
+          availability_weight?: number
+          contact_mode?: string
+          created_at?: string
+          freshness_weight?: number
+          location_weight?: number
+          max_auto_discount_percent?: number | null
+          metadata?: Json
+          mode?: string
+          owner_id: string
+          preferred_city?: string | null
+          price_weight?: number
+          relevance_weight?: number
+          trust_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_negotiate?: boolean
+          availability_weight?: number
+          contact_mode?: string
+          created_at?: string
+          freshness_weight?: number
+          location_weight?: number
+          max_auto_discount_percent?: number | null
+          metadata?: Json
+          mode?: string
+          owner_id?: string
+          preferred_city?: string | null
+          price_weight?: number
+          relevance_weight?: number
+          trust_weight?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_notifications: {
         Row: {
           article_id: string | null
@@ -8084,6 +9834,7 @@ export type Database = {
           opened: boolean
           payload: Json | null
           photos: string[] | null
+          push_sent_at: string | null
           read_at: string | null
           sent_at: string
           thread_id: string | null
@@ -8102,6 +9853,7 @@ export type Database = {
           opened?: boolean
           payload?: Json | null
           photos?: string[] | null
+          push_sent_at?: string | null
           read_at?: string | null
           sent_at?: string
           thread_id?: string | null
@@ -8120,6 +9872,7 @@ export type Database = {
           opened?: boolean
           payload?: Json | null
           photos?: string[] | null
+          push_sent_at?: string | null
           read_at?: string | null
           sent_at?: string
           thread_id?: string | null
@@ -8146,6 +9899,289 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_offer_events: {
+        Row: {
+          actor_id: string | null
+          buyer_id: string
+          created_at: string
+          event_type: string
+          id: string
+          offer_id: string
+          payload: Json
+          seller_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          buyer_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          offer_id: string
+          payload?: Json
+          seller_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          buyer_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          offer_id?: string
+          payload?: Json
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_offer_events_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_signed_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_opportunity_events: {
+        Row: {
+          contactability_level: string | null
+          created_at: string
+          event_type: string
+          from_state: string | null
+          id: string
+          journey_id: string
+          owner_id: string
+          payload: Json
+          to_state: string | null
+        }
+        Insert: {
+          contactability_level?: string | null
+          created_at?: string
+          event_type: string
+          from_state?: string | null
+          id?: string
+          journey_id: string
+          owner_id: string
+          payload?: Json
+          to_state?: string | null
+        }
+        Update: {
+          contactability_level?: string | null
+          created_at?: string
+          event_type?: string
+          from_state?: string | null
+          id?: string
+          journey_id?: string
+          owner_id?: string
+          payload?: Json
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_opportunity_events_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_opportunity_journeys: {
+        Row: {
+          actionability_score: number
+          actor_name: string | null
+          article_id: string | null
+          avatar_message: string | null
+          city: string | null
+          completed_at: string | null
+          contact_channel: string | null
+          contact_id: string | null
+          contact_last4: string | null
+          contact_pack: Json
+          contactability_level: string
+          created_at: string
+          deal_id: string | null
+          entity_id: string | null
+          fabric_id: string
+          id: string
+          last_action: string | null
+          last_activity_at: string | null
+          last_contact_at: string | null
+          last_message: string | null
+          last_response_at: string | null
+          mandate_id: string | null
+          masked_contact: Json | null
+          metadata: Json
+          mode: string
+          negotiation_id: string | null
+          next_action: string | null
+          next_best_action: string
+          owner_id: string
+          progress: number | null
+          proposed_amount: number | null
+          readiness_level: string
+          readiness_score: number
+          source_key: string | null
+          source_url: string | null
+          stage: string | null
+          started_at: string | null
+          state: string
+          subject: string | null
+          target_waouh_user_id: string | null
+          thread_id: string | null
+          timeline: Json | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actionability_score?: number
+          actor_name?: string | null
+          article_id?: string | null
+          avatar_message?: string | null
+          city?: string | null
+          completed_at?: string | null
+          contact_channel?: string | null
+          contact_id?: string | null
+          contact_last4?: string | null
+          contact_pack?: Json
+          contactability_level?: string
+          created_at?: string
+          deal_id?: string | null
+          entity_id?: string | null
+          fabric_id: string
+          id?: string
+          last_action?: string | null
+          last_activity_at?: string | null
+          last_contact_at?: string | null
+          last_message?: string | null
+          last_response_at?: string | null
+          mandate_id?: string | null
+          masked_contact?: Json | null
+          metadata?: Json
+          mode: string
+          negotiation_id?: string | null
+          next_action?: string | null
+          next_best_action?: string
+          owner_id: string
+          progress?: number | null
+          proposed_amount?: number | null
+          readiness_level?: string
+          readiness_score?: number
+          source_key?: string | null
+          source_url?: string | null
+          stage?: string | null
+          started_at?: string | null
+          state?: string
+          subject?: string | null
+          target_waouh_user_id?: string | null
+          thread_id?: string | null
+          timeline?: Json | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actionability_score?: number
+          actor_name?: string | null
+          article_id?: string | null
+          avatar_message?: string | null
+          city?: string | null
+          completed_at?: string | null
+          contact_channel?: string | null
+          contact_id?: string | null
+          contact_last4?: string | null
+          contact_pack?: Json
+          contactability_level?: string
+          created_at?: string
+          deal_id?: string | null
+          entity_id?: string | null
+          fabric_id?: string
+          id?: string
+          last_action?: string | null
+          last_activity_at?: string | null
+          last_contact_at?: string | null
+          last_message?: string | null
+          last_response_at?: string | null
+          mandate_id?: string | null
+          masked_contact?: Json | null
+          metadata?: Json
+          mode?: string
+          negotiation_id?: string | null
+          next_action?: string | null
+          next_best_action?: string
+          owner_id?: string
+          progress?: number | null
+          proposed_amount?: number | null
+          readiness_level?: string
+          readiness_score?: number
+          source_key?: string | null
+          source_url?: string | null
+          stage?: string | null
+          started_at?: string | null
+          state?: string
+          subject?: string | null
+          target_waouh_user_id?: string | null
+          thread_id?: string | null
+          timeline?: Json | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_opportunity_journeys_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_entity_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_commerce_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_avatar_mandates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_negotiation_id_fkey"
+            columns: ["negotiation_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_negotiations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_target_waouh_user_id_fkey"
+            columns: ["target_waouh_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -8937,6 +10973,80 @@ export type Database = {
           },
         ]
       }
+      waouh_persistent_intents: {
+        Row: {
+          budget_max: number | null
+          city: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_actionable_count: number
+          last_result_count: number
+          last_scan_at: string | null
+          mandate_id: string | null
+          metadata: Json
+          min_actionability_score: number
+          min_match_score: number
+          mode: string
+          next_scan_at: string
+          owner_id: string
+          query_text: string
+          scan_interval_minutes: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          budget_max?: number | null
+          city?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_actionable_count?: number
+          last_result_count?: number
+          last_scan_at?: string | null
+          mandate_id?: string | null
+          metadata?: Json
+          min_actionability_score?: number
+          min_match_score?: number
+          mode: string
+          next_scan_at?: string
+          owner_id: string
+          query_text: string
+          scan_interval_minutes?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          budget_max?: number | null
+          city?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_actionable_count?: number
+          last_result_count?: number
+          last_scan_at?: string | null
+          mandate_id?: string | null
+          metadata?: Json
+          min_actionability_score?: number
+          min_match_score?: number
+          mode?: string
+          next_scan_at?: string
+          owner_id?: string
+          query_text?: string
+          scan_interval_minutes?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_persistent_intents_mandate_id_fkey"
+            columns: ["mandate_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_avatar_mandates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_pipeline_events: {
         Row: {
           created_at: string
@@ -9188,6 +11298,30 @@ export type Database = {
           },
         ]
       }
+      waouh_presence_pin_attempts: {
+        Row: {
+          client_hash: string
+          employee_code: string
+          failed_at: string
+          id: string
+          site_id: string
+        }
+        Insert: {
+          client_hash: string
+          employee_code: string
+          failed_at?: string
+          id?: string
+          site_id: string
+        }
+        Update: {
+          client_hash?: string
+          employee_code?: string
+          failed_at?: string
+          id?: string
+          site_id?: string
+        }
+        Relationships: []
+      }
       waouh_presence_qr_tokens: {
         Row: {
           created_at: string
@@ -9369,6 +11503,69 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_price_observations: {
+        Row: {
+          amount: number
+          article_id: string | null
+          available: boolean
+          created_at: string
+          currency: string
+          evidence: Json
+          id: string
+          observed_at: string
+          owner_id: string
+          previous_amount: number | null
+          source: string
+          source_url: string | null
+          watchlist_id: string
+        }
+        Insert: {
+          amount: number
+          article_id?: string | null
+          available?: boolean
+          created_at?: string
+          currency?: string
+          evidence?: Json
+          id?: string
+          observed_at?: string
+          owner_id: string
+          previous_amount?: number | null
+          source: string
+          source_url?: string | null
+          watchlist_id: string
+        }
+        Update: {
+          amount?: number
+          article_id?: string | null
+          available?: boolean
+          created_at?: string
+          currency?: string
+          evidence?: Json
+          id?: string
+          observed_at?: string
+          owner_id?: string
+          previous_amount?: number | null
+          source?: string
+          source_url?: string | null
+          watchlist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_price_observations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_price_observations_watchlist_id_fkey"
+            columns: ["watchlist_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_watchlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_price_snapshots: {
         Row: {
           article_id: string | null
@@ -9444,14 +11641,22 @@ export type Database = {
         Row: {
           active: boolean
           api_key: string | null
+          auth_mode: string
+          base_url: string | null
           created_at: string
           daily_quota: number
+          docs_url: string | null
           extra_config: Json
           id: string
+          label: string | null
+          last_sync_at: string | null
+          last_sync_message: string | null
+          last_sync_status: string | null
           last_test_at: string | null
           last_test_message: string | null
           last_test_status: string | null
           provider: string
+          source_key: string | null
           updated_at: string
           updated_by: string | null
           usage_reset_at: string
@@ -9460,14 +11665,22 @@ export type Database = {
         Insert: {
           active?: boolean
           api_key?: string | null
+          auth_mode?: string
+          base_url?: string | null
           created_at?: string
           daily_quota?: number
+          docs_url?: string | null
           extra_config?: Json
           id?: string
+          label?: string | null
+          last_sync_at?: string | null
+          last_sync_message?: string | null
+          last_sync_status?: string | null
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_status?: string | null
           provider: string
+          source_key?: string | null
           updated_at?: string
           updated_by?: string | null
           usage_reset_at?: string
@@ -9476,14 +11689,22 @@ export type Database = {
         Update: {
           active?: boolean
           api_key?: string | null
+          auth_mode?: string
+          base_url?: string | null
           created_at?: string
           daily_quota?: number
+          docs_url?: string | null
           extra_config?: Json
           id?: string
+          label?: string | null
+          last_sync_at?: string | null
+          last_sync_message?: string | null
+          last_sync_status?: string | null
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_status?: string | null
           provider?: string
+          source_key?: string | null
           updated_at?: string
           updated_by?: string | null
           usage_reset_at?: string
@@ -10166,6 +12387,159 @@ export type Database = {
           },
         ]
       }
+      waouh_scout_reports: {
+        Row: {
+          article_id: string | null
+          availability: string | null
+          catalog_id: string | null
+          category: string | null
+          city: string | null
+          created_at: string
+          currency: string
+          gtin: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          metadata: Json
+          note: string | null
+          observed_at: string
+          observed_price: number | null
+          owner_id: string
+          photo_urls: Json
+          place_name: string | null
+          source_type: string
+          title: string
+          trust_state: string
+        }
+        Insert: {
+          article_id?: string | null
+          availability?: string | null
+          catalog_id?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          currency?: string
+          gtin?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json
+          note?: string | null
+          observed_at?: string
+          observed_price?: number | null
+          owner_id: string
+          photo_urls?: Json
+          place_name?: string | null
+          source_type?: string
+          title: string
+          trust_state?: string
+        }
+        Update: {
+          article_id?: string | null
+          availability?: string | null
+          catalog_id?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          currency?: string
+          gtin?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json
+          note?: string | null
+          observed_at?: string
+          observed_price?: number | null
+          owner_id?: string
+          photo_urls?: Json
+          place_name?: string | null
+          source_type?: string
+          title?: string
+          trust_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_scout_reports_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_scout_reports_catalog_id_fkey"
+            columns: ["catalog_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_unified_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_seller_policies: {
+        Row: {
+          active: boolean
+          allow_counteroffers: boolean
+          article_id: string | null
+          auto_expire_minutes: number
+          business_id: string | null
+          created_at: string
+          delivery_zones: string[]
+          id: string
+          max_discount_percent: number | null
+          min_price_amount: number | null
+          mode: string
+          owner_id: string
+          rules: Json
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          allow_counteroffers?: boolean
+          article_id?: string | null
+          auto_expire_minutes?: number
+          business_id?: string | null
+          created_at?: string
+          delivery_zones?: string[]
+          id?: string
+          max_discount_percent?: number | null
+          min_price_amount?: number | null
+          mode?: string
+          owner_id: string
+          rules?: Json
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          allow_counteroffers?: boolean
+          article_id?: string | null
+          auto_expire_minutes?: number
+          business_id?: string | null
+          created_at?: string
+          delivery_zones?: string[]
+          id?: string
+          max_discount_percent?: number | null
+          min_price_amount?: number | null
+          mode?: string
+          owner_id?: string
+          rules?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_seller_policies_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_seller_policies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_settings: {
         Row: {
           key: string
@@ -10183,6 +12557,146 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      waouh_signal_entity_links: {
+        Row: {
+          confidence: number
+          created_at: string
+          entity_id: string
+          role: string
+          signal_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          entity_id: string
+          role: string
+          signal_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          entity_id?: string
+          role?: string
+          signal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_signal_entity_links_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_commerce_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_signal_entity_links_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_external_commerce_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_signed_offers: {
+        Row: {
+          amount: number
+          article_id: string
+          buyer_id: string
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          issuer_id: string
+          mission_id: string
+          parent_offer_id: string | null
+          quantity: number
+          responded_at: string | null
+          response_note: string | null
+          seller_id: string
+          seller_policy_id: string | null
+          signature_hash: string
+          signature_key_id: number
+          signature_payload: Json
+          status: string
+          terms: Json
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          article_id: string
+          buyer_id: string
+          created_at?: string
+          currency?: string
+          expires_at: string
+          id?: string
+          issuer_id: string
+          mission_id: string
+          parent_offer_id?: string | null
+          quantity?: number
+          responded_at?: string | null
+          response_note?: string | null
+          seller_id: string
+          seller_policy_id?: string | null
+          signature_hash?: string
+          signature_key_id?: number
+          signature_payload?: Json
+          status?: string
+          terms?: Json
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          article_id?: string
+          buyer_id?: string
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          id?: string
+          issuer_id?: string
+          mission_id?: string
+          parent_offer_id?: string | null
+          quantity?: number
+          responded_at?: string | null
+          response_note?: string | null
+          seller_id?: string
+          seller_policy_id?: string | null
+          signature_hash?: string
+          signature_key_id?: number
+          signature_payload?: Json
+          status?: string
+          terms?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_signed_offers_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_signed_offers_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_signed_offers_parent_offer_id_fkey"
+            columns: ["parent_offer_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_signed_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_signed_offers_seller_policy_id_fkey"
+            columns: ["seller_policy_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_seller_policies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_statuses: {
         Row: {
@@ -10691,6 +13205,862 @@ export type Database = {
           },
         ]
       }
+      waouh_tel_audit_log: {
+        Row: {
+          actor_type: string
+          correlation_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: number
+          outcome: string
+          tel_user_id: string | null
+          thread_id: string | null
+        }
+        Insert: {
+          actor_type: string
+          correlation_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: never
+          outcome?: string
+          tel_user_id?: string | null
+          thread_id?: string | null
+        }
+        Update: {
+          actor_type?: string
+          correlation_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: never
+          outcome?: string
+          tel_user_id?: string | null
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_audit_log_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_audit_log_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_capabilities: {
+        Row: {
+          checked_at: string
+          expires_at: string
+          id: string
+          provider: string
+          raw_capabilities: Json
+          rcs_reachable: boolean
+          supports_cards: boolean
+          supports_carousel: boolean
+          supports_media: boolean
+          supports_native_groups: boolean
+          supports_read_receipts: boolean
+          supports_typing: boolean
+          tel_user_id: string
+        }
+        Insert: {
+          checked_at?: string
+          expires_at?: string
+          id?: string
+          provider: string
+          raw_capabilities?: Json
+          rcs_reachable?: boolean
+          supports_cards?: boolean
+          supports_carousel?: boolean
+          supports_media?: boolean
+          supports_native_groups?: boolean
+          supports_read_receipts?: boolean
+          supports_typing?: boolean
+          tel_user_id: string
+        }
+        Update: {
+          checked_at?: string
+          expires_at?: string
+          id?: string
+          provider?: string
+          raw_capabilities?: Json
+          rcs_reachable?: boolean
+          supports_cards?: boolean
+          supports_carousel?: boolean
+          supports_media?: boolean
+          supports_native_groups?: boolean
+          supports_read_receipts?: boolean
+          supports_typing?: boolean
+          tel_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_capabilities_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_consents: {
+        Row: {
+          channel: string
+          consented_at: string
+          evidence_event_id: string | null
+          id: string
+          purpose: string
+          source: string
+          status: string
+          stopped_at: string | null
+          tel_user_id: string
+          terms_version: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          consented_at?: string
+          evidence_event_id?: string | null
+          id?: string
+          purpose?: string
+          source: string
+          status?: string
+          stopped_at?: string | null
+          tel_user_id: string
+          terms_version: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          consented_at?: string
+          evidence_event_id?: string | null
+          id?: string
+          purpose?: string
+          source?: string
+          status?: string
+          stopped_at?: string | null
+          tel_user_id?: string
+          terms_version?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_consents_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_invite_redemptions: {
+        Row: {
+          event_id: string | null
+          id: string
+          invite_id: string
+          redeemed_at: string
+          tel_user_id: string
+        }
+        Insert: {
+          event_id?: string | null
+          id?: string
+          invite_id: string
+          redeemed_at?: string
+          tel_user_id: string
+        }
+        Update: {
+          event_id?: string | null
+          id?: string
+          invite_id?: string
+          redeemed_at?: string
+          tel_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_invite_redemptions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_processed_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_invite_redemptions_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_invite_redemptions_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_invites: {
+        Row: {
+          campaign: string | null
+          code_hash: string
+          code_hint: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          initial_message: string
+          max_uses: number
+          status: string
+          updated_at: string
+          use_count: number
+        }
+        Insert: {
+          campaign?: string | null
+          code_hash: string
+          code_hint?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          initial_message?: string
+          max_uses?: number
+          status?: string
+          updated_at?: string
+          use_count?: number
+        }
+        Update: {
+          campaign?: string | null
+          code_hash?: string
+          code_hint?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          initial_message?: string
+          max_uses?: number
+          status?: string
+          updated_at?: string
+          use_count?: number
+        }
+        Relationships: []
+      }
+      waouh_tel_messages: {
+        Row: {
+          body_text: string | null
+          channel: string
+          content: Json
+          correlation_id: string
+          created_at: string
+          direction: string
+          engine_payload: Json | null
+          id: string
+          in_reply_to_message_id: string | null
+          message_type: string
+          occurred_at: string
+          provider: string
+          provider_message_id: string | null
+          status: string
+          tel_user_id: string | null
+          thread_id: string
+        }
+        Insert: {
+          body_text?: string | null
+          channel: string
+          content?: Json
+          correlation_id?: string
+          created_at?: string
+          direction: string
+          engine_payload?: Json | null
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type?: string
+          occurred_at?: string
+          provider: string
+          provider_message_id?: string | null
+          status?: string
+          tel_user_id?: string | null
+          thread_id: string
+        }
+        Update: {
+          body_text?: string | null
+          channel?: string
+          content?: Json
+          correlation_id?: string
+          created_at?: string
+          direction?: string
+          engine_payload?: Json | null
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type?: string
+          occurred_at?: string
+          provider?: string
+          provider_message_id?: string | null
+          status?: string
+          tel_user_id?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_messages_in_reply_to_message_id_fkey"
+            columns: ["in_reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_messages_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_outbox: {
+        Row: {
+          attempts: number
+          bypass_consent: boolean
+          channel_preference: string
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          message_kind: string
+          payload: Json
+          provider_message_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          source_message_id: string | null
+          status: string
+          target_thread_id: string | null
+          target_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bypass_consent?: boolean
+          channel_preference?: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          message_kind?: string
+          payload: Json
+          provider_message_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          source_message_id?: string | null
+          status?: string
+          target_thread_id?: string | null
+          target_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bypass_consent?: boolean
+          channel_preference?: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          message_kind?: string
+          payload?: Json
+          provider_message_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          source_message_id?: string | null
+          status?: string
+          target_thread_id?: string | null
+          target_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_outbox_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_outbox_target_thread_id_fkey"
+            columns: ["target_thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_outbox_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_processed_events: {
+        Row: {
+          attempts: number
+          error_code: string | null
+          event_kind: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          message_id: string | null
+          payload_encrypted: string | null
+          payload_hash: string
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          received_at: string
+          scheduled_at: string
+          sender_hash: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          error_code?: string | null
+          event_kind?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          message_id?: string | null
+          payload_encrypted?: string | null
+          payload_hash: string
+          processed_at?: string | null
+          provider: string
+          provider_event_id: string
+          received_at?: string
+          scheduled_at?: string
+          sender_hash: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          error_code?: string | null
+          event_kind?: string
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          message_id?: string | null
+          payload_encrypted?: string | null
+          payload_hash?: string
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+          received_at?: string
+          scheduled_at?: string
+          sender_hash?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_processed_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_receipts: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string | null
+          occurred_at: string
+          outbox_id: string | null
+          provider: string
+          provider_error: Json | null
+          provider_event_id: string
+          provider_message_id: string
+          provider_status: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          occurred_at?: string
+          outbox_id?: string | null
+          provider: string
+          provider_error?: Json | null
+          provider_event_id: string
+          provider_message_id: string
+          provider_status?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          occurred_at?: string
+          outbox_id?: string | null
+          provider?: string
+          provider_error?: Json | null
+          provider_event_id?: string
+          provider_message_id?: string
+          provider_status?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_receipts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_receipts_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_room_members: {
+        Row: {
+          joined_at: string
+          left_at: string | null
+          role: string
+          room_id: string
+          status: string
+          tel_user_id: string
+        }
+        Insert: {
+          joined_at?: string
+          left_at?: string | null
+          role?: string
+          room_id: string
+          status?: string
+          tel_user_id: string
+        }
+        Update: {
+          joined_at?: string
+          left_at?: string | null
+          role?: string
+          room_id?: string
+          status?: string
+          tel_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_room_members_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_room_messages: {
+        Row: {
+          body_text: string
+          content: Json
+          created_at: string
+          id: string
+          room_id: string
+          sender_tel_user_id: string | null
+          source_message_id: string | null
+        }
+        Insert: {
+          body_text: string
+          content?: Json
+          created_at?: string
+          id?: string
+          room_id: string
+          sender_tel_user_id?: string | null
+          source_message_id?: string | null
+        }
+        Update: {
+          body_text?: string
+          content?: Json
+          created_at?: string
+          id?: string
+          room_id?: string
+          sender_tel_user_id?: string | null
+          source_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_room_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_room_messages_sender_tel_user_id_fkey"
+            columns: ["sender_tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_tel_room_messages_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_rooms: {
+        Row: {
+          code_hash: string
+          code_hint: string
+          created_at: string
+          id: string
+          metadata: Json
+          mode: string
+          name: string
+          owner_tel_user_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code_hash: string
+          code_hint: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          mode?: string
+          name: string
+          owner_tel_user_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code_hash?: string
+          code_hint?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          mode?: string
+          name?: string
+          owner_tel_user_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_rooms_owner_tel_user_id_fkey"
+            columns: ["owner_tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_settings: {
+        Row: {
+          business_phone_display: string | null
+          business_phone_e164: string | null
+          created_at: string
+          default_country_code: string
+          default_locale: string
+          enabled: boolean
+          fallback_to_sms: boolean
+          help_text: string
+          key: string
+          native_groups_enabled: boolean
+          provider: string
+          public_base_url: string
+          rcs_enabled: boolean
+          rcs_sender_name: string
+          sms_enabled: boolean
+          terms_version: string
+          updated_at: string
+          updated_by: string | null
+          virtual_groups_enabled: boolean
+        }
+        Insert: {
+          business_phone_display?: string | null
+          business_phone_e164?: string | null
+          created_at?: string
+          default_country_code?: string
+          default_locale?: string
+          enabled?: boolean
+          fallback_to_sms?: boolean
+          help_text?: string
+          key?: string
+          native_groups_enabled?: boolean
+          provider?: string
+          public_base_url?: string
+          rcs_enabled?: boolean
+          rcs_sender_name?: string
+          sms_enabled?: boolean
+          terms_version?: string
+          updated_at?: string
+          updated_by?: string | null
+          virtual_groups_enabled?: boolean
+        }
+        Update: {
+          business_phone_display?: string | null
+          business_phone_e164?: string | null
+          created_at?: string
+          default_country_code?: string
+          default_locale?: string
+          enabled?: boolean
+          fallback_to_sms?: boolean
+          help_text?: string
+          key?: string
+          native_groups_enabled?: boolean
+          provider?: string
+          public_base_url?: string
+          rcs_enabled?: boolean
+          rcs_sender_name?: string
+          sms_enabled?: boolean
+          terms_version?: string
+          updated_at?: string
+          updated_by?: string | null
+          virtual_groups_enabled?: boolean
+        }
+        Relationships: []
+      }
+      waouh_tel_threads: {
+        Row: {
+          channel: string
+          context: Json
+          created_at: string
+          external_thread_id: string | null
+          id: string
+          last_message_at: string | null
+          provider: string
+          status: string
+          tel_user_id: string | null
+          thread_kind: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          context?: Json
+          created_at?: string
+          external_thread_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          provider: string
+          status?: string
+          tel_user_id?: string | null
+          thread_kind?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          context?: Json
+          created_at?: string
+          external_thread_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          provider?: string
+          status?: string
+          tel_user_id?: string | null
+          thread_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_threads_tel_user_id_fkey"
+            columns: ["tel_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_tel_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_tel_users: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          display_name: string | null
+          engine_user_id: string | null
+          id: string
+          last_seen_at: string | null
+          locale: string
+          metadata: Json
+          phone_encrypted: string
+          phone_hash: string
+          phone_last4: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          display_name?: string | null
+          engine_user_id?: string | null
+          id?: string
+          last_seen_at?: string | null
+          locale?: string
+          metadata?: Json
+          phone_encrypted: string
+          phone_hash: string
+          phone_last4?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          display_name?: string | null
+          engine_user_id?: string | null
+          id?: string
+          last_seen_at?: string | null
+          locale?: string
+          metadata?: Json
+          phone_encrypted?: string
+          phone_hash?: string
+          phone_last4?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_tel_users_engine_user_id_fkey"
+            columns: ["engine_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_trace_events: {
         Row: {
           actor_user_id: string | null
@@ -10758,6 +14128,8 @@ export type Database = {
           buyer_confirmed: boolean
           buyer_id: string
           commission: number
+          commission_rate: number | null
+          commission_status: string
           completed_at: string | null
           contacts_exchanged_at: string | null
           created_at: string
@@ -10771,6 +14143,7 @@ export type Database = {
           payment_ref: string | null
           seller_confirmed: boolean
           seller_id: string
+          settled_at: string | null
           status: string
           status_history: Json | null
           thread_id: string | null
@@ -10781,6 +14154,8 @@ export type Database = {
           buyer_confirmed?: boolean
           buyer_id: string
           commission: number
+          commission_rate?: number | null
+          commission_status?: string
           completed_at?: string | null
           contacts_exchanged_at?: string | null
           created_at?: string
@@ -10794,6 +14169,7 @@ export type Database = {
           payment_ref?: string | null
           seller_confirmed?: boolean
           seller_id: string
+          settled_at?: string | null
           status?: string
           status_history?: Json | null
           thread_id?: string | null
@@ -10804,6 +14180,8 @@ export type Database = {
           buyer_confirmed?: boolean
           buyer_id?: string
           commission?: number
+          commission_rate?: number | null
+          commission_status?: string
           completed_at?: string | null
           contacts_exchanged_at?: string | null
           created_at?: string
@@ -10817,6 +14195,7 @@ export type Database = {
           payment_ref?: string | null
           seller_confirmed?: boolean
           seller_id?: string
+          settled_at?: string | null
           status?: string
           status_history?: Json | null
           thread_id?: string | null
@@ -10854,6 +14233,8 @@ export type Database = {
       }
       waouh_unified_catalog: {
         Row: {
+          ai_visual_fingerprint: Json
+          barcode_type: string | null
           business_id: string | null
           categorie: string | null
           created_at: string
@@ -10861,6 +14242,7 @@ export type Database = {
           devise: string | null
           expires_at: string | null
           geohash: string | null
+          gtin: string | null
           id: string
           is_active: boolean
           last_seen_at: string | null
@@ -10890,6 +14272,8 @@ export type Database = {
           ville: string | null
         }
         Insert: {
+          ai_visual_fingerprint?: Json
+          barcode_type?: string | null
           business_id?: string | null
           categorie?: string | null
           created_at?: string
@@ -10897,6 +14281,7 @@ export type Database = {
           devise?: string | null
           expires_at?: string | null
           geohash?: string | null
+          gtin?: string | null
           id?: string
           is_active?: boolean
           last_seen_at?: string | null
@@ -10926,6 +14311,8 @@ export type Database = {
           ville?: string | null
         }
         Update: {
+          ai_visual_fingerprint?: Json
+          barcode_type?: string | null
           business_id?: string | null
           categorie?: string | null
           created_at?: string
@@ -10933,6 +14320,7 @@ export type Database = {
           devise?: string | null
           expires_at?: string | null
           geohash?: string | null
+          gtin?: string | null
           id?: string
           is_active?: boolean
           last_seen_at?: string | null
@@ -11019,6 +14407,209 @@ export type Database = {
           web_session_id?: string | null
         }
         Relationships: []
+      }
+      waouh_wa_governor_config: {
+        Row: {
+          cold_share_pct: number
+          daily_cap: number
+          enabled: boolean
+          failure_min_sample: number
+          failure_pause_pct: number
+          hourly_cap: number
+          id: boolean
+          max_gap_s: number
+          min_gap_s: number
+          pause_reason: string | null
+          paused_until: string | null
+          per_contact_day: number
+          per_contact_week: number
+          quiet_end: number
+          quiet_start: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cold_share_pct?: number
+          daily_cap?: number
+          enabled?: boolean
+          failure_min_sample?: number
+          failure_pause_pct?: number
+          hourly_cap?: number
+          id?: boolean
+          max_gap_s?: number
+          min_gap_s?: number
+          pause_reason?: string | null
+          paused_until?: string | null
+          per_contact_day?: number
+          per_contact_week?: number
+          quiet_end?: number
+          quiet_start?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cold_share_pct?: number
+          daily_cap?: number
+          enabled?: boolean
+          failure_min_sample?: number
+          failure_pause_pct?: number
+          hourly_cap?: number
+          id?: boolean
+          max_gap_s?: number
+          min_gap_s?: number
+          pause_reason?: string | null
+          paused_until?: string | null
+          per_contact_day?: number
+          per_contact_week?: number
+          quiet_end?: number
+          quiet_start?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      waouh_wa_send_log: {
+        Row: {
+          at: string
+          error: string | null
+          id: string
+          kind: string
+          outcome: string
+          phone: string | null
+        }
+        Insert: {
+          at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          outcome?: string
+          phone?: string | null
+        }
+        Update: {
+          at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          outcome?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      waouh_watch_events: {
+        Row: {
+          body: string | null
+          created_at: string
+          event_type: string
+          id: string
+          observation_id: string | null
+          owner_id: string
+          payload: Json
+          read_at: string | null
+          title: string
+          watchlist_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          observation_id?: string | null
+          owner_id: string
+          payload?: Json
+          read_at?: string | null
+          title: string
+          watchlist_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          observation_id?: string | null
+          owner_id?: string
+          payload?: Json
+          read_at?: string | null
+          title?: string
+          watchlist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_watch_events_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_price_observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_watch_events_watchlist_id_fkey"
+            columns: ["watchlist_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_watchlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_watchlists: {
+        Row: {
+          article_id: string | null
+          check_interval_minutes: number
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          last_checked_at: string | null
+          last_observed_amount: number | null
+          next_check_at: string
+          owner_id: string
+          query: string
+          source_url: string | null
+          status: string
+          target_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          article_id?: string | null
+          check_interval_minutes?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_observed_amount?: number | null
+          next_check_at?: string
+          owner_id: string
+          query: string
+          source_url?: string | null
+          status?: string
+          target_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string | null
+          check_interval_minutes?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_observed_amount?: number | null
+          next_check_at?: string
+          owner_id?: string
+          query?: string
+          source_url?: string | null
+          status?: string
+          target_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_watchlists_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_accounts: {
         Row: {
@@ -12302,6 +15893,44 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_messages_without_thread: {
+        Row: {
+          article_id: string | null
+          candidate_thread_count: number | null
+          channel: string | null
+          created_at: string | null
+          direction: string | null
+          id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          article_id?: never
+          candidate_thread_count?: never
+          channel?: string | null
+          created_at?: string | null
+          direction?: string | null
+          id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          article_id?: never
+          candidate_thread_count?: never
+          channel?: string | null
+          created_at?: string | null
+          direction?: string | null
+          id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_partner_stats_v: {
         Row: {
           ca_24h: number | null
@@ -12350,6 +15979,32 @@ export type Database = {
           nom?: string | null
           partner_id?: string | null
           statut?: string | null
+        }
+        Relationships: []
+      }
+      waouh_signal_fabric: {
+        Row: {
+          actor_type: string | null
+          brand: string | null
+          canonical_key: string | null
+          category: string | null
+          city: string | null
+          condition: string | null
+          contactability_level: string | null
+          currency: string | null
+          evidence: Json | null
+          fabric_id: string | null
+          intent: string | null
+          model: string | null
+          observed_at: string | null
+          price_max: number | null
+          price_min: number | null
+          raw_text: string | null
+          source_key: string | null
+          source_record_id: string | null
+          source_url: string | null
+          subject: string | null
+          trust_score: number | null
         }
         Relationships: []
       }
@@ -13490,6 +17145,8 @@ export type Database = {
         }
         Returns: string
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       st_3dclosestpoint: {
         Args: { geom1: unknown; geom2: unknown }
         Returns: unknown
@@ -14209,6 +17866,28 @@ export type Database = {
         }[]
       }
       verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
+      waouh_accept_negotiation_atomic: {
+        Args: {
+          p_actor_role?: string
+          p_actor_user_id?: string
+          p_commission_rate?: number
+          p_correlation_id?: string
+          p_negotiation_id: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
+      waouh_accept_negotiation_atomic_impl_20261005: {
+        Args: {
+          p_actor_role?: string
+          p_actor_user_id?: string
+          p_commission_rate?: number
+          p_correlation_id?: string
+          p_negotiation_id: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
       waouh_adjust_partner_stock: {
         Args: {
           p_movement_type?: string
@@ -14220,9 +17899,225 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_admin_reconcile_chat: { Args: { p_mode?: string }; Returns: Json }
+      waouh_admin_set_module_control: {
+        Args: {
+          p_automation_enabled?: boolean
+          p_enabled?: boolean
+          p_maintenance_message?: string
+          p_metadata?: Json
+          p_module_key: string
+        }
+        Returns: {
+          automation_enabled: boolean
+          created_at: string
+          description: string | null
+          enabled: boolean
+          label: string
+          maintenance_message: string | null
+          metadata: Json
+          module_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_admin_module_controls"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      waouh_admin_signal_fabric_search: {
+        Args: {
+          p_city?: string
+          p_contactability?: string
+          p_family?: string
+          p_intent?: string
+          p_limit?: number
+          p_offset?: number
+          p_operational_state?: string
+          p_q?: string
+          p_source?: string
+        }
+        Returns: {
+          actor_type: string
+          brand: string
+          catalog_id: string
+          category: string
+          city: string
+          completeness: number
+          condition: string
+          contactability_level: string
+          currency: string
+          evidence: Json
+          fabric_id: string
+          has_contact: boolean
+          has_photo: boolean
+          has_price: boolean
+          intent: string
+          is_catalog_mutable: boolean
+          model: string
+          nexus_managed: boolean
+          observed_at: string
+          operational_state: string
+          photo_url: string
+          price_max: number
+          price_min: number
+          quality_tier: string
+          raw_text: string
+          source_family: string
+          source_key: string
+          source_label: string
+          source_record_id: string
+          source_url: string
+          subject: string
+          trust_score: number
+          verified: boolean
+        }[]
+      }
+      waouh_admin_signal_fabric_stats: { Args: never; Returns: Json }
+      waouh_admin_waha_directory: {
+        Args: { p_limit?: number; p_offset?: number; p_q?: string }
+        Returns: {
+          display_name: string
+          id: string
+          jid: string
+          last_synced_at: string
+          lid: string
+          phone_e164: string
+          pushname: string
+          session: string
+          source: string
+          total_count: number
+        }[]
+      }
+      waouh_append_conversation_bus_event: {
+        Args: {
+          p_article_id?: string
+          p_channel?: string
+          p_deal_id?: string
+          p_direction?: string
+          p_event_type: string
+          p_external_ref?: string
+          p_fabric_id?: string
+          p_journey_id?: string
+          p_mandate_id?: string
+          p_negotiation_id?: string
+          p_owner_id: string
+          p_payload?: Json
+          p_thread_id?: string
+        }
+        Returns: string
+      }
+      waouh_append_opportunity_journey_event: {
+        Args: {
+          p_contactability_level?: string
+          p_event?: Json
+          p_journey_id: string
+          p_last_action?: string
+          p_last_message?: string
+          p_next_action?: string
+          p_progress?: number
+          p_stage: string
+        }
+        Returns: {
+          actionability_score: number
+          actor_name: string | null
+          article_id: string | null
+          avatar_message: string | null
+          city: string | null
+          completed_at: string | null
+          contact_channel: string | null
+          contact_id: string | null
+          contact_last4: string | null
+          contact_pack: Json
+          contactability_level: string
+          created_at: string
+          deal_id: string | null
+          entity_id: string | null
+          fabric_id: string
+          id: string
+          last_action: string | null
+          last_activity_at: string | null
+          last_contact_at: string | null
+          last_message: string | null
+          last_response_at: string | null
+          mandate_id: string | null
+          masked_contact: Json | null
+          metadata: Json
+          mode: string
+          negotiation_id: string | null
+          next_action: string | null
+          next_best_action: string
+          owner_id: string
+          progress: number | null
+          proposed_amount: number | null
+          readiness_level: string
+          readiness_score: number
+          source_key: string | null
+          source_url: string | null
+          stage: string | null
+          started_at: string | null
+          state: string
+          subject: string | null
+          target_waouh_user_id: string | null
+          thread_id: string | null
+          timeline: Json | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_opportunity_journeys"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       waouh_article_distance_km: {
         Args: { p_article: string; p_lat: number; p_lng: number }
         Returns: number
+      }
+      waouh_avatar_accept_approved_offer: {
+        Args: {
+          p_actor_role?: string
+          p_actor_user_id?: string
+          p_approval_id: string
+          p_commission_rate?: number
+          p_correlation_id?: string
+          p_negotiation_id: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
+      waouh_avatar_bridge_missions: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      waouh_avatar_claim_contact: {
+        Args: { p_endpoint: string; p_journey_id: string; p_owner_id: string }
+        Returns: boolean
+      }
+      waouh_avatar_claim_worker: { Args: { p_token: string }; Returns: boolean }
+      waouh_avatar_mission_metrics: {
+        Args: { p_owner_id: string }
+        Returns: {
+          agreed: number
+          completed: number
+          delivered: number
+          discovered: number
+          mandate_id: string
+          queued: number
+          replied: number
+          sent: number
+        }[]
+      }
+      waouh_avatar_release_worker: {
+        Args: { p_token: string }
+        Returns: undefined
+      }
+      waouh_backfill_message_threads: {
+        Args: { p_before?: string; p_limit?: number }
+        Returns: Json
       }
       waouh_bi_store_source: {
         Args: {
@@ -14235,6 +18130,7 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_contact_stats: { Args: never; Returns: Json }
       waouh_create_partner_stock_product: {
         Args: {
           p_business_id: string
@@ -14275,6 +18171,27 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_external_ack: {
+        Args: { p_provider_message_id: string; p_status: string }
+        Returns: boolean
+      }
+      waouh_external_exchange_mutate: {
+        Args: {
+          p_agreement_id?: string
+          p_invite_id?: string
+          p_journey_id: string
+          p_operation: string
+          p_request_id: string
+          p_role: string
+          p_terms?: Json
+          p_text?: string
+        }
+        Returns: Json
+      }
+      waouh_install_background_ticks: {
+        Args: { p_base_url?: string; p_public_key?: string }
+        Returns: Json
+      }
       waouh_link_session: {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
@@ -14284,7 +18201,19 @@ export type Database = {
         Returns: undefined
       }
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
+      waouh_module_control_state: {
+        Args: { p_module_key: string }
+        Returns: Json
+      }
       waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
+      waouh_phone_identity_key: { Args: { p_phone: string }; Returns: string }
+      waouh_pick_notification_identity: {
+        Args: { p_auth_user_id: string }
+        Returns: {
+          user_id: string
+          web_session_id: string
+        }[]
+      }
       waouh_point_distance_km: {
         Args: { p_lat: number; p_lng: number; p_user: string }
         Returns: number
@@ -14500,6 +18429,52 @@ export type Database = {
       waouh_product_owner: { Args: { p_product_id: string }; Returns: string }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
+      waouh_reconcile_chat_integrity: {
+        Args: { p_commission_rate?: number; p_mode?: string }
+        Returns: Json
+      }
+      waouh_record_chat_message: {
+        Args: {
+          p_actions?: Json
+          p_attachments?: Json
+          p_channel?: string
+          p_conversation_id?: string
+          p_correlation_id?: string
+          p_dedupe_key?: string
+          p_direction?: string
+          p_enqueue_whatsapp?: boolean
+          p_image_url?: string
+          p_intent?: string
+          p_mirror_to_other_party?: boolean
+          p_payload_extra?: Json
+          p_phone_number?: string
+          p_recipient_user_id?: string
+          p_sender_user_id?: string
+          p_template?: string
+          p_text?: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
+      waouh_record_commerce_event: {
+        Args: {
+          p_actor_role?: string
+          p_actor_user_id?: string
+          p_article_id?: string
+          p_correlation_id?: string
+          p_deal_id?: string
+          p_entity_id?: string
+          p_entity_type: string
+          p_event_type: string
+          p_negotiation_id?: string
+          p_next_state?: string
+          p_payload?: Json
+          p_previous_state?: string
+          p_thread_id?: string
+          p_transaction_id?: string
+        }
+        Returns: string
+      }
       waouh_record_partner_stock_movement: {
         Args: {
           p_movement_type: string
@@ -14511,6 +18486,24 @@ export type Database = {
         Returns: Json
       }
       waouh_resolve_phone: { Args: { input: string }; Returns: string }
+      waouh_same_person: {
+        Args: { p_a: string; p_b: string }
+        Returns: boolean
+      }
+      waouh_same_user_identity: {
+        Args: { p_a: string; p_b: string }
+        Returns: boolean
+      }
+      waouh_schedule_avatar_briefing: { Args: never; Returns: boolean }
+      waouh_schedule_nexus_followup: { Args: never; Returns: boolean }
+      waouh_schedule_opportunity_worker: {
+        Args: { p_base_url?: string }
+        Returns: boolean
+      }
+      waouh_schedule_push_tick: {
+        Args: { p_base_url?: string }
+        Returns: boolean
+      }
       waouh_search_unified: {
         Args: {
           in_categorie?: string
@@ -14570,6 +18563,21 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_smart_contextualize_payload: {
+        Args: { p_intent: string; p_payload: Json }
+        Returns: Json
+      }
+      waouh_smart_enrich_payload: {
+        Args: {
+          p_article_id: string
+          p_event_id: string
+          p_intent: string
+          p_payload: Json
+          p_text: string
+          p_thread_id: string
+        }
+        Returns: Json
+      }
       waouh_stock_list_sources: {
         Args: never
         Returns: {
@@ -14584,9 +18592,109 @@ export type Database = {
           status: string
         }[]
       }
+      waouh_tel_claim_inbox: {
+        Args: { p_limit?: number; p_worker_token?: string }
+        Returns: {
+          attempts: number
+          error_code: string | null
+          event_kind: string
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          message_id: string | null
+          payload_encrypted: string | null
+          payload_hash: string
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          received_at: string
+          scheduled_at: string
+          sender_hash: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "waouh_tel_processed_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      waouh_tel_claim_outbox: {
+        Args: { p_limit?: number; p_worker_token?: string }
+        Returns: {
+          attempts: number
+          bypass_consent: boolean
+          channel_preference: string
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          message_kind: string
+          payload: Json
+          provider_message_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          source_message_id: string | null
+          status: string
+          target_thread_id: string | null
+          target_user_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "waouh_tel_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      waouh_tel_enqueue_events: { Args: { p_events: Json }; Returns: number }
+      waouh_tel_erase_user: {
+        Args: { p_tel_user_id: string }
+        Returns: boolean
+      }
+      waouh_tel_install_dispatch_cron: { Args: never; Returns: boolean }
+      waouh_tel_retry_worker_ready: {
+        Args: { p_internal_secret_sha256: string }
+        Returns: boolean
+      }
+      waouh_tel_runtime_readiness: { Args: never; Returns: Json }
+      waouh_tel_runtime_secret: { Args: { p_name: string }; Returns: string }
+      waouh_tel_set_consent_state: {
+        Args: {
+          p_action: string
+          p_channel: string
+          p_tel_user_id: string
+          p_terms_version: string
+        }
+        Returns: boolean
+      }
+      waouh_tel_set_runtime_secret: {
+        Args: { p_name: string; p_value: string }
+        Returns: boolean
+      }
+      waouh_uninstall_background_ticks: { Args: never; Returns: number }
+      waouh_unschedule_opportunity_worker: { Args: never; Returns: boolean }
       waouh_user_pair_distance_km: {
         Args: { p_user_a: string; p_user_b: string }
         Returns: number
+      }
+      waouh_verify_runtime_internal_token: {
+        Args: { p_token: string }
+        Returns: boolean
+      }
+      waouh_verify_tick_secret: { Args: { p_secret: string }; Returns: boolean }
+      waouh_wa_governor_record: {
+        Args: { p_error?: string; p_id: string; p_outcome: string }
+        Returns: undefined
+      }
+      waouh_wa_governor_status: { Args: never; Returns: Json }
+      waouh_wa_governor_take: {
+        Args: { p_kind: string; p_phone?: string }
+        Returns: Json
       }
     }
     Enums: {
