@@ -589,7 +589,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const node = topSentinelRef.current;
     const root = scrollRef.current;
     // Chargement manuel uniquement (bouton) tant qu'aucun historique n'est affiché.
-    if (!node || !root || !hasMore || messages.length === 0) return;
+    // Chargement 100 % manuel via le bouton « Voir l'historique ».
+    if (true || !node || !root || !hasMore) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) loadOlder();
@@ -936,8 +937,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
-          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
-            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          <div ref={topSentinelRef} className="flex items-center justify-center py-1">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="rounded-full px-3 py-1 text-[11px] text-muted-foreground hover:bg-muted/60 transition-colors">
+              {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "Voir l'historique"}
+            </button>
           </div>
         )}
         {messages.length === 0 && (
