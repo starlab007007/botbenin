@@ -874,7 +874,7 @@ class _ResultCard extends StatelessWidget {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => onAsk(
-                            'Je suis intéressé par ${item.title} ($price). Aide-moi à contacter le vendeur et à négocier.'),
+                            'Je suis intéressé par ${item.title} ($price). Ouvre la discussion avec le vendeur et aide-moi à négocier.'),
                         icon: const Icon(Icons.bolt_rounded, size: 16),
                         label: const Text('Intéressé'),
                       ),
