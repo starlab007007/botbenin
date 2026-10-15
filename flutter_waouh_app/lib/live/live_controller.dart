@@ -1007,15 +1007,25 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
     return offline.notifications(scope);
   }
 
+  /// Fil principal épuré : seuls les messages échangés depuis l'ouverture de
+  /// l'application sont affichés. L'ancien historique reste sur le serveur.
+  static final DateTime _mainOpenedAt = DateTime.now();
+
+  List<LiveMessage> _freshOnly(List<LiveMessage> rows) => rows
+      .where((m) => !m.createdAt.isBefore(
+          _mainOpenedAt.subtract(const Duration(seconds: 5))))
+      .toList();
+
   Future<List<LiveMessage>> _loadMainMessages() async {
     final scope = await session.sessionId;
     try {
       final remote = await chat.loadMainHistory(authUserId: auth.user?.id);
       await offline.cacheMessages(scope, remote);
-      return _mergeMessages(remote, await _pendingMainMessages());
-    } catch (_) {
-      return _mergeMessages(
-          await offline.messages(scope), await _pendingMainMessages());
+      return _mergeMessages(_freshOnly(remote), await _pendingMainMessages());
+    } catch (error) {
+      debugPrint('[waouh] main history unavailable: $error');
+      return _mergeMessages(_freshOnly(await offline.messages(scope)),
+          await _pendingMainMessages());
     }
   }
 

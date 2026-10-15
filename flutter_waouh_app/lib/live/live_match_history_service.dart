@@ -121,7 +121,7 @@ class LiveMatchHistoryService {
   Future<LiveMatchHistoryResult> loadResult({
     required LiveMatch match,
     required String? authUserId,
-    int limit = 250,
+    int limit = 3,
     String? before,
   }) async {
     final sessionId = await session.sessionId;
@@ -210,7 +210,7 @@ class LiveMatchHistoryService {
   Future<List<LiveMessage>> load({
     required LiveMatch match,
     required String? authUserId,
-    int limit = 250,
+    int limit = 3,
     String? before,
   }) async {
     final result = await loadResult(
