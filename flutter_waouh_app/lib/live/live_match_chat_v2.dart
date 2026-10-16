@@ -702,95 +702,31 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       ),
                     ),
                   ),
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 2),
-                    padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFEAFBF7), Color(0xFFF3F8FF)],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFD7EBE6)),
+                  // Bandeau bot compact (1 ligne) : le détail s'ouvre dans la feuille « Conseil ».
+                  InkWell(
+                    onTap: () => showLiveUnifiedIntelligenceSheet(
+                      context,
+                      messages: merged,
+                      busy: waiting,
+                      match: match,
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFDDF9F5), Colors.white, Color(0xFFE7EEFF)],
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.smart_toy_outlined, size: 14, color: WaouhPalette.muted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              pendingThread ? 'Connexion au vendeur…' : 'Le bot négocie pour vous',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: WaouhPalette.muted, fontSize: 10.5, fontWeight: FontWeight.w700),
                             ),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF2F80ED).withValues(alpha: .10),
-                                blurRadius: 14,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
                           ),
-                          child: LiveAvatarVisual(
-                            preset: avatar.profile.preset,
-                            state: pendingThread
-                                ? LiveAvatarPresenceState.searching
-                                : LiveAvatarPresenceState.negotiating,
-                            size: 42,
-                            showStatusBadge: true,
-                          ),
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Bot conduit cette discussion',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: WaouhPalette.ink,
-                                  fontSize: 11.4,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                pendingThread
-                                    ? 'Connexion au vendeur et sécurisation du Deal Room.'
-                                    : 'Je vous guide vers la prochaine action sans masquer vos messages.',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: WaouhPalette.muted,
-                                  fontSize: 9.4,
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => showLiveUnifiedIntelligenceSheet(
-                            context,
-                            messages: merged,
-                            busy: waiting,
-                            match: match,
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            minimumSize: const Size(0, 32),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: const Text(
-                            'Conseil',
-                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                      ],
+                          const Text('Détails ›', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900)),
+                        ],
+                      ),
                     ),
                   ),
                   if (pendingThread)

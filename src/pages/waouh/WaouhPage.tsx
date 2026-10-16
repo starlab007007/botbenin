@@ -418,7 +418,7 @@ export default function WaouhPage() {
                             } else {
                               toast.info("Aucune nouvelle correspondance à notifier");
                             }
-                            loadData();
+                            loadAll();
                           }}>Notifier</Button>
                         </td>
                       </tr>

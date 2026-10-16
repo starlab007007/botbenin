@@ -337,7 +337,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       try {
         if (typeof Notification !== "undefined" && Notification.permission === "granted") {
           const reg = await navigator.serviceWorker?.getRegistration();
-          const opts: NotificationOptions = {
+          const opts: NotificationOptions & { actions?: unknown[] } = {
             body, icon: "/favicon.ico", badge: "/favicon.ico",
             tag: `waouh-${row.id}`,
             actions: [

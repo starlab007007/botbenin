@@ -194,7 +194,7 @@ export default function AdminWaouhDataControlPage() {
       .filter(k => !dataKeys.has(k))
       .map(k => ({
         source_key: k,
-        label: k.replaceAll('_', ' '),
+        label: k.split('_').join(' '),
         family: 'external',
         connector_mode: 'unknown',
         operational_state: 'live',
