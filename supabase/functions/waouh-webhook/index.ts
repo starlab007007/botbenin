@@ -377,6 +377,18 @@ const money = (n: number | string | null | undefined) =>
   new Intl.NumberFormat("fr-FR").format(Math.round(Number(n) || 0)) + " FCFA";
 const roundTo25 = (n: number) => Math.max(25, Math.round(n / 25) * 25);
 
+/** Bouton d'ouverture directe de la fenêtre article × interlocuteur (payload complet). Pure. */
+export function openMatchAction(n: any, role: string, title: string, myTurn: boolean) {
+  const cp = role === "buyer" ? n.seller_user_id : n.buyer_user_id;
+  const short = title.length > 22 ? title.slice(0, 21) + "…" : title;
+  return {
+    id: `ouvrir-match:${n.article_id}`,
+    label: `${myTurn ? "📩" : "⏳"} ${short}`,
+    article_id: n.article_id, thread_id: n.thread_id ?? null, negotiation_id: n.id,
+    counterpart_user_id: cp ?? null, role, title,
+  };
+}
+
 /**
  * Remplace le « je n'ai pas compris » sec : lit la situation réelle de la personne (négociations, résultats de recherche)
  * et propose l'action concrète à taper. Texte WhatsApp (*gras*), identique sur Web et App.
@@ -384,7 +396,7 @@ const roundTo25 = (n: number) => Math.max(25, Math.round(n / 25) * 25);
 export async function buildSmartFallback(
   // deno-lint-ignore no-explicit-any
   sb: any, user: any, conv: any, text: string,
-): Promise<{ reply: string; actions: Array<{ id: string; label: string }> }> {
+): Promise<{ reply: string; actions: Array<{ id: string; label: string; [k: string]: any }> }> {
   const echo = String(text || "").trim().replace(/\s+/g, " ").slice(0, 60);
   const intro = echo ? `🤔 Je n'ai pas bien saisi « ${echo} ».` : "🤔 Je n'ai pas bien saisi votre message.";
   const outro = "Besoin de toutes les commandes ? Tapez *aide*.";
@@ -410,19 +422,20 @@ export async function buildSmartFallback(
         if (myTurn) {
           return {
             reply: `${intro}\n\n📩 *${title}* : offre de *${money(offer)}* en attente de *votre* réponse.\n\n✅ *OUI* pour accepter\n❌ *NON* pour refuser\n💬 *Je propose ${mid}* pour contre-proposer\n\n${outro}`,
-            actions: [],
+            actions: [openMatchAction(n, role, title, true), { id: `accept:${n.id}`, label: "✅ Accepter" }, { id: `counter:${n.id}`, label: "💬 Contre-proposer" }],
           };
         }
         return {
           reply: `${intro}\n\n⏳ *${title}* : votre offre de *${money(offer)}* est chez ${role === "buyer" ? "le vendeur" : "l'acheteur"}. Je vous préviens dès sa réponse.\n\n💬 Changer votre prix : *Je propose ${mid}*\n🔎 Autre produit : *Je cherche …*\n\n${outro}`,
-          actions: [],
+          actions: [openMatchAction(n, role, title, false)],
         };
       }
       const lines = rows.slice(0, 4).map((r: any) =>
         `• *${r.title}* — ${money(r.n.last_offer_price)} (${r.myTurn ? "à vous de répondre" : "en attente de l'autre partie"})`);
       return {
-        reply: `${intro}\n\nVous avez *${rows.length} négociations* en cours :\n${lines.join("\n")}\n\n👉 Répondez depuis le message de l'article concerné (boutons *Accepter / Contre-proposer / Refuser*), ou rappelez d'abord l'article avec *Intéressé N*.\n\n${outro}`,
-        actions: [],
+        reply: `${intro}\n\nVous avez *${rows.length} négociations* en cours :\n${lines.join("\n")}\n\n👉 Touchez un article ci-dessous pour ouvrir sa discussion et continuer directement.\n\n${outro}`,
+        actions: [...rows].sort((a: any, b: any) => Number(b.myTurn) - Number(a.myTurn)).slice(0, 3)
+          .map((r: any) => openMatchAction(r.n, r.role, r.title, r.myTurn)),
       };
     }
     const matches = Array.isArray(conv?.context?.last_matches) ? conv.context.last_matches : [];
@@ -430,7 +443,7 @@ export async function buildSmartFallback(
       const lines = matches.slice(0, 3).map((m: any, i: number) => `${i + 1}. *${String(m.title || "Article").trim()}* — ${money(m.price)}`);
       return {
         reply: `${intro}\n\n🔎 Voici vos derniers résultats :\n${lines.join("\n")}\n\n👉 Écrivez *Intéressé 1* pour contacter le vendeur, ou *Je cherche …* pour une nouvelle recherche.\n\n${outro}`,
-        actions: [],
+        actions: matches.slice(0, 3).map((_: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `👉 Intéressé ${i + 1}` })),
       };
     }
   } catch (e) {
