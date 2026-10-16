@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
+import 'live_match_navigation.dart';
 import 'live_theme.dart';
 import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
@@ -789,8 +790,11 @@ List<_SmartMessageAction> _smartMessageActions(
           final label = (raw['label'] ?? raw['title'] ?? raw['id'] ?? 'Choisir')
               .toString()
               .trim();
-          final payload =
+          final rawPayload =
               (raw['id'] ?? raw['action'] ?? raw['key'] ?? label).toString().trim();
+          final payload = rawPayload.startsWith('ouvrir-match:')
+              ? liveGuideMatchPayload(raw)
+              : rawPayload;
           final route = liveText(raw['route'] ?? raw['url']).trim();
           final kind = liveText(raw['kind'], 'legacy').trim().toLowerCase();
           return _SmartMessageAction(

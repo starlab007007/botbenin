@@ -188,6 +188,16 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   Future<void> _handlePayload(String payload) async {
     if (await _handleAvatarPayload(payload)) return;
     final command = payload.trim().toLowerCase();
+    if (command.startsWith('ouvrir-match:') ||
+        command.startsWith('ouvrir-match-data:')) {
+      final match = liveMatchFromGuideAction(payload.trim(), _searchFeed.value);
+      if (match == null) {
+        _notice('Discussion indisponible. Actualisez le chat puis réessayez.');
+      } else if (mounted) {
+        unawaited(_openInterestedMatch(match));
+      }
+      return;
+    }
     if (command.startsWith('waouh:watch')) {
       await showWaouhWatchDialog(
         context,

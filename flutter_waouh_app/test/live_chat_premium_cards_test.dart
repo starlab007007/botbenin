@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:waouh_app_native/live/live_models.dart';
+import 'package:waouh_app_native/live/live_match_navigation.dart';
 import 'package:waouh_app_native/live/live_smart_timeline.dart';
 import 'package:waouh_app_native/live/live_widgets.dart';
 
@@ -16,6 +17,51 @@ const _thirdOnePixelPng =
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('guide action opens the matching article and counterpart', () {
+    final messages = [
+      LiveMessage(
+        id: 'guide',
+        text: 'Vos discussions',
+        direction: 'out',
+        createdAt: DateTime.utc(2026, 10, 16),
+        meta: {
+          'actions': [
+            {
+              'id': 'ouvrir-match:article-1',
+              'article_id': 'article-1',
+              'thread_id': 'thread-1',
+              'counterpart_user_id': 'seller-1',
+              'negotiation_id': 'negotiation-1',
+              'role': 'buyer',
+              'title': 'Article en négociation',
+            },
+          ],
+        },
+      ),
+    ];
+
+    final match = liveMatchFromGuideAction('ouvrir-match:article-1', messages);
+    expect(match?.articleId, 'article-1');
+    expect(match?.threadId, 'thread-1');
+    expect(match?.counterpartUserId, 'seller-1');
+    expect(match?.negotiationId, 'negotiation-1');
+    expect(match?.title, 'Article en négociation');
+    expect(liveMatchFromGuideAction('ouvrir-match:article-2', messages), isNull);
+
+    final other = liveGuideMatchPayload({
+      'article_id': 'article-1',
+      'thread_id': 'thread-2',
+      'counterpart_user_id': 'seller-2',
+      'role': 'buyer',
+      'title': 'Autre discussion sur le même article',
+    });
+    final distinct = liveMatchFromGuideAction(other, messages);
+    expect(distinct?.threadId, 'thread-2');
+    expect(distinct?.counterpartUserId, 'seller-2');
+    expect(distinct?.key, isNot(match?.key));
+    expect(liveMatchFromGuideAction('ouvrir-match-data:invalide', messages), isNull);
+  });
 
   testWidgets('renders one smart card and one associated photo per article',
       (tester) async {
