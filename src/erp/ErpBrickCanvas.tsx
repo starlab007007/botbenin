@@ -1,3 +1,4 @@
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LockKeyhole } from 'lucide-react';
