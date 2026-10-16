@@ -641,7 +641,7 @@ export function WaouhMatchChatWindow({
     const text = (overrideText ?? input).trim();
     if (!text || sending || closed) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      toast({ title: "Hors ligne", description: "Message non envoyé : reconnectez-vous puis réessayez.", variant: "destructive" });
+      toast.error("Hors ligne", { description: "Message non envoyé : reconnectez-vous puis réessayez." });
       return;
     }
 
