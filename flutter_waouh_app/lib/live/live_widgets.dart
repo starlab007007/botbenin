@@ -828,9 +828,16 @@ List<_SmartMessageAction> _smartMessageActions(
   final smart = liveMap(message.meta['smart']);
   final smartActions = smart['actions'];
   final legacyActions = message.meta['actions'];
-  final rawActions = smartActions is List && smartActions.isNotEmpty
-      ? smartActions
-      : legacyActions;
+  final guideActions = legacyActions is List
+      ? legacyActions.whereType<Map>().where((raw) =>
+          '${raw['id'] ?? ''}'.startsWith('ouvrir-match:')).toList()
+      : const <Map>[];
+  // Les actions de la vraie Deal Room priment sur les suggestions génériques.
+  final rawActions = guideActions.isNotEmpty
+      ? guideActions
+      : smartActions is List && smartActions.isNotEmpty
+          ? smartActions
+          : legacyActions;
   if (rawActions is List) {
     final preferred = liveText(
       smart['next_best_action'] ?? message.meta['next_best_action'],
