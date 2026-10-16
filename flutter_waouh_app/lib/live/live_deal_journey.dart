@@ -123,52 +123,35 @@ class LiveDealStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = liveJourneySteps.indexWhere((step) => step.key == stage);
     if (current < 0) return const SizedBox.shrink();
+    final total = liveJourneySteps.length;
+    // Mobile : une seule étape lisible. Les 7 noms restent disponibles
+    // dans la fiche complète ouverte depuis l'en-tête de la Deal Room.
     return Semantics(
-      label: 'Progression de la vente : ${liveJourneySteps[current].label}',
+      label: 'Progression de la vente : ${liveJourneySteps[current].label}, étape ${current + 1} sur $total',
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-        child: Row(
-          children: [
-            for (var i = 0; i < liveJourneySteps.length; i++)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: i < current
-                              ? const Color(0xFF34C38F)
-                              : i == current
-                                  ? const Color(0xFF0E9F6E)
-                                  : const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        liveJourneySteps[i].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.fade,
-                        softWrap: false,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: i == current ? FontWeight.w800 : FontWeight.w600,
-                          color: i == current
-                              ? const Color(0xFF0E7C58)
-                              : i < current
-                                  ? const Color(0xFF52606D)
-                                  : const Color(0xFFA0AEC0),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+        child: Row(children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (current + 1) / total,
+                minHeight: 4,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0E9F6E)),
               ),
-          ],
-        ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Text(
+              '${liveJourneySteps[current].label} ${current + 1}/$total',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF0E7C58)),
+            ),
+          ),
+        ]),
       ),
     );
   }
