@@ -1095,6 +1095,21 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                           i === 0 ? "bg-slate-950 text-white hover:bg-slate-800" : ""
                         )}
                         onClick={async () => {
+                          // Message guide : ouvre directement la fenêtre article × interlocuteur.
+                          if (a.id.startsWith("ouvrir-match:")) {
+                            const x = a as any;
+                            const detail = {
+                              article_id: x.article_id || a.id.slice("ouvrir-match:".length),
+                              counterpart_user_id: x.counterpart_user_id ?? null,
+                              seller_user_id: null,
+                              kind: x.role === "seller" ? "seller" : "buyer",
+                              title: x.title || "Annonce", price: null, city: null, photo: null,
+                              thread_id: x.thread_id ?? null, source: "smart_fallback",
+                            };
+                            window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+                            window.setTimeout(() => window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail })), 120);
+                            return;
+                          }
                           // Boutons d'une bulle de l'avatar : mêmes actions que l'ancienne carte (jamais d'envoi sans ce tap).
                           if (avatarBubbleInfo((m as any).meta)) {
                             await handleBriefingAction({ ...(a as any), id: a.id, label: a.label });
