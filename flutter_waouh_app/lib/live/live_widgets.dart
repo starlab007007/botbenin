@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 37622)
-Total output lines: 4123
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1687,7 +1684,759 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
         priceText,
         marketComparison,
       );
-      final…7622 tokens truncated…          : () {
+      final availability = _premiumString(
+        row['availability'] ?? row['disponibilite'] ?? row['status'],
+      );
+      final rawDistance = row['distance_km'] ?? row['distance'];
+      final distance = rawDistance == null
+          ? null
+          : '${rawDistance.toString()}${rawDistance.toString().toLowerCase().contains('km') ? '' : ' km'}';
+      final badges = <String>[
+        if (row['verified'] == true ||
+            row['is_verified'] == true ||
+            row['partner_verified'] == true ||
+            row['verified_at'] != null)
+          'Partenaire vérifié',
+        for (final key in [
+          'duration',
+          'duree',
+          'format',
+          'level',
+          'niveau',
+          'date',
+          'audience',
+          'public',
+          'location',
+          'lieu'
+        ])
+          if (row[key] != null && row[key].toString().trim().isNotEmpty)
+            row[key].toString().trim(),
+      ];
+      final scoreMap = row['scores'] is Map
+          ? <String, dynamic>{
+              for (final entry in (row['scores'] as Map).entries)
+                entry.key.toString(): entry.value,
+            }
+          : const <String, dynamic>{};
+      final rawReasons = row['reasons'] ?? scoreMap['reasons'];
+      final reasons = rawReasons is List
+          ? rawReasons
+              .where((item) => item is String && item.trim().isNotEmpty)
+              .map((item) => item.toString().trim())
+              .take(3)
+              .toList(growable: false)
+          : const <String>[];
+      return _PremiumProduct(
+        id: _premiumString(
+          row['id'] ?? row['article_id'] ?? row['radar_item_id'],
+        ),
+        title: title,
+        subtitle: _premiumString(
+          row['subtitle'] ?? row['description_short'] ?? row['summary'],
+        ),
+        images: images,
+        price: priceText,
+        city: _premiumString(row['city'] ?? row['ville'] ?? row['location']),
+        category: _premiumString(
+          row['category'] ?? row['categorie'] ?? row['type'],
+        ),
+        condition: _premiumString(row['condition'] ?? row['etat']),
+        availability: availability,
+        distance: distance,
+        marketComparison: marketComparison,
+        comparativeAnalysis: _premiumString(
+              row['comparative_analysis'] ??
+                  row['market_analysis'] ??
+                  row['deal_label'] ??
+                  row['analyse_comparative'],
+            ) ??
+            automaticComparison,
+        details: _premiumString(
+          row['details'] ??
+              row['description'] ??
+              row['raw_text'] ??
+              evidenceMap['description'] ??
+              evidenceMap['raw_text'],
+        ),
+        recommendation: _premiumString(
+              row['recommendation'] ??
+                  row['recommandation'] ??
+                  row['ai_note'] ??
+                  row['advice'] ??
+                  row['conseil'],
+            ) ??
+            (reasons.isNotEmpty
+                ? reasons.join(' · ')
+                : _premiumAutomaticRecommendation(
+                    priceText, marketComparison, availability)),
+        rating: _premiumString(row['rating'] ?? row['note'] ?? row['score']),
+        sellerLabel: _premiumString(
+          row['seller_label'] ??
+              row['partner_name'] ??
+              row['vendeur'] ??
+              row['seller_name'],
+        ),
+        source: _premiumString(
+          row['source_label'] ?? row['source'] ?? row['origin'],
+        ),
+        fabricId: _premiumString(row['fabric_id'] ?? row['fabricId']),
+        score: _premiumScore(
+          row['total_score'] ?? scoreMap['total_score'] ?? row['match_score'] ?? row['score'],
+        ),
+        trustScore: _premiumScore(
+          row['trust_score'] ?? scoreMap['trust_score'],
+        ),
+        priceScore: _premiumScore(
+          row['price_score'] ?? scoreMap['price_score'],
+        ),
+        contactability: _premiumString(
+          row['contactability_level'] ??
+              row['contactability'] ??
+              evidenceMap['contactability_level'],
+        ),
+        readiness: _premiumString(
+          row['readiness_level'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['readiness_level'] : null),
+        ),
+        actionabilityScore: _premiumScore(
+          row['actionability_score'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['actionability_score'] : null),
+        ),
+        nextBestAction: _premiumString(
+          row['next_best_action'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['next_best_action'] : null),
+        ),
+        bestChannel: _premiumString(
+          row['best_channel'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['best_channel'] : null),
+        ),
+        intent: _premiumString(
+          row['intent'] ?? row['signal_intent'] ?? evidenceMap['intent'],
+        ),
+        actorType: _premiumString(
+          row['actor_type'] ?? row['actor_role'] ?? evidenceMap['actor_type'],
+        ),
+        reasons: reasons,
+        badges: badges,
+        actions: _premiumWorkflowActions(
+          row: row,
+          message: message,
+          index: entry.key,
+          productCount: rows.length,
+        ),
+        workflowState: _premiumString(
+          row['workflow_state'] ?? row['stage'] ?? message.meta['intent'],
+        ),
+        role: _premiumString(row['role'] ?? message.meta['role']),
+      );
+    }).toList();
+    if (structured.isNotEmpty) {
+      return structured.take(10).toList(growable: false);
+    }
+  }
+  final matches = RegExp(
+    r'^\s*(?:\*{0,2})?(?:article\s*)?(\d+)\s*(?:[.)]|[-–—:])\s+(.+?)(?:\*{0,2})?\s*$',
+    caseSensitive: false,
+    multiLine: true,
+  ).allMatches(message.text).take(10).toList(growable: false);
+  final products = <_PremiumProduct>[];
+  final usedAttachmentUrls = <String>{};
+  var fallbackAttachmentIndex = 0;
+  for (var index = 0; index < matches.length; index += 1) {
+    final match = matches[index];
+    final start = match.end;
+    final end = index + 1 < matches.length
+        ? matches[index + 1].start
+        : message.text.length;
+    final block = message.text.substring(start, end).replaceAll('*', '');
+    String? capture(String pattern) =>
+        RegExp(pattern, caseSensitive: false, multiLine: true)
+            .firstMatch(block)
+            ?.group(1)
+            ?.trim();
+    final price = capture(r'^(?:💰|💵|💲|💸|💰|🪙|\$)\s*([^\n]+)');
+    final rawLocation = capture(r'^(?:🏙️|📍|🏢)\s*([^\n]+)');
+    final locationParts = rawLocation
+        ?.split('·')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    const conditionWords = {
+      'neuf',
+      'neuve',
+      'occasion',
+      'good',
+      'bon état',
+      'bon etat',
+      'comme neuf',
+      'reconditionné',
+      'reconditionne',
+      'excellent',
+    };
+    final lastLocationPart = locationParts == null || locationParts.isEmpty
+        ? null
+        : locationParts.last.toLowerCase();
+    final hasCondition = locationParts != null &&
+        locationParts.length > 1 &&
+        conditionWords.contains(lastLocationPart);
+    final city = locationParts == null || locationParts.isEmpty
+        ? rawLocation
+        : hasCondition
+            ? locationParts.sublist(0, locationParts.length - 1).join(' · ')
+            : locationParts.join(' · ');
+    final condition = hasCondition ? locationParts.last : null;
+    final category = capture(r'^(?:🏷️|📦)\s*([^\n]+)');
+    final availability = capture(
+        r'^(?:🟢|🔴|🟡|✅)\s*(Disponible|Réservé|Reserve|Vendu|En stock|Indisponible)');
+    final distance = capture(r'^📏\s*([^\n]+)');
+    final marketComparison = capture(r'^📊\s*([^\n]+)');
+    final explicitComparativeAnalysis = capture(r'^(?:⚖️|📈)\s*([^\n]+)');
+    final explicitRecommendation = capture(r'^(?:💡|🧠)\s*([^\n]+)');
+    final details = capture(r'^(?:📝|ℹ️)\s*([^\n]+)');
+    final source = capture(r'^📡\s*(?:Source\s*:\s*)?([^\n]+)');
+    final rating = capture(r'^(?:⭐|🌟)\s*([^\n]+)');
+    final photoCount = int.tryParse(capture(r'^📸\s*(\d+)') ?? '') ?? 1;
+    final verified = block.toLowerCase().contains('partenaire vérifié') ||
+        block.toLowerCase().contains('partenaire verifie');
+    final normalizedBlock = block.toLowerCase();
+    final withoutPhoto = normalizedBlock.contains('0 photo') ||
+        normalizedBlock.contains('sans photo') ||
+        normalizedBlock.contains('aucune photo');
+    final title = liveVisibleText(match.group(2)!.replaceAll('*', '').trim());
+    final comparativeAnalysis = explicitComparativeAnalysis ??
+        _premiumAutomaticComparison(price, marketComparison);
+    final recommendation = explicitRecommendation ??
+        _premiumAutomaticRecommendation(price, marketComparison, availability);
+    final images = withoutPhoto
+        ? const <LiveAttachment>[]
+        : _attachmentsForProduct(
+            message.attachments,
+            title,
+            fallbackAttachmentIndex,
+            usedAttachmentUrls,
+            fallbackCount: photoCount,
+          );
+    while (fallbackAttachmentIndex < message.attachments.length &&
+        usedAttachmentUrls
+            .contains(message.attachments[fallbackAttachmentIndex].url)) {
+      fallbackAttachmentIndex += 1;
+    }
+    products.add(_PremiumProduct(
+      title: title,
+      images: images,
+      price: price,
+      city: city,
+      category: category,
+      condition: condition,
+      availability: availability,
+      distance: distance,
+      marketComparison: marketComparison,
+      comparativeAnalysis: comparativeAnalysis,
+      details: details,
+      recommendation: recommendation,
+      rating: rating,
+      sellerLabel: verified ? 'Vendeur fiable' : null,
+      source: source,
+      badges: verified ? const ['Partenaire vérifié'] : const [],
+      actions: _premiumWorkflowActions(
+        row: const <String, dynamic>{},
+        message: message,
+        index: index,
+        productCount: matches.length,
+      ),
+      workflowState: _premiumString(
+        message.meta['workflow_state'] ?? message.meta['intent'],
+      ),
+      role: _premiumString(message.meta['role']),
+    ));
+  }
+  return products;
+}
+
+String _premiumIntro(String text) {
+  final firstArticle = RegExp(
+    r'^\s*(?:\*{0,2})?(?:article\s*)?\d+\s*(?:[.)]|[-–—:])\s+',
+    caseSensitive: false,
+    multiLine: true,
+  ).firstMatch(text);
+  if (firstArticle == null) return '';
+  return text.substring(0, firstArticle.start).trim();
+}
+
+class _PremiumResultsGrid extends StatefulWidget {
+  const _PremiumResultsGrid({
+    required this.products,
+    this.onPayload,
+    this.actionsEnabled = true,
+  });
+  final List<_PremiumProduct> products;
+  final ValueChanged<String>? onPayload;
+  final bool actionsEnabled;
+
+  @override
+  State<_PremiumResultsGrid> createState() => _PremiumResultsGridState();
+}
+
+class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
+  final ScrollController _controller = ScrollController();
+  int _current = 0;
+  double _itemExtent = 320;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _move(int delta) {
+    if (!_controller.hasClients) return;
+    final next = (_current + delta).clamp(0, widget.products.length - 1);
+    _controller.animateTo(
+      next * _itemExtent,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+    setState(() => _current = next);
+  }
+
+  bool _observe(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.horizontal) return false;
+    final next = (notification.metrics.pixels / _itemExtent)
+        .round()
+        .clamp(0, widget.products.length - 1);
+    if (next != _current) setState(() => _current = next);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (_, constraints) {
+        var topPickIndex = 0;
+        double? bestScore;
+        for (var i = 0; i < widget.products.length; i += 1) {
+          final score = widget.products[i].score;
+          if (score != null && (bestScore == null || score > bestScore)) {
+            bestScore = score;
+            topPickIndex = i;
+          }
+        }
+        final itemWidth = widget.products.length == 1
+            ? constraints.maxWidth
+            : constraints.maxWidth >= 720
+                ? 420.0
+                : (constraints.maxWidth - 22).clamp(272.0, 420.0).toDouble();
+        _itemExtent = itemWidth + 11;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF062E27),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF8B7A25))),
+                child: Text(
+                    '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                        color: Color(0xFFF2D36B),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900)),
+              ),
+              if (widget.products.length > 1) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Article ${_current + 1} sur ${widget.products.length}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: Color(0xFF52675F),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Article précédent',
+                  onPressed: _current > 0 ? () => _move(-1) : null,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Article suivant',
+                  onPressed: _current < widget.products.length - 1
+                      ? () => _move(1)
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Semantics(
+            container: true,
+            label:
+                'Carrousel de ${widget.products.length} articles, article ${_current + 1} affiché',
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _observe,
+              child: Scrollbar(
+                controller: _controller,
+                thumbVisibility: widget.products.length > 1,
+                child: SingleChildScrollView(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: List.generate(widget.products.length, (index) {
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          right: index == widget.products.length - 1 ? 0 : 11,
+                        ),
+                        child: SizedBox(
+                          width: itemWidth,
+                          child: Semantics(
+                            label:
+                                'Article ${index + 1} sur ${widget.products.length}: ${widget.products[index].title}',
+                            child: _PremiumProductCard(
+                              product: widget.products[index],
+                              index: index,
+                              onPayload: widget.onPayload,
+                              actionsEnabled: widget.actionsEnabled,
+                              topPick: index == topPickIndex,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Padding(
+              padding: EdgeInsets.only(top: 9, left: 3),
+              child: Text(
+                  '🔒 Résultats issus des données retournées par WAOUH — mise à jour en temps réel.',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF78988A)))),
+        ]);
+      });
+}
+
+class _PremiumProductCard extends StatelessWidget {
+  const _PremiumProductCard({
+    required this.product,
+    required this.index,
+    this.onPayload,
+    this.actionsEnabled = true,
+    this.topPick = false,
+  });
+  final _PremiumProduct product;
+  final int index;
+  final ValueChanged<String>? onPayload;
+  final bool actionsEnabled;
+  final bool topPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasIntegratedInterest = product.actions.any(
+      (action) =>
+          liveCommerceActionKind(action.payload) ==
+          LiveCommerceActionKind.interest,
+    );
+    return Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: topPick ? const Color(0xFF67C9A9) : const Color(0xFFCDE5DB),
+              width: topPick ? 1.4 : 1,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x1A063F33),
+                  blurRadius: 16,
+                  offset: Offset(0, 6))
+            ]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (product.images.isNotEmpty)
+            _PremiumProductGallery(
+                images: product.images, articleNumber: index + 1)
+          else
+            Container(
+              height: 150,
+              width: double.infinity,
+              color: const Color(0xFFF1F6F4),
+              alignment: Alignment.center,
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.image_not_supported_outlined,
+                      color: Color(0xFF78958A), size: 28),
+                  SizedBox(height: 7),
+                  Text('Aucune photo fournie',
+                      style: TextStyle(
+                          color: Color(0xFF78958A),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: [
+                  if (topPick)
+                    const _PremiumBadge(
+                      '✨ Top Pick WAOUH',
+                      Color(0xFFE8F8F1),
+                      Color(0xFF08745D),
+                    ),
+                  if (product.isBuyerOpportunity)
+                    const _PremiumBadge(
+                      '👥 Opportunité acheteur',
+                      Color(0xFFEAF3FF),
+                      Color(0xFF2368FF),
+                    ),
+                  if (product.score != null)
+                    _PremiumBadge(
+                      'Match ${product.score!.round()}%',
+                      const Color(0xFFE8F8F1),
+                      const Color(0xFF08745D),
+                    ),
+                  if (product.trustScore != null)
+                    _PremiumBadge(
+                      'Confiance ${product.trustScore!.round()}%',
+                      const Color(0xFFEAF3FF),
+                      const Color(0xFF2368FF),
+                    ),
+                  if (product.actionabilityScore != null)
+                    _PremiumBadge(
+                      'Bot ${product.actionabilityScore!.round()}%',
+                      const Color(0xFFF3EDFF),
+                      const Color(0xFF6D3FD1),
+                    ),
+                  if (product.readiness != null)
+                    _PremiumBadge(
+                      product.readiness!,
+                      const Color(0xFFE8F8FA),
+                      const Color(0xFF087A9B),
+                    ),
+                  if (product.contactability != null)
+                    LiveContactabilityBadge(level: product.contactability),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    product.isBuyerOpportunity
+                        ? Icons.groups_2_outlined
+                        : Icons.shopping_bag_outlined,
+                    size: 20,
+                    color: product.isBuyerOpportunity
+                        ? const Color(0xFF087A9B)
+                        : const Color(0xFF2368FF),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                    child: Text(product.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 19,
+                            height: 1.15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF15372F)))),
+              ]),
+              if (product.subtitle != null)
+                Text(product.subtitle!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF667A73))),
+              if (product.price != null) ...[
+                const SizedBox(height: 8),
+                Text(product.price!,
+                    style: const TextStyle(
+                        fontSize: 23,
+                        height: 1.1,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF07996D))),
+              ],
+              const SizedBox(height: 9),
+              if (product.nextBestAction != null || product.bestChannel != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F2FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE3D6FF)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Action recommandée par Bot',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF6D3FD1),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _opportunityActionLabel(product.nextBestAction) +
+                            (product.bestChannel == null ? '' : ' · canal ' + product.bestChannel!),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF382567),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 9),
+              ],
+              Wrap(spacing: 5, runSpacing: 5, children: [
+                if (product.badges.any((badge) =>
+                    badge.toLowerCase().contains('vérifi') ||
+                    badge.toLowerCase().contains('verifi')))
+                  _PremiumBadge('✅ Vérifié', const Color(0xFFFFF4C5),
+                      const Color(0xFF6C5700)),
+                if (product.city != null)
+                  _PremiumBadge('📍 ${product.city!}', const Color(0xFFE9F7F1),
+                      const Color(0xFF08745D)),
+                if (_premiumConditionLabel(product.condition) != null)
+                  _PremiumBadge(_premiumConditionLabel(product.condition)!,
+                      const Color(0xFFF1F4F8), const Color(0xFF5E6F8A)),
+                if (product.category != null)
+                  _PremiumBadge('🏷️ ${product.category!}',
+                      const Color(0xFFEEF3FA), const Color(0xFF42658B)),
+                _PremiumBadge(
+                    '📏 ${product.distance ?? 'Distance non communiquée'}',
+                    const Color(0xFFFFF4D9),
+                    const Color(0xFF8B6500)),
+                if (product.availability != null)
+                  _PremiumBadge(
+                      product.availability!.toLowerCase().contains('réserv')
+                          ? '🔴 ${product.availability!}'
+                          : '🟢 ${product.availability!}',
+                      const Color(0xFFF0F7F3),
+                      const Color(0xFF2B6654)),
+              ]),
+              if (product.rating != null || product.sellerLabel != null) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Icon(Icons.star_rounded,
+                      size: 17, color: Color(0xFFF5B82E)),
+                  const SizedBox(width: 4),
+                  Expanded(
+                      child: Text(
+                          [
+                            if (product.rating != null) product.rating!,
+                            if (product.sellerLabel != null)
+                              product.sellerLabel!
+                          ].join(' · '),
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF52675F)))),
+                ]),
+              ],
+              const SizedBox(height: 9),
+              if (product.displayDetails != null ||
+                  product.displayMarketComparison != null ||
+                  product.displayComparativeAnalysis != null ||
+                  product.displayRecommendation != null) ...[
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'ANALYSE DE BOT',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: Color(0xFF6D3FD1),
+                    ),
+                  ),
+                ),
+                if (product.displayDetails != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.description_outlined,
+                      title: 'Détails',
+                      text: product.displayDetails!),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayMarketComparison != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.bar_chart_rounded,
+                      title: 'Marché',
+                      text: product.displayMarketComparison!,
+                      accent: const Color(0xFF08745D),
+                      background: const Color(0xFFEAF8F2)),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayComparativeAnalysis != null) ...[
+                  _PremiumInformationPanel(
+                      icon: Icons.compare_arrows_rounded,
+                      title: 'Comparaison',
+                      text: product.displayComparativeAnalysis!,
+                      accent: const Color(0xFF42658B),
+                      background: const Color(0xFFF1F5FB)),
+                  const SizedBox(height: 8),
+                ],
+                if (product.displayRecommendation != null)
+                  _PremiumInformationPanel(
+                      icon: Icons.lightbulb_outline_rounded,
+                      title: 'Avis de Bot',
+                      text: product.displayRecommendation!,
+                      accent: const Color(0xFF8B6500),
+                      background: const Color(0xFFFFF8E6)),
+              ],
+              const SizedBox(height: 9),
+              Row(children: [
+                Icon(
+                    product.images.isEmpty
+                        ? Icons.image_not_supported_outlined
+                        : Icons.photo_library_outlined,
+                    size: 17,
+                    color: const Color(0xFF5D746B)),
+                const SizedBox(width: 6),
+                Expanded(
+                    child: Text(
+                        product.images.isEmpty
+                            ? 'Aucune photo fournie'
+                            : '${product.images.length} photo${product.images.length > 1 ? 's' : ''} · balayez pour toutes les voir',
+                        style: const TextStyle(
+                            color: Color(0xFF52675F),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700))),
+              ]),
+              const SizedBox(height: 12),
+              if (actionsEnabled && product.actions.isNotEmpty)
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: product.actions.asMap().entries.map((entry) {
+                    final action = entry.value;
+                    final primary = entry.key == 0;
+                    final tone = _smartActionTone(action.payload);
+                    return SizedBox(
+                      width: double.infinity,
+                      child: primary
+                          ? FilledButton(
+                              onPressed: onPayload == null
+                                  ? null
+                                  : () {
                                       if (liveCommerceActionKind(action.payload) ==
                                           LiveCommerceActionKind.interest) {
                                         _showGuidedInterestSheet(
