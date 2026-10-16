@@ -63,6 +63,74 @@ void main() {
     expect(liveMatchFromGuideAction('ouvrir-match-data:invalide', messages), isNull);
   });
 
+  testWidgets('guide shows compact buttons and opens the selected discussion',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    String? tapped;
+    final message = LiveMessage(
+      id: 'guide-choices',
+      text: 'Vous avez 2 négociations en cours.',
+      direction: 'out',
+      createdAt: DateTime.utc(2026, 10, 16),
+      meta: {
+        'actions': [
+          for (final seller in ['vendeur-1', 'vendeur-2'])
+            {
+              'id': 'ouvrir-match:article-1',
+              'label': '📩 $seller',
+              'article_id': 'article-1',
+              'thread_id': 'thread-$seller',
+              'counterpart_user_id': seller,
+              'role': 'buyer',
+              'title': 'Article',
+            },
+        ],
+      },
+    );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: LiveSmartTimeline(
+        messages: [message],
+        onPayload: (payload) => tapped = payload,
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('📩 vendeur-1'), findsOneWidget);
+    expect(find.text('📩 vendeur-2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('📩 vendeur-2'));
+    await tester.pump();
+    final selected = liveMatchFromGuideAction(tapped!, [message]);
+    expect(selected?.counterpartUserId, 'vendeur-2');
+    expect(selected?.threadId, 'thread-vendeur-2');
+  });
+
+  testWidgets('guide result shortcut sends the same interest command as Web',
+      (tester) async {
+    String? tapped;
+    final message = LiveMessage(
+      id: 'guide-results',
+      text: 'Voici vos derniers résultats.',
+      direction: 'out',
+      createdAt: DateTime.utc(2026, 10, 16),
+      meta: {
+        'actions': [
+          {'id': 'intéressé 1', 'label': '👉 Intéressé 1'},
+        ],
+      },
+    );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: LiveSmartTimeline(
+        messages: [message],
+        onPayload: (payload) => tapped = payload,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('👉 Intéressé 1'));
+    expect(tapped, 'intéressé 1');
+  });
+
   testWidgets('renders one smart card and one associated photo per article',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(430, 1100));
