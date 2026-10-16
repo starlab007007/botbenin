@@ -72,11 +72,11 @@ export function WaouhAvatarGuideBar({
   const cadence: AvatarCadence = prefs?.cadence ?? "daily";
   return (
     <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/80 via-white to-cyan-50/70" data-testid="avatar-guide-bar">
-    <div className="flex items-center gap-2 px-3 py-1.5">
+    <div className="flex items-center gap-1.5 px-2 py-1 sm:gap-2 sm:px-3 sm:py-1.5">
       <WaouhAvatarOrb size={22} active={!busy} />
       <div className="min-w-0 flex-1 leading-tight">
         <div className="truncate text-[12px] font-black text-emerald-950">Votre avatar</div>
-        <div className="truncate text-[10px] text-slate-500">
+        <div className="hidden truncate text-[10px] text-slate-500 sm:block">
           {busy ? "Je fais le point…" : prefs ? nextPointLabel(prefs.next_briefing_at, cadence) : "Prêt à vous guider"}
         </div>
       </div>
@@ -84,7 +84,7 @@ export function WaouhAvatarGuideBar({
         type="button"
         onClick={onPoint}
         disabled={busy}
-        className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60"
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 disabled:opacity-60 sm:px-3 sm:text-[11px]"
       >
         {busy && <Loader2 className="h-3 w-3 animate-spin" />}
         Faire le point
@@ -187,7 +187,7 @@ export function WaouhAvatarGuideBar({
         </PopoverContent>
       </Popover>
     </div>
-    <div className="flex gap-1.5 overflow-x-auto px-3 pb-1.5 [scrollbar-width:none]" data-testid="avatar-mission-board" aria-label="Mission de l'avatar">
+    <div className="hidden gap-1.5 overflow-x-auto px-3 pb-1.5 [scrollbar-width:none] sm:flex" data-testid="avatar-mission-board" aria-label="Mission de l'avatar">
       {board && boardChips(board).length > 0 ? boardChips(board).map((c) => (
         <button
           key={c.key}
