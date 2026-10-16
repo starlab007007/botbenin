@@ -422,7 +422,7 @@ export async function buildSmartFallback(
         if (myTurn) {
           return {
             reply: `${intro}\n\n📩 *${title}* : offre de *${money(offer)}* en attente de *votre* réponse.\n\n✅ *OUI* pour accepter\n❌ *NON* pour refuser\n💬 *Je propose ${mid}* pour contre-proposer\n\n${outro}`,
-            actions: [openMatchAction(n, role, title, true), { id: `accept:${n.id}`, label: "✅ Accepter" }, { id: `counter:${n.id}`, label: "💬 Contre-proposer" }],
+            actions: [openMatchAction(n, role, title, true)],
           };
         }
         return {
