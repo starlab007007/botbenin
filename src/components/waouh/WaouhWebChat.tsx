@@ -990,7 +990,12 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             }));
           // Smart actions are normalized by the server/DB and carry the
           // predictive ordering. Legacy actions remain a compatibility fallback.
-          const bubbleActions = smartFallbackActions.length > 0 ? smartFallbackActions : legacyActions;
+          const guideActions = legacyActions.filter((action) => action.id?.startsWith("ouvrir-match:"));
+          // Préserver les actions spécifiques article × interlocuteur du guide.
+          const bubbleActions = guideActions.length > 0
+            ? [...guideActions, ...legacyActions.filter((action) => !guideActions.includes(action))]
+            : smartFallbackActions.length > 0 ? smartFallbackActions : legacyActions;
+          const hasGuideOpen = m.direction === "out" && guideActions.length > 0;
           return (
           <div
             key={m.id}
@@ -1045,11 +1050,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   </div>
                 )}
                 {rich.text && rich.text !== "(image)" && (
-                  <WaouhMessageText
-                    text={m.direction === "in" ? rich.text : rich.results.length ? compactResultsText(stripLegacy(rich.text)) : stripLegacy(rich.text)}
-                    isUser={m.direction === "in"}
-                    hasResults={rich.results.length > 0}
-                  />
+                  hasGuideOpen ? (
+                    <details className="group rounded-xl border border-emerald-100 bg-emerald-50/30 px-2.5 py-2">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[12px] font-black text-slate-900">
+                        <span>Vos discussions · {guideActions.length} accès direct{guideActions.length > 1 ? "s" : ""}</span>
+                        <span className="text-[10px] font-semibold text-emerald-700 group-open:hidden">Voir le bilan ↓</span>
+                        <span className="hidden text-[10px] font-semibold text-emerald-700 group-open:inline">Masquer ↑</span>
+                      </summary>
+                      <div className="mt-2 text-[12px]">
+                        <WaouhMessageText text={stripLegacy(rich.text)} isUser={false} hasResults={false} />
+                      </div>
+                    </details>
+                  ) : (
+                    <WaouhMessageText
+                      text={m.direction === "in" ? rich.text : rich.results.length ? compactResultsText(stripLegacy(rich.text)) : stripLegacy(rich.text)}
+                      isUser={m.direction === "in"}
+                      hasResults={rich.results.length > 0}
+                    />
+                  )
                 )}
 
                 {rich.results.length > 0 && (
@@ -1084,30 +1102,36 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 )}
 
                 {m.direction === "out" && bubbleActions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
-                    {bubbleActions.slice(0, 3).map((a, i) => (
+                  <div className={cn("flex gap-1.5 mt-2 not-prose", hasGuideOpen ? "flex-nowrap overflow-x-auto pb-1 [scrollbar-width:none]" : "flex-wrap")}>
+                    {bubbleActions.slice(0, hasGuideOpen ? 8 : 3).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
                         variant="secondary"
                         className={cn(
-                          "h-8 rounded-xl px-3 text-[11px] font-black",
+                          "h-8 shrink-0 rounded-xl px-2.5 text-[11px] font-black",
                           i === 0 ? "bg-slate-950 text-white hover:bg-slate-800" : ""
                         )}
                         onClick={async () => {
                           // Message guide : ouvre directement la fenêtre article × interlocuteur.
                           if (a.id.startsWith("ouvrir-match:")) {
                             const x = a as any;
+                            const targetThread = x.thread_id ?? null;
+                            const counterpart = x.counterpart_user_id ?? null;
+                            if (!targetThread && !counterpart) {
+                              toast({ title: "Discussion à actualiser", description: "L'interlocuteur n'est pas identifié. Actualisez le guide puis réessayez." });
+                              return;
+                            }
                             const detail = {
                               article_id: x.article_id || a.id.slice("ouvrir-match:".length),
-                              counterpart_user_id: x.counterpart_user_id ?? null,
-                              seller_user_id: null,
+                              counterpart_user_id: counterpart,
+                              seller_user_id: x.seller_user_id ?? null,
                               kind: x.role === "seller" ? "seller" : "buyer",
-                              title: x.title || "Annonce", price: null, city: null, photo: null,
-                              thread_id: x.thread_id ?? null, source: "smart_fallback",
+                              title: x.title || "Annonce", price: x.price ?? null,
+                              city: x.city ?? null, photo: x.photo ?? null,
+                              thread_id: targetThread, source: "avatar_guide",
                             };
                             window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
-                            window.setTimeout(() => window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail })), 120);
                             return;
                           }
                           // Boutons d'une bulle de l'avatar : mêmes actions que l'ancienne carte (jamais d'envoi sans ce tap).

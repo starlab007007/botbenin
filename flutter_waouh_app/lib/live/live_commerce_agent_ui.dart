@@ -298,26 +298,48 @@ Future<void> showLiveUnifiedIntelligenceSheet(
   int approvalCount = 0,
   VoidCallback? onNewGoal,
   VoidCallback? onOpenAgentic,
-}) =>
-    showModalBottomSheet<void>(
+}) {
+  Widget buildDetails() => LiveUnifiedIntelligenceSheet(
+    messages: messages,
+    busy: busy,
+    match: match,
+    missionCount: missionCount,
+    watchCount: watchCount,
+    approvalCount: approvalCount,
+    onNewGoal: onNewGoal,
+    onOpenAgentic: onOpenAgentic,
+  );
+
+  // Tablette : fiche latérale. Téléphone : tiroir du bas.
+  if (MediaQuery.sizeOf(context).width >= 840) {
+    return showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: .90,
-        child: LiveUnifiedIntelligenceSheet(
-          messages: messages,
-          busy: busy,
-          match: match,
-          missionCount: missionCount,
-          watchCount: watchCount,
-          approvalCount: approvalCount,
-          onNewGoal: onNewGoal,
-          onOpenAgentic: onOpenAgentic,
+      builder: (_) => Dialog(
+        alignment: Alignment.centerRight,
+        insetPadding: EdgeInsets.zero,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(left: Radius.circular(24)),
+        ),
+        child: SizedBox(
+          width: 440,
+          height: MediaQuery.sizeOf(context).height,
+          child: buildDetails(),
         ),
       ),
     );
+  }
+
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => FractionallySizedBox(
+      heightFactor: .90,
+      child: buildDetails(),
+    ),
+  );
+}
 
 class LiveUnifiedIntelligenceSheet extends StatelessWidget {
   const LiveUnifiedIntelligenceSheet({
