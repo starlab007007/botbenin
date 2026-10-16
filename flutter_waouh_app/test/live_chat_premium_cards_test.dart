@@ -106,6 +106,52 @@ void main() {
     expect(selected?.threadId, 'thread-vendeur-2');
   });
 
+  testWidgets('specific Deal Room action remains visible over generic smart actions',
+      (tester) async {
+    String? chosen;
+    final message = LiveMessage(
+      id: 'guide-smart-priority',
+      text: 'Vous avez 1 négociation en cours. Ouvrez l’article.',
+      direction: 'out',
+      createdAt: DateTime.utc(2026, 10, 16),
+      meta: {
+        'smart': {
+          'actions': [
+            {'id': 'avatar:point', 'label': 'Résumé général'},
+          ],
+        },
+        'actions': [
+          {
+            'id': 'ouvrir-match:article-7',
+            'label': 'Ouvrir Bic',
+            'article_id': 'article-7',
+            'thread_id': 'thread-bic-seller-9',
+            'counterpart_user_id': 'seller-9',
+            'role': 'buyer',
+            'title': 'Bic',
+          },
+        ],
+      },
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LiveSmartTimeline(
+          messages: [message],
+          onPayload: (payload) => chosen = payload,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Lire le bilan complet'), findsOneWidget);
+    expect(find.text('Ouvrir Bic'), findsOneWidget);
+    expect(find.text('Résumé général'), findsNothing);
+    await tester.tap(find.text('Ouvrir Bic'));
+    await tester.pump();
+    final match = liveMatchFromGuideAction(chosen!, [message]);
+    expect(match?.threadId, 'thread-bic-seller-9');
+    expect(match?.counterpartUserId, 'seller-9');
+  });
+
   testWidgets('guide result shortcut sends the same interest command as Web',
       (tester) async {
     String? tapped;
