@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
+import 'live_match_navigation.dart';
 import 'live_theme.dart';
 import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
@@ -337,15 +338,21 @@ class LiveMessageBubble extends StatelessWidget {
                 Wrap(
                   spacing: 7,
                   runSpacing: 7,
-                  children: actions.map((action) {
-                    final tone = _smartActionTone(action.payload);
+                  children: actions.asMap().entries.map((entry) {
+                    final action = entry.value;
+                    final guide = action.payload.startsWith('ouvrir-match-data:');
+                    final tone = guide
+                        ? const Color(0xFF315BD8)
+                        : _smartActionTone(action.payload);
                     return FilledButton.tonal(
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         side: BorderSide(color: tone.withValues(alpha: .45)),
-                        foregroundColor: tone,
-                        backgroundColor: tone.withValues(alpha: .10),
+                        foregroundColor: guide && entry.key == 0 ? Colors.white : tone,
+                        backgroundColor: guide && entry.key == 0
+                            ? const Color(0xFF172A4D)
+                            : tone.withValues(alpha: .10),
                       ),
                       onPressed: () {
                         if (action.navigates && action.route != null) {
@@ -362,9 +369,16 @@ class LiveMessageBubble extends StatelessWidget {
                           context.go(action.route!);
                         }
                       },
-                      child: Text(action.label,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 13)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(action.label,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 12)),
+                        if (guide) ...[
+                          const SizedBox(width: 5),
+                          const Icon(Icons.arrow_forward_rounded, size: 15),
+                        ],
+                      ]),
                     );
                   }).toList(),
                 ),
@@ -789,8 +803,11 @@ List<_SmartMessageAction> _smartMessageActions(
           final label = (raw['label'] ?? raw['title'] ?? raw['id'] ?? 'Choisir')
               .toString()
               .trim();
-          final payload =
+          final rawPayload =
               (raw['id'] ?? raw['action'] ?? raw['key'] ?? label).toString().trim();
+          final payload = rawPayload.startsWith('ouvrir-match:')
+              ? liveGuideMatchPayload(raw)
+              : rawPayload;
           final route = liveText(raw['route'] ?? raw['url']).trim();
           final kind = liveText(raw['kind'], 'legacy').trim().toLowerCase();
           return _SmartMessageAction(
