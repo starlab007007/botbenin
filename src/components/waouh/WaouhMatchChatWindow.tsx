@@ -133,6 +133,8 @@ export function WaouhMatchChatWindow({
   const initialCached = (getCached?.(match.key) ?? []).slice(-PAGE_INITIAL);
   const [messages, setMessagesState] = useState<Msg[]>(() => initialCached);
   const [input, setInput] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const isMobile = useIsMobile();
   // Parcours v3 : « Poser une question » → le prochain message part au vendeur.
   const [askMode, setAskMode] = useState(false);
   const [sending, setSending] = useState(false);
@@ -957,7 +959,7 @@ export function WaouhMatchChatWindow({
       </Sheet>
 
       {/* Grand écran : contexte produit séparé du fil pour que la discussion reste lisible. */}
-      <aside className="absolute bottom-[68px] right-3 top-[176px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
+      <aside className="absolute bottom-[68px] right-3 top-[64px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
         <div className="relative h-[170px] shrink-0 overflow-hidden bg-slate-100">
           {match.photo ? (
             <img src={match.photo} alt={match.title} className="h-full w-full object-cover" />
