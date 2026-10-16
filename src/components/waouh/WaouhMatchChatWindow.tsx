@@ -27,6 +27,9 @@ import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 import { WaouhDealStepper } from "./WaouhDealStepper";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { JOURNEY_STEPS } from "@/lib/waouh/commerceAction";
 import { readWaouhSmartEnvelope, waouhSmartActions } from "@/lib/waouh/smartPayload";
 import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
@@ -866,12 +869,13 @@ export function WaouhMatchChatWindow({
       })
     : null;
 
+  const stageIdx = JOURNEY_STEPS.findIndex((st) => st.key === copilotStage);
+
   return (
     <div data-waouh-ui="bot-copilot-v2" className="relative flex h-full w-full flex-col bg-background">
-      <WaouhJourneyTracker threadId={match.thread_id || serverThreadId} />
       {/* Deal Room — 1 article × 1 interlocuteur : un seul en-tête fin (fiche + progression). */}
-      <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 pb-1.5 pt-2 backdrop-blur">
-        <div className="flex items-center gap-2.5">
+      <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 py-1.5 backdrop-blur">
+        <button type="button" onClick={() => setDetailsOpen(true)} aria-label="Voir le détail du deal" className="flex w-full items-center gap-2.5 text-left">
           {match.photo ? (
             <img src={match.photo} alt="" className="h-9 w-9 rounded-xl border border-white object-cover shadow-sm ring-1 ring-emerald-100" />
           ) : (
@@ -901,17 +905,29 @@ export function WaouhMatchChatWindow({
               <ShieldCheck className="h-4 w-4" />
             </span>
           </div>
+        </button>
+        <div className="mt-1 flex items-center gap-2">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-emerald-50">
+            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.max(1, stageIdx + 1) / JOURNEY_STEPS.length * 100}%` }} />
+          </div>
+          <span className="shrink-0 text-[10px] font-bold text-emerald-800">{JOURNEY_STEPS[Math.max(0, stageIdx)]?.label} {Math.max(1, stageIdx + 1)}/{JOURNEY_STEPS.length}</span>
+          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">🤖 Le bot négocie</span>
         </div>
+      </div>
+
+      <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <SheetContent side={isMobile ? "bottom" : "right"} className={cn("overflow-y-auto p-4", isMobile ? "max-h-[85dvh] rounded-t-3xl" : "w-[400px] sm:max-w-[400px]")}>
+          <SheetHeader><SheetTitle className="text-left text-base">{match.title}</SheetTitle></SheetHeader>
+          <div className="mt-3 space-y-3">
+            <WaouhJourneyTracker threadId={match.thread_id || serverThreadId} />
         {/* Parcours v3 : progression en 7 étapes, dans le même bloc. */}
         <WaouhDealStepper
           stage={copilotStage}
-          className="mt-1 border-0 bg-transparent"
+          className="border-0 bg-transparent"
         />
-      </div>
-
       {/* UI V3 — Bot conduit la Deal Room : objectif, position, prochaine étape. */}
       <BotDealCopilot
-        className="mx-2 mt-1 shrink-0"
+        className=""
         title={match.title}
         role={match.kind === "buyer" ? "buyer" : "seller"}
         stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
@@ -921,7 +937,7 @@ export function WaouhMatchChatWindow({
       />
 
       {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
-      <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
+      <details open className="rounded-xl border border-emerald-100 bg-white/90">
         <summary className="cursor-pointer select-none px-3 py-1.5 text-[10px] font-bold text-emerald-800">
           ✨ Résumé IA de la négociation
         </summary>
@@ -935,6 +951,10 @@ export function WaouhMatchChatWindow({
           />
         </div>
       </details>
+
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Grand écran : contexte produit séparé du fil pour que la discussion reste lisible. */}
       <aside className="absolute bottom-[68px] right-3 top-[176px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
