@@ -838,7 +838,7 @@ List<_SmartMessageAction> _smartMessageActions(
       : const <Map>[];
   // Les actions de la vraie Deal Room priment sur les suggestions génériques.
   final rawActions = guideActions.isNotEmpty
-      ? guideActions
+      ? legacyActions
       : smartActions is List && smartActions.isNotEmpty
           ? smartActions
           : legacyActions;
