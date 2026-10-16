@@ -993,7 +993,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           const guideActions = legacyActions.filter((action) => action.id?.startsWith("ouvrir-match:"));
           // Préserver les actions spécifiques article × interlocuteur du guide.
           const bubbleActions = guideActions.length > 0
-            ? guideActions
+            ? [...guideActions, ...legacyActions.filter((action) => !guideActions.includes(action))]
             : smartFallbackActions.length > 0 ? smartFallbackActions : legacyActions;
           const hasGuideOpen = m.direction === "out" && guideActions.length > 0;
           return (
@@ -1103,7 +1103,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
                 {m.direction === "out" && bubbleActions.length > 0 && (
                   <div className={cn("flex gap-1.5 mt-2 not-prose", hasGuideOpen ? "flex-nowrap overflow-x-auto pb-1 [scrollbar-width:none]" : "flex-wrap")}>
-                    {bubbleActions.slice(0, 3).map((a, i) => (
+                    {bubbleActions.slice(0, hasGuideOpen ? 8 : 3).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
