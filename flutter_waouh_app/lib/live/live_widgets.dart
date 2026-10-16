@@ -201,9 +201,13 @@ class LiveMessageBubble extends StatelessWidget {
     final actions = actionsEnabled
         ? _smartMessageActions(message, products)
         : const <_SmartMessageAction>[];
-    final isGuide = !message.outgoing && actions.any((action) =>
-        action.payload.startsWith('ouvrir-match-data:') ||
-        action.payload.startsWith('ouvrir-match:'));
+    final sourceActions = message.meta['actions'];
+    final isGuide = !message.outgoing &&
+        (actions.any((action) =>
+            action.payload.startsWith('ouvrir-match-data:') ||
+            action.payload.startsWith('ouvrir-match:')) ||
+         (sourceActions is List && sourceActions.whereType<Map>().any((action) =>
+             '${action['id'] ?? ''}'.startsWith('ouvrir-match:'))));
     final guideCount = RegExp(r'(\d+)\s+négociations?', caseSensitive: false)
         .firstMatch(displayText)?.group(1);
     final outgoing = message.outgoing;
