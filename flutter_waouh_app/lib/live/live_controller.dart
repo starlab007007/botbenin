@@ -176,10 +176,14 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startNewChat() async {
+    // Écran vide tout de suite : rien d'antérieur ne revient (cache, reconnexion).
+    _mainOpenedAt = DateTime.now();
+    _mainHistoryVisible = false;
     await session.startNewThread();
     _composerSeed = null;
     _composerMeta = const {};
     notifyListeners();
+    unawaited(_refreshMainNow?.call());
   }
 
   void setComposerSeed(String value, {Map<String, dynamic> meta = const {}}) {
@@ -981,7 +985,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   Future<List<LiveMessage>> _cachedMainMessages() async {
     final scope = await session.sessionId;
     return _mergeMessages(
-      await offline.messages(scope),
+      _freshOnly(await offline.messages(scope)),
       await _pendingMainMessages(),
     );
   }
@@ -1009,9 +1013,23 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Fil principal épuré : seuls les messages échangés depuis l'ouverture de
   /// l'application sont affichés. L'ancien historique reste sur le serveur.
-  static final DateTime _mainOpenedAt = DateTime.now();
+  /// Remis à zéro par « Nouveau chat » : aucun ancien message ne revient.
+  DateTime _mainOpenedAt = DateTime.now();
 
-  List<LiveMessage> _freshOnly(List<LiveMessage> rows) => rows
+  /// Parité Web : « Voir l'historique » affiche les anciens messages à la demande.
+  bool _mainHistoryVisible = false;
+  bool get mainHistoryVisible => _mainHistoryVisible;
+
+  Future<void> showMainHistory() async {
+    if (_mainHistoryVisible) return;
+    _mainHistoryVisible = true;
+    notifyListeners();
+    await _refreshMainNow?.call();
+  }
+
+  List<LiveMessage> _freshOnly(List<LiveMessage> rows) => _mainHistoryVisible
+      ? rows
+      : rows
       .where((m) => !m.createdAt.isBefore(
           _mainOpenedAt.subtract(const Duration(seconds: 5))))
       .toList();
