@@ -757,6 +757,18 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                         ],
                       ),
                     ),
+                  if (_controller.matchHasMore(match))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            unawaited(_controller.loadMoreMatch(match)),
+                        icon: const Icon(Icons.history, size: 16),
+                        label: const Text('Voir plus',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
                   Expanded(
                     child: LiveSmartTimeline(
                       messages: merged,
@@ -767,7 +779,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec Bot.'
                               : 'Commencez la discussion sur ce produit.',
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
                     ),
                   ),
                   if (!pendingThread)

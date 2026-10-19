@@ -14,6 +14,14 @@ final Map<String, List<LiveMessage>> _waouhScopeMessageCache =
 /// comme le Web) : sert à verrouiller les conversations clôturées.
 final Map<String, String> _waouhArticleStatusCache = <String, String>{};
 
+/// Parité Web : 3 derniers messages à l'ouverture, puis « Voir plus » (+20).
+const int liveMatchInitialPage = 3;
+const int liveMatchMorePage = 20;
+final Map<String, int> _waouhScopeLimit = <String, int>{};
+final Map<String, bool> _waouhScopeHasMore = <String, bool>{};
+final Map<String, Future<void> Function()> _waouhScopeRefresh =
+    <String, Future<void> Function()>{};
+
 List<LiveMessage> _isolatedMessages(
   List<LiveMessage> values,
   LiveMatch match, {
@@ -45,6 +53,24 @@ List<LiveMessage> _isolatedMessages(
 }
 
 extension LiveWaouhControllerMatches on LiveWaouhController {
+  String _scopeKey(LiveMatch match) => liveMatchMessageCacheKey(
+        match: match,
+        authUserId: auth.user?.id,
+        controllerIdentity: identityHashCode(this),
+      );
+
+  /// Vrai quand des messages plus anciens existent pour cette fenêtre.
+  bool matchHasMore(LiveMatch match) =>
+      _waouhScopeHasMore[_scopeKey(match)] ?? false;
+
+  /// « Voir plus » : charge 20 messages plus anciens.
+  Future<void> loadMoreMatch(LiveMatch match) async {
+    final key = _scopeKey(match);
+    _waouhScopeLimit[key] =
+        (_waouhScopeLimit[key] ?? liveMatchInitialPage) + liveMatchMorePage;
+    await _waouhScopeRefresh[key]?.call();
+  }
+
   /// Statut de l'article de la Deal Room (dernier renvoi de waouh-match-history).
   String? matchArticleStatus(LiveMatch match) =>
       _waouhArticleStatusCache[liveMatchMessageCacheKey(
@@ -95,14 +121,20 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
     var loading = false;
     var closed = false;
 
+    _waouhScopeLimit[cacheKey] = liveMatchInitialPage;
+    _waouhScopeHasMore[cacheKey] = false;
+
     Future<void> refresh() async {
       if (loading || closed) return;
       loading = true;
       try {
+        final limit = _waouhScopeLimit[cacheKey] ?? liveMatchInitialPage;
         final result = await history.loadResult(
           match: effectiveMatch,
           authUserId: auth.user?.id,
+          limit: limit,
         );
+        _waouhScopeHasMore[cacheKey] = result.messages.length >= limit;
         final articleStatus = result.articleStatus?.trim() ?? '';
         if (articleStatus.isNotEmpty) {
           _waouhArticleStatusCache[cacheKey] = articleStatus;
@@ -134,6 +166,8 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
         loading = false;
       }
     }
+
+    _waouhScopeRefresh[cacheKey] = refresh;
 
     bool recordBelongsToScope(Map<String, dynamic> record) {
       if (record.isEmpty) return false;

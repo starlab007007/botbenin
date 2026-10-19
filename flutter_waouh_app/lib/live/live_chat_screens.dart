@@ -569,6 +569,19 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       );
 
                   return Column(children: [
+                    // Parité Web : le chat s'ouvre vide ; l'ancien fil se charge à la demande.
+                    if (!controller.mainHistoryVisible)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              unawaited(controller.showMainHistory()),
+                          icon: const Icon(Icons.history, size: 16),
+                          label: const Text("Voir l'historique",
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
                     if (!hasGoal)
                       _LiveObjectiveLauncher(
                         avatarName: avatar.name,
