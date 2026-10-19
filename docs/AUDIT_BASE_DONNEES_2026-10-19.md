@@ -2,6 +2,44 @@
 
 Supabase `mvynepqulhflxtyymtzs`. Aucune donnée modifiée.
 
+## Nettoyage exécuté le 19/10/2026 après confirmation de la sauvegarde
+
+Le texte ci-dessous décrit l'audit initial ; les chiffres de ce bilan remplacent ses estimations pour le nettoyage effectué.
+
+- Sauvegarde confirmée par le propriétaire avant suppression.
+- 96 articles de test supprimés : marques explicites test/audit/E2E et noms de simulation comme test13 ou Produit test2. Aucun simple titre « Bic » supprimé.
+- 371 messages, 70 fenêtres, 71 négociations, 60 ventes de simulation et 780 notifications retirés dans le périmètre des articles de test.
+- 45 résultats de tests automatiques retirés.
+- 1 247 anciens échecs WhatsApp retirés, ainsi que des envois non en attente liés aux messages de test (1 393 entrées retirées au total).
+- 247 comptes conservés ; profils, rôles, abonnements, paiements et modules métier non nettoyés.
+- Tous les articles associés à une transaction, une offre signée ou un paiement constaté ont été protégés. L'article « Stylo Bic TEST RECETTE A0310 » reste pour cette raison.
+- Contrôles transactionnels : nombre de comptes, nombre de ventes hors périmètre de test et nombre d'envois en attente inchangés lors de chaque suppression.
+
+### État contrôlé après nettoyage
+
+| Élément | Restant |
+|---|---:|
+| Comptes | 247 |
+| Articles | 405 |
+| Messages | 8 998 |
+| Fenêtres | 357 |
+| Négociations | 317 |
+| Ventes hors périmètre supprimé | 88 |
+| Notifications | 1 988 |
+| File d'envoi | 2 317 |
+| Envois en attente | 18 |
+| Résultats de tests automatiques | 0 |
+
+Les 244 tests du chat passent. Aucun message ne référence une fenêtre inexistante. 286 messages avaient encore une référence à un article absent lors du contrôle après la première opération ; les exemples incluent des produits réels, donc ils ne sont pas supprimés comme tests et ce point n'est pas déclaré corrigé.
+
+### Éléments volontairement non supprimés / restant à traiter
+
+- Les anciennes discussions réelles et les visiteurs anonymes : leur ancienneté ou leur absence de message ne prouve pas qu'il s'agit de tests. Leur suppression dépasse la demande « uniquement tests ».
+- Les données des comptes nommés test sont conservées sauf celles rattachées aux articles de test identifiés ; aucun compte supprimé.
+- Photos physiques : aucune suppression dans le stockage, faute d'identification fiable des fichiers exclusivement de test et d'accès de suppression au stockage. Les photos peuvent être partagées avec des produits réels.
+- Pas de suppression de table, pas de changement du schéma unifié, pas de compactage forcé des anciennes tables ; aucun gain d'espace disque physique affirmé.
+- Aucun essai authentifié web/Flutter/WhatsApp exécuté dans cette opération de nettoyage ; les contrôles portent sur la base et les tests automatisés du chat.
+
 ## Garder (aucun changement)
 auth.users (247), profiles, user_roles, user_profiles, subscriptions, subscription_plans,
 payment_transactions, waouh_partner_*, local_businesses, waouh_commerce_entities, waouh_entity_contacts (1 880),
