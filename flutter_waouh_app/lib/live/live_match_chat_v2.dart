@@ -757,6 +757,18 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                         ],
                       ),
                     ),
+                  if (_controller.matchHasMore(match))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            unawaited(_controller.loadMoreMatch(match)),
+                        icon: const Icon(Icons.history, size: 16),
+                        label: const Text('Voir plus',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
                   Expanded(
                     child: LiveSmartTimeline(
                       messages: merged,
