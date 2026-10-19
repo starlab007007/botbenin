@@ -779,7 +779,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec Bot.'
                               : 'Commencez la discussion sur ce produit.',
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
                     ),
                   ),
                   if (!pendingThread)
