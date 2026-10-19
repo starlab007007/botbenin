@@ -692,12 +692,8 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                               match: match,
                             ),
                           ),
-                          LiveDealStepper(
-                            stage: liveLatestStage(merged) ??
-                                (match.negotiationId != null
-                                    ? 'negotiation'
-                                    : null),
-                          ),
+                          // Parité Web : la frise 7 étapes n'occupe plus le haut
+                          // de l'écran ; elle reste visible dans la feuille détail.
                         ],
                       ),
                     ),
