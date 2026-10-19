@@ -3,11 +3,11 @@
 ## Fenêtres de chat
 | Point | Web | Flutter | État |
 |---|---|---|---|
-| Chat principal à l'ouverture | vide + « Voir l'historique » | vide (messages depuis l'ouverture), pas de bouton | écart mineur |
-| Deal Room : historique | 3 derniers + « Voir plus » | 3 derniers, pas de « Voir plus » | à faire |
+| Chat principal à l'ouverture | vide + « Voir l'historique » | vide + « Voir l'historique » ; Nouveau chat remet à zéro | aligné |
+| Deal Room : historique | 3 derniers + « Voir plus » | 3 derniers + « Voir plus » (+20) | aligné |
 | En-tête Deal Room | bande compacte + volet détail | bannière + puce bot 1 ligne | aligné |
 | Frise 7 étapes | dans le volet détail | retirée du haut (corrigé ce jour) | aligné |
-| Boutons d'action des messages guides | oui | non | à faire |
+| Boutons d'action des messages guides | oui | oui (`ouvrir-match:` / `ouvrir-deal:` déjà gérés) | aligné |
 | Envoi, boutons serveur v3, clôture, correlation_id | — | — | aligné (tests de parité) |
 | Isolation 1 fenêtre = 1 article × 1 interlocuteur | — | — | aligné |
 
