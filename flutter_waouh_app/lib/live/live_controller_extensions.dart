@@ -121,14 +121,20 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
     var loading = false;
     var closed = false;
 
+    _waouhScopeLimit[cacheKey] = liveMatchInitialPage;
+    _waouhScopeHasMore[cacheKey] = false;
+
     Future<void> refresh() async {
       if (loading || closed) return;
       loading = true;
       try {
+        final limit = _waouhScopeLimit[cacheKey] ?? liveMatchInitialPage;
         final result = await history.loadResult(
           match: effectiveMatch,
           authUserId: auth.user?.id,
+          limit: limit,
         );
+        _waouhScopeHasMore[cacheKey] = result.messages.length >= limit;
         final articleStatus = result.articleStatus?.trim() ?? '';
         if (articleStatus.isNotEmpty) {
           _waouhArticleStatusCache[cacheKey] = articleStatus;
