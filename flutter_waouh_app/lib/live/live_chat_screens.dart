@@ -39,6 +39,8 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   final ValueNotifier<List<LiveMessage>> _searchFeed = ValueNotifier<List<LiveMessage>>(const <LiveMessage>[]);
   late final LiveWaouhController _controller;
   bool _interestInFlight = false;
+  bool _showAvatarPanel = false;
+  bool _showQuickTools = false;
   bool _interestNavigationFailed = false;
   final _avatarBarKey = GlobalKey<LiveAvatarGuideBarState>();
   // L'avatar « écrit » : ses bulles en direct apparaissent l'une après l'autre (historique : d'un coup).
@@ -521,12 +523,44 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         ],
       ),
       body: Column(children: [
-        if (context.watch<legacy.AuthController>().signedIn)
-          LiveAvatarGuideBar(
-            key: _avatarBarKey,
-            service: _avatarService,
-            sessionId: () async => await _controller.session.sessionId,
+        if (context.watch<legacy.AuthController>().signedIn) ...[
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF4FBF8),
+              border: Border(bottom: BorderSide(color: Color(0xFFDCEDE5))),
+            ),
+            child: Row(children: [
+              const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFF08745D)),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text('Avatar actif · Suivi disponible',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF245449))),
+              ),
+              TextButton(
+                onPressed: () async => _avatarBarKey.currentState?.runPoint('now'),
+                child: const Text('Faire le point', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+              ),
+              IconButton(
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 32),
+                padding: EdgeInsets.zero,
+                tooltip: _showAvatarPanel ? 'Masquer le suivi' : 'Voir le suivi Avatar',
+                onPressed: () => setState(() => _showAvatarPanel = !_showAvatarPanel),
+                icon: Icon(_showAvatarPanel ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 20),
+              ),
+            ]),
           ),
+          Offstage(
+            offstage: !_showAvatarPanel,
+            child: LiveAvatarGuideBar(
+              key: _avatarBarKey,
+              service: _avatarService,
+              sessionId: () async => await _controller.session.sessionId,
+            ),
+          ),
+        ],
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
                 stream: _messageStream,
@@ -595,28 +629,53 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                         onAvatar: () => context.push('/app/avatar'),
                       )
                     else ...[
-                      LiveCommerceAgentBar(
-                        messages: messages,
-                        busy: waiting,
-                        compact: true,
-                        onTap: openIntelligence,
+                      Container(
+                        height: 36,
+                        color: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(children: [
+                          const Icon(Icons.smart_toy_outlined, size: 16, color: Color(0xFF08745D)),
+                          const SizedBox(width: 6),
+                          const Expanded(child: Text('Votre conversation avec Bot',
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF52645D)))),
+                          TextButton.icon(
+                            onPressed: openIntelligence,
+                            icon: const Icon(Icons.insights_outlined, size: 15),
+                            label: const Text('Suivi', style: TextStyle(fontSize: 11)),
+                          ),
+                          IconButton(
+                            constraints: const BoxConstraints(minWidth: 34, minHeight: 32),
+                            padding: EdgeInsets.zero,
+                            tooltip: _showQuickTools ? 'Masquer les actions' : 'Afficher les actions',
+                            onPressed: () => setState(() => _showQuickTools = !_showQuickTools),
+                            icon: Icon(_showQuickTools ? Icons.expand_less_rounded : Icons.tune_rounded, size: 19),
+                          ),
+                        ]),
                       ),
-                      LiveSmartComposerBar(
-                        messages: messages,
-                        busy: waiting,
-                        onPrompt: seedGoal,
-                        onSell: _openSellForm,
-                        onMuse: openIntelligence,
-                        onLocation: () async {
-                          await controller.useDeviceLocation();
-                          if (!mounted) return;
-                          final position = controller.position;
-                          _notice(position.available
-                              ? 'Position ajoutée au prochain message.'
-                              : (position.errorMessage ??
-                                  'Position GPS indisponible.'));
-                        },
-                      ),
+                      if (_showQuickTools) ...[
+                        LiveCommerceAgentBar(
+                          messages: messages,
+                          busy: waiting,
+                          compact: true,
+                          onTap: openIntelligence,
+                        ),
+                        LiveSmartComposerBar(
+                          messages: messages,
+                          busy: waiting,
+                          onPrompt: seedGoal,
+                          onSell: _openSellForm,
+                          onMuse: openIntelligence,
+                          onLocation: () async {
+                            await controller.useDeviceLocation();
+                            if (!mounted) return;
+                            final position = controller.position;
+                            _notice(position.available
+                                ? 'Position ajoutée au prochain message.'
+                                : (position.errorMessage ?? 'Position GPS indisponible.'));
+                          },
+                        ),
+                      ],
                     ],
                     Expanded(
                       child: LiveSmartTimeline(

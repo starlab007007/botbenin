@@ -201,6 +201,15 @@ class LiveMessageBubble extends StatelessWidget {
     final actions = actionsEnabled
         ? _smartMessageActions(message, products)
         : const <_SmartMessageAction>[];
+    final sourceActions = message.meta['actions'];
+    final isGuide = !message.outgoing &&
+        (actions.any((action) =>
+            action.payload.startsWith('ouvrir-match-data:') ||
+            action.payload.startsWith('ouvrir-match:')) ||
+         (sourceActions is List && sourceActions.whereType<Map>().any((action) =>
+             '${action['id'] ?? ''}'.startsWith('ouvrir-match:'))));
+    final guideCount = RegExp(r'(\d+)\s+négociations?', caseSensitive: false)
+        .firstMatch(displayText)?.group(1);
     final outgoing = message.outgoing;
     final delivery = message.meta['delivery_state']?.toString() ?? 'delivered';
     final pending = delivery == 'sending' || delivery == 'queued';
@@ -276,14 +285,45 @@ class LiveMessageBubble extends StatelessWidget {
                 if (message.text.isNotEmpty) const SizedBox(height: 9),
               ],
               if (displayText.isNotEmpty && products.isEmpty)
-                SelectionArea(
-                  child: _LiveRevealText(
-                    messageId: message.id,
-                    createdAt: message.createdAt,
-                    animate: !outgoing && !pending,
-                    text: displayText,
-                  ),
-                ),
+                isGuide
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            guideCount == null
+                                ? 'Discussions disponibles'
+                                : '$guideCount négociation(s) à suivre',
+                            style: const TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w900,
+                                color: Color(0xFF18382F)),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text('Touchez un article pour ouvrir son fil.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF60746E))),
+                          ExpansionTile(
+                            dense: true,
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding: const EdgeInsets.only(bottom: 6),
+                            title: const Text('Lire le bilan complet',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                            children: [
+                              SelectionArea(
+                                child: Text(displayText,
+                                    style: const TextStyle(
+                                        fontSize: 12, height: 1.35, color: Color(0xFF455650))),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : SelectionArea(
+                        child: _LiveRevealText(
+                          messageId: message.id,
+                          createdAt: message.createdAt,
+                          animate: !outgoing && !pending,
+                          text: displayText,
+                        ),
+                      ),
               if (products.isEmpty && !outgoing) liveAvatarBlocks(message.meta),
               if (!outgoing &&
                   '${message.meta['transaction_id'] ?? ''}'.trim().isNotEmpty)
@@ -334,11 +374,12 @@ class LiveMessageBubble extends StatelessWidget {
               if (products.isEmpty &&
                   actions.isNotEmpty &&
                   (onPayload != null || actions.any((action) => action.route != null))) ...[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: actions.asMap().entries.map((entry) {
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: actions.asMap().entries.map((entry) {
                     final action = entry.value;
                     final guide = action.payload.startsWith('ouvrir-match-data:');
                     final tone = guide
@@ -346,8 +387,8 @@ class LiveMessageBubble extends StatelessWidget {
                         : _smartActionTone(action.payload);
                     return FilledButton.tonal(
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 40),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                         side: BorderSide(color: tone.withValues(alpha: .45)),
                         foregroundColor: guide && entry.key == 0 ? Colors.white : tone,
                         backgroundColor: guide && entry.key == 0
@@ -380,7 +421,8 @@ class LiveMessageBubble extends StatelessWidget {
                         ],
                       ]),
                     );
-                  }).toList(),
+                    }).toList(),
+                  ),
                 ),
               ],
               const SizedBox(height: 4),
@@ -790,9 +832,16 @@ List<_SmartMessageAction> _smartMessageActions(
   final smart = liveMap(message.meta['smart']);
   final smartActions = smart['actions'];
   final legacyActions = message.meta['actions'];
-  final rawActions = smartActions is List && smartActions.isNotEmpty
-      ? smartActions
-      : legacyActions;
+  final guideActions = legacyActions is List
+      ? legacyActions.whereType<Map>().where((raw) =>
+          '${raw['id'] ?? ''}'.startsWith('ouvrir-match:')).toList()
+      : const <Map>[];
+  // Les actions de la vraie Deal Room priment sur les suggestions génériques.
+  final rawActions = guideActions.isNotEmpty
+      ? legacyActions
+      : smartActions is List && smartActions.isNotEmpty
+          ? smartActions
+          : legacyActions;
   if (rawActions is List) {
     final preferred = liveText(
       smart['next_best_action'] ?? message.meta['next_best_action'],

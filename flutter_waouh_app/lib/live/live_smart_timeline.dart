@@ -155,8 +155,14 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
             final message = widget.messages[index];
             final standaloneProductInterest =
                 liveMessageHasStandaloneProductInterestActions(message);
-            final enabled =
-                index == latestActionIndex || standaloneProductInterest;
+            // Navigation du guide : les anciennes discussions restent
+            // accessibles, sans réactiver une validation commerciale périmée.
+            final sourceActions = message.meta['actions'];
+            final hasGuideNavigation = sourceActions is List &&
+                sourceActions.whereType<Map>().any((action) =>
+                    '${action['id'] ?? ''}'.startsWith('ouvrir-match:'));
+            final enabled = index == latestActionIndex ||
+                standaloneProductInterest || hasGuideNavigation;
             return _EnterAnimation(
               key: ValueKey('enter-${message.id}'),
               animate:
