@@ -167,6 +167,8 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
       }
     }
 
+    _waouhScopeRefresh[cacheKey] = refresh;
+
     bool recordBelongsToScope(Map<String, dynamic> record) {
       if (record.isEmpty) return false;
       final message = LiveMessage.fromJson(record);
