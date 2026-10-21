@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralProviderOperational, centralWebhookConfig, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
@@ -26,7 +27,7 @@ async function readWaha(res: Response) {
 }
 
 async function fetchWaha(base: string, path: string, init: RequestInit = {}, headers: Record<string, string> = {}) {
-  return fetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(20000), headers: { ...headers, ...(init.headers || {}) } });
+  return guardedWahaFetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(20000), headers: { ...headers, ...(init.headers || {}) } });
 }
 
 Deno.serve(async (req) => {
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
       let readable = false;
       const probes: {status:number; shape?:string; error?:string}[] = [];
       for (const candidate of candidates) {
-        const response = await fetch(`${base}/api/${CENTRAL_WAHA_SESSION}/chats/${encodeURIComponent(candidate+"@c.us")}/messages?limit=50`, {
+        const response = await guardedWahaFetch(`${base}/api/${CENTRAL_WAHA_SESSION}/chats/${encodeURIComponent(candidate+"@c.us")}/messages?limit=50`, {
           headers, signal:AbortSignal.timeout(5000),
         }).catch(()=>null);
         if (!response?.ok) {
