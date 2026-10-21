@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
@@ -123,7 +124,7 @@ serve(async (req) => {
         const dashboardUrl = `${wahaBaseUrl}/dashboard/`;
         console.log('Accessing dashboard URL:', dashboardUrl);
         
-        const res = await fetch(dashboardUrl, {
+        const res = await guardedWahaFetch(dashboardUrl, {
           method: 'GET',
           headers: { 
             'Authorization': authHeader,
@@ -186,12 +187,12 @@ serve(async (req) => {
           if (plainKey) {
             for (const hk of apiKeyHeaderNames) {
               const headers = { ...baseHeaders, [hk]: plainKey };
-              const res = await fetch(url, { ...init, headers });
+              const res = await guardedWahaFetch(url, { ...init, headers });
               console.log(`Dashboard+ApiKey (${hk}) ->`, res.status, res.statusText);
               if (res.ok || res.status !== 401) return res;
             }
           } else {
-            const res = await fetch(url, { ...init, headers: baseHeaders });
+            const res = await guardedWahaFetch(url, { ...init, headers: baseHeaders });
             console.log('Dashboard auth call ->', res.status, res.statusText);
             if (res.ok || res.status !== 401) return res;
           }
@@ -205,7 +206,7 @@ serve(async (req) => {
         for (const hk of apiKeyHeaderNames) {
           try {
             const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), [hk]: plainKey } as Record<string, string>;
-            const res = await fetch(url, { ...init, headers });
+            const res = await guardedWahaFetch(url, { ...init, headers });
             console.log(`API key variant (${hk}) ->`, res.status, res.statusText);
             if (res.ok || res.status !== 401) return res;
           } catch (e) {
@@ -215,7 +216,7 @@ serve(async (req) => {
         // Some deployments accept Bearer token format
         try {
           const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), 'Authorization': `Bearer ${plainKey}` };
-          const res = await fetch(url, { ...init, headers });
+          const res = await guardedWahaFetch(url, { ...init, headers });
           console.log('API key variant (Bearer) ->', res.status, res.statusText);
           if (res.ok || res.status !== 401) return res;
         } catch (e) {
@@ -225,7 +226,7 @@ serve(async (req) => {
 
       // 3) Last attempt without auth
       console.log('All auth methods failed. Final unauthenticated attempt.');
-      return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}) } });
+      return guardedWahaFetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}) } });
     };
     let wahaResponse: WAHAResponse = { success: false };
     switch (action) {
