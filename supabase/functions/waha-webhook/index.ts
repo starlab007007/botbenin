@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import { acceptExternalReceipt, trustedWahaWebhook } from '../_shared/waouh-external-receipt.ts';
 import { CENTRAL_WAHA_SESSION, isWahaInbound } from '../_shared/waouh-central-whatsapp.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
@@ -294,7 +295,7 @@ Deno.serve(async (req) => {
                 const responseMessage = botLink.welcome_message || 
                   `Bonjour! Je suis ${botLink.bots?.name || 'votre assistant IA'}. Comment puis-je vous aider?`;
 
-                const sendResponse = await fetch(`${wahaBaseUrl}/api/sendText`, {
+                const sendResponse = await guardedWahaFetch(`${wahaBaseUrl}/api/sendText`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
