@@ -12,7 +12,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
-const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
+const WAHA_RAW_KEY = (Deno.env.get("WAHA_API_KEY") || "").trim();
+const WAHA_API_KEY = (Deno.env.get("WAHA_API_KEY_PLAIN") || "").trim() ||
+  (!WAHA_RAW_KEY.startsWith("sha512:") ? WAHA_RAW_KEY : "");
 
 async function readWaha(res: Response) {
   const contentType = res.headers.get("content-type") || "";
@@ -39,7 +41,8 @@ Deno.serve(async (req) => {
     if (!guard.ok) return guard.response;
 
     if (!WAHA_BASE_URL) return json({ error: "WAHA_BASE_URL secret missing" }, 500);
-    const base = WAHA_BASE_URL.replace(/\/$/, "");
+    const base = WAHA_BASE_URL.replace(/\/+$/, "").replace(/\/dashboard$/, "");
+    if (!WAHA_API_KEY) return json({ error: "waha_plain_api_key_missing" }, 409);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
@@ -178,7 +181,7 @@ Deno.serve(async (req) => {
     }
 
     let webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
-    if (session === CENTRAL_WAHA_SESSION && ["session-create", "session-start"].includes(action)) {
+    if (session === CENTRAL_WAHA_SESSION && action === "session-create") {
       const previous = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
       const previousConfig = previous.ok ? (await readWaha(previous)).config || {} : {};
       webhookConfig = centralWebhookConfig(previousConfig, SUPABASE_URL, Deno.env.get("WAHA_WEBHOOK_SECRET") || "");
@@ -221,24 +224,22 @@ Deno.serve(async (req) => {
         break;
       }
       case "session-start": {
-        // Session en échec : un simple « start » relance le même moteur planté.
-        // On l'arrête d'abord pour repartir d'un navigateur propre.
-        const before = await fetchWaha(base, `/api/sessions/${session}`, {}, headers).catch(() => null);
-        const beforeStatus = before?.ok ? String((await readWaha(before))?.status || "") : "";
-        if (beforeStatus === "FAILED" || beforeStatus === "STOPPED") {
-          await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers).catch(() => null);
-          await new Promise((r) => setTimeout(r, 1500));
+        // Un seul POST de démarrage : ne pas STOP/DELETE ni recréer en cascade.
+        const current = await fetchWaha(base, `/api/sessions/${encodeURIComponent(session)}`, {}, headers);
+        if (current.status === 401 || current.status === 403)
+          return json({ error: "waha_auth_rejected", provider_status: current.status }, 502);
+        if (current.status === 404)
+          return json({ error: "session_not_found_use_create", provider_status: 404 }, 404);
+        if (!current.ok)
+          return json({ error: "session_status_unavailable", provider_status: current.status }, 502);
+        const currentData = await readWaha(current);
+        const currentStatus = String(currentData?.status || "").toUpperCase();
+        if (["WORKING","STARTING","SCAN_QR_CODE"].includes(currentStatus)) {
+          return json({ name: session, status: currentStatus, already_running: true });
         }
-        res = await fetchWaha(base, `/api/sessions/${session}/start`, { method: "POST" }, headers);
-        const startText = await res.clone().text().catch(() => "");
-        console.log(`[waha-control] session-start status=${res.status}`);
-        if (res.status === 409 || res.status === 422 || res.status === 404) {
-          // Try to create first
-          await fetchWaha(base, `/api/sessions`, {
-            method: "POST",
-            body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
-          }, headers).catch(() => null);
-          res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+        res = await fetchWaha(base, `/api/sessions/${encodeURIComponent(session)}/start`, { method: "POST" }, headers);
+        if (res.status === 409 || res.status === 422) {
+          return json({ name: session, status: "STARTING", already_starting: true });
         }
         break;
       }
@@ -261,16 +262,10 @@ Deno.serve(async (req) => {
           if (preStatus && preStatus !== "SCAN_QR_CODE") {
             return json({ error: "QR non disponible", waiting: preStatus === "STARTING", status: preStatus }, 202);
           }
+          // Éviter 9 essais par clic ; utiliser les deux formats documentés.
           const candidates: Array<[string, "GET" | "POST"]> = [
-            [`/api/${session}/auth/qr?format=image`, "GET"],
-            [`/api/${session}/auth/qr?format=image`, "POST"],
-            [`/api/${session}/auth/qr?format=base64`, "GET"],
-            [`/api/${session}/auth/qr?format=base64`, "POST"],
-            [`/api/${session}/auth/qr`, "GET"],
-            [`/api/${session}/auth/qr`, "POST"],
-            [`/api/sessions/${session}/auth/qr?format=image`, "GET"],
-            [`/api/sessions/${session}/qr?format=base64`, "GET"],
-            [`/api/screenshot?session=${session}`, "GET"],
+            [`/api/${encodeURIComponent(session)}/auth/qr?format=image`, "GET"],
+            [`/api/${encodeURIComponent(session)}/auth/qr?format=base64`, "GET"],
           ];
           let last: any = null;
           for (const [path, method] of candidates) {
