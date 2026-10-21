@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
       const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
       try {
         const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-        const resp = await guardedWahaFetch(url, { headers, signal: AbortSignal.timeout(20000) }, "contact_sync");
+        const resp = await guardedWahaFetch(url, { headers, signal: AbortSignal.timeout(45000) }, "contact_sync");
         if (!resp.ok) {
           const text = await resp.text();
           sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
