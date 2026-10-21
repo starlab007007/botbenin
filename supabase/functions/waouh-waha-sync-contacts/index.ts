@@ -224,14 +224,17 @@ Deno.serve(async (req) => {
   const wahaBase = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
   const wahaUser = Deno.env.get('WAHA_USERNAME') || Deno.env.get('WAHA_DASHBOARD_USERNAME');
   const wahaPass = Deno.env.get('WAHA_PASSWORD') || Deno.env.get('WAHA_DASHBOARD_PASSWORD');
-  const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+  const rawWahaKey = (Deno.env.get('WAHA_API_KEY') || '').trim();
+  const wahaApiKey = (Deno.env.get('WAHA_API_KEY_PLAIN') || '').trim() ||
+    (!rawWahaKey.startsWith('sha512:') ? rawWahaKey : '');
   if (!wahaApiKey && !(wahaUser && wahaPass)) {
     return json({ error: 'WAHA credentials missing (set WAHA_API_KEY or WAHA_USERNAME/PASSWORD)' }, 500);
   }
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
-  if (wahaUser && wahaPass) headers['Authorization'] = 'Basic ' + btoa(`${wahaUser}:${wahaPass}`);
+  if (!wahaApiKey && wahaUser && wahaPass)
+    headers['Authorization'] = 'Basic ' + btoa(`${wahaUser}:${wahaPass}`);
 
   const runRes = await supabase
     .from('waouh_lid_sync_runs')
