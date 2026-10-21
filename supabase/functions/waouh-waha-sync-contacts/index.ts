@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encryptPhone, hashPhone } from '../_shared/waouh-tel/crypto.ts';
 import { requireRuntimeOrAdmin } from '../_shared/waouh-runtime-auth.ts';
@@ -248,7 +249,7 @@ Deno.serve(async (req) => {
       sessionsToUse = requestedSessions.slice(0, maxSessions);
       totalWorkingSessions = requestedSessions.length;
     } else {
-      const sRes = await fetch(`${wahaBase}/api/sessions`, { headers });
+      const sRes = await guardedWahaFetch(`${wahaBase}/api/sessions`, { headers });
       if (!sRes.ok) {
         const t = await sRes.text();
         throw new Error(`WAHA /api/sessions HTTP ${sRes.status}: ${t.slice(0, 200)}`);
@@ -300,7 +301,7 @@ Deno.serve(async (req) => {
       const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
       try {
         const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-        const resp = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
+        const resp = await guardedWahaFetch(url, { headers, signal: AbortSignal.timeout(20000) }, "contact_sync");
         if (!resp.ok) {
           const text = await resp.text();
           sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
