@@ -16,7 +16,10 @@ import { governorKindFor, governorTakeWait, governorRecord, isProviderFailure, r
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
-const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
+const RAW_WAHA_API_KEY = Deno.env.get("WAHA_API_KEY")?.trim() || "";
+const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY_PLAIN")?.trim() ||
+  (!RAW_WAHA_API_KEY.startsWith("sha512:") ? RAW_WAHA_API_KEY : "");
+const WAHA_EGRESS_DB = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
@@ -30,10 +33,29 @@ async function wahaFetch(
   init: RequestInit = {},
   timeoutMs = WAHA_REQUEST_TIMEOUT_MS,
 ) {
-  return fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const path = new URL(url).pathname;
+  const method = String(init.method || "GET").toUpperCase();
+  const scope = /\/api\/send(?:Text|Image|Buttons)/.test(path) ? "transactional"
+    : method !== "GET" ? "management"
+    : /\/contacts\//.test(path) ? "contact_sync" : "status";
+  const { data: admission, error: admissionError } = await WAHA_EGRESS_DB.rpc(
+    "waouh_waha_take", { p_scope: scope }
+  );
+  if (admissionError || admission?.allowed !== true)
+    throw new Error("waha_guard:" + (admissionError?.message || admission?.reason || "denied"));
+  let result: Response;
+  try {
+    result = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    try { await WAHA_EGRESS_DB.rpc("waouh_waha_report", {
+      p_audit_id: admission.audit_id, p_status: 599,
+    }); } catch (_) {}
+    throw error;
+  }
+  try { await WAHA_EGRESS_DB.rpc("waouh_waha_report", {
+    p_audit_id: admission.audit_id, p_status: result.status,
+  }); } catch (_) {}
+  return result;
 }
 
 async function checkWahaProvider(
@@ -660,7 +682,14 @@ Deno.serve(async (req) => {
     if (error) throw error;
 
     const pendingItems = items || [];
-    const wahaNeeded = pendingItems.some((it: any) =>
+    const freshCutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const freshItems = pendingItems.filter((it: any) => Date.parse(it.created_at || "") >= freshCutoff);
+    for (const stale of pendingItems.filter((it: any) => !freshItems.includes(it))) {
+      await sb.from("waouh_outbound_queue").update({
+        status: "failed", next_attempt_at: null, last_error: "expired_after_24h_no_replay",
+      }).eq("id", stale.id).eq("status", "pending");
+    }
+    const wahaNeeded = freshItems.some((it: any) =>
       it?.channel !== "web" && !!it?.to_phone
     );
     const wahaHealth = !wahaNeeded
@@ -680,7 +709,15 @@ Deno.serve(async (req) => {
 
     let sent = 0, failed = 0, skipped = 0, processed = 0;
 
-    for (const it of pendingItems) {
+    for (const it of freshItems) {
+      if (governorKindFor(it.template, it.payload) === "cold") {
+        const { data: coldPolicy } = await sb.from("waouh_waha_egress_policy")
+          .select("enabled,allow_cold_outreach").eq("id", true).maybeSingle();
+        if (!coldPolicy?.enabled || !coldPolicy.allow_cold_outreach) {
+          skipped++;
+          continue;
+        }
+      }
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
         : "";
