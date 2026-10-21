@@ -717,6 +717,20 @@ Deno.serve(async (req) => {
           skipped++;
           continue;
         }
+        // Prospection autonome : une fiche publique ou un numéro joignable
+        // ne prouvent pas le consentement au contact promotionnel.
+        const contactId = typeof it.payload?.contact_id === "string" ? it.payload.contact_id : null;
+        const { data: contactConsent, error: consentError } = contactId
+          ? await sb.from("waouh_entity_contacts").select("consent_state").eq("id", contactId).maybeSingle()
+          : { data: null, error: null };
+        if (consentError || !["opt_in", "partner_contract"].includes(String(contactConsent?.consent_state || ""))) {
+          await sb.from("waouh_outbound_queue").update({
+            status: "failed", last_error: "cold_outreach_requires_explicit_consent",
+            next_attempt_at: null,
+          }).eq("id", it.id).eq("status", "pending");
+          skipped++;
+          continue;
+        }
       }
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
