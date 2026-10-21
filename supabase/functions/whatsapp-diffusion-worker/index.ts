@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -57,7 +58,7 @@ async function wahaFetch(base: string, endpoint: string, init: RequestInit = {})
   let last: Response | null = null;
   for (const headers of buildWahaHeaderVariants(init.headers as Record<string, string> | undefined)) {
     try {
-      const res = await fetch(`${base}${endpoint}`, { ...init, headers });
+      const res = await guardedWahaFetch(`${base}${endpoint}`, { ...init, headers }, "campaign");
       if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) return res;
       last = res;
     } catch (e) {
