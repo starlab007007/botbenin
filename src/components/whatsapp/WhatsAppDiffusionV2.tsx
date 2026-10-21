@@ -291,9 +291,15 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
                   )}
                 </div>
                 {c.opt_out && <Badge variant="destructive" className="text-[10px]">OPT-OUT</Badge>}
+                {c.whatsapp_marketing_opt_in === true && c.whatsapp_marketing_opt_in_at && <Badge variant="secondary" className="text-[10px]">Marketing autorisé</Badge>}
                 {c.archived && <Badge variant="outline" className="text-[10px]">Archivé</Badge>}
                 <Button size="icon" variant="ghost" title="Vérifier WhatsApp" onClick={() => d.verifyContacts([c.id])}>
                   <ShieldCheck className="w-4 h-4" />
+                </Button>
+                <Button size="sm" variant="outline" disabled={c.opt_out || c.archived}
+                  title="Consentement promotionnel WhatsApp explicite (ne jamais déduire de la simple présence dans le carnet)"
+                  onClick={() => d.toggleMarketingOptIn(c.id, !c.whatsapp_marketing_opt_in)}>
+                  {c.whatsapp_marketing_opt_in ? "Retirer opt-in" : "Confirmer opt-in"}
                 </Button>
                 <Button size="icon" variant="ghost" title="Opt-out" onClick={() => d.toggleOptOut(c.id, !c.opt_out)}>
                   <Ban className={`w-4 h-4 ${c.opt_out ? 'text-destructive' : ''}`} />
@@ -702,10 +708,11 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
           </div>
 
           <div>
-            <Label>Audience ({selectedContacts.size} sélectionnés)</Label>
+            <Label>Audience WhatsApp consentante ({selectedContacts.size} sélectionnés)</Label>
+            <p className="text-xs text-muted-foreground mb-2">Seuls les contacts dont le consentement promotionnel est confirmé sont éligibles.</p>
             <ScrollArea className="h-[180px] border rounded">
               <div className="divide-y">
-                {d.contacts.filter((c: any) => !c.opt_out && !c.archived).map((c: any) => (
+                {d.contacts.filter((c: any) => !c.opt_out && !c.archived && c.whatsapp_marketing_opt_in === true && !!c.whatsapp_marketing_opt_in_at).map((c: any) => (
                   <label key={c.id} className="flex items-center gap-2 p-2 hover:bg-muted/40 cursor-pointer text-sm">
                     <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={(e) => {
                       const s = new Set(selectedContacts);
@@ -719,7 +726,7 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
               </div>
             </ScrollArea>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={() => setSelectedContacts(new Set(d.contacts.filter((c: any) => !c.opt_out && !c.archived).map((c: any) => c.id)))}>Tout sélectionner</Button>
+              <Button size="sm" variant="outline" onClick={() => setSelectedContacts(new Set(d.contacts.filter((c: any) => !c.opt_out && !c.archived && c.whatsapp_marketing_opt_in === true && !!c.whatsapp_marketing_opt_in_at).map((c: any) => c.id)))}>Tout sélectionner</Button>
               <Button size="sm" variant="ghost" onClick={() => setSelectedContacts(new Set())}>Aucun</Button>
             </div>
           </div>
