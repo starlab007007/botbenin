@@ -7,6 +7,8 @@ class LiveDiffusionContact {
     this.tags = const [],
     this.isWhatsApp,
     this.optOut = false,
+    this.marketingOptIn = false,
+    this.marketingOptInAt,
     this.archived = false,
     this.source = 'manual',
   });
@@ -18,6 +20,8 @@ class LiveDiffusionContact {
   final List<String> tags;
   final bool? isWhatsApp;
   final bool optOut;
+  final bool marketingOptIn;
+  final DateTime? marketingOptInAt;
   final bool archived;
   final String source;
 
@@ -29,6 +33,8 @@ class LiveDiffusionContact {
         tags: row['tags'] is List ? (row['tags'] as List).map((item) => '$item').toList() : const [],
         isWhatsApp: row['is_whatsapp'] as bool?,
         optOut: row['opt_out'] == true,
+        marketingOptIn: row['whatsapp_marketing_opt_in'] == true,
+        marketingOptInAt: DateTime.tryParse('${row['whatsapp_marketing_opt_in_at'] ?? ''}'),
         archived: row['archived'] == true,
         source: '${row['source'] ?? 'manual'}',
       );
