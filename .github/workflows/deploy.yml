@@ -47,7 +47,6 @@ jobs:
 
           test -f public/waouh-ui-version.txt
           # Release identity is validated above by scripts/verify-waouh-release.py.
-          grep -qE '^2026\\.10\\.[0-9]{2}\\.[0-9]+
           grep -q 'bot-avatar-v3' src/app-mobile/screens/ChatListScreen.tsx
           grep -q 'bot-home-v3' src/pages/waouh/WaouhAvatarHomePage.tsx
           grep -q 'data-expression' src/components/waouh/bot/BotCharacter.tsx
