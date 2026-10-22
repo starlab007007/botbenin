@@ -71,7 +71,9 @@ void main() {
         LiveMessage(
           id: 'received-1',
           text: 'Un nouveau message est arrivé pendant la lecture.',
-          direction: 'in',
+          // LiveMessage defines 'in' as the user's outgoing message.
+          // 'out' represents the assistant/counterpart's new reply.
+          direction: 'out',
           createdAt: DateTime.utc(2026, 10, 22),
         ),
       ];
