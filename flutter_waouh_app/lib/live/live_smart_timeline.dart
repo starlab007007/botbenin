@@ -168,7 +168,6 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
               return false;
             },
             child: ListView.builder(
-          key: const PageStorageKey<String>('waouh-chat-timeline'),
           controller: _scrollController,
           primary: false,
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
