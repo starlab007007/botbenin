@@ -180,10 +180,17 @@ class LiveDiffusionData {
     });
   }
 
-  Future<void> updateContact(String id, {bool? optOut, bool? archived}) async {
+  Future<void> updateContact(String id, {bool? optOut, bool? archived, bool? marketingOptIn}) async {
     await client.from('wa_contacts').update({
       if (optOut != null) 'opt_out': optOut,
       if (archived != null) 'archived': archived,
+      if (optOut == true) ...{
+        'whatsapp_marketing_opt_in': false,
+        'whatsapp_marketing_opt_in_at': null,
+      } else if (marketingOptIn != null) ...{
+        'whatsapp_marketing_opt_in': marketingOptIn,
+        'whatsapp_marketing_opt_in_at': marketingOptIn ? DateTime.now().toUtc().toIso8601String() : null,
+      },
     }).eq('id', id).eq('user_id', userId);
   }
 
