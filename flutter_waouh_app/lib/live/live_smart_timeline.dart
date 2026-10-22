@@ -22,6 +22,7 @@ class LiveSmartTimeline extends StatefulWidget {
     this.emptyMessage = 'Aucun message pour le moment.',
     this.padding = const EdgeInsets.fromLTRB(12, 10, 12, 12),
     this.showAssistantHint = false,
+    this.leading,
   });
 
   final List<LiveMessage> messages;
@@ -29,6 +30,8 @@ class LiveSmartTimeline extends StatefulWidget {
   final String emptyMessage;
   final EdgeInsets padding;
   final bool showAssistantHint;
+  /// Début de conversation intégré à la liste, sans réduire sa hauteur visible.
+  final Widget? leading;
 
   @override
   State<LiveSmartTimeline> createState() => _LiveSmartTimelineState();
@@ -37,6 +40,7 @@ class LiveSmartTimeline extends StatefulWidget {
 class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
   final ScrollController _scrollController = ScrollController();
   bool _followTail = true;
+  bool _userDragging = false;
   int _unseen = 0;
   String? _lastMessageId;
 
@@ -50,25 +54,32 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
   @override
   void didUpdateWidget(covariant LiveSmartTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // « Bot prépare sa réponse… » apparaît : on reste en bas.
-    if (widget.showAssistantHint && !oldWidget.showAssistantHint && _followTail) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _scrollToBottom(true));
+    // Do not steal touch/drag gestures when new messages, images, or typing
+    // indicators alter the height of the conversation.
+    if (widget.showAssistantHint && !oldWidget.showAssistantHint && _followTail && !_userDragging) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _followTail && !_userDragging) _scrollToBottom(true);
+      });
     }
-    if (widget.messages.isEmpty) return;
+    if (widget.messages.isEmpty) {
+      _lastMessageId = null;
+      return;
+    }
     final newest = widget.messages.last;
     if (newest.id == _lastMessageId) return;
     _lastMessageId = newest.id;
-    if (_followTail || newest.outgoing) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _scrollToBottom(true));
-    } else {
+    if (_followTail && !_userDragging) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _followTail && !_userDragging) _scrollToBottom(true);
+      });
+    } else if (!newest.outgoing) {
       setState(() => _unseen += 1);
     }
   }
 
   void _observePosition() {
     if (!_scrollController.hasClients) return;
+    if (_userDragging) return;
     final next = _scrollController.position.extentAfter < 96;
     if (next == _followTail) return;
     setState(() {
@@ -78,22 +89,25 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
   }
 
   Future<void> _scrollToBottom(bool animated) async {
-    if (!_scrollController.hasClients) return;
+    if (!mounted || !_scrollController.hasClients || _userDragging) return;
     final target = _scrollController.position.maxScrollExtent;
+    // Changing size while dragging must never enqueue a new scroll animation.
     if (animated) {
       await _scrollController.animateTo(
         target,
-        duration: const Duration(milliseconds: 320),
+        duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
       );
     } else {
       _scrollController.jumpTo(target);
     }
-    if (!mounted) return;
-    setState(() {
-      _followTail = true;
-      _unseen = 0;
-    });
+    if (!mounted || _userDragging) return;
+    if (!_followTail || _unseen != 0) {
+      setState(() {
+        _followTail = true;
+        _unseen = 0;
+      });
+    }
   }
 
   @override
@@ -105,7 +119,7 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.messages.isEmpty && !widget.showAssistantHint) {
+    if (widget.messages.isEmpty && !widget.showAssistantHint && widget.leading == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(30),
@@ -128,29 +142,46 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     }
     return Stack(
       children: [
-        NotificationListener<ScrollMetricsNotification>(
-          onNotification: (n) {
-            // Le contenu grandit (texte progressif, cartes, images) : suivre.
-            if (_followTail && n.metrics.extentAfter > 2) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scrollController.hasClients && _followTail) {
-                  _scrollController.jumpTo(
-                      _scrollController.position.maxScrollExtent);
-                }
-              });
+        NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification && notification.dragDetails != null) {
+              _userDragging = true;
+              if (_followTail) setState(() => _followTail = false);
+            }
+            if (notification is ScrollEndNotification) {
+              _userDragging = false;
+              _observePosition();
             }
             return false;
           },
-          child: ListView.builder(
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: (notification) {
+              // Automatic follow is permitted only while the user is at
+              // the bottom, and never in the middle of a manual gesture.
+              if (_followTail && !_userDragging && notification.metrics.extentAfter > 2) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _scrollController.hasClients && _followTail && !_userDragging) {
+                    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                  }
+                });
+              }
+              return false;
+            },
+            child: ListView.builder(
+          key: const PageStorageKey<String>('waouh-chat-timeline'),
           controller: _scrollController,
+          primary: false,
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           padding: widget.padding,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          itemCount:
-              widget.messages.length + (widget.showAssistantHint ? 1 : 0),
-          itemBuilder: (_, index) {
+          itemCount: widget.messages.length + (widget.showAssistantHint ? 1 : 0) + (widget.leading == null ? 0 : 1),
+          itemBuilder: (_, rawIndex) {
+            if (widget.leading != null && rawIndex == 0) {
+              return widget.leading!;
+            }
+            final index = rawIndex - (widget.leading == null ? 0 : 1);
             if (index == widget.messages.length) {
-              return _AssistantHint(
-                  searching: _isSearchRequest(widget.messages));
+              return _AssistantHint(searching: _isSearchRequest(widget.messages));
             }
             final message = widget.messages[index];
             final standaloneProductInterest =
@@ -170,7 +201,9 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
               ),
             );
           },
-        )),
+        ),
+          ),
+        ),
         if (_unseen > 0)
           Positioned(
             right: 16,
