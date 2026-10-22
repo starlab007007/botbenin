@@ -482,12 +482,13 @@ export function WaouhMatchChatWindow({
   // Smart scroll + persisted scroll position per match.key
   const prevLenRef = useRef(0);
   const restoredRef = useRef(false);
+  const followTailRef = useRef(true);
   const SCROLL_KEY = `waouh_scroll_${sessionId}_${match.key}`;
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    const nearBottom = followTailRef.current;
     const isFirstRender = prevLenRef.current === 0 && messages.length > 0;
     prevLenRef.current = messages.length;
     if (isFirstRender && !restoredRef.current) {
@@ -504,6 +505,7 @@ export function WaouhMatchChatWindow({
         }
       } catch {}
       if (!restored) el.scrollTop = el.scrollHeight;
+      followTailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
       restoredRef.current = true;
     } else if (nearBottom) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
@@ -516,6 +518,8 @@ export function WaouhMatchChatWindow({
     if (!el) return;
     let raf = 0;
     const onScroll = () => {
+      // Maintain scroll intent even before the throttled persistence runs.
+      followTailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
@@ -874,7 +878,7 @@ export function WaouhMatchChatWindow({
   const stageIdx = JOURNEY_STEPS.findIndex((st) => st.key === copilotStage);
 
   return (
-    <div data-waouh-ui="bot-copilot-v2" className="relative flex h-full w-full flex-col bg-background">
+    <div data-waouh-ui="bot-copilot-v2" className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       {/* Deal Room — 1 article × 1 interlocuteur : un seul en-tête fin (fiche + progression). */}
       <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 py-1.5 backdrop-blur">
         <button type="button" onClick={() => setDetailsOpen(true)} aria-label="Voir le détail du deal" className="flex w-full items-center gap-2.5 text-left">
@@ -1008,7 +1012,7 @@ export function WaouhMatchChatWindow({
       </aside>
 
       {/* Messages area — priorité au fil, avec espace réservé au contexte produit sur grand écran. */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 xl:pr-[330px] space-y-1.5 sm:space-y-2 waouh-chat-bg">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-2 sm:p-3 xl:pr-[330px] space-y-1.5 sm:space-y-2 waouh-chat-bg">
         {/* Seed notification bubble — always pinned at top */}
         {messages.length > 0 ? (
           <div className="mx-auto w-fit max-w-[92%] truncate rounded-full border border-amber-200 bg-amber-50/90 px-3 py-1 text-[11px] font-semibold text-amber-900 shadow-sm">
