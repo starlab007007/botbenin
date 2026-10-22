@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import { CENTRAL_WAHA_SESSION, isWahaInbound, isCentralWhatsAppPhone, whatsAppPhoneCandidates, wahaMessageId, centralWhatsAppHealth } from "../_shared/waouh-central-whatsapp.ts";
 import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
 import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
@@ -210,7 +211,7 @@ async function rehostMedia(sb: any, sourceUrl: string, mime: string): Promise<st
     let res: Response | null = null;
     for (let i = 0; i < 3; i++) {
       try {
-        res = await fetch(sourceUrl, { headers, signal: AbortSignal.timeout(8000) });
+        res = await guardedWahaFetch(sourceUrl, { headers, signal: AbortSignal.timeout(8000) }, "contact_sync");
         if (res.ok) break;
       } catch (_e) { res = null; }
       await new Promise((r) => setTimeout(r, 600 * (i + 1)));
@@ -257,13 +258,13 @@ function extractInteractiveText(payload: any) {
 async function sendWahaText(base: string, session: string, chatId: string, text: string) {
   const cleanBase = base.replace(/\/$/, "");
   const headers = wahaHeaders();
-  const direct = await fetch(`${cleanBase}/api/sendText`, {
+  const direct = await guardedWahaFetch(`${cleanBase}/api/sendText`, {
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, text }),
   });
   if (direct.ok) return direct;
-  return fetch(`${cleanBase}/api/${session}/sendText`, {
+  return guardedWahaFetch(`${cleanBase}/api/${session}/sendText`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, text }),
@@ -273,13 +274,13 @@ async function sendWahaText(base: string, session: string, chatId: string, text:
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string) {
   const cleanBase = base.replace(/\/$/, "");
   const headers = wahaHeaders();
-  const direct = await fetch(`${cleanBase}/api/sendImage`, {
+  const direct = await guardedWahaFetch(`${cleanBase}/api/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (direct.ok) return direct;
-  return fetch(`${cleanBase}/api/${session}/sendImage`, {
+  return guardedWahaFetch(`${cleanBase}/api/${session}/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
@@ -296,13 +297,13 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   });
   const richBody: any = { session, chatId, body: text, footer: "WAOUH • bot.bj", buttons: richButtons };
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
-  let r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  let r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await fetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
+  r = await guardedWahaFetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
   // Legacy fallback
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
+  r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
   // Final fallback: keep one WhatsApp bubble only. If media buttons fail,
   // put the choices in the same image caption instead of sending a 2nd text.

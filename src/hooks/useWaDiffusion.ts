@@ -15,6 +15,8 @@ export interface WaContact {
   is_whatsapp: boolean | null;
   opt_out: boolean;
   archived: boolean;
+  whatsapp_marketing_opt_in: boolean;
+  whatsapp_marketing_opt_in_at: string | null;
   source: string;
   last_validated_at: string | null;
   notes: string | null;
@@ -122,9 +124,26 @@ export function useWaDiffusion() {
   }, [user, contacts, refresh]);
 
   const toggleOptOut = useCallback(async (id: string, val: boolean) => {
-    await supabase.from('wa_contacts').update({ opt_out: val }).eq('id', id);
+    if (!user) return;
+    const patch = val
+      ? { opt_out: true, whatsapp_marketing_opt_in: false, whatsapp_marketing_opt_in_at: null }
+      : { opt_out: false };
+    const { error } = await (supabase.from('wa_contacts') as any).update(patch).eq('id', id).eq('user_id', user.id);
+    if (error) { toast.error('Impossible de modifier le statut du contact'); return; }
     await refresh();
-  }, [refresh]);
+  }, [refresh, user]);
+
+  const toggleMarketingOptIn = useCallback(async (id: string, val: boolean) => {
+    if (!user) return;
+    if (val && !window.confirm('Confirmez-vous disposer du consentement explicite de ce contact pour recevoir des campagnes WhatsApp ?')) return;
+    const patch = {
+      whatsapp_marketing_opt_in: val,
+      whatsapp_marketing_opt_in_at: val ? new Date().toISOString() : null,
+    };
+    const { error } = await (supabase.from('wa_contacts') as any).update(patch).eq('id', id).eq('user_id', user.id);
+    if (error) { toast.error('Impossible de modifier le consentement marketing'); return; }
+    await refresh();
+  }, [refresh, user]);
 
   const toggleArchive = useCallback(async (id: string, val: boolean) => {
     await supabase.from('wa_contacts').update({ archived: val }).eq('id', id);
@@ -291,7 +310,7 @@ export function useWaDiffusion() {
 
   return {
     loading, contacts, lists, campaigns, refresh,
-    addContact, bulkAdd, toggleOptOut, toggleArchive, removeContact,
+    addContact, bulkAdd, toggleOptOut, toggleMarketingOptIn, toggleArchive, removeContact,
     createList, addToList, createCampaign, launchCampaign, runWorker,
     deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, relaunchCampaign, verifyContacts,
   };

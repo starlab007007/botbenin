@@ -154,17 +154,17 @@ serve(async (req) => {
 
     const { data: contacts, error: contactsError } = await admin
       .from("wa_contacts")
-      .select("id, phone_e164, opt_out, archived, is_whatsapp")
+      .select("id, phone_e164, opt_out, archived, is_whatsapp, whatsapp_marketing_opt_in, whatsapp_marketing_opt_in_at")
       .in("id", [...contactIds])
       .eq("user_id", userId);
     if (contactsError) throw contactsError;
 
-    const valid = (contacts ?? []).filter((c: any) => !c.opt_out && !c.archived && c.is_whatsapp !== false);
+    const valid = (contacts ?? []).filter((c: any) => !c.opt_out && !c.archived && c.is_whatsapp !== false && c.whatsapp_marketing_opt_in === true && !!c.whatsapp_marketing_opt_in_at);
     const excluded = (contacts ?? []).length - valid.length;
 
     if (valid.length === 0) {
       await admin.from("wa_campaigns").update({ status: "failed", stats: { total: 0, failed: 0, queued: 0, sent: 0, excluded } }).eq("id", campaign.id);
-      return json({ ok: false, error: "Aucun destinataire valide. Vérifiez WhatsApp ou retirez les contacts opt-out/archivés." });
+      return json({ ok: false, error: "Aucun destinataire avec consentement marketing explicite. Vérifiez l'autorisation WhatsApp et les opt-out/archivés." });
     }
 
     const throttle = Math.max(1, campaign.throttle_per_hour ?? 30);

@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
@@ -64,7 +65,7 @@ serve(async (req) => {
       for (let i = 0; i < headersVariants.length; i++) {
         const headers = headersVariants[i];
         try {
-          const res = await fetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers });
+          const res = await guardedWahaFetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers }, "transactional");
           if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
             return res;
           }

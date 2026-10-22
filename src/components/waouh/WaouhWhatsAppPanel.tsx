@@ -52,17 +52,17 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     const data = await callWaha("session-create");
     if (data) {
       toast.success(`Session « ${session} » créée et webhook lié.`);
-      setTimeout(loadQr, 1500);
-      refreshStatus();
+      setStatus("STARTING");
+      window.setTimeout(() => void refreshStatus(true), 5000);
     }
   };
 
   const startSession = async () => {
     const started = await callWaha("session-start");
     if (!started) return;
-    toast.success(`Session « ${session} » démarrée. Récupération du QR…`);
-    setTimeout(loadQr, 1500);
-    refreshStatus();
+    toast.success(`Session « ${session} » : démarrage demandé. Vérifiez le statut puis chargez le QR si nécessaire.`);
+    setStatus(String(started.status || "STARTING"));
+    window.setTimeout(() => void refreshStatus(true), 5000);
   };
 
   const resetSession = async () => {
@@ -117,24 +117,9 @@ export const WaouhWhatsAppPanel: React.FC = () => {
 
   useEffect(() => { void refreshStatus(); void loadGov(); }, []);
 
-  // En attente de scan : le QR WhatsApp expire en quelques secondes. On le renouvelle
-  // et on suit l'état jusqu'à la connexion, sans action de l'utilisateur.
-  useEffect(() => {
-    if (status !== "SCAN_QR_CODE") return;
-    void loadQr(true);
-    const qrTimer = window.setInterval(() => void loadQr(true), 15000);
-    const statusTimer = window.setInterval(() => void refreshStatus(true), 4000);
-    return () => { window.clearInterval(qrTimer); window.clearInterval(statusTimer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // Démarrage en cours : on suit l'état pour afficher le QR dès qu'il est prêt.
-  useEffect(() => {
-    if (status !== "STARTING") return;
-    const t = window.setInterval(() => void refreshStatus(true), 3000);
-    return () => window.clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  // Aucun polling illimité sur WAHA. Les actions de l'administrateur
+  // déterminent les contrôles. La reprise automatique est gérée via webhooks
+  // session.status et un unique contrôle différé après le démarrage.
 
   const statusColor = status === "WORKING" && providerOperational === true && identityMatches === true ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : status === "FAILED" ? "bg-red-500" : "bg-gray-400";
 
@@ -156,8 +141,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Label>Nom de la session</Label>
             <Input value={session} readOnly />
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
-            {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Ouvrez WhatsApp sur +229 65653468 → Appareils connectés → Scanner ce code. Il se renouvelle seul.</p>}
-            {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage de WhatsApp… le QR apparaît dans quelques secondes.</p>}
+            {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Cliquez sur « Charger QR », puis ouvrez WhatsApp sur +229 65653468 → Appareils connectés. Rafraîchissez le QR manuellement en cas d'expiration.</p>}
+            {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage en cours. Cliquez sur « Rafraîchir » après quelques instants ; utilisez « Charger QR » lorsque la session demande un scan.</p>}
             {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WhatsApp (WAHA) s’est arrêté. Cliquez sur « Démarrer ». Si l’échec revient, cliquez sur « Réinitialiser » : la session est recréée et un nouveau QR est demandé.</p>}
             {status === "WORKING" && providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
             {status === "WORKING" && identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}

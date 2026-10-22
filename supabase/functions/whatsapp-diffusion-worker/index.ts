@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -27,44 +28,19 @@ function renderTemplate(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 }
 
-function buildWahaHeaderVariants(extra: Record<string, string> = {}) {
-  const variants: Record<string, string>[] = [];
-  const plain = Deno.env.get("WAHA_API_KEY_PLAIN")?.trim();
-  const rawKey = Deno.env.get("WAHA_API_KEY")?.trim();
-  const key = plain || (rawKey && !rawKey.startsWith("sha512:") ? rawKey : "");
-
-  if (key) {
-    variants.push(
-      { "Content-Type": "application/json", "X-Api-Key": key, ...extra },
-      { "Content-Type": "application/json", "X-API-Key": key, ...extra },
-      { "Content-Type": "application/json", "x-api-key": key, ...extra },
-      { "Content-Type": "application/json", Authorization: `ApiKey ${key}`, ...extra },
-      { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extra },
-    );
-  }
-
-  const user = Deno.env.get("WAHA_DASHBOARD_USERNAME");
-  const pass = Deno.env.get("WAHA_DASHBOARD_PASSWORD");
-  if (user && pass) {
-    variants.push({ "Content-Type": "application/json", Authorization: `Basic ${btoa(`${user}:${pass}`)}`, ...extra });
-  }
-
-  if (variants.length === 0) variants.push({ "Content-Type": "application/json", ...extra });
-  return variants;
-}
-
+// Une seule variante d'authentification pour éviter les rafales 401/403.
 async function wahaFetch(base: string, endpoint: string, init: RequestInit = {}) {
-  let last: Response | null = null;
-  for (const headers of buildWahaHeaderVariants(init.headers as Record<string, string> | undefined)) {
-    try {
-      const res = await fetch(`${base}${endpoint}`, { ...init, headers });
-      if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) return res;
-      last = res;
-    } catch (e) {
-      if (!last) throw e;
-    }
-  }
-  return last;
+  const rawKey = (Deno.env.get("WAHA_API_KEY") || "").trim();
+  const key = (Deno.env.get("WAHA_API_KEY_PLAIN") || "").trim() ||
+    (!rawKey.startsWith("sha512:") ? rawKey : "");
+  if (!key) throw new Error("waha_plain_api_key_missing");
+  const headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "X-Api-Key": key,
+    ...(init.headers as Record<string,string> || {}),
+  };
+  return guardedWahaFetch(`${base}${endpoint}`, { ...init, headers }, "campaign");
 }
 
 async function loadAllJobsForStats(admin: any, campaignId: string) {
@@ -301,9 +277,9 @@ serve(async (req) => {
               continue;
             }
 
-            const { data: contact } = await admin.from("wa_contacts").select("display_name, tags, opt_out, archived").eq("id", job.contact_id).single();
-            if (!contact || contact.opt_out || contact.archived) {
-              await admin.from("wa_send_jobs").update({ status: "skipped", last_error: "Contact opt-out, archivé ou introuvable" }).eq("id", job.id);
+            const { data: contact } = await admin.from("wa_contacts").select("display_name, tags, opt_out, archived, whatsapp_marketing_opt_in, whatsapp_marketing_opt_in_at").eq("id", job.contact_id).single();
+            if (!contact || contact.opt_out || contact.archived || contact.whatsapp_marketing_opt_in !== true || !contact.whatsapp_marketing_opt_in_at) {
+              await admin.from("wa_send_jobs").update({ status: "skipped", last_error: "Contact sans consentement marketing explicite, opt-out, archivé ou introuvable" }).eq("id", job.id);
               skipped++;
               continue;
             }

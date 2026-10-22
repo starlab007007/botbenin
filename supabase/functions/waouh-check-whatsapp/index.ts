@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 // Vérifie si un numéro unique est enregistré sur WhatsApp via WAHA (utilise n'importe quelle session active).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -26,7 +27,7 @@ function headerVariants(): Record<string, string>[] {
 async function wahaFetch(base: string, path: string) {
   for (const h of headerVariants()) {
     try {
-      const r = await fetch(`${base}${path}`, { headers: { "Content-Type": "application/json", ...h } });
+      const r = await guardedWahaFetch(`${base}${path}`, { headers: { "Content-Type": "application/json", ...h } });
       if (r.ok || (r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 403)) return r;
     } catch (_) { /* try next */ }
   }

@@ -1,3 +1,4 @@
+import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 // waouh-notify-dispatch
 // Unified notification dispatcher for the WAOUH cycle.
 // Always carries the same photos[] across channels (WhatsApp + in-app),
@@ -50,27 +51,27 @@ async function sendWhatsAppCard(chatId: string, text: string, photos: string[]) 
   const first = photos[0];
   try {
     if (first) {
-      const r = await fetch(`${base}/api/sendImage`, {
+      const r = await guardedWahaFetch(`${base}/api/sendImage`, {
         method: "POST",
         headers: wahaHeaders(),
         body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: first }, caption: text }),
       });
       if (!r.ok) {
         // Fallback: text only
-        await fetch(`${base}/api/sendText`, {
+        await guardedWahaFetch(`${base}/api/sendText`, {
           method: "POST", headers: wahaHeaders(),
           body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
         });
       }
       // Send remaining photos as plain images (no caption)
       for (const p of photos.slice(1, 4)) {
-        await fetch(`${base}/api/sendImage`, {
+        await guardedWahaFetch(`${base}/api/sendImage`, {
           method: "POST", headers: wahaHeaders(),
           body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: p }, caption: "" }),
         }).catch(() => {});
       }
     } else {
-      await fetch(`${base}/api/sendText`, {
+      await guardedWahaFetch(`${base}/api/sendText`, {
         method: "POST", headers: wahaHeaders(),
         body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
       });
