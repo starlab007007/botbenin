@@ -32,10 +32,11 @@ void main() {
 
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
     expect(scrollable.position.maxScrollExtent, greaterThan(100));
-    final atBottom = scrollable.position.pixels;
-    await tester.drag(find.byType(ListView), const Offset(0, 260));
+    // An empty chat shows the beginning of its welcome text first.
+    expect(scrollable.position.pixels, closeTo(0, 1));
+    await tester.drag(find.byType(ListView), const Offset(0, -260));
     await tester.pumpAndSettle();
-    expect(scrollable.position.pixels, lessThan(atBottom - 50));
+    expect(scrollable.position.pixels, greaterThan(50));
     expect(tester.takeException(), isNull);
   });
 
@@ -61,7 +62,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
-    await tester.drag(find.byType(ListView), const Offset(0, 550));
+    await tester.drag(find.byType(ListView), const Offset(0, -550));
     await tester.pumpAndSettle();
     final readingPosition = scrollable.position.pixels;
     expect(readingPosition, lessThan(scrollable.position.maxScrollExtent - 120));
