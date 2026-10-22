@@ -46,7 +46,221 @@ jobs:
           grep -q 'PublicAgentWebChatPage' src/pages/NotFound.tsx
 
           test -f public/waouh-ui-version.txt
-          grep -q '2026.10.16.1' public/waouh-ui-version.txt
+          # Release identity is validated above by scripts/verify-waouh-release.py.
+          grep -qE '^2026\\.10\\.[0-9]{2}\\.[0-9]+
+          grep -q 'bot-avatar-v3' src/app-mobile/screens/ChatListScreen.tsx
+          grep -q 'bot-home-v3' src/pages/waouh/WaouhAvatarHomePage.tsx
+          grep -q 'data-expression' src/components/waouh/bot/BotCharacter.tsx
+          grep -q 'bot-copilot-v2' src/components/waouh/WaouhMatchChatWindow.tsx
+
+          echo "✅ Sources FA IA, AprèsBac IA, Web Chat public et UI WAOUH V2 prêtes"
+
+      - name: Déployer sur le VPS avec Docker Compose
+        uses: appleboy/ssh-action@v0.1.10
+        env:
+          DEPLOY_TOKEN: ${{ github.token }}
+          DEPLOY_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 30m
+          envs: DEPLOY_TOKEN,DEPLOY_REPOSITORY,DEPLOY_SHA
+          script: |
+            set -eu
+
+            RELEASE_URL="https://api.github.com/repos/${DEPLOY_REPOSITORY}/tarball/${DEPLOY_SHA}"
+            RELEASE_ARCHIVE="/tmp/botbenin-${DEPLOY_SHA}.tar.gz"
+            RELEASE_DIR="/tmp/botbenin-release-${DEPLOY_SHA}"
+            APP_DIR="/home/debian/botbenin"
+
+            echo "🧹 Nettoyage préventif de l’espace disque..."
+            df -h / /tmp || true
+
+            find /tmp -maxdepth 1 -type f -name 'botbenin-*.tar.gz' -delete 2>/dev/null || true
+            find /tmp -maxdepth 1 -type d -name 'botbenin-release-*' -exec rm -rf {} + 2>/dev/null || true
+
+            docker container prune -f >/dev/null 2>&1 || true
+            docker builder prune -af >/dev/null 2>&1 || true
+            docker image prune -af >/dev/null 2>&1 || true
+
+            find /tmp -mindepth 1 -maxdepth 1 -type f -mtime +2 -delete 2>/dev/null || true
+            journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+
+            AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+            MIN_REQUIRED_KB=524288
+            if [ "${AVAILABLE_KB:-0}" -lt "$MIN_REQUIRED_KB" ]; then
+              echo "❌ Espace disque insuffisant dans /tmp après nettoyage. Minimum requis : 512 Mo."
+              df -h / /tmp || true
+              docker system df || true
+              exit 1
+            fi
+
+            echo "✅ Espace disponible après nettoyage : $((AVAILABLE_KB / 1024)) Mo"
+            echo "📥 Téléchargement authentifié du commit ${DEPLOY_SHA}..."
+            rm -rf "$RELEASE_DIR"
+            rm -f "$RELEASE_ARCHIVE"
+            mkdir -p "$RELEASE_DIR" "$APP_DIR"
+
+            cleanup_release() {
+              rm -rf "$RELEASE_DIR" 2>/dev/null || true
+              rm -f "$RELEASE_ARCHIVE" 2>/dev/null || true
+            }
+            trap cleanup_release EXIT INT TERM
+
+            DOWNLOAD_OK=0
+            for ATTEMPT in 1 2 3; do
+              echo "Tentative ${ATTEMPT}/3..."
+              if curl \
+                --fail \
+                --location \
+                --show-error \
+                --silent \
+                --retry 3 \
+                --retry-all-errors \
+                --connect-timeout 30 \
+                --max-time 300 \
+                -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$RELEASE_URL" \
+                --output "$RELEASE_ARCHIVE"; then
+                DOWNLOAD_OK=1
+                break
+              fi
+              sleep 15
+            done
+
+            if [ "$DOWNLOAD_OK" -ne 1 ] || [ ! -s "$RELEASE_ARCHIVE" ]; then
+              echo "❌ Téléchargement authentifié impossible"
+              exit 1
+            fi
+
+            echo "🔎 Validation de l’archive..."
+            tar -tzf "$RELEASE_ARCHIVE" >/dev/null
+            tar -xzf "$RELEASE_ARCHIVE" --strip-components=1 -C "$RELEASE_DIR"
+
+            test -f "$RELEASE_DIR/public/fa/index.html"
+            test -f "$RELEASE_DIR/public/fa/home-premium-v23.css"
+            test -f "$RELEASE_DIR/public/apresbacia/index.html"
+            test -f "$RELEASE_DIR/public/apresbacia/styles-v2.css"
+            test -f "$RELEASE_DIR/public/apresbacia/theme-v2_16.css"
+            test -f "$RELEASE_DIR/public/apresbacia/production-finalization-v2_17.js"
+            test -f "$RELEASE_DIR/src/pages/PublicAgentWebChatPage.tsx"
+            test -f "$RELEASE_DIR/src/pages/NotFound.tsx"
+            grep -q '20260724-corpus-v15-2' "$RELEASE_DIR/public/fa/index.html"
+            grep -q '20260724-home-v23-1' "$RELEASE_DIR/public/fa/index.html"
+            grep -q '/apresbacia/styles-v2.css' "$RELEASE_DIR/public/apresbacia/index.html"
+            grep -q '/apresbacia/production-finalization-v2_17.js' "$RELEASE_DIR/public/apresbacia/index.html"
+            grep -q 'PUBLIC_AGENT_SLUG' "$RELEASE_DIR/src/pages/NotFound.tsx"
+
+            echo "📂 Synchronisation du code..."
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete "$RELEASE_DIR/" "$APP_DIR/"
+            else
+              rm -rf "$APP_DIR"/* "$APP_DIR"/.[!.]* "$APP_DIR"/..?* 2>/dev/null || true
+              cp -a "$RELEASE_DIR"/. "$APP_DIR"/
+            fi
+
+            cd "$APP_DIR"
+            cleanup_release
+            trap - EXIT INT TERM
+
+            echo "🔨 Construction Docker..."
+            docker compose build --pull
+            docker compose up -d --force-recreate --remove-orphans
+
+            echo "⏳ Attente du démarrage..."
+            sleep 20
+            docker compose ps
+
+            READY=0
+            for i in $(seq 1 15); do
+              if curl -fsSL http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/apresbacia/styles-v2.css >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/fa >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/ecqdg4yzr >/dev/null 2>&1; then
+                READY=1
+                break
+              fi
+              echo "⏳ Santé locale $i/15..."
+              sleep 4
+            done
+            [ "$READY" -eq 1 ] || { docker compose logs --tail=150; exit 1; }
+
+            echo "🧪 Vérification des fichiers dans le conteneur..."
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/styles-v2.css
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/theme-v2_16.css
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/production-finalization-v2_17.js
+            docker compose exec -T react-app grep -q '/apresbacia/styles-v2.css' /usr/share/nginx/html/apresbacia/index.html
+            docker compose exec -T react-app grep -q '/apresbacia/production-finalization-v2_17.js' /usr/share/nginx/html/apresbacia/index.html
+            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
+            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
+            docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
+            docker compose exec -T react-app sh -c "grep -R -q 'Le Web Chat est momentanément indisponible' /usr/share/nginx/html/assets/js"
+            docker compose exec -T react-app test -f /usr/share/nginx/html/waouh-ui-version.txt
+            docker compose exec -T react-app grep -q '2026.10.16.1' /usr/share/nginx/html/waouh-ui-version.txt
+            docker compose exec -T react-app sh -c "grep -R -q 'bot-avatar-v3' /usr/share/nginx/html/assets/js"
+            docker compose exec -T react-app sh -c "grep -R -q 'bot-copilot-v2' /usr/share/nginx/html/assets/js"
+
+            PUBLIC_AGENT_CHUNK=$(docker compose exec -T react-app sh -c "ls /usr/share/nginx/html/assets/js/PublicAgentWebChatPage-*.js /usr/share/nginx/html/assets/js/PublicBotChatPage-*.js 2>/dev/null | head -n1" | tr -d '\r')
+            if [ -z "$PUBLIC_AGENT_CHUNK" ]; then
+              echo "ℹ️ Aucun chunk public nommé PublicAgentWebChatPage/PublicBotChatPage trouvé — contrôle par contenu global déjà validé."
+            else
+              echo "✅ Chunk Web Chat public détecté : $(basename "$PUBLIC_AGENT_CHUNK")"
+            fi
+
+            PUBLIC_READY=0
+            for i in $(seq 1 15); do
+              if curl -fsSL https://bot.bj/apresbacia >/dev/null 2>&1 && \
+                 curl -fsSL https://bot.bj/apresbacia/styles-v2.css | grep -q -- '--green' && \
+                 curl -fsSL https://bot.bj/apresbacia/theme-v2_16.css | grep -q -- '--ab-blue' && \
+                 curl -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
+                 curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/fa/app.js?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/app/chat?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/waouh-ui-version.txt?deploy_check=${DEPLOY_SHA}" | grep -q '2026.10.16.1' && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1; then
+                PUBLIC_READY=1
+                break
+              fi
+              echo "⏳ Santé publique $i/15..."
+              sleep 4
+            done
+            [ "$PUBLIC_READY" -eq 1 ] || { echo "❌ Assets publics AprèsBac IA/Web Chat non publiés"; exit 1; }
+
+            echo "🧪 Vérification publique de la version V23.1..."
+            PUBLIC_FA_HTML=$(curl -fsSL --retry 3 --retry-all-errors 'https://bot.bj/fa?deploy_check=20260724-home-v23-1')
+            echo "$PUBLIC_FA_HTML" | grep -q '20260724-home-v23-1'
+
+            echo "🧪 Vérification publique de la feuille premium..."
+            curl -fsSL --retry 3 --retry-all-errors \
+              'https://bot.bj/fa/home-premium-v23.css?v=20260724-home-v23-1' \
+              | grep -q 'FA IA V23.1'
+
+            echo "🔐 Vérification des en-têtes de sécurité..."
+            SECURITY_HEADERS=$(curl -sSIL https://bot.bj/apresbacia | tr -d '\r')
+            echo "$SECURITY_HEADERS" | grep -qi '^strict-transport-security:'
+            echo "$SECURITY_HEADERS" | grep -qi '^x-content-type-options: nosniff$'
+            echo "$SECURITY_HEADERS" | grep -qi '^content-security-policy:'
+            echo "$SECURITY_HEADERS" | grep -qi '^permissions-policy:'
+
+            docker compose exec -T react-app sh -c "! grep -R 'G-XXXXXXXXXX' /usr/share/nginx/html/assets/js /usr/share/nginx/html/index.html"
+
+            docker compose exec -T react-app sh -c '
+              REACT_FILE=$(ls /usr/share/nginx/html/assets/js/react-*.js 2>/dev/null | head -n1)
+              if [ -n "$REACT_FILE" ] && grep -q "charts-" "$REACT_FILE"; then
+                exit 1
+              fi
+            '
+
+            docker image prune -af || true
+            echo "✅ Déploiement production, AprèsBac IA et Web Chat public terminés"
+ public/waouh-ui-version.txt
           grep -q 'bot-avatar-v3' src/app-mobile/screens/ChatListScreen.tsx
           grep -q 'bot-home-v3' src/pages/waouh/WaouhAvatarHomePage.tsx
           grep -q 'data-expression' src/components/waouh/bot/BotCharacter.tsx
