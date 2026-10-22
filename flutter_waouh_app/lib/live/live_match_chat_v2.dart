@@ -659,7 +659,11 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                   .any((item) => item.meta['delivery_state'] == 'sending');
               return Column(
                 children: [
-                  // En-tête unique : fiche Deal Room + progression en 7 étapes.
+                  Expanded(
+                    child: LiveSmartTimeline(
+                      leading: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                   Container(
                     margin: const EdgeInsets.fromLTRB(8, 8, 8, 2),
                     decoration: BoxDecoration(
@@ -769,8 +773,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                                 fontSize: 12, fontWeight: FontWeight.w700)),
                       ),
                     ),
-                  Expanded(
-                    child: LiveSmartTimeline(
+
+                        ],
+                      ),
                       messages: merged,
                       onPayload: _handlePayload,
                       showAssistantHint: waiting,
