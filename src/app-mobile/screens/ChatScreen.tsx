@@ -64,6 +64,9 @@ export default function ChatScreen({
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageScrollerRef = useRef<HTMLElement>(null);
+  const followTailRef = useRef(true);
+  const initialScrollRef = useRef(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -125,7 +128,21 @@ export default function ChatScreen({
     return () => { mounted = false; supabase.removeChannel(ch); };
   }, [convId]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: msgs.length > 30 ? "auto" : "smooth" }); }, [msgs.length]);
+  // Scroll only inside the discussion, not the whole document, and never
+  // yank the user away from older messages while they are reading.
+  useEffect(() => {
+    const el = messageScrollerRef.current;
+    if (!el || !msgs.length) return;
+    if (followTailRef.current || initialScrollRef.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: initialScrollRef.current ? "instant" : "smooth" });
+      initialScrollRef.current = false;
+    }
+  }, [msgs.length]);
+
+  useEffect(() => {
+    initialScrollRef.current = true;
+    followTailRef.current = true;
+  }, [convId]);
 
   const headerLabel = useMemo(
     () => (meta ? formatConvLabel(meta, convUser) : "Conversation"),
@@ -203,7 +220,7 @@ export default function ChatScreen({
   };
 
   return (
-    <div className={embedded ? "h-full flex flex-col waouh-chat-bg" : "min-h-[100dvh] flex flex-col waouh-chat-bg"}>
+    <div className={embedded ? "h-full min-h-0 flex flex-col overflow-hidden waouh-chat-bg" : "h-[100dvh] min-h-0 flex flex-col overflow-hidden waouh-chat-bg"}>
       <header className="bg-[hsl(165_91%_18%)] text-white px-2 py-1.5 flex items-center gap-2 sticky top-0 z-10">
         {!embedded && (
           <Button variant="ghost" size="icon" onClick={() => navigate("/app/chat")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
@@ -217,7 +234,12 @@ export default function ChatScreen({
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-2">
+      <main ref={messageScrollerRef}
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          followTailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-2">
         {loading && msgs.length === 0 && (
           <div className="space-y-3 py-2" aria-hidden>
             {[0, 1, 2, 3].map((i) => (
@@ -285,7 +307,7 @@ export default function ChatScreen({
         <div ref={endRef} />
       </main>
 
-      <footer className="bg-background border-t p-1.5 sticky bottom-0 space-y-1.5">
+      <footer className="bg-background border-t p-1.5 shrink-0 space-y-1.5">
         {pendingAtts.length > 0 && (
           <div className="flex gap-2 overflow-x-auto px-1">
             {pendingAtts.map((a, i) => (

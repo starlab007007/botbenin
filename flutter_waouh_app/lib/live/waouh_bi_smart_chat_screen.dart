@@ -1155,6 +1155,8 @@ class _BiChatPageState extends State<_BiChatPage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final List<_BiMessage> _messages = <_BiMessage>[];
+  bool _followTail = true;
+  bool _userDragging = false;
   bool _asking = false;
 
   @override
@@ -1179,7 +1181,7 @@ class _BiChatPageState extends State<_BiChatPage> {
       _messages.add(_BiMessage.user(question));
       _inputCtrl.clear();
     });
-    _jump();
+    _jump(force: true);
     try {
       final response = await widget.client.functions.invoke(
         'waouh-bi-query',
@@ -1233,11 +1235,12 @@ class _BiChatPageState extends State<_BiChatPage> {
     }
   }
 
-  void _jump() {
+  void _jump({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollCtrl.hasClients) return;
-      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent + 280,
-          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (!mounted || !_scrollCtrl.hasClients || _userDragging) return;
+      if (!force && !_followTail) return;
+      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 230), curve: Curves.easeOut);
     });
   }
 
@@ -1292,8 +1295,20 @@ class _BiChatPageState extends State<_BiChatPage> {
         children: [
           _BiDatasetStrip(datasource: widget.datasource),
           Expanded(
-            child: ListView.builder(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n is ScrollStartNotification && n.dragDetails != null) {
+                  _userDragging = true;
+                } else if (n is ScrollEndNotification) {
+                  _userDragging = false;
+                  _followTail = n.metrics.extentAfter < 110;
+                }
+                return false;
+              },
+              child: ListView.builder(
               controller: _scrollCtrl,
+              primary: false,
+              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(12, 16, 12, 18),
               itemCount: _messages.length + (_asking ? 1 : 0),
@@ -1312,6 +1327,7 @@ class _BiChatPageState extends State<_BiChatPage> {
                   ),
                 );
               },
+              ),
             ),
           ),
           _InputBar(
