@@ -600,28 +600,25 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (!controller.mainHistoryVisible)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: TextButton.icon(
-                          onPressed: () =>
-                              unawaited(controller.showMainHistory()),
-                          icon: const Icon(Icons.history, size: 16),
-                          label: const Text("Voir l'historique",
-                              style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w700)),
-                        ),
-                      ),,
-                                  if (!hasGoal) _LiveObjectiveLauncher(
-                        avatarName: avatar.name,
-                        onBuy: () => seedGoal('Je veux acheter '),
-                        onSell: _openSellForm,
-                        onSearch: () => seedGoal('Je cherche '),
-                        onCompare: () =>
-                            seedGoal('Compare les meilleures options pour '),
-                        onNegotiate: () =>
-                            seedGoal('Je souhaite négocier '),
-                        onAvatar: () => context.push('/app/avatar'),
-                      ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: TextButton.icon(
+                                        onPressed: () => unawaited(controller.showMainHistory()),
+                                        icon: const Icon(Icons.history, size: 16),
+                                        label: const Text("Voir l'historique",
+                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                                      ),
+                                    ),
+                                  if (!hasGoal)
+                                    _LiveObjectiveLauncher(
+                                      avatarName: avatar.name,
+                                      onBuy: () => seedGoal('Je veux acheter '),
+                                      onSell: _openSellForm,
+                                      onSearch: () => seedGoal('Je cherche '),
+                                      onCompare: () => seedGoal('Compare les meilleures options pour '),
+                                      onNegotiate: () => seedGoal('Je souhaite négocier '),
+                                      onAvatar: () => context.push('/app/avatar'),
+                                    ),
                                 ],
                               )
                             : null,
