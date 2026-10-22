@@ -68,12 +68,19 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     final newest = widget.messages.last;
     if (newest.id == _lastMessageId) return;
     _lastMessageId = newest.id;
-    if (_followTail && !_userDragging) {
+    // Evaluate the *real* viewport, not only the cached tail flag:
+    // a layout or keyboard resize can leave that flag momentarily stale.
+    final atTail = !_userDragging && _scrollController.hasClients &&
+        _scrollController.position.extentAfter < 96;
+    if (atTail && _followTail) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _followTail && !_userDragging) _scrollToBottom(true);
       });
     } else if (!newest.outgoing) {
-      setState(() => _unseen += 1);
+      setState(() {
+        _followTail = false;
+        _unseen += 1;
+      });
     }
   }
 
