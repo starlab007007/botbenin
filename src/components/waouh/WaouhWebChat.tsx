@@ -570,18 +570,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     });
   }, [open, waouhIds]);
 
-  // Auto-scroll to bottom only when near the bottom (not when prepending older history).
+  // Scroll ownership: preserve manual navigation/history, follow only when
+  // previously near the newest message. Never scroll the outer mobile page.
   const prevMsgLenRef = useRef(0);
+  const followTailRef = useRef(true);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const grew = messages.length > prevMsgLenRef.current;
+    const firstLoad = prevMsgLenRef.current === 0 && messages.length > 0;
     prevMsgLenRef.current = messages.length;
-    if (!grew || loadingOlder) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
-    if (nearBottom) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    }
+    if (!grew || loadingOlder || !followTailRef.current) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: firstLoad ? "auto" : "smooth" });
   }, [messages, loadingOlder]);
 
   // IntersectionObserver: load older messages when the top sentinel becomes visible.
@@ -884,9 +884,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const Panel = (
     <Card
       className={cn(
-        "flex flex-col bg-background overflow-hidden",
+        "flex min-h-0 flex-col bg-background overflow-hidden",
         fullscreen
-          ? "w-full h-full rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
+          ? "w-full h-full min-h-0 rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
           : embedded
             ? "w-full h-[70vh] max-h-[100dvh] rounded-lg border shadow-2xl"
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
@@ -935,7 +935,12 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         />
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg min-h-0">
+      <div ref={scrollRef}
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          followTailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg">
         {hasMore && (
           <div ref={topSentinelRef} className="flex items-center justify-center py-1">
             <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="rounded-full px-3 py-1 text-[11px] text-muted-foreground hover:bg-muted/60 transition-colors">
