@@ -48,7 +48,12 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
   void initState() {
     super.initState();
     _scrollController.addListener(_observePosition);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(false));
+    // A new conversation must start at the beginning of its welcome
+    // prompts, not at the bottom of a long introduction.
+    if (widget.messages.isEmpty && widget.leading != null) _followTail = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.messages.isNotEmpty) _scrollToBottom(false);
+    });
   }
 
   @override
