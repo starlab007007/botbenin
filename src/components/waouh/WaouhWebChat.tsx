@@ -171,7 +171,8 @@ export type WaouhWebChatHandle = {
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void; hideAgentBar?: boolean }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange, hideAgentBar = false }, externalRef) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(embedded || fullscreen);
-  const sessionId = useRef(getSessionId()).current;
+  // Auth rotates storage at account boundaries; follow it on the next render.
+  const sessionId = getSessionId();
   // Cache-first hydration: load last snapshot synchronously so the chat
   // renders fully on first paint, before any network call.
   const MAIN_SNAPSHOT_KEY = `waouh_main_msgs_${sessionId}`;
@@ -833,7 +834,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     window.addEventListener("online", run);
     run();
     return () => window.removeEventListener("online", run);
-  }, []);
+  }, [sessionId]);
 
   // Retour réseau / onglet : relit la dernière page du fil et fusionne (les messages manqués apparaissent).
   useWaouhResync(async () => {
