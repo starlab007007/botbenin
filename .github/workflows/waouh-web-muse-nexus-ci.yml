@@ -140,7 +140,8 @@ jobs:
             src/lib/waouh/__tests__/access-policy.test.ts \
             src/lib/waouh/__tests__/user-facing-error.test.ts \
             src/lib/waouh/__tests__/smart-payload.test.ts \
-            src/lib/waouh/__tests__/identityIds.test.ts
+            src/lib/waouh/__tests__/identityIds.test.ts \
+            src/lib/waouh/__tests__/sessionCache.test.ts
 
       - name: Deno
         uses: denoland/setup-deno@v2

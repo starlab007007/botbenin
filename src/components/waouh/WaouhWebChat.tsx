@@ -236,6 +236,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
+  const accountIdRef = useRef(user?.id ?? null);
+  const previousAccountIdRef = useRef(user?.id ?? null);
+  accountIdRef.current = user?.id ?? null;
   const { toast } = useToast();
 
   // --- Avatar guide : accueil + point à l'ouverture, « Faire le point », réglages.
@@ -245,9 +248,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   const runAvatarPoint = async (action: "open" | "now") => {
     if (!user?.id) return;
+    const ownerId = user.id;
     setAvatarBusy(true);
     try {
       const result = await openAvatarBriefing(action, sessionId);
+      if (accountIdRef.current !== ownerId) return;
       if (!result) { if (action === "now") toast({ title: "L'avatar est momentanément indisponible", description: "Réessayez dans un instant." }); return; }
       if (result.prefs) setAvatarPrefs(result.prefs);
       // Les bulles arrivent dans le fil ; l'affichage séquencé (« l'avatar écrit… ») est géré au rendu.
@@ -382,6 +387,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   // Resolved waouh_users.id list for this device + auth account.
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
+  useEffect(() => {
+    const nextId = user?.id ?? null;
+    if (previousAccountIdRef.current === nextId) return;
+    previousAccountIdRef.current = nextId;
+    setMessages([]);
+    setWaouhIds([]);
+    setInput("");
+    setPendingAtts([]);
+    setChatSearch(null);
+    setAvatarPrefs(null);
+  }, [user?.id]);
 
   // Pagination state (lazy chat history)
   const PAGE_INITIAL = 10;
@@ -392,7 +408,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   // Throttled snapshot persistence — keep last 300 messages.
   useEffect(() => {
+    const ownerId = user?.id;
+    if (!ownerId) return;
     const t = setTimeout(() => {
+      if (accountIdRef.current !== ownerId) return;
       try {
         localStorage.setItem(
           MAIN_SNAPSHOT_KEY,
@@ -401,7 +420,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       } catch {}
     }, 300);
     return () => clearTimeout(t);
-  }, [messages, MAIN_SNAPSHOT_KEY]);
+  }, [messages, MAIN_SNAPSHOT_KEY, user?.id]);
 
 
 
@@ -692,6 +711,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
     sendingRef.current = true;
     setSending(true);
+    const senderId = accountIdRef.current;
     const now = new Date().toISOString();
     const tempInId = `temp-in-${crypto.randomUUID()}`;
     setMessages((prev) => [
@@ -720,6 +740,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           ...(Object.keys(metaOverride).length > 0 ? { meta: metaOverride } : {}),
         },
       });
+      if (accountIdRef.current !== senderId) return;
       assertChatResponse(data, error);
       const respIntent: string | null = data?.intent ?? null;
       const respArticleId: string | null = data?.article_id ?? null;
