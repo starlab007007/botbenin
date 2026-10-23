@@ -39,6 +39,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   LiveWaouhController(this.auth)
       : session = LiveSessionStore(),
         location = LiveLocationService() {
+    _lastAuthUserId = auth.user?.id;
     auth.addListener(_onAuthChange);
     try {
       WidgetsBinding.instance.addObserver(this);
@@ -58,6 +59,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final legacy.AuthController auth;
+  String? _lastAuthUserId;
   final LiveSessionStore session;
   final LiveLocationService location;
   late final LiveChatService chat;
@@ -446,6 +448,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
     LiveMatch? match, {
     Object? error,
   }) {
+    if (!LiveSessionStore.isCurrentOperation) return;
     if (match != null) {
       final seed = _preparedInterestSeeds[key];
       final enriched = seed == null
@@ -731,6 +734,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
                 const Duration(minutes: 2);
         if (locationRelevant && staleLocation) await useDeviceLocation();
         final payload = await _mainPayload(value, attachments, effectiveMeta);
+        if (!LiveSessionStore.isCurrentOperation) return;
         _rememberPreparedInterestPayload(payload);
         if (!isOnline) {
           await _queueMain(payload);
@@ -948,14 +952,18 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
       });
 
   Future<void> syncPending() async {
+    await LiveSessionStore.waitForAccountBinding();
+    final ownerEpoch = LiveSessionStore.accountEpoch;
     if (!isOnline || syncing) return;
     syncing = true;
     notifyListeners();
     try {
       final actions = await offline.outbox();
       for (final action in actions) {
+        if (ownerEpoch != LiveSessionStore.accountEpoch) break;
         try {
-          await _syncAction(action);
+          await runZoned(() => _syncAction(action), zoneValues: {LiveSessionStore.operationEpochZoneKey: ownerEpoch});
+          if (ownerEpoch != LiveSessionStore.accountEpoch) break;
           await offline.removeOutbox(action.id);
         } catch (exception) {
           error = _humanizeError(exception);
@@ -964,8 +972,10 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
       }
       await _refreshPendingCount(notify: false);
     } finally {
-      syncing = false;
-      notifyListeners();
+      if (ownerEpoch == LiveSessionStore.accountEpoch) {
+        syncing = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -1144,6 +1154,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _sendMainPayload(Map<String, dynamic> payload) async {
+    if (!LiveSessionStore.isCurrentOperation) return;
     _rememberPreparedInterestPayload(payload);
     final sid = await session.sessionId;
     final original = (payload['attachments'] as List? ?? const [])
@@ -1210,6 +1221,7 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
       rethrow;
     }
 
+    if (!LiveSessionStore.isCurrentOperation) return;
     agentic.applyChannelResponse(
       requestText: text,
       requestMeta: resolutionMeta,
@@ -1665,21 +1677,43 @@ class LiveWaouhController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _guard(Future<void> Function() action) async {
+    await LiveSessionStore.waitForAccountBinding();
+    final ownerEpoch = LiveSessionStore.accountEpoch;
     busy = true;
     error = null;
     notifyListeners();
     try {
-      await action();
+      await runZoned(action, zoneValues: {LiveSessionStore.operationEpochZoneKey: ownerEpoch});
     } catch (exception) {
+      if (ownerEpoch != LiveSessionStore.accountEpoch) return;
       error = _humanizeError(exception);
       rethrow;
     } finally {
-      busy = false;
-      notifyListeners();
+      if (ownerEpoch == LiveSessionStore.accountEpoch) {
+        busy = false;
+        notifyListeners();
+      }
     }
   }
 
   void _onAuthChange() {
+    final nextUserId = auth.user?.id;
+    if (nextUserId != _lastAuthUserId) {
+      _lastAuthUserId = nextUserId;
+      _composerSeed = null; _composerMeta = const {};
+      _pendingMeet = null; _pendingMeetKey = null;
+      for (final waiter in _preparedInterestWaiters.values) {
+        if (!waiter.isCompleted) waiter.complete(null);
+      }
+      _preparedInterestWaiters.clear(); _preparedInterestErrors.clear();
+      _preparedInterestRequests.clear(); _preparedInterestPayloads.clear();
+      _preparedInterestResults.clear(); _preparedInterestSeeds.clear();
+      _preparedInterestResolutionInFlight.clear(); _preparedInterestSubmissionAccepted.clear();
+      _preparedInterestRepairs.clear();
+      _mainHistoryVisible = false; _mainOpenedAt = DateTime.now();
+      _position = const LiveLocation(); _positionAt = null;
+      pendingActions = 0; busy = false; syncing = false; error = null;
+    }
     chat.clearIdentityCache();
     notifications.clearCaches();
     _resetSharedStreams();
