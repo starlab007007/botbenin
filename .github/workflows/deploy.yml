@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-botbj-production
+  group: deploy-botbj-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
   cancel-in-progress: true
 
 jobs:
@@ -194,6 +194,7 @@ jobs:
 
             echo "📦 Chargement de l’image construite et vérifiée en CI..."
             docker load -i "$CI_IMAGE_DIR/botbj-image.tar.gz"
+            docker run --rm --entrypoint nginx "botbj-ci:${DEPLOY_SHA}" -t
             docker tag "botbj-ci:${DEPLOY_SHA}" botbenin-react-app:latest
             docker compose up -d --no-build --force-recreate --remove-orphans
             rm -f "$CI_IMAGE_DIR/botbj-image.tar.gz" "$CI_IMAGE_DIR/botbj-image.tar.gz.sha256"
