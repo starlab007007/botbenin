@@ -10,6 +10,7 @@ import 'package:waouh_app_native/live/live_session.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late HttpServer server;
+  HttpOverrides? previousHttpOverrides;
   late SupabaseClient client;
   late LiveChatService service;
   final requests = <Uri>[];
@@ -25,6 +26,9 @@ void main() {
   });
   setUp(() async {
     requests.clear(); historyAvailable = false; historyBody = null;
+    // Widget binding blocks HTTP globally. This fixture talks only to its local server.
+    previousHttpOverrides = HttpOverrides.current;
+    HttpOverrides.global = null;
     SharedPreferences.setMockInitialValues({'waouh_web_session_id': 'qa-session'});
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
@@ -58,7 +62,11 @@ void main() {
     client = SupabaseClient('http://127.0.0.1:' + server.port.toString(), 'qa-public-key');
     service = LiveChatService(client, LiveSessionStore());
   });
-  tearDown(() async { await client.dispose(); await server.close(force: true); });
+  tearDown(() async {
+    await client.dispose();
+    await server.close(force: true);
+    HttpOverrides.global = previousHttpOverrides;
+  });
 
   test('all 211 device identities remain reachable, including the middle pages', () async {
     final ids = await service.waouhUserIds('auth-user');
