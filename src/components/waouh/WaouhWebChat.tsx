@@ -800,11 +800,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const pendingItems = readOutbox(sessionId);
     if (!pendingItems.length) return;
     flushingOutboxRef.current = true;
+    const flushOwnerId = accountIdRef.current;
     // Keep queued messages visible, including after a refresh or a failed retry.
     setMessages((prev) => mergeMessages(prev, pendingItems.map(outboxMessage)));
     let dropped = 0;
     try {
       for (const item of pendingItems) {
+        if (accountIdRef.current !== flushOwnerId) break;
         const remove = () => {
           writeOutbox(sessionId, readOutbox(sessionId).filter((entry) => entry.id !== item.id));
           setMessages((prev) => prev.filter((message) => message.id !== "outbox-" + item.id));
@@ -813,6 +815,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         if (navigator.onLine === false) break;
         try {
           await sendCore(item.text, []);
+          if (accountIdRef.current !== flushOwnerId) break;
           // Remove only after acknowledgement; preserve anything queued meanwhile.
           remove();
         } catch {
