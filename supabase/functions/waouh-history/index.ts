@@ -38,6 +38,7 @@ serve(async (req) => {
     const before: string | null = body?.before || null;
     const since: string | null = body?.since || null;
     const includeMeta = body?.includeMeta !== false;
+    const mainOnly = body?.scope === "main";
 
     const userOrs: string[] = [];
     if (effectiveAuthUserId) userOrs.push(`auth_user_id.eq.${effectiveAuthUserId}`);
@@ -142,9 +143,10 @@ serve(async (req) => {
 
     // Messages: DESC + limit, then reverse ASC for client.
     let msgQuery = sb.from("waouh_messages")
-      .select("id, conversation_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
+      .select("id, conversation_id, thread_id, article_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
       .order("created_at", { ascending: false })
       .limit(limit);
+    if (mainOnly) msgQuery = msgQuery.is("thread_id", null);
     if (before) msgQuery = msgQuery.lt("created_at", before);
     if (since) msgQuery = msgQuery.gte("created_at", since);
 

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { getRequestUser } from "../_shared/waouh-auth.ts";
+import { requireAuthOrGuestSession } from "../_shared/waouh-auth.ts";
 import { resolveViewerIdentity } from "../_shared/waouh-viewer-identity.ts";
 
 const corsHeaders = {
@@ -43,7 +43,9 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     let articleId = clean(body?.articleId ?? body?.article_id);
     // Identité du lecteur : dérivée du jeton, jamais du corps (voir waouh-viewer-identity.ts).
-    const jwtUser = await getRequestUser(req);
+    const scopeAuth = await requireAuthOrGuestSession(req, clean(body?.sessionId ?? body?.session_id));
+    if (!scopeAuth.ok) return scopeAuth.response;
+    const jwtUser = scopeAuth.authUser;
     const viewer = resolveViewerIdentity({
       jwtUserId: jwtUser?.id ?? null,
       claimedAuthUserId: clean(body?.authUserId ?? body?.auth_user_id),

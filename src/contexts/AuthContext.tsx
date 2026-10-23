@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
 import { friendlyAuthError } from "@/lib/authErrors";
+import { clearWaouhAccountCache, shouldResetWaouhSession } from "@/lib/waouh/sessionCache";
 import { normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 export interface AuthUser {
@@ -104,6 +105,7 @@ const withTimeout = <T,>(promise: PromiseLike<T>, timeoutMs: number, label: stri
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const currentAuthUserIdRef = useRef<string | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,20 +184,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const handleSession = (event: string, session: Session | null) => {
-      if (event === 'SIGNED_IN') {
-        try {
-          localStorage.removeItem('waouh_web_session_id');
-          Object.keys(localStorage)
-            .filter(
-              (k) =>
-                k.startsWith('waouh_notifs_') ||
-                k.startsWith('waouh_open_matches_') ||
-                k.startsWith('waouh_active_match_') ||
-                k.startsWith('waouh_archived_matches_'),
-            )
-            .forEach((k) => localStorage.removeItem(k));
-        } catch {}
+      const nextId = session?.user?.id ?? null;
+      if (shouldResetWaouhSession(event, currentAuthUserIdRef.current, nextId)) {
+        clearWaouhAccountCache();
       }
+      currentAuthUserIdRef.current = nextId;
 
       setSession(session);
       setSupabaseUser(session?.user ?? null);
@@ -391,24 +384,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setGuestUser(null);
       GuestAuthService.clearGuest();
 
-      // Reset WAOUH per-browser state so the next account cannot inherit
-      // conversations, notification caches or location context.
-      try {
-        localStorage.removeItem("waouh_web_session_id");
-        localStorage.removeItem("waouh_geo_v1");
-        localStorage.removeItem("waouh_pending_open");
-        sessionStorage.removeItem("waouh_post_auth_redirect");
-        Object.keys(localStorage)
-          .filter((k) =>
-            k.startsWith("waouh_notifs_") ||
-            k.startsWith("waouh_open_matches_") ||
-            k.startsWith("waouh_active_match_") ||
-            k.startsWith("waouh_archived_matches_") ||
-            k.startsWith("waouh_chatlist_snapshot_v1:") ||
-            k.startsWith("waouh.avatar.")
-          )
-          .forEach((k) => localStorage.removeItem(k));
-      } catch {}
+      clearWaouhAccountCache();
 
       toast({
         title: "Vous êtes déconnecté",

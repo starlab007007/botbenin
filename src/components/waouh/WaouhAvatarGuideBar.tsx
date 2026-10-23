@@ -1,5 +1,5 @@
 // WAOUH — Barre du guide (avatar) : état, « Faire le point », et réglages (accueil, cadence, heures calmes).
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useId, useState } from "react";
 import { Loader2, Settings2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -29,6 +29,8 @@ export function WaouhAvatarGuideBar({
   onPoint: () => void;
   onPrefsChange?: (prefs: AvatarPrefs) => void;
 }) {
+  const boardId = useId();
+  const [boardOpen, setBoardOpen] = useState(false);
   const [prefs, setPrefs] = useState<AvatarPrefs | null>(externalPrefs);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -89,6 +91,7 @@ export function WaouhAvatarGuideBar({
         {busy && <Loader2 className="h-3 w-3 animate-spin" />}
         Faire le point
       </button>
+      <button type="button" aria-expanded={boardOpen} aria-controls={boardId} onClick={() => setBoardOpen(value => !value)} className="min-h-10 rounded-full px-2 text-[11px] font-semibold text-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 sm:hidden">{boardOpen ? "Masquer" : "Détails"}</button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button type="button" aria-label="Régler les points de l'avatar" className="rounded-full p-1.5 text-slate-500 transition hover:bg-emerald-100 hover:text-emerald-800">
@@ -187,7 +190,7 @@ export function WaouhAvatarGuideBar({
         </PopoverContent>
       </Popover>
     </div>
-    <div className="flex gap-1.5 overflow-x-auto px-3 pb-1.5 [scrollbar-width:none]" data-testid="avatar-mission-board" aria-label="Mission de l'avatar">
+    <div id={boardId} className={cn("gap-1.5 overflow-x-auto px-3 pb-1.5 [scrollbar-width:none] sm:flex", boardOpen ? "flex" : "hidden")} data-testid="avatar-mission-board" aria-label="Mission de l'avatar">
       {board && boardChips(board).length > 0 ? boardChips(board).map((c) => (
         <button
           key={c.key}

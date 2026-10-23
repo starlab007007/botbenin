@@ -69,11 +69,19 @@ class LiveChatService {
     if (authUserId != null && authUserId.isNotEmpty) {
       clauses.add('auth_user_id.eq.$authUserId');
     }
-    final rows = await client
-        .from('waouh_users')
-        .select('id,auth_user_id,web_session_id')
-        .or(clauses.join(','))
-        .limit(100);
+    final rows = <dynamic>[];
+    const pageSize = 100;
+    for (var from = 0; ; from += pageSize) {
+      final page = await client
+          .from('waouh_users')
+          .select('id,auth_user_id,web_session_id')
+          .or(clauses.join(','))
+          .order('created_at', ascending: true)
+          .order('id', ascending: true)
+          .range(from, from + pageSize - 1);
+      rows.addAll(page);
+      if (page.length < pageSize) break;
+    }
 
     // React useWaouhIdentity performs this best-effort link after sign-in.
     // Without it, a WAOUH identity made before login remains detached and its
@@ -119,6 +127,7 @@ class LiveChatService {
           'sessionId': sid,
           'authUserId': authUserId,
           'limit': limit,
+          if (!includeThreaded) 'scope': 'main',
           if (cutoff != null) 'since': cutoff,
           'includeMeta': true,
         },
@@ -127,6 +136,7 @@ class LiveChatService {
       if (data is Map && data['ok'] == true && data['messages'] is List) {
         for (final raw in data['messages'] as List) {
           if (raw is Map) {
+            if (!includeThreaded && raw['thread_id'] != null) continue;
             final message =
                 LiveMessage.fromJson(Map<String, dynamic>.from(raw));
             byId[message.id] = message;
@@ -153,7 +163,7 @@ class LiveChatService {
                   'id,conversation_id,thread_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
               .isFilter('thread_id', null)
               .eq('web_session_id', sid)
-              .order('created_at', ascending: true)
+              .order('created_at', ascending: false)
               .limit(limit);
       for (final raw in ownRows as List) {
         final item =
@@ -176,7 +186,7 @@ class LiveChatService {
                     'id,conversation_id,thread_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
                 .isFilter('thread_id', null)
                 .inFilter('user_id', ids)
-                .order('created_at', ascending: true)
+                .order('created_at', ascending: false)
                 .limit(limit);
         for (final raw in siblingRows as List) {
           final item =
