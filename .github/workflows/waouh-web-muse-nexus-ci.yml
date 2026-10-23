@@ -126,7 +126,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
 
       - name: Build Web
         run: npm run build
@@ -139,7 +139,8 @@ jobs:
           npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run \
             src/lib/waouh/__tests__/access-policy.test.ts \
             src/lib/waouh/__tests__/user-facing-error.test.ts \
-            src/lib/waouh/__tests__/smart-payload.test.ts
+            src/lib/waouh/__tests__/smart-payload.test.ts \
+            src/lib/waouh/__tests__/identityIds.test.ts
 
       - name: Deno
         uses: denoland/setup-deno@v2
@@ -193,6 +194,9 @@ jobs:
 
       - name: Check WAOUH Payment
         run: deno check supabase/functions/waouh-payment/index.ts
+
+      - name: Check WAOUH history scope
+        run: deno check supabase/functions/waouh-history/index.ts
 
       - name: Check WAOUH Commerce Action
         run: deno check supabase/functions/waouh-commerce-action/index.ts

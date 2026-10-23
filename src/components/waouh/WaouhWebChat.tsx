@@ -118,13 +118,16 @@ function getSessionId() {
 
 const OUTBOX_MAX_AGE_MS = 30 * 60_000;
 const OUTBOX_MAX_ITEMS = 5;
-type OutboxItem = { text: string; ts: number };
+type OutboxItem = { id: string; text: string; ts: number };
 const outboxKey = (sid: string) => `waouh_outbox_${sid}`;
 function readOutbox(sid: string): OutboxItem[] {
   try {
     const raw = localStorage.getItem(outboxKey(sid));
     const list = raw ? (JSON.parse(raw) as OutboxItem[]) : [];
-    return Array.isArray(list) ? list.filter((i) => i && typeof i.text === "string") : [];
+    return Array.isArray(list) ? list.flatMap((item, index) => {
+      if (!item || typeof item.text !== "string" || !Number.isFinite(item.ts)) return [];
+      return [{ ...item, id: item.id || String(item.ts) + "-" + index }];
+    }) : [];
   } catch { return []; }
 }
 function writeOutbox(sid: string, list: OutboxItem[]) {
@@ -133,12 +136,18 @@ function writeOutbox(sid: string, list: OutboxItem[]) {
     else localStorage.removeItem(outboxKey(sid));
   } catch { /* stockage indisponible */ }
 }
-function enqueueOutbox(sid: string, text: string): boolean {
+function enqueueOutbox(sid: string, text: string): OutboxItem | null {
   const list = readOutbox(sid);
-  if (list.length >= OUTBOX_MAX_ITEMS) return false;
-  writeOutbox(sid, [...list, { text, ts: Date.now() }]);
-  return true;
+  if (list.length >= OUTBOX_MAX_ITEMS) return null;
+  const item = { id: crypto.randomUUID(), text, ts: Date.now() };
+  writeOutbox(sid, [...list, item]);
+  return item;
 }
+const outboxMessage = (item: OutboxItem): Msg => ({
+  id: "outbox-" + item.id, direction: "in",
+  text: item.text + "\n⏳ En attente de connexion",
+  created_at: new Date(item.ts).toISOString(), attachments: [],
+});
 
 function getThreadCutoff(): string | null {
   try { return localStorage.getItem(THREAD_CUTOFF_KEY); } catch { return null; }
@@ -214,6 +223,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
   const sendingRef = useRef(false);
   const flushOutboxRef = useRef<() => void>(() => {});
+  const flushingOutboxRef = useRef(false);
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -405,7 +415,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     else msgOrs.push(`web_session_id.eq.${sessionId}`);
     let q = supabase
       .from("waouh_messages")
-      .select("id,direction,text,created_at,attachments,meta")
+      .select("id,thread_id,direction,text,created_at,attachments,meta")
+      .is("thread_id", null)
       .or(msgOrs.join(","))
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -427,6 +438,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         headers: { "x-waouh-session": sessionId },
         body: {
           sessionId,
+          scope: "main",
           authUserId: user?.id ?? null,
           limit,
           before,
@@ -516,6 +528,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
       const m = payload.new as any;
+      if (m.thread_id) return;
       const cutoff = threadCutoffRef.current;
       if (cutoff && m.created_at && m.created_at < cutoff) return;
       setMessages((prev) => mergeMessages(prev, [m]));
@@ -545,6 +558,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     if (!open) return;
     const onInsert = (payload: any) => {
       const m = payload.new as any;
+      if (m.thread_id) return;
       const cutoff = threadCutoffRef.current;
       if (cutoff && m.created_at && m.created_at < cutoff) return;
       setMessages((prev) => mergeMessages(prev, [m]));
@@ -645,7 +659,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         setPendingAtts((prev) => [...prev, { url: pub.publicUrl, type: file.type }]);
       }
     } catch (err: any) {
-      toast({ title: "Upload échoué", description: err.message, variant: "destructive" });
+      toast({ title: "Upload échoué", description: userFacingErrorText(err, "upload"), variant: "destructive" });
     } finally {
       setUploading(false);
       if (cameraRef.current) cameraRef.current.value = "";
@@ -664,10 +678,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     // renvoyé à la reconnexion. Pièces jointes / actions : refusés, le texte reste dans le composeur.
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       const plainText = atts.length === 0 && Object.keys(metaOverride).length === 0 && !locationOverride;
-      if (plainText && enqueueOutbox(sessionId, text)) {
+      const queued = plainText ? enqueueOutbox(sessionId, text) : null;
+      if (queued) {
         setMessages((prev) => [
           ...prev,
-          { id: `outbox-${Date.now()}`, direction: "in", text: `${text}\n⏳ En attente de connexion`, created_at: new Date().toISOString(), attachments: [] },
+          outboxMessage(queued),
         ]);
         toast({ title: "Hors ligne", description: "Message gardé : il sera envoyé dès le retour du réseau." });
         return;
@@ -755,25 +770,36 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   // Renvoi de la file hors ligne : séquentiel, une offre vieille de plus de 30 min n'est jamais renvoyée seule.
   flushOutboxRef.current = async () => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (flushingOutboxRef.current || sendingRef.current) return;
     const pendingItems = readOutbox(sessionId);
-    if (!pendingItems.length || sendingRef.current) return;
-    writeOutbox(sessionId, []);
-    setMessages((prev) => prev.filter((m) => !String(m.id).startsWith("outbox-")));
+    if (!pendingItems.length) return;
+    flushingOutboxRef.current = true;
+    // Keep queued messages visible, including after a refresh or a failed retry.
+    setMessages((prev) => mergeMessages(prev, pendingItems.map(outboxMessage)));
     let dropped = 0;
-    for (let i = 0; i < pendingItems.length; i++) {
-      const item = pendingItems[i];
-      if (Date.now() - item.ts > OUTBOX_MAX_AGE_MS) { dropped++; continue; }
-      try {
-        await sendCore(item.text, []);
-      } catch {
-        // Échec : on remet ce message et les suivants en file pour le prochain retour réseau.
-        writeOutbox(sessionId, pendingItems.slice(i));
-        break;
+    try {
+      for (const item of pendingItems) {
+        const remove = () => {
+          writeOutbox(sessionId, readOutbox(sessionId).filter((entry) => entry.id !== item.id));
+          setMessages((prev) => prev.filter((message) => message.id !== "outbox-" + item.id));
+        };
+        if (Date.now() - item.ts > OUTBOX_MAX_AGE_MS) { dropped++; remove(); continue; }
+        if (navigator.onLine === false) break;
+        try {
+          await sendCore(item.text, []);
+          // Remove only after acknowledgement; preserve anything queued meanwhile.
+          remove();
+        } catch {
+          break;
+        }
       }
+    } finally {
+      flushingOutboxRef.current = false;
     }
     if (dropped) toast({ title: "Messages anciens non envoyés", description: "Certains messages écrits hors ligne datent de plus de 30 minutes et n'ont pas été renvoyés." });
   };
   useEffect(() => {
+    setMessages((prev) => mergeMessages(prev, readOutbox(sessionId).map(outboxMessage)));
     const run = () => { void flushOutboxRef.current(); };
     window.addEventListener("online", run);
     run();
@@ -789,7 +815,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   const send = async () => {
     const text = input.trim();
-    if ((!text && pendingAtts.length === 0) || sending) return;
+    if ((!text && pendingAtts.length === 0) || sending || sendingRef.current || uploading) return;
     // Guest paywall: after 10 messages without auth, force login
     if (!user) {
       const GUEST_KEY = "waouh_guest_msg_count";
@@ -952,7 +978,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           <div className="mx-auto my-3 max-w-xl rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-cyan-50/60 p-5 text-center shadow-sm">
             <div className="text-base font-black text-emerald-950">Que voulez-vous acheter ou vendre ?</div>
             <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
-              Parlez naturellement. Bot comprend l’objectif, NEXUS cherche le marché, Signal Fabric compare et WAOUH protège le contact.
+              Décrivez votre besoin, votre budget et votre ville. Je vous aide à trouver la bonne offre.
             </div>
             <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px]">
               <button type="button" onClick={() => { setInput("Je cherche "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-cyan-800 shadow-sm hover:bg-cyan-50">Acheter</button>
@@ -1055,6 +1081,15 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                     isUser={m.direction === "in"}
                     hasResults={rich.results.length > 0}
                   />
+                )}
+
+                {m.id.startsWith("outbox-") && (
+                  <Button type="button" size="sm" variant="secondary"
+                    className="mt-2" disabled={sending || !navigator.onLine}
+                    onClick={() => flushOutboxRef.current()}
+                    aria-label="Réessayer l'envoi du message">
+                    Réessayer
+                  </Button>
                 )}
 
                 {rich.results.length > 0 && (
@@ -1220,9 +1255,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" />
             <div className="max-w-[90%] rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3.5 py-2.5 text-xs text-slate-700 shadow-sm">
               <div className="flex items-center gap-2 font-black text-cyan-950">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Bot orchestre la recherche
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Je prépare votre réponse…
               </div>
-              <div className="mt-1 text-[10px] font-semibold text-slate-500">NEXUS découvre · Signal Fabric classe · Contact Layer vérifie</div>
+              <div className="mt-1 text-[10px] font-semibold text-slate-500">Un instant, je rassemble les informations utiles.</div>
             </div>
           </div>
         )}
@@ -1304,7 +1339,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           rows={1}
           className="flex-1 resize-none min-h-[40px] max-h-32 text-base sm:text-sm"
         />
-        <Button type="submit" size="icon" disabled={sending || (!input.trim() && pendingAtts.length === 0)}>
+        <Button type="submit" size="icon" aria-label="Envoyer le message" disabled={uploading || sending || (!input.trim() && pendingAtts.length === 0)}>
           <Send className="w-4 h-4" />
         </Button>
       </form>
