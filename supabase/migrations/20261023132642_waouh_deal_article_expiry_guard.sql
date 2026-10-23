@@ -16,5 +16,7 @@ $$;
 REVOKE ALL ON FUNCTION public.waouh_require_live_article_for_deal() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.waouh_require_live_article_for_deal() TO service_role;
 DROP TRIGGER IF EXISTS waouh_deal_article_expiry_guard ON public.waouh_deals;
-CREATE TRIGGER waouh_deal_article_expiry_guard BEFORE INSERT ON public.waouh_deals
+DROP TRIGGER IF EXISTS trg_00_waouh_deal_article_expiry_guard ON public.waouh_deals;
+-- PostgreSQL runs same-kind triggers alphabetically: check expiry before reservation changes status.
+CREATE TRIGGER trg_00_waouh_deal_article_expiry_guard BEFORE INSERT ON public.waouh_deals
 FOR EACH ROW EXECUTE FUNCTION public.waouh_require_live_article_for_deal();
