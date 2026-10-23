@@ -31,6 +31,7 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
     this.actions = const [],
     this.back = false,
     this.leading,
+    this.compact = false,
   });
 
   final String title;
@@ -38,22 +39,23 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget> actions;
   final bool back;
   final Widget? leading;
+  final bool compact;
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => Size.fromHeight(compact ? 52 : 64);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 64,
+        toolbarHeight: compact ? 52 : 64,
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         foregroundColor: WaouhPalette.ink,
         surfaceTintColor: Colors.transparent,
-        leadingWidth: back || leading != null ? 52 : 12,
+        leadingWidth: back || leading != null ? (compact ? 46 : 52) : 12,
         leading: leading ??
             (back
                 ? Padding(
-                    padding: const EdgeInsets.only(left: 8),
+                    padding: EdgeInsets.only(left: compact ? 4 : 8),
                     child: IconButton.filledTonal(
                       tooltip: 'Retour',
                       style: IconButton.styleFrom(
@@ -73,18 +75,18 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
         title: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
-              padding: const EdgeInsets.all(6),
+              width: compact ? 29 : 34,
+              height: compact ? 29 : 34,
+              padding: EdgeInsets.all(compact ? 4 : 6),
               decoration: BoxDecoration(
                 gradient: WaouhGradients.airHero,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFDDE8F8)),
                 boxShadow: WaouhShadows.card,
               ),
-              child: const BrandMark(size: 22),
+              child: BrandMark(size: compact ? 19 : 22),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: compact ? 7 : 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2030,18 +2032,17 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
-                    color: const Color(0xFF062E27),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF8B7A25))),
+                  color: const Color(0xFFECF7F1),
+                  borderRadius: BorderRadius.circular(9),
+                ),
                 child: Text(
-                    '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
-                    style: const TextStyle(
-                        color: Color(0xFFF2D36B),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900)),
+                  '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    color: Color(0xFF08745D), fontSize: 12,
+                    fontWeight: FontWeight.w800),
+                ),
               ),
               if (widget.products.length > 1) ...[
                 const SizedBox(width: 8),
@@ -3764,17 +3765,14 @@ class _LivePremiumMessageContent extends StatelessWidget {
     for (final raw in lines) {
       final line = raw.trimRight();
       if (line.trim().isEmpty) {
-        children.add(const SizedBox(height: 7));
+        if (children.isNotEmpty && children.last is! SizedBox) {
+          children.add(const SizedBox(height: 5));
+        }
         continue;
       }
       final value = line.trim();
-      if (_separator.hasMatch(value)) {
-        children.add(const Padding(
-          padding: EdgeInsets.symmetric(vertical: 5),
-          child: Divider(height: 1, thickness: 1, color: Color(0xFFB7D8CA)),
-        ));
-        continue;
-      }
+      // Decorative lines are removed, preserving the actual response.
+      if (_separator.hasMatch(value)) continue;
       final emphasized = _emphasis.firstMatch(value);
       final clean = (emphasized?.group(1)?.trim() ?? value)
           .replaceFirst(RegExp(r'^#{1,3}\s+'), '');
@@ -3792,9 +3790,9 @@ class _LivePremiumMessageContent extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F8F0),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFC4E8D8)),
+            color: const Color(0xFFEDF9F4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFDAEEE5)),
           ),
           child: _rich(
               clean,
@@ -4017,8 +4015,9 @@ class _CollapsibleResultsState extends State<_CollapsibleResults> {
 
   @override
   Widget build(BuildContext context) {
-    final label = '${widget.count} résultat${widget.count > 1 ? 's' : ''}'
-        '${widget.best.trim().isEmpty ? '' : ' · meilleur choix : ${widget.best.trim()}'}';
+    final label = widget.best.trim().isEmpty
+        ? 'Voir les annonces'
+        : 'Sélection WAOUH · ${widget.best.trim()}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

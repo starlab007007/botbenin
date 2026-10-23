@@ -601,10 +601,11 @@ class LiveAvatarBriefingCard extends StatelessWidget {
 
 /// Barre du guide : état, « Faire le point », réglages (accueil, cadence, heures calmes).
 class LiveAvatarGuideBar extends StatefulWidget {
-  const LiveAvatarGuideBar({super.key, required this.service, this.sessionId, this.autoOpen = true});
+  const LiveAvatarGuideBar({super.key, required this.service, this.sessionId, this.autoOpen = true, this.compact = false});
   final LiveAvatarGuideService service;
   final Future<String?> Function()? sessionId;
   final bool autoOpen;
+  final bool compact;
   @override
   State<LiveAvatarGuideBar> createState() => LiveAvatarGuideBarState();
 }
@@ -688,10 +689,98 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
     );
   }
 
+  Future<void> _openMissionDetails(List<LiveBoardChip> chips) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 20, 18, 22),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Votre avatar WAOUH', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: Color(0xFF16382E))),
+            const SizedBox(height: 6),
+            Text(busy ? 'Analyse en cours…' :
+              (prefs == null ? 'Prêt à vous guider' : liveNextPointLabel(prefs!.nextBriefingAt, prefs!.cadence)),
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+            const SizedBox(height: 16),
+            if (chips.isNotEmpty)
+              Wrap(spacing: 7, runSpacing: 7, children: chips.map((c) =>
+                Chip(label: Text(c.icon + ' ' + c.count.toString() + ' ' + c.label))).toList()),
+            if (chips.isEmpty)
+              const Text('Aucune mission prioritaire en attente.', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: FilledButton.icon(
+                onPressed: busy ? null : () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(runPoint('now'));
+                },
+                icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                label: const Text('Faire le point'),
+              )),
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                tooltip: 'Réglages Avatar',
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(openSettings());
+                },
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = prefs;
     final chips = board == null ? const <LiveBoardChip>[] : liveBoardChips(board!);
+    if (widget.compact) {
+      final urgentCount = chips.where((c) => c.key == 'needsYou').fold<int>(0, (sum, c) => sum + c.count);
+      return Container(
+        key: const ValueKey('avatar-guide-compact'),
+        height: 43,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF3FCF8),
+          border: Border(bottom: BorderSide(color: Color(0xFFD8EEE5))),
+        ),
+        child: Row(children: [
+          const LiveAvatarOrb(size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            busy ? 'Avatar · analyse en cours' : urgentCount > 0
+                ? 'Avatar · ' + urgentCount.toString() + ' action(s) à voir'
+                : 'Avatar actif',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
+          )),
+          TextButton.icon(
+            onPressed: busy ? null : () => runPoint('now'),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              minimumSize: const Size(0, 34),
+            ),
+            icon: const Icon(Icons.auto_awesome_outlined, size: 15),
+            label: const Text('Point', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+          ),
+          IconButton(
+            tooltip: 'Détails et paramètres Avatar',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () => _openMissionDetails(chips),
+            icon: const Icon(Icons.tune_rounded, size: 19, color: Color(0xFF305A51)),
+          ),
+        ]),
+      );
+    }
     return Container(
       key: const ValueKey('avatar-guide-bar'),
       decoration: const BoxDecoration(
