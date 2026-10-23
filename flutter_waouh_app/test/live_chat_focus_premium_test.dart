@@ -37,7 +37,9 @@ void main() {
     expect(tester.getSize(find.byKey(const ValueKey('avatar-guide-compact'))).height, 43);
     expect(find.text('Zone de lecture'), findsOneWidget);
     await tester.tap(find.byTooltip('Détails et paramètres Avatar'));
-    await tester.pumpAndSettle();
+    // The glowing Avatar orb repeats indefinitely, so avoid pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('Votre avatar WAOUH'), findsOneWidget);
     expect(find.text('Faire le point'), findsOneWidget);
     expect(tester.takeException(), isNull);
