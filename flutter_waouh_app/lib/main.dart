@@ -871,10 +871,14 @@ class AuthController extends ChangeNotifier {
     _session = supabase.auth.currentSession;
     _authSub = supabase.auth.onAuthStateChange.listen((event) async {
       _session = event.session;
+      await LiveSessionStore.bindAccount(user?.id);
       await _loadProfile();
       notifyListeners();
     });
-    _loadProfile();
+    unawaited(LiveSessionStore.bindAccount(user?.id).then((_) async {
+      await _loadProfile();
+      notifyListeners();
+    }));
   }
 
   Session? _session;
@@ -899,6 +903,7 @@ class AuthController extends ChangeNotifier {
           .select()
           .eq('id', uid)
           .maybeSingle();
+      if (user?.id != uid) return;
       profile = row == null
           ? Profile(
               id: uid,
@@ -908,6 +913,7 @@ class AuthController extends ChangeNotifier {
             )
           : Profile.fromJson(row);
     } catch (_) {
+      if (user?.id != uid) return;
       profile = Profile(
         id: uid,
         fullName: user?.userMetadata?['full_name']?.toString(),
@@ -1148,6 +1154,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
     try {
       await supabase.auth.signOut();
+      await LiveSessionStore.bindAccount(null);
       _session = null;
       profile = null;
       whatsappIsNewUser = false;
@@ -1193,7 +1200,25 @@ class AuthController extends ChangeNotifier {
 }
 
 class WaouhChatController extends ChangeNotifier {
-  WaouhChatController(this.auth);
+  WaouhChatController(this.auth) {
+    _authUserId = auth.user?.id;
+    auth.addListener(_onAuthBoundary);
+  }
+
+  String? _authUserId;
+  void _onAuthBoundary() {
+    if (_authUserId == auth.user?.id) return;
+    _authUserId = auth.user?.id;
+    _waouhUserId = null;
+    optimisticMessages.clear();
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    auth.removeListener(_onAuthBoundary);
+    super.dispose();
+  }
 
   final AuthController auth;
   final LiveSessionStore _sessionStore = LiveSessionStore();
@@ -1251,11 +1276,15 @@ class WaouhChatController extends ChangeNotifier {
     if (uid != null) clauses.add('auth_user_id.eq.$uid');
     if (sessionId.isNotEmpty) clauses.add('web_session_id.eq.$sessionId');
     if (clauses.isEmpty) return const [];
-    final rows = await supabase
-        .from('waouh_users')
-        .select('id, auth_user_id, web_session_id')
-        .or(clauses.join(','))
-        .limit(100);
+    final rows = <dynamic>[];
+    const pageSize = 100;
+    for (var from = 0; ; from += pageSize) {
+      final page = await supabase.from('waouh_users')
+          .select('id, auth_user_id, web_session_id').or(clauses.join(','))
+          .order('created_at').order('id').range(from, from + pageSize - 1);
+      rows.addAll(page);
+      if (page.length < pageSize) break;
+    }
     final ids = <String>{};
     for (final row in (rows as List)) {
       ids.add(asString((row as Map)['id']));
@@ -1290,6 +1319,7 @@ class WaouhChatController extends ChangeNotifier {
   }
 
   Future<List<WaouhMessage>> _loadMainMessages() async {
+    final ownerId = auth.user?.id;
     final sessionId = await _sessionId();
     final response = await supabase.functions.invoke(
       'waouh-history',
@@ -1299,14 +1329,17 @@ class WaouhChatController extends ChangeNotifier {
         'authUserId': auth.user?.id,
         'limit': 200,
         'includeMeta': true,
+        'scope': 'main',
       },
     );
+    if (auth.user?.id != ownerId) return const [];
     final data = response.data;
     if (data is! Map || data['ok'] != true || data['messages'] is! List) {
       throw StateError('Historique WAOUH indisponible');
     }
     final messages = (data['messages'] as List)
         .whereType<Map>()
+        .where((row) => row['thread_id'] == null)
         .map(
           (row) => WaouhMessage.fromJson(
             Map<String, dynamic>.from(row),

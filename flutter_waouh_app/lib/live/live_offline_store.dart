@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'live_session.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -76,6 +77,8 @@ class LiveOfflineStore {
   }
 
   Future<void> enqueue(String type, Map<String, dynamic> payload) async {
+    await LiveSessionStore.waitForAccountBinding();
+    if (!LiveSessionStore.isCurrentOperation) throw StateError("account_changed");
     final actions = await outbox();
     actions.add(LiveOutboxAction(
       id: 'outbox_${DateTime.now().microsecondsSinceEpoch}',
@@ -95,6 +98,8 @@ class LiveOfflineStore {
   Future<int> pendingCount() async => (await outbox()).length;
 
   Future<void> _save(String key, List<Map<String, dynamic>> values) async {
+    await LiveSessionStore.waitForAccountBinding();
+    if (!LiveSessionStore.isCurrentOperation) throw StateError("account_changed");
     await initialize();
     final trimmed = values.length > 250 ? values.sublist(values.length - 250) : values;
     await _prefs!.setString(key, jsonEncode(trimmed));
