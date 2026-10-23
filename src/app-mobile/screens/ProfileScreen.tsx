@@ -12,14 +12,21 @@ import { toast } from "sonner";
 export default function ProfileScreen() {
   const navigate = useNavigate();
   const { signOut } = useMobileAuth();
-  const { profile, update } = useMobileProfile();
+  const { profile, loading, update } = useMobileProfile();
   const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (profile) setName(profile.full_name ?? ""); }, [profile]);
 
   const save = async () => {
-    await update({ full_name: name });
-    toast.success("Profil mis à jour");
+    if (saving || loading || !profile) return;
+    setSaving(true);
+    try {
+      await update({ full_name: name.trim() });
+      toast.success("Profil mis à jour");
+    } catch {
+      toast.error("Profil non enregistré. Vos modifications sont conservées, réessayez.");
+    } finally { setSaving(false); }
   };
 
   const logout = async () => {
@@ -53,8 +60,8 @@ export default function ProfileScreen() {
           </Avatar>
         </div>
         <div>
-          <Label>Nom complet</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Label htmlFor="profile-full-name">Nom complet</Label>
+          <Input id="profile-full-name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
           <Label>Téléphone</Label>
@@ -64,7 +71,7 @@ export default function ProfileScreen() {
           <Label>Email</Label>
           <Input value={profile?.email ?? ""} disabled />
         </div>
-        <Button onClick={save} className="w-full bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">Enregistrer</Button>
+        <Button onClick={save} disabled={saving || loading || !profile} className="w-full bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">{saving ? "Enregistrement…" : "Enregistrer"}</Button>
         <Button onClick={logout} variant="outline" className="w-full text-destructive border-destructive/30">
           <LogOut className="h-4 w-4 mr-2" /> Se déconnecter
         </Button>

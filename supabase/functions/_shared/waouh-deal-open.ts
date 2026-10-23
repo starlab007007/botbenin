@@ -15,7 +15,7 @@ import { pushSyncedEvent } from "./waouh-sync.ts";
 import { recentDuplicateExists, recentNotificationExists } from "./waouh-dedupe.ts";
 import { bindThreadState, resolveProductThread } from "./waouh-thread.ts";
 import { negotiationActionsV3, sellerOfferDecisionActions, type WaouhAction } from "./waouh-commands.ts";
-import { renderCatalog } from "./waouh-message-catalog.ts";
+import { renderCatalog, isArticleExpired } from "./waouh-message-catalog.ts";
 
 export interface OpenBuyerDealArgs {
   sb: any;
@@ -68,7 +68,7 @@ export interface OpenBuyerDealResult {
 }
 
 const ARTICLE_COLUMNS =
-  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status,origin,partner_id";
+  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status,expires_at,origin,partner_id";
 
 const UNAVAILABLE_STATUSES = new Set(["sold", "reserved", "archived", "deleted"]);
 
@@ -167,7 +167,7 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   if (!article) return emptyResult("article_not_found");
 
   if (article.seller_id && article.seller_id === buyerUserId) return emptyResult("self", article);
-  if (rejectUnavailable && UNAVAILABLE_STATUSES.has(String(article.status || "").toLowerCase())) {
+  if (isArticleExpired(article) || (rejectUnavailable && UNAVAILABLE_STATUSES.has(String(article.status || "").toLowerCase()))) {
     return emptyResult("article_unavailable", article);
   }
 

@@ -24,6 +24,9 @@ on:
       - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-waha-sync-contacts/**"
       - "src/app-mobile/screens/ChatListScreen.tsx"
+      - "src/app-mobile/screens/ProfileScreen.tsx"
+      - "src/app-mobile/hooks/useMobileProfile.ts"
+      - "src/app-mobile/screens/__tests__/**"
       - "src/app-mobile/screens/WaouhChatScreen.tsx"
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/layouts/**"
@@ -70,6 +73,9 @@ on:
       - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-waha-sync-contacts/**"
       - "src/app-mobile/screens/ChatListScreen.tsx"
+      - "src/app-mobile/screens/ProfileScreen.tsx"
+      - "src/app-mobile/hooks/useMobileProfile.ts"
+      - "src/app-mobile/screens/__tests__/**"
       - "src/app-mobile/screens/WaouhChatScreen.tsx"
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/layouts/**"
@@ -142,7 +148,8 @@ jobs:
             src/lib/waouh/__tests__/smart-payload.test.ts \
             src/lib/waouh/__tests__/identityIds.test.ts \
             src/lib/waouh/__tests__/sessionCache.test.ts \
-            src/components/waouh/__tests__/WaouhAvatarGuideBar.test.tsx
+            src/components/waouh/__tests__/WaouhAvatarGuideBar.test.tsx \
+            src/app-mobile/screens/__tests__/ProfileScreen.test.tsx
 
       - name: Deno
         uses: denoland/setup-deno@v2
@@ -168,6 +175,9 @@ jobs:
               Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql"),
               Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"),
               Path("supabase/migrations/20261023122055_waouh_session_ownership_guard.sql"),
+              Path("supabase/migrations/20261023131305_waouh_private_view_invoker_guard.sql"),
+              Path("supabase/migrations/20261023131422_application_function_search_path_guard.sql"),
+              Path("supabase/migrations/20261023132642_waouh_deal_article_expiry_guard.sql"),
           ]
           for path in files:
               tree = parse_sql(path.read_text())

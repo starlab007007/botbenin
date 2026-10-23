@@ -195,3 +195,12 @@ Deno.test("E4 : article vendu → article_unavailable avec le statut « sold » 
   assertEquals(r.code, "article_unavailable");
   assertEquals(r.article?.status, "sold");
 });
+
+Deno.test("expired articles never create a thread, even when reserved-article reopening is allowed", async () => {
+ for (const article of [{id: ART,seller_id: SELLER,status:"expired",price:100}, {id:ART,seller_id:SELLER,status:"active",expires_at:"2020-01-01T00:00:00Z",price:100}]) {
+  const db = fakeDb({waouh_articles:[article]});
+  const result=await openBuyerDeal({sb:db,articleId:ART,buyerUserId:BUYER,source:"qa",supabaseUrl:"x",serviceRole:"k",rejectUnavailable:false});
+  assertEquals(result.code,"article_unavailable");
+  assertEquals(result.threadId,null);
+ }
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "./useMobileAuth";
 
@@ -12,6 +12,8 @@ export type MobileProfile = {
 
 export function useMobileProfile() {
   const { user } = useMobileAuth();
+  const currentOwner = useRef(user?.id ?? null);
+  currentOwner.current = user?.id ?? null;
   const [profile, setProfile] = useState<MobileProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +40,7 @@ export function useMobileProfile() {
           provider: phone ? "whatsapp" : "email",
         };
         const { data: created } = await supabase.from("profiles").insert(insert).select().maybeSingle();
+        if (!mounted) return;
         setProfile((created as any) ?? (insert as any));
       } else {
         setProfile(data as any);
@@ -53,8 +56,14 @@ export function useMobileProfile() {
   }, [user]);
 
   const update = async (patch: Partial<MobileProfile>) => {
-    if (!user) return;
-    await supabase.from("profiles").update(patch).eq("id", user.id);
+    if (!user) throw new Error("auth_required");
+    const ownerId = user.id;
+    const { data, error } = await supabase.from("profiles").update(patch).eq("id", ownerId)
+      .select("id,full_name,email,phone,avatar_url").maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("profile_not_updated");
+    if (currentOwner.current !== ownerId) throw new Error("account_changed");
+    setProfile(data as MobileProfile);
   };
 
   return { profile, loading, update };

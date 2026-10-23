@@ -18,7 +18,7 @@ import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
-import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
+import { renderCatalog, type CatalogKey, fcfa, isUnavailableArticle, isArticleExpired, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
 import { evictedNegotiationKey } from "../_shared/waouh-evict.ts";
 import { resolveContactPath, type ContactPath } from "../_shared/waouh-contact-path.ts";
@@ -232,7 +232,7 @@ async function loadState(sb: any, thread: any, signedIn = false): Promise<{ stat
     sb.from("waouh_deals").select("*").eq("thread_id", thread.id).neq("status", "cancelled")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("waouh_articles")
-      .select("id,seller_id,title,price,currency,photos,city,market_price_min,market_price_max,status,origin")
+      .select("id,seller_id,title,price,currency,photos,city,market_price_min,market_price_max,status,expires_at,origin")
       .eq("id", thread.article_id).maybeSingle(),
   ]);
   const externalSeller = article?.origin === NEXUS_ORIGIN;
@@ -317,6 +317,12 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
     ? (role === "buyer" ? thread.buyer_user_id : role === "seller" ? thread.seller_user_id : actorId)
     : actorId;
 
+  // An existing deal remains fulfillable; an expired listing cannot receive a new offer/agreement.
+  if (thread?.article_id && !thread.deal_id && ["offer", "accept", "ask", "transmit_offer", "watch_offer"].includes(req.action)) {
+    const { data: available } = await sb.from("waouh_articles").select("status,expires_at").eq("id", thread.article_id).maybeSingle();
+    if (isArticleExpired(available)) return { ok: false, key: "article_expired", articleId: thread.article_id, threadId: thread.id };
+  }
+
   const router = async (payload: { text: string; button_payload?: string | null; withdrawn?: boolean }, negotiationId: string, threadId: string) => {
     const r = await callInternal("waouh-negotiation-router", {
       text: payload.text,
@@ -362,9 +368,9 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
         : null;
       // Une offre sur un article déjà réservé ou vendu ne doit ni être enregistrée ni notifier le vendeur.
       if (req.action === "offer" && thread?.article_id) {
-        const { data: offered } = await sb.from("waouh_articles").select("status").eq("id", thread.article_id).maybeSingle();
-        if (isUnavailableStatus(offered?.status)) {
-          return { ok: false, key: unavailableKey(offered?.status), articleId: thread.article_id, threadId: thread.id };
+        const { data: offered } = await sb.from("waouh_articles").select("status,expires_at").eq("id", thread.article_id).maybeSingle();
+        if (isUnavailableArticle(offered)) {
+          return { ok: false, key: unavailableKey(offered?.status, offered?.expires_at), articleId: thread.article_id, threadId: thread.id };
         }
       }
       if (openNegId && req.action === "offer" && thread) {
@@ -380,7 +386,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       });
       if (!opened.ok) {
         const key: CatalogKey = opened.code === "self" ? "self_article"
-          : opened.code === "article_unavailable" ? unavailableKey(opened.article?.status)
+          : opened.code === "article_unavailable" ? unavailableKey(opened.article?.status, opened.article?.expires_at)
           : opened.code === "article_not_found" ? "article_missing"
           : opened.code === "invalid_offer" ? "out_of_stage"
           : "technical_error";
@@ -430,7 +436,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
               : opened.code === "article_not_found"
                 ? "article_missing"
                 : opened.code === "article_unavailable"
-                  ? unavailableKey(opened.article?.status)
+                  ? unavailableKey(opened.article?.status, opened.article?.expires_at)
                   : "technical_error",
             articleId,
           };
@@ -799,7 +805,7 @@ Deno.serve(async (req) => {
     });
     const ownLast = finalRole === "buyer" ? buyerOffer : sellerOffer;
     // Article pris par un autre acheteur (ce fil n'a pas de deal) : pas de bouton qui échouerait.
-    const articleGone = isUnavailableStatus(loaded?.article?.status) && !state?.dealId;
+    const articleGone = isUnavailableArticle(loaded?.article) && !state?.dealId;
     const actions = state && !articleGone
       ? nextActions(state, finalRole, { acceptFirst: acceptFirst(state.lastOfferPrice, ownLast) })
       : [];

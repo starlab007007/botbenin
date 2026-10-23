@@ -13,6 +13,7 @@ on:
       - 'supabase/functions/waouh-channel-in-secure/**'
       - 'supabase/functions/register-device-token/**'
       - 'supabase/functions/_shared/waouh-auth.ts'
+      - 'scripts/harden-production-auth.py'
       - '.github/workflows/deploy-waouh-edge.yml'
 
 jobs:
@@ -49,6 +50,16 @@ jobs:
           test -n "${SUPABASE_ACCESS_TOKEN:-}" || { echo "::error::SUPABASE_ACCESS_TOKEN absent de l'environnement production"; exit 1; }
           test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
           echo "✅ Identifiants de déploiement disponibles"
+
+      - name: Harden production Auth and verify settings
+        run: python3 scripts/harden-production-auth.py
+
+      - name: Save Auth verification result
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-hardening-result
+          path: auth-hardening-result.json
+          retention-days: 14
 
       - name: Prepare minimal Edge deployment config
         run: |

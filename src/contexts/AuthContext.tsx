@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
 import { friendlyAuthError } from "@/lib/authErrors";
-import { clearWaouhAccountCache, shouldResetWaouhSession } from "@/lib/waouh/sessionCache";
+import { clearWaouhAccountCache, shouldResetWaouhSession, readWaouhCacheOwner, writeWaouhCacheOwner } from "@/lib/waouh/sessionCache";
 import { normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 export interface AuthUser {
@@ -105,7 +105,7 @@ const withTimeout = <T,>(promise: PromiseLike<T>, timeoutMs: number, label: stri
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const currentAuthUserIdRef = useRef<string | null>(null);
+  const currentAuthUserIdRef = useRef<string | null>(readWaouhCacheOwner());
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,6 +189,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         clearWaouhAccountCache();
       }
       currentAuthUserIdRef.current = nextId;
+      writeWaouhCacheOwner(nextId);
 
       setSession(session);
       setSupabaseUser(session?.user ?? null);
