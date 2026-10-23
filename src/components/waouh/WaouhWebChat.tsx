@@ -486,6 +486,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
   const loadOlder = async () => {
     if (loadingOlder || !hasMore) return;
+    const ownerId = accountIdRef.current;
     const oldest = messages[0]?.created_at ?? openedAtRef.current;
     setLoadingOlder(true);
     const el = scrollRef.current;
@@ -493,6 +494,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const prevTop = el?.scrollTop ?? 0;
     try {
       const page = await fetchPage(waouhIds, oldest, PAGE_OLDER);
+      if (accountIdRef.current !== ownerId) return;
       setHasMore(page.hasMore);
       if (page.messages.length) {
         setMessages((prev) => mergeMessages(prev, page.messages));
@@ -546,6 +548,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
+      if (!active || accountIdRef.current !== uid) return;
       const m = payload.new as any;
       if (m.thread_id) return;
       const cutoff = threadCutoffRef.current;
@@ -575,7 +578,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   // without disturbing the session channel.
   useEffect(() => {
     if (!open) return;
+    const ownerId = accountIdRef.current;
     const onInsert = (payload: any) => {
+      if (accountIdRef.current !== ownerId) return;
       const m = payload.new as any;
       if (m.thread_id) return;
       const cutoff = threadCutoffRef.current;
@@ -830,7 +835,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   // Retour réseau / onglet : relit la dernière page du fil et fusionne (les messages manqués apparaissent).
   useWaouhResync(async () => {
     if (!open) return;
+    const ownerId = accountIdRef.current;
     const page = await fetchPage([], null, PAGE_INITIAL);
+    if (accountIdRef.current !== ownerId) return;
     if (page.messages.length > 0) setMessages((prev) => mergeMessages(prev, page.messages));
   });
 

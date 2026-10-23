@@ -166,6 +166,7 @@ jobs:
           files = [
               Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql"),
               Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"),
+              Path("supabase/migrations/20261023122055_waouh_session_ownership_guard.sql"),
           ]
           for path in files:
               tree = parse_sql(path.read_text())
@@ -197,7 +198,9 @@ jobs:
         run: deno check supabase/functions/waouh-payment/index.ts
 
       - name: Check WAOUH history scope
-        run: deno check supabase/functions/waouh-history/index.ts
+        run: |
+          deno check supabase/functions/waouh-history/index.ts
+          deno check supabase/functions/waouh-match-history/index.ts
 
       - name: Check WAOUH Commerce Action
         run: deno check supabase/functions/waouh-commerce-action/index.ts

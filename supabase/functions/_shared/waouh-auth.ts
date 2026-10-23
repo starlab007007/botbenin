@@ -64,6 +64,26 @@ export async function requireAuthOrGuestSession(req: Request, bodySessionId: str
     return { ok: false as const, response: jsonError(403, "invalid_guest_session") };
   }
 
+  if (bodySid && headerSessionId && bodySid !== headerSessionId) {
+    return { ok: false as const, response: jsonError(403, "session_mismatch") };
+  }
+  const scopeSid = bodySid ?? headerSessionId;
+  if (scopeSid && !isServiceRoleRequest(req)) {
+    const url = Deno.env.get("SUPABASE_URL");
+    const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !service) return { ok: false as const, response: jsonError(503, "session_scope_unavailable") };
+    const sb = createClient(url, service, { auth: { persistSession: false } });
+    const { data: allowed, error } = await sb.rpc("waouh_session_scope_allowed_for_actor", {
+      p_session_id: scopeSid, p_auth_user_id: authUser?.id ?? null,
+    });
+    if (error || typeof allowed !== "boolean") {
+      return { ok: false as const, response: jsonError(503, "session_scope_unavailable") };
+    }
+    if (!allowed) {
+      return { ok: false as const, response: jsonError(authUser ? 409 : 403, "session_claimed") };
+    }
+  }
+
   return {
     ok: true as const,
     authUser,
