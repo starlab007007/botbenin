@@ -2031,19 +2031,11 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                    color: const Color(0xFF062E27),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF8B7A25))),
-                child: Text(
-                    '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
-                    style: const TextStyle(
-                        color: Color(0xFFF2D36B),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900)),
+              const Padding(
+                padding: EdgeInsets.only(left: 3),
+                child: Text('ANNONCES', style: TextStyle(
+                  color: Color(0xFF08745D), fontSize: 10.5,
+                  fontWeight: FontWeight.w800, letterSpacing: 0.9)),
               ),
               if (widget.products.length > 1) ...[
                 const SizedBox(width: 8),
@@ -3791,9 +3783,9 @@ class _LivePremiumMessageContent extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: 2),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F8F0),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFC4E8D8)),
+            color: const Color(0xFFEDF9F4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFDAEEE5)),
           ),
           child: _rich(
               clean,
