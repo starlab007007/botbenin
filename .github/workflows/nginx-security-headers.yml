@@ -1,0 +1,19 @@
+name: Nginx security headers CI
+on:
+  pull_request:
+    branches: [prod]
+    paths: [Dockerfile, scripts/verify-nginx-security-headers.py, .github/workflows/nginx-security-headers.yml]
+  push:
+    branches: [prod]
+    paths: [Dockerfile, scripts/verify-nginx-security-headers.py, .github/workflows/nginx-security-headers.yml]
+  workflow_dispatch:
+jobs:
+  runtime-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify actual HTML, SPA, asset and error responses
+        run: python3 scripts/verify-nginx-security-headers.py
