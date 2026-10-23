@@ -70,9 +70,9 @@ def main():
                     assert headers["X-Content-Type-Options"] == "nosniff", path
                     assert "geolocation=(self)" in headers["Permissions-Policy"], path
                     if path in ["/", "/app/chat", "/app/profile", "/index.html", "/sw.js"]:
-                        assert "no-cache" in headers.get("Cache-Control", ""), path
+                        assert "no-cache" in ", ".join(headers.get_all("Cache-Control", [])), path
                     if path == "/assets/test.js":
-                        assert "immutable" in headers.get("Cache-Control", ""), path
+                        assert "immutable" in ", ".join(headers.get_all("Cache-Control", [])), path
                     print(json.dumps({"path": path, "status": response.status, "security_headers": True}))
         finally:
             if container:
