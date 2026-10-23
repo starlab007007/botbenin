@@ -503,21 +503,56 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: LiveHeader(
         title: 'WAOUH One',
-        subtitle: '${avatar.name} · Avatar IA · NEXUS + Signal + Contact',
+        subtitle: 'Bot · Avatar IA',
+        compact: true,
         back: true,
         actions: [
           IconButton(
-              tooltip: 'Mon Avatar',
-              onPressed: () => context.push('/app/avatar'),
-              icon: const Icon(Icons.face_retouching_natural_rounded)),
-          IconButton(
-              tooltip: 'Nouvel objectif',
-              onPressed: _newChat,
-              icon: const Icon(Icons.add_comment_outlined)),
-          IconButton(
-              tooltip: 'Notifications',
-              onPressed: () => context.go('/app/notifications'),
-              icon: const Icon(Icons.notifications_none_rounded)),
+            tooltip: 'Nouvelle discussion',
+            onPressed: _newChat,
+            icon: const Icon(Icons.add_comment_outlined, size: 21),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Actions de la discussion',
+            icon: const Icon(Icons.more_vert_rounded, size: 22),
+            onSelected: (value) {
+              switch (value) {
+                case 'avatar':
+                  context.push('/app/avatar');
+                  break;
+                case 'point':
+                  _avatarBarKey.currentState?.runPoint('now');
+                  break;
+                case 'history':
+                  unawaited(_controller.showMainHistory());
+                  break;
+                case 'buy':
+                  composer.text = 'Je cherche ';
+                  composer.selection = TextSelection.collapsed(offset: composer.text.length);
+                  composerFocus.requestFocus();
+                  break;
+                case 'sell':
+                  _openSellForm();
+                  break;
+                case 'notifications':
+                  context.go('/app/notifications');
+                  break;
+                case 'intelligence':
+                  unawaited(_openAgenticWorkspace());
+                  break;
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'buy', child: ListTile(dense: true, leading: Icon(Icons.search), title: Text('Acheter'))),
+              PopupMenuItem(value: 'sell', child: ListTile(dense: true, leading: Icon(Icons.shopping_bag_outlined), title: Text('Vendre'))),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'avatar', child: ListTile(dense: true, leading: Icon(Icons.face_retouching_natural_rounded), title: Text('Mon Avatar'))),
+              PopupMenuItem(value: 'point', child: ListTile(dense: true, leading: Icon(Icons.auto_awesome_rounded), title: Text('Faire le point'))),
+              PopupMenuItem(value: 'intelligence', child: ListTile(dense: true, leading: Icon(Icons.hub_outlined), title: Text('NEXUS / Radar IA'))),
+              PopupMenuItem(value: 'history', child: ListTile(dense: true, leading: Icon(Icons.history), title: Text('Historique'))),
+              PopupMenuItem(value: 'notifications', child: ListTile(dense: true, leading: Icon(Icons.notifications_none_rounded), title: Text('Notifications'))),
+            ],
+          ),
         ],
       ),
       body: Column(children: [
@@ -526,6 +561,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
             key: _avatarBarKey,
             service: _avatarService,
             sessionId: () async => await _controller.session.sessionId,
+            compact: true,
           ),
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
@@ -569,7 +605,13 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       );
 
                   return Column(children: [
-                    if (hasGoal) ...[
+                    Expanded(
+                      child: LiveSmartTimeline(
+                        // Context and suggested actions scroll with the conversation.
+                        leading: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasGoal) ...[
                       LiveCommerceAgentBar(
                         messages: messages,
                         busy: waiting,
@@ -592,13 +634,8 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                                   'Position GPS indisponible.'));
                         },
                       ),
-                    ],
-                    Expanded(
-                      child: LiveSmartTimeline(
-                        leading: (!hasGoal || !controller.mainHistoryVisible)
-                            ? Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+
+                            ],
                                   if (!controller.mainHistoryVisible)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
@@ -619,9 +656,8 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                                       onNegotiate: () => seedGoal('Je souhaite négocier '),
                                       onAvatar: () => context.push('/app/avatar'),
                                     ),
-                                ],
-                              )
-                            : null,
+                          ],
+                        ),
                         messages: messages,
                         onPayload: _handlePayload,
                         showAssistantHint: waiting,
