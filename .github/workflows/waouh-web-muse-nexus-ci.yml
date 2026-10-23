@@ -141,7 +141,8 @@ jobs:
             src/lib/waouh/__tests__/user-facing-error.test.ts \
             src/lib/waouh/__tests__/smart-payload.test.ts \
             src/lib/waouh/__tests__/identityIds.test.ts \
-            src/lib/waouh/__tests__/sessionCache.test.ts
+            src/lib/waouh/__tests__/sessionCache.test.ts \
+            src/components/waouh/__tests__/WaouhAvatarGuideBar.test.tsx
 
       - name: Deno
         uses: denoland/setup-deno@v2

@@ -1013,8 +1013,6 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               Décrivez votre besoin, votre budget et votre ville. Je vous aide à trouver la bonne offre.
             </div>
             <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px]">
-              <button type="button" onClick={() => { setInput("Je cherche "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-cyan-800 shadow-sm hover:bg-cyan-50">Acheter</button>
-              <button type="button" onClick={() => setSellOpen(true)} className="rounded-full border bg-white px-3 py-1.5 font-bold text-emerald-800 shadow-sm hover:bg-emerald-50">Vendre</button>
               <button type="button" onClick={() => { setInput("Trouve-moi les meilleures offres près de moi pour "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-slate-700 shadow-sm hover:bg-slate-50">Trouver autour de moi</button>
             </div>
             {geo.city && <div className="mt-3 text-[10px] text-muted-foreground">Zone actuelle : {geo.city}</div>}

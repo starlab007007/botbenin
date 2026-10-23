@@ -97,6 +97,11 @@ on:
         required: true
         default: false
         type: boolean
+      live_whatsapp:
+        description: "Run explicitly authorized real WhatsApp tests"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -567,14 +572,15 @@ jobs:
           PYVERIFY
 
       - name: Connect and verify the authorized central WhatsApp session
-        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.live_whatsapp == true && steps.deploy_scope.outputs.needs_supabase == 'true'
         run: python3 scripts/verify-waouh-central-whatsapp.py --connect
 
       - name: Verify the complete guest and WhatsApp exchange in production
-        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.live_whatsapp == true && steps.deploy_scope.outputs.needs_supabase == 'true'
         run: python3 scripts/verify-external-exchange-production.py --whatsapp
 
       - name: Verify the explicitly requested real WhatsApp test
+        if: github.event_name == 'workflow_dispatch' && inputs.live_whatsapp == true
         run: python3 scripts/verify-requested-whatsapp-test.py --phone '+22991299191' --since '2026-10-08T22:10:00Z' --keyword ventilateur
 
       - name: Safety reminder

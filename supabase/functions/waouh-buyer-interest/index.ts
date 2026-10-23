@@ -33,18 +33,6 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
-    if (!article_id && catalog_id) {
-      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
-      const promo = await promoteCatalogToArticle(sb, catalog_id);
-      if (!promo.article_id) {
-        return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
-          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      article_id = promo.article_id;
-    }
-
     // Resolve the caller without regressing guest Web sessions. Internal
     // service-role calls may explicitly provide buyer_user_id; browser/mobile
     // callers are resolved from a verified JWT or the signed WAOUH guest session.
@@ -61,6 +49,18 @@ Deno.serve(async (req) => {
     const authUserId: string | null = trustedInternal
       ? null
       : (requestAuth?.authUser?.id ?? null);
+
+    // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
+    if (!article_id && catalog_id) {
+      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
+      const promo = await promoteCatalogToArticle(sb, catalog_id);
+      if (!promo.article_id) {
+        return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
+          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      article_id = promo.article_id;
+    }
 
     // Resolve buyer waouh_users id from the authoritative caller identity.
     let buyerUserId: string | null = trustedInternal ? (explicitBuyerUserId || null) : null;

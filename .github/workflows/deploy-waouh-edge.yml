@@ -7,6 +7,9 @@ on:
       - prod
     paths:
       - 'supabase/functions/waouh-history/**'
+      - 'supabase/functions/waouh-match-history/**'
+      - 'supabase/functions/waouh-buyer-interest/**'
+      - 'supabase/functions/waouh-commerce-action/**'
       - 'supabase/functions/waouh-channel-in-secure/**'
       - 'supabase/functions/register-device-token/**'
       - 'supabase/functions/_shared/waouh-auth.ts'
@@ -69,5 +72,8 @@ jobs:
           set -euo pipefail
           supabase functions deploy waouh-history --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy waouh-channel-in-secure --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy waouh-match-history --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy waouh-buyer-interest --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy waouh-commerce-action --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           supabase functions deploy register-device-token --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           echo '✅ Edge Functions WAOUH déployées'
