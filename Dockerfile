@@ -89,6 +89,18 @@ http {
 }
 EOF
 
+# Politique partagée : add_header dans un location masque l’héritage du serveur.
+COPY <<EOF /etc/nginx/security-headers.conf
+add_header Strict-Transport-Security "max-age=31536000" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header X-Permitted-Cross-Domain-Policies "none" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(self), payment=(), usb=()" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://unpkg.com https://cdn.jsdelivr.net https://*.elevenlabs.io https://cdn.gpteng.co https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src https://*.elevenlabs.io; worker-src 'self' blob:; media-src 'self' data: blob:;" always;
+EOF
+
 # Configuration du serveur optimisée pour React SPA
 COPY <<EOF /etc/nginx/conf.d/default.conf
 server {
@@ -97,15 +109,8 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # En-têtes de sécurité
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Permitted-Cross-Domain-Policies "none" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=()" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://unpkg.com https://cdn.jsdelivr.net https://*.elevenlabs.io https://cdn.gpteng.co https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src https://*.elevenlabs.io; worker-src 'self' blob:; media-src 'self' data: blob:;" always;
+    # Même politique sur toutes les routes, y compris les blocs de cache.
+    include /etc/nginx/security-headers.conf;
 
     # URL publique canonique AprèsBac IA
     location = /apresbacia/ {
@@ -145,6 +150,7 @@ server {
     # subtree out of the generic SPA/immutable asset rules so a transient 404
     # can never be cached for a year by an intermediary.
     location ^~ /fa/ {
+        include /etc/nginx/security-headers.conf;
         try_files \$uri =404;
         expires -1;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
@@ -176,6 +182,7 @@ server {
 
         # Headers anti-cache pour l'HTML
         location ~* \.html\$ {
+            include /etc/nginx/security-headers.conf;
             add_header Cache-Control "no-cache, no-store, must-revalidate" always;
             add_header Pragma "no-cache" always;
             add_header Expires "0" always;
@@ -190,6 +197,7 @@ server {
 
     # Cache optimisé pour les assets statiques
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|otf|webp|avif)\$ {
+        include /etc/nginx/security-headers.conf;
         expires 1y;
         add_header Cache-Control "public, immutable" always;
         add_header Access-Control-Allow-Origin "*" always;
@@ -200,12 +208,14 @@ server {
 
     # Cache spécifique pour les fichiers Vite
     location /assets/ {
+        include /etc/nginx/security-headers.conf;
         expires 1y;
         add_header Cache-Control "public, immutable" always;
         try_files \$uri =404;
     }
 
     location = /sw.js {
+        include /etc/nginx/security-headers.conf;
         add_header Cache-Control "no-cache, no-store, must-revalidate" always;
         add_header Pragma "no-cache" always;
         add_header Expires "0" always;
@@ -214,6 +224,7 @@ server {
 
     # Route API (si nécessaire pour le futur)
     location /api/ {
+        include /etc/nginx/security-headers.conf;
         add_header Access-Control-Allow-Origin "*" always;
         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
         add_header Access-Control-Allow-Headers "Content-Type, Authorization" always;
@@ -233,6 +244,7 @@ server {
 
     # Optimisations de performance
     location ~* \.(js|css)\$ {
+        include /etc/nginx/security-headers.conf;
         expires 1y;
         add_header Cache-Control "public, immutable";
         gzip_static on;
