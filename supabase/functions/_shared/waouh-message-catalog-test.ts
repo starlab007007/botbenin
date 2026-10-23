@@ -9,6 +9,8 @@ import {
   stageFor,
   TITLE_MAX_WORDS,
   isUnavailableStatus,
+  isArticleExpired,
+  isUnavailableArticle,
   unavailableKey,
 } from "./waouh-message-catalog.ts";
 import {
@@ -23,7 +25,7 @@ const ALL_KEYS: CatalogKey[] = [
   "question_received", "offer_sent", "offer_received", "awaiting_counterparty", "counter_prompt",
   "agreement", "offer_refused_actor", "offer_withdrawn", "offer_withdrawn_other", "offer_refused_other", "seller_confirmed", "pay_mode_chosen",
   "courier_assigned", "picked_up", "delivered", "payment_confirmed", "deal_cancelled", "no_open_deal",
-  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold", "competitor_reserved", "article_available_again",
+  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold", "article_expired", "competitor_reserved", "article_available_again",
   "negotiation_paused", "not_understood", "confirm_money_action", "self_article", "results_found",
   "external_offer_ready", "external_offer_sent", "external_not_permitted", "external_no_channel", "external_unavailable",
   "avatar_synthesis", "avatar_watching", "avatar_reachable", "avatar_nudge_due", "avatar_expired", "avatar_watch_expired", "external_nudge_sent", "nudge_too_soon",
@@ -151,4 +153,17 @@ Deno.test("E10/E11 : messages des acheteurs évincés et statuts indisponibles",
   assert(back.detail.length <= DETAIL_MAX_CHARS, back.detail);
   for (const status of ["sold", "reserved", "archived", "deleted", " SOLD "]) assertEquals(isUnavailableStatus(status), true, status);
   for (const status of ["active", "", null, undefined]) assertEquals(isUnavailableStatus(status), false, String(status));
+});
+
+Deno.test("expired statuses and elapsed deadlines refuse new commerce without changing active offers", () => {
+ const now = Date.parse("2026-10-23T12:00:00Z");
+ assert(isUnavailableStatus("expired"));
+ assert(isArticleExpired({status:"expired"}, now));
+ assert(isUnavailableArticle({status:"active", expires_at:"2026-10-23T11:59:59Z"}, now));
+ assert(isUnavailableArticle({status:"active", expires_at:"2026-10-23T12:00:00Z"}, now));
+ assert(!isUnavailableArticle({status:"active", expires_at:"2026-10-23T12:00:01Z"}, now));
+ assert(!isArticleExpired({status:"active",expires_at:"invalid"}, now));
+ assertEquals(unavailableKey("expired"), "article_expired");
+ assertEquals(unavailableKey("active", "2020-01-01T00:00:00Z"), "article_expired");
+ assertEquals(renderCatalog("article_expired").title,"Annonce expirée");
 });

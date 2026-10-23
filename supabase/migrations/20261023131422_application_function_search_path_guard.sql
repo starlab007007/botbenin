@@ -1,0 +1,26 @@
+-- Reviewed application functions use public-qualified relations and core builtins.
+-- Put pg_temp last so temporary objects cannot shadow trusted names.
+ALTER FUNCTION public.apresbac_normalize_search_v2(text) SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.apresbac_set_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.auto_assign_bot_domain() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.auto_generate_public_url() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.ensure_bot_public_access() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.ensure_session_consistency() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.generate_public_chat_url(uuid) SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.generate_short_code() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.get_or_create_bot_user_for_session(uuid,text,text) SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.send_manual_bot_response(uuid,text,text) SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.set_bot_public_defaults() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.support_set_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.sync_anonymous_session_to_enhanced() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.tg_touch_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_facebook_credentials_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_knowledge_bases_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_payment_transactions_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_products_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_prospect_databases_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_timestamp() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_video_frames_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.update_visual_creations_updated_at() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.verify_bot_exists_for_message() SET search_path = pg_catalog, public, extensions, pg_temp;
+ALTER FUNCTION public.verify_bot_exists_for_session() SET search_path = pg_catalog, public, extensions, pg_temp;

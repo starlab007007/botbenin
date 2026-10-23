@@ -46,6 +46,7 @@ export type CatalogKey =
   | "out_of_stage"
   | "technical_error"
   | "article_missing"
+  | "article_expired"
   | "article_reserved"
   | "article_sold"
   | "competitor_reserved"
@@ -109,11 +110,23 @@ const Other = (role: CatalogRole | null | undefined) => (role === "seller" ? "L'
 
 /** Un article dans l'un de ces statuts ne peut plus recevoir d'offre. */
 export function isUnavailableStatus(status: unknown): boolean {
-  return ["sold", "reserved", "archived", "deleted"].includes(String(status ?? "").trim().toLowerCase());
+  return ["sold", "reserved", "archived", "deleted", "expired"].includes(String(status ?? "").trim().toLowerCase());
+}
+
+export function isArticleExpired(article: { status?: unknown; expires_at?: unknown } | null | undefined, now = Date.now()): boolean {
+  if (String(article?.status ?? "").trim().toLowerCase() === "expired") return true;
+  if (typeof article?.expires_at !== "string") return false;
+  const expires = Date.parse(article.expires_at);
+  return Number.isFinite(expires) && expires <= now;
+}
+
+export function isUnavailableArticle(article: { status?: unknown; expires_at?: unknown } | null | undefined, now = Date.now()): boolean {
+  return isUnavailableStatus(article?.status) || isArticleExpired(article, now);
 }
 
 /** Clé de message pour un article indisponible : « vendu » ne se dit pas « réservé ». */
-export function unavailableKey(status: unknown): CatalogKey {
+export function unavailableKey(status: unknown, expiresAt?: unknown): CatalogKey {
+  if (isArticleExpired({ status, expires_at: expiresAt })) return "article_expired";
   return String(status ?? "").trim().toLowerCase() === "sold" ? "article_sold" : "article_reserved";
 }
 
@@ -303,6 +316,10 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   article_missing: () => ({
     title: "Annonce indisponible",
     detail: "Cette fiche n'est plus active. Actualisez les résultats pour continuer.",
+  }),
+  article_expired: () => ({
+    title: "Annonce expirée",
+    detail: "Cette annonce n’est plus active. Cherchez une autre offre ou demandez au vendeur de la republier.",
   }),
   article_reserved: () => ({
     title: "Article déjà réservé",

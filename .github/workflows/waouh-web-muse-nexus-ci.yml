@@ -168,6 +168,9 @@ jobs:
               Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql"),
               Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"),
               Path("supabase/migrations/20261023122055_waouh_session_ownership_guard.sql"),
+              Path("supabase/migrations/20261023131305_waouh_private_view_invoker_guard.sql"),
+              Path("supabase/migrations/20261023131422_application_function_search_path_guard.sql"),
+              Path("supabase/migrations/20261023132642_waouh_deal_article_expiry_guard.sql"),
           ]
           for path in files:
               tree = parse_sql(path.read_text())
