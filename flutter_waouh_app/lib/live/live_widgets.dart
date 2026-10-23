@@ -2031,11 +2031,18 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(
             children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 3),
-                child: Text('ANNONCES', style: TextStyle(
-                  color: Color(0xFF08745D), fontSize: 10.5,
-                  fontWeight: FontWeight.w800, letterSpacing: 0.9)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECF7F1),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    color: Color(0xFF08745D), fontSize: 12,
+                    fontWeight: FontWeight.w800),
+                ),
               ),
               if (widget.products.length > 1) ...[
                 const SizedBox(width: 8),
@@ -4008,8 +4015,9 @@ class _CollapsibleResultsState extends State<_CollapsibleResults> {
 
   @override
   Widget build(BuildContext context) {
-    final label = '${widget.count} résultat${widget.count > 1 ? 's' : ''}'
-        '${widget.best.trim().isEmpty ? '' : ' · meilleur choix : ${widget.best.trim()}'}';
+    final label = widget.best.trim().isEmpty
+        ? 'Voir les annonces'
+        : 'Sélection WAOUH · ${widget.best.trim()}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
