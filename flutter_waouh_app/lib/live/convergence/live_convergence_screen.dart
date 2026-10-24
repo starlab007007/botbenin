@@ -91,7 +91,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
         final value = DateTime(date.year,date.month,date.day,time.hour,time.minute);
         dateValues[e.key] = value.toUtc().toIso8601String(); controls[e.key]!.text = DateFormat('dd/MM/yyyy HH:mm').format(value); notifyChanged(currentValues());
       } : null, onChanged: (_) => notifyChanged(currentValues())))),
-    ])))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')), FilledButton(onPressed: () => Navigator.pop(ctx, {...controls.map((k,v) => MapEntry(k,dateValues[k] ?? v.text.trim())), if (kind) 'kind': kindValue}), child: const Text('Continuer'))])));
+    ]))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')), FilledButton(onPressed: () => Navigator.pop(ctx, {...controls.map((k,v) => MapEntry(k,dateValues[k] ?? v.text.trim())), if (kind) 'kind': kindValue}), child: const Text('Continuer'))])));
       return mounted && client.auth.currentUser?.id == formAccount ? result : null; }
     finally { WidgetsBinding.instance.addPostFrameCallback((_) { for (final c in controls.values) { c.dispose(); } }); }
   }
