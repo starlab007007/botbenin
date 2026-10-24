@@ -21,6 +21,7 @@ List<NexusDiscoveryItem> essentialUnique(List<NexusDiscoveryItem> rows) {
   final seen = <String>{};
   return rows.where((r) => essentialIdentity(r).isNotEmpty && seen.add(essentialIdentity(r))).toList();
 }
+bool essentialPrimaryNeedsPrice(NexusDiscoveryItem r) => essentialKind(r) == 'product';
 String essentialHint(NexusDiscoveryItem r) => essentialKind(r) == 'announcement' ? 'Conditions à confirmer' : essentialUnit(r).isNotEmpty ? essentialUnit(r) : essentialKind(r) == 'service' ? 'Périmètre à confirmer' : 'Unité à confirmer';
 String essentialPrice(NexusDiscoveryItem r) {
   String money(double n) {

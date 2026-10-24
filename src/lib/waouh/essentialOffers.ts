@@ -30,6 +30,7 @@ export function offerPrice(r: NexusDiscoveryResult) {
   return min != null && max != null && min !== max ? `${money(min)} – ${money(max)}` : money((min ?? max)!);
 }
 export function offerKind(r: NexusDiscoveryResult) { return resultKind(r); }
+export function offerPrimaryNeedsPrice(r: NexusDiscoveryResult) { return offerKind(r) === 'product'; }
 export function offerHint(r: NexusDiscoveryResult) {
   if (offerKind(r) === 'announcement') return 'Conditions à confirmer';
   return offerUnit(r) || (offerKind(r) === 'service' ? 'Périmètre à confirmer' : 'Unité à confirmer');

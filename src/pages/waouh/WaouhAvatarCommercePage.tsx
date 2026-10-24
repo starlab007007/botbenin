@@ -2,7 +2,7 @@ import { WaouhExternalExchangeDisclosure } from '@/components/waouh/WaouhExterna
 import { WaouhCityField } from "@/components/waouh/WaouhCityField";
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhEssentialOffers } from "@/components/waouh/WaouhEssentialOffers";
-import { uniqueOffers, journeyNextLabel, offerKind } from "@/lib/waouh/essentialOffers";
+import { uniqueOffers, journeyNextLabel, offerKind, offerPrimaryNeedsPrice } from "@/lib/waouh/essentialOffers";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import type { DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
 import { WaouhBotNextStep } from "@/components/waouh/WaouhBotNextStep";
@@ -779,7 +779,7 @@ export default function WaouhAvatarCommercePage() {
         )}
 
         <WaouhEssentialOffers results={results} city={city} renderActions={item => <>
-          {canonicalDealCandidate(item) ? <Button className="we-primary w-full" disabled={workingId === item.fabric_id} onClick={() => { if (offerKind(item) === 'announcement') { void continueWith(item); } else { setOfferItem(item); const displayed = item.price_min ?? item.price_max; setOfferAmount(displayed != null ? String(Math.round(displayed)) : ''); } }}><Handshake className="mr-2 h-4 w-4" />{mode === 'vendre' ? 'Proposer mon offre' : offerKind(item) === 'announcement' ? 'Répondre à l’annonce' : offerKind(item) === 'service' ? 'Demander cette prestation' : 'Je le veux'}</Button> : <WaouhNexusContactSheet compact purpose={offerKind(item)} fabricId={item.fabric_id} title={item.subject || 'Offre'} sourceUrl={item.source_url} contactabilityLevel={item.contact_policy.level} mode={mode === 'vendre' ? 'sell' : mode === 'demander' ? 'ask' : 'buy'} />}
+          {canonicalDealCandidate(item) ? <Button className="we-primary w-full" disabled={workingId === item.fabric_id} onClick={() => { if (!offerPrimaryNeedsPrice(item)) { void continueWith(item); } else { setOfferItem(item); const displayed = item.price_min ?? item.price_max; setOfferAmount(displayed != null ? String(Math.round(displayed)) : ''); } }}><Handshake className="mr-2 h-4 w-4" />{mode === 'vendre' ? 'Proposer mon offre' : offerKind(item) === 'announcement' ? 'Répondre à l’annonce' : offerKind(item) === 'service' ? 'Demander cette prestation' : 'Je le veux'}</Button> : <WaouhNexusContactSheet compact purpose={offerKind(item)} fabricId={item.fabric_id} title={item.subject || 'Offre'} sourceUrl={item.source_url} contactabilityLevel={item.contact_policy.level} mode={mode === 'vendre' ? 'sell' : mode === 'demander' ? 'ask' : 'buy'} />}
           <details><summary>Autres actions</summary><WaouhDelegateButton result={item} mode={mode === 'vendre' ? 'sell' : mode === 'demander' ? 'ask' : 'buy'} articleId={mode === 'vendre' ? selectedArticle || undefined : undefined} />{offerKind(item) !== 'announcement' && <Button variant="outline" className="w-full" onClick={() => { setOfferItem(item); const displayed = item.price_min ?? item.price_max; setOfferAmount(displayed != null ? String(Math.round(displayed)) : ''); }}>Proposer un prix</Button>}</details>
         </>} />
         </>}

@@ -2,7 +2,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WaouhEssentialOffers } from '../WaouhEssentialOffers';
-import { uniqueOffers, knownPeopleCount, offerHint, offerMarket, offerPrice } from '@/lib/waouh/essentialOffers';
+import { uniqueOffers, knownPeopleCount, offerHint, offerMarket, offerPrice, offerPrimaryNeedsPrice } from '@/lib/waouh/essentialOffers';
 import type { NexusDiscoveryResult } from '@/lib/waouh/nexus';
 
 const offer = (id: string, patch: Partial<NexusDiscoveryResult> = {}) => ({ fabric_id: id, subject: `Stylo ${id}`, source_key: 'waouh_app', intent: 'SELL', city: 'Cotonou', price_min: 100, currency: 'XOF', scores: { total_score: 88, reasons: ['Même zone'] }, contact_policy: { level: 'C0' }, ...patch } as NexusDiscoveryResult);
@@ -17,6 +17,7 @@ describe('Essential offers', () => {
     const copy = offer('external:copy', { evidence: { article_id: 'a' } });
     const found = uniqueOffers([a,b,copy,a]); expect(found).toEqual([a,b]); expect(found[0]).toBe(a); expect(knownPeopleCount(found)).toBe(2);
   });
+  it('requests services and announcement conditions without imposing a numeric price',()=>{expect(offerPrimaryNeedsPrice(offer('p'))).toBe(true);expect(offerPrimaryNeedsPrice(offer('s',{category:'service'}))).toBe(false);expect(offerPrimaryNeedsPrice(offer('a',{category:'annonce'}))).toBe(false);});
   it('keeps unknown units, currencies and price ranges explicit', () => {
     expect(offerHint(offer('a'))).toBe('Unité à confirmer'); expect(offerPrice(offer('b',{price_min:null}))).toBe('Prix à demander');
     expect(offerPrice(offer('c',{price_min:100,price_max:200,currency:'EUR'}))).toContain('100 EUR'); expect(offerPrice(offer('d',{price_min:0}))).toContain('0');

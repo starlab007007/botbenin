@@ -18,12 +18,13 @@ class LiveEssentialPhoto extends StatelessWidget {
 }
 
 class LiveEssentialOffers extends StatefulWidget {
-  const LiveEssentialOffers({super.key,required this.items,required this.selected,required this.onToggle,required this.onContinue,required this.onDelegate,required this.onFollow,this.city='',this.mode='buy'});
+  const LiveEssentialOffers({super.key,required this.items,required this.selected,required this.onToggle,required this.onContinue,required this.onDelegate,required this.onFollow,this.city='',this.mode='buy',this.onPropose});
   final List<NexusDiscoveryItem> items;
   final Set<String> selected;
   final ValueChanged<String> onToggle;
   final ValueChanged<NexusDiscoveryItem> onContinue,onDelegate,onFollow;
   final String city,mode;
+  final ValueChanged<NexusDiscoveryItem>? onPropose;
   @override State<LiveEssentialOffers> createState()=>_LiveEssentialOffersState();
 }
 class _LiveEssentialOffersState extends State<LiveEssentialOffers> {
@@ -47,7 +48,7 @@ class _LiveEssentialOffersState extends State<LiveEssentialOffers> {
       })
     ]);
   }
-  void _open(NexusDiscoveryItem item)=>showModalBottomSheet<void>(context:context,isScrollControlled:true,useSafeArea:true,showDragHandle:true,backgroundColor:const Color(0xFFFCFBF9),constraints:const BoxConstraints(maxWidth:560),builder:(sheet)=>_EssentialDetail(item:item,mode:widget.mode,onContinue:(){Navigator.pop(sheet);widget.onContinue(item);},onDelegate:(){Navigator.pop(sheet);widget.onDelegate(item);},onFollow:(){Navigator.pop(sheet);widget.onFollow(item);}));
+  void _open(NexusDiscoveryItem item)=>showModalBottomSheet<void>(context:context,isScrollControlled:true,useSafeArea:true,showDragHandle:true,backgroundColor:const Color(0xFFFCFBF9),constraints:const BoxConstraints(maxWidth:560),builder:(sheet)=>_EssentialDetail(item:item,mode:widget.mode,onPropose:(){Navigator.pop(sheet);(widget.onPropose??widget.onContinue)(item);},onContinue:(){Navigator.pop(sheet);widget.onContinue(item);},onDelegate:(){Navigator.pop(sheet);widget.onDelegate(item);},onFollow:(){Navigator.pop(sheet);widget.onFollow(item);}));
 }
 
 class _EssentialInsight extends StatelessWidget {
@@ -55,8 +56,8 @@ class _EssentialInsight extends StatelessWidget {
   @override Widget build(BuildContext context)=>Container(margin:const EdgeInsets.only(bottom:10,top:6),padding:const EdgeInsets.all(11),decoration:BoxDecoration(color:const Color(0xFFF2ECF8),borderRadius:BorderRadius.circular(12)),child:Row(children:[const Icon(Icons.auto_awesome_rounded,size:16,color:essentialPlum),const SizedBox(width:8),Expanded(child:Text(text,style:const TextStyle(fontSize:12,color:essentialPlum)))]));
 }
 class _EssentialDetail extends StatelessWidget {
-  const _EssentialDetail({required this.item,required this.mode,required this.onContinue,required this.onDelegate,required this.onFollow});
-  final NexusDiscoveryItem item;final String mode;final VoidCallback onContinue,onDelegate,onFollow;
+  const _EssentialDetail({required this.item,required this.mode,required this.onContinue,required this.onDelegate,required this.onFollow,required this.onPropose});
+  final NexusDiscoveryItem item;final String mode;final VoidCallback onContinue,onDelegate,onFollow,onPropose;
   @override Widget build(BuildContext context){
     final refs=essentialReferences(item),median=essentialMedian(item);
     final kind=essentialKind(item);
@@ -73,7 +74,7 @@ class _EssentialDetail extends StatelessWidget {
       ]),
       ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Pourquoi ce choix ?',style:TextStyle(fontSize:14,fontWeight:FontWeight.w600)),children:[Align(alignment:Alignment.centerLeft,child:Padding(padding:const EdgeInsets.only(bottom:12),child:Text(item.scores.reasons.where((x)=>!RegExp(r'ENRICH|NEXUS|C[0-5]|score|\d+%',caseSensitive:false).hasMatch(x)).take(3).join(' · ').isEmpty?'Offre issue de votre recherche. Conditions à vérifier.':item.scores.reasons.where((x)=>!RegExp(r'ENRICH|NEXUS|C[0-5]|score|\d+%',caseSensitive:false).hasMatch(x)).take(3).join(' · '),style:const TextStyle(fontSize:12,color:essentialMuted)))),if(essentialText(item.evidence['description']).isNotEmpty)Padding(padding:const EdgeInsets.only(bottom:12),child:Text(essentialText(item.evidence['description']),style:const TextStyle(fontSize:12))),const Padding(padding:EdgeInsets.only(bottom:10),child:Text('Vos coordonnées restent protégées.',style:TextStyle(fontSize:11,color:essentialMuted)))]),
       const SizedBox(height:14),FilledButton(onPressed:onContinue,style:FilledButton.styleFrom(backgroundColor:essentialJade,minimumSize:const Size.fromHeight(48)),child:Text(primary)),
-      if(kind!='announcement')TextButton(onPressed:onContinue,child:const Text('Proposer un prix')),
+      if(kind!='announcement')TextButton(onPressed:onPropose,child:const Text('Proposer un prix')),
       ExpansionTile(title:const Text('Autres actions',style:TextStyle(fontSize:13)),children:[ListTile(leading:const Icon(Icons.smart_toy_outlined),title:const Text('Confier à Bot'),onTap:onDelegate),ListTile(leading:const Icon(Icons.notifications_active_outlined),title:const Text('Suivre prix / disponibilité'),onTap:onFollow)])
     ])));
   }

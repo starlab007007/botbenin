@@ -767,8 +767,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
-  Future<void> _continue(NexusDiscoveryItem item) async {
-    if (essentialKind(item) == 'announcement') {
+  Future<void> _continue(NexusDiscoveryItem item, {bool proposePrice = false}) async {
+    if (!proposePrice && !essentialPrimaryNeedsPrice(item)) {
       await _mediatedContact(item);
       return;
     }
@@ -1483,7 +1483,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               if(results.isNotEmpty)...[
                 if(widget.mode==LiveAvatarCommerceMode.sell)Padding(padding:const EdgeInsets.only(bottom:10),child:LiveMyArticleCard(title:_goal.text.trim(),floor:double.tryParse(_priceFloor),city:_city.text,photos:_sellPhotos,notes:_sellNotes)),
                 LiveBotNextStep(service:_nexus,mode:commerceMode,goal:_goal.text.trim(),city:_city.text,budget:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),items:results,articleId:widget.mode==LiveAvatarCommerceMode.sell?_selectedArticle:null,priceFloor:widget.mode==LiveAvatarCommerceMode.sell?double.tryParse(_priceFloor):null),
-                LiveEssentialOffers(items:_response!.results,city:_city.text,mode:commerceMode,selected:_selectedOffers,onToggle:(id)=>setState((){if(_selectedOffers.contains(id)){_selectedOffers.remove(id);}else if(_selectedOffers.length<5){_selectedOffers.add(id);}}),onContinue:(item)=>_continue(item),onDelegate:(item)=>_delegateToBot(item),onFollow:(item)=>_followOpportunity(item)),
+                LiveEssentialOffers(items:_response!.results,city:_city.text,mode:commerceMode,selected:_selectedOffers,onToggle:(id)=>setState((){if(_selectedOffers.contains(id)){_selectedOffers.remove(id);}else if(_selectedOffers.length<5){_selectedOffers.add(id);}}),onContinue:(item)=>_continue(item),onPropose:(item)=>_continue(item,proposePrice:true),onDelegate:(item)=>_delegateToBot(item),onFollow:(item)=>_followOpportunity(item)),
               ]else if(_response!=null&&!_loading)_EmptyDiscovery(avatarName:avatar.name),
               if(results.isEmpty&&!_loading)TextButton.icon(onPressed:()=>setState(()=>_showFollow=true),icon:const Icon(Icons.bolt_outlined,size:17),label:const Text('Configurer une veille')),
             ]

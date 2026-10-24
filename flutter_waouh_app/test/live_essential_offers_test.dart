@@ -10,6 +10,7 @@ void main(){
     final a=offer('article:a',patch:{'article_id':'a','subject':'Bic','evidence':{'contact_last4':'4276'}}),b=offer('external:b',patch:{'subject':'Bic','evidence':{'contact_last4':'4276'}}),copy=offer('external:copy',patch:{'article_id':'a'});
     expect(essentialUnique([a,b,copy,a]),[a,b]);
   });
+  test('services and announcements do not require a numeric price to start',(){expect(essentialPrimaryNeedsPrice(offer('p')),true);expect(essentialPrimaryNeedsPrice(offer('s',patch:{'category':'service'})),false);expect(essentialPrimaryNeedsPrice(offer('a',patch:{'category':'annonce'})),false);});
   test('units must be known and matching before deriving a market median',(){
     final refs=List.generate(8,(i)=>{'url':'https://example.com/$i','price':100+i*10,'model':'Bic','unit':'pièce','comparable':true});
     final noUnit=offer('a',patch:{'model':'Bic','market_references':refs});
