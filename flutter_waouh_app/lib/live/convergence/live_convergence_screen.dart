@@ -128,14 +128,15 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
         const Divider(), Text('Accord · version ${a['version']}',style: const TextStyle(fontWeight: FontWeight.w600)),
         Text('${terms['scope']}\nTotal convenu : ${convergenceMoney(terms['amount'])}\nDélai : ${terms['deadline']}\nExclusions : ${terms['exclusions']}\nRésultat attendu : ${terms['expected_result']}'),
         Text('Demandeur : ${a['owner_accepted_at'] == null ? 'à confirmer' : 'accord enregistré'}\nProfessionnel : ${a['provider_accepted_at'] == null ? 'à confirmer' : 'accord enregistré'}'),
+        if(a['status']=='accepted')Text('Résultat : demandeur ${a['owner_completed_at']==null?'à confirmer':'confirmé'} · professionnel ${a['provider_completed_at']==null?'à confirmer':'confirmé'}'),
         if (a['status'] == 'completed') const Text('Résultat confirmé par les deux parties') else if (!closed) ...[
           button('Confirmer cette version',() => run('agreement_accept',{'component_id':c['id'],'version':a['version']}),enabled:selected && c['provider_id'] != null && a['status'] != 'rejected' && (own ? a['owner_accepted_at'] : a['provider_accepted_at']) == null,primary:true),
           if (a['status'] == 'accepted') button(own ? 'Valider le résultat reçu' : 'Confirmer la réalisation',() => run('agreement_complete',{'component_id':c['id'],'version':a['version'],'note':'Résultat attendu confirmé dans WAOUH.'}),enabled:(own ? a['owner_completed_at'] : a['provider_completed_at']) == null),
-          button('Refuser cet accord',() => run('agreement_reject',{'component_id':c['id'],'version':a['version']})),
+          button('Refuser cet accord',() => run('agreement_reject',{'component_id':c['id'],'version':a['version']}),enabled:a['owner_completed_at']==null && a['provider_completed_at']==null),
         ],
         if (!selected) const Text('Le demandeur doit retenir ce chemin avant confirmation.'),
       ],
-      if (!closed && a['status'] != 'completed') button(a.isEmpty ? 'Préparer la fiche d’accord' : 'Proposer une nouvelle version',() => proposeAgreement(c)),
+      if (!closed && a['owner_completed_at']==null && a['provider_completed_at']==null && a['status'] != 'completed') button(a.isEmpty ? 'Préparer la fiche d’accord' : 'Proposer une nouvelle version',() => proposeAgreement(c)),
       const SizedBox(height: 8), const Text('Une nouvelle version remet les confirmations à zéro. Aucun paiement n’est déclenché.',style:TextStyle(fontSize:12)),
     ]);
   }
@@ -147,6 +148,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     final plans = (bundle!['plans'] as List).map(convergenceMap), components = (bundle!['components'] as List).map(convergenceMap).toList();
     return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
       TextButton.icon(onPressed:() { setState(() => bundle=null); run('list'); },icon:const Icon(Icons.chevron_left),label:const Text('Mes besoins')),
+      button('Actualiser les confirmations',()=>run('get',{'mission_id':mission['id']})),
       panel('${mission['goal']}',[Text('${kinds[mission['kind']]} · ${mission['city']}\n${statuses[mission['status']]}${mission['budget_max'] == null ? '' : '\nBudget ${convergenceMoney(mission['budget_max'])}'}'),if (mission['criteria'] is List) ...((mission['criteria'] as List).map((x) => Text('• $x')))]),
       if(!own)const Text('Vous voyez uniquement les parties qui vous sont adressées. Les sous-totaux concernent ces parties.'),
       if(own && !closed)button('Ajuster mon budget',() async { final p=await form('Confirmer le nouveau plafond',{'budget_max':'Budget maximum · F CFA (vide = sans plafond)'},initial:{'budget_max':mission['budget_max']},numeric:{'budget_max'}); if(p!=null)run('mission_update',{'mission_id':mission['id'],'budget_max':convergenceAmount(p['budget_max'])}); }),
@@ -175,7 +177,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     ...pools.map((g)=>panel('${g['topic']}',[
       Text('${g['city']} · ${g['member_count']}/5 participants · ${g['status']=='confirmed' ? 'Accord de tous enregistré' : g['status']=='cancelled' ? 'Clôturé' : 'Ouvert'}'),
       if(g['shared_cost']!=null)Text('Coût partagé proposé : ${convergenceMoney(g['shared_cost'])}\nAu nombre actuel : ${convergenceMoney((convergenceAmount(g['shared_cost']) ?? 0)/(g['member_count'] as num).clamp(1,5))} par participant\n${g['quote_scope']}\nVersion ${g['quote_version']} · valable jusqu’au ${g['quote_expires_at']}') else const Text('Coût à proposer par le professionnel.'),
-      if(g['is_owner']==true && g['provider_linked']!=true && g['shared_cost']==null)button('Inviter le professionnel',()=>run('pool_invite',{'pool_id':g['id']})),
+      if(g['is_owner']==true && g['status']=='open' && g['provider_linked']!=true && g['shared_cost']==null)button('Inviter le professionnel',()=>run('pool_invite',{'pool_id':g['id']})),
       if(g['is_provider']==true && g['status']=='open')button('Proposer le coût partagé',() async { final p=await form('Coût partagé total',{'shared_cost':'Montant total à répartir · F CFA','scope':'Ce que couvre ce coût','expires_at':'Valable jusqu’au'},numeric:{'shared_cost'},dates:{'expires_at'});if(p!=null){await run('pool_quote',{'pool_id':g['id'],...p,'shared_cost':convergenceAmount(p['shared_cost']),'minimum_members':2});await groups();}}),
       if(g['joined']!=true && g['is_provider']!=true && own && bundle!=null && g['status']=='open')button('Rejoindre avec mon accord',() async {await run('pool_join',{'pool_id':g['id'],'mission_id':mission['id'],'consent':consent});await groups();},enabled:consent),
       if(g['joined']==true) ...[
