@@ -45,6 +45,16 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.122.0
+      - name: Prepare minimal Edge deployment config
+        run: |
+          # Edge deployment does not use local Realtime/Auth settings.
+          # Keep this compatible with the pinned CLI, as in the other production jobs.
+          cat > supabase/config.toml <<'CONFIG'
+          project_id = "mvynepqulhflxtyymtzs"
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          CONFIG
       - name: Deploy the authenticated Convergence function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
