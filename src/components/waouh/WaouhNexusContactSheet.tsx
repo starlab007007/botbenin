@@ -3,7 +3,7 @@ import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { journeyChatDetail } from "@/lib/waouh/journeyPresentation";
+import { journeyPresentation, journeyChatDetail } from "@/lib/waouh/journeyPresentation";
 import { Loader2, MessageCircle, RefreshCw, Search, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
@@ -36,9 +36,13 @@ export function WaouhNexusContactSheet({
   contactabilityLevel,
   mode = "buy",
   journeyId,
+  compact = false,
+  purpose = "product",
 }: {
   fabricId: string;
   journeyId?: string;
+  compact?: boolean;
+  purpose?: "product" | "service" | "announcement";
   title: string;
   sourceUrl?: string | null;
   contactabilityLevel?: string | null;
@@ -71,7 +75,7 @@ export function WaouhNexusContactSheet({
       }
       setJourney(started);
       setPrepared(contact);
-      setMessage(interestMessage(title));
+      setMessage(purpose === "announcement" ? `Bonjour, je souhaite des précisions sur « ${title} ». Quelles sont les conditions pour répondre ?` : purpose === "service" ? `Bonjour, je souhaite un devis pour « ${title} ». Pouvez-vous préciser le périmètre et le créneau ?` : interestMessage(title));
       try {
         const bus = await listNexusConversationBus({ fabric_id: fabricId, journey_id: started.id, limit: 12 });
         setBusEvents(bus.events || []);
@@ -214,7 +218,7 @@ export function WaouhNexusContactSheet({
     return [...new Set(values)];
   }, [journey?.masked_contact, prepared?.contacts]);
 
-  const label = contactabilityActionLabel(level);
+  const label = compact && !journey ? purpose === "announcement" ? "Répondre à l’annonce" : purpose === "service" ? "Demander cette prestation" : contactabilityActionLabel(level) : contactabilityActionLabel(level);
 
   return (
     <Sheet open={open} onOpenChange={(value) => {
@@ -234,7 +238,7 @@ export function WaouhNexusContactSheet({
         <SheetHeader>
           <SheetTitle className="flex flex-wrap items-center gap-2">
             Préparer le contact
-            <WaouhContactabilityBadge level={level} showCode />
+            {!compact && <WaouhContactabilityBadge level={level} showCode />}
           </SheetTitle>
           <SheetDescription>
             Vérifiez le canal et le message avant de confirmer.
@@ -256,10 +260,10 @@ export function WaouhNexusContactSheet({
         ) : (
           <div className="mt-5 space-y-4">
             <div className="rounded-2xl border bg-slate-50 p-4">
-              {journey ? <WaouhJourneyProgress journey={journey} /> : <p>Chargement du suivi de cette opportunité.</p>}
+              {journey ? compact ? <><strong>{journeyPresentation(journey).status}</strong><p className="mt-1 text-xs text-muted-foreground">{journeyPresentation(journey).next}</p><details className="mt-2"><summary className="cursor-pointer text-xs">Historique de la démarche</summary><WaouhJourneyProgress journey={journey}/></details></> : <WaouhJourneyProgress journey={journey} /> : <p>Chargement du suivi…</p>}
             </div>
 
-            {(readiness || actionability > 0 || nextBestAction) && (
+            {!compact && (readiness || actionability > 0 || nextBestAction) && (
               <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Vérifications du contact</summary><div className="grid grid-cols-3 gap-2">
                 <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
                   <div className="text-[9px] font-black uppercase text-cyan-700">Préparation</div>
@@ -289,7 +293,7 @@ export function WaouhNexusContactSheet({
                 <div className="min-w-0">
                   <div className="font-semibold">{prepared?.actor_name ?? title}</div>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {prepared?.note ?? "WAOUH protège les coordonnées et conserve la continuité de la démarche."}
+                    {compact ? "Vos coordonnées restent protégées." : prepared?.note ?? "WAOUH protège les coordonnées et conserve la continuité de la démarche."}
                   </p>
                   {(prepared?.source_url || sourceUrl) && (
                     <p className="mt-1 text-[10px] text-muted-foreground">Source originale disponible.</p>
@@ -313,7 +317,7 @@ export function WaouhNexusContactSheet({
                       }`} />
                       <div className="min-w-0 flex-1">
                         <div className="font-bold text-slate-800">
-                          {event.event_type.replace(/\./g, " ")}
+                          {compact ? event.direction === "in" ? "Réponse reçue" : event.direction === "out" ? "Message transmis" : "Démarche mise à jour" : event.event_type.replace(/\./g, " ")}
                           <span className="ml-1 font-medium text-slate-400">· {event.channel}</span>
                         </div>
                         <div className="text-slate-400">

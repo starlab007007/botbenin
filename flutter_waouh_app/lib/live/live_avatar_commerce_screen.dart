@@ -348,6 +348,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     _ticker = null;
     setState(() {
       _loading = true;
+      _response = null;
       _error = null;
       _summary = null;
       _showFollow = false;

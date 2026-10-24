@@ -81,7 +81,28 @@ class _EssentialDetail extends StatelessWidget {
 
 class LiveEssentialCompareTray extends StatelessWidget {
   const LiveEssentialCompareTray({super.key,required this.items,required this.onClear});final List<NexusDiscoveryItem> items;final VoidCallback onClear;
-  @override Widget build(BuildContext context)=>Material(color:const Color(0xFFFAF9F7),child:Container(margin:const EdgeInsets.symmetric(horizontal:14,vertical:6),padding:const EdgeInsets.all(8),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:essentialLine)),child:Row(children:[for(final item in items.take(2))Padding(padding:const EdgeInsets.only(right:3),child:LiveEssentialPhoto(item:item,width:30,height:36)),const Spacer(),Text('${items.length} / 5',style:const TextStyle(fontSize:12)),const SizedBox(width:8),FilledButton(onPressed:items.length<2?null:()=>showModalBottomSheet<void>(context:context,isScrollControlled:true,useSafeArea:true,showDragHandle:true,constraints:const BoxConstraints(maxWidth:1000),builder:(sheet)=>LiveEssentialComparison(items:items)),style:FilledButton.styleFrom(backgroundColor:essentialJade),child:const Text('Comparer')),IconButton(tooltip:'Vider la sélection',onPressed:onClear,icon:const Icon(Icons.close_rounded,size:18))])));
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFFAF9F7),
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: essentialLine)),
+      child: LayoutBuilder(builder: (context, constraints) => Row(children: [
+        for (final item in items.take(constraints.maxWidth < 340 ? 1 : 2)) Padding(padding: const EdgeInsets.only(right: 4), child: LiveEssentialPhoto(item: item, width: 30, height: 36)),
+        const SizedBox(width: 4),
+        Text('${items.length} / 5', style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 8),
+        Expanded(child: FilledButton(
+          onPressed: items.length < 2 ? null : () => showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true, constraints: const BoxConstraints(maxWidth: 1000), builder: (sheet) => LiveEssentialComparison(items: items)),
+          style: FilledButton.styleFrom(backgroundColor: essentialJade, padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(0, 44)),
+          child: const Text('Comparer', style: TextStyle(fontSize: 12)),
+        )),
+        IconButton(tooltip: 'Vider la sélection', constraints: const BoxConstraints(minWidth: 40, minHeight: 44), padding: EdgeInsets.zero, onPressed: onClear, icon: const Icon(Icons.close_rounded, size: 18)),
+      ])),
+    ),
+  );
+
 }
 class LiveEssentialComparison extends StatelessWidget {
   const LiveEssentialComparison({super.key,required this.items});final List<NexusDiscoveryItem> items;
