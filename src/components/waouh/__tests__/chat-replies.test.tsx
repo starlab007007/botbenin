@@ -76,13 +76,13 @@ describe('réponses WAOUH et bots', () => {
   it('tolère les cartes mal formées et les photos sous forme d’objets', () => {
     expect(normalizeResultCards([null, { title: 'Bic', photos: [null, { url: '/bic.jpg' }, 'javascript:alert(1)'] }])[0]).toMatchObject({ index: 2, photos: ['/bic.jpg'] });
   });
-  it('rend les cartes, les contrôles du carrousel et le prix zéro', () => {
+  it('rend les cartes, les contrôles de pagination et le prix zéro', () => {
     const html = renderToStaticMarkup(<WaouhProductResults results={[card, { ...card, id: 'b', index: 2, title: 'Stylo noir' }]} />);
-    expect(html).toContain('Articles suivants');
-    expect(html).toContain('aria-roledescription="carrousel"');
+    expect(html).toContain('Résultats suivants');
+    expect(html).toContain('Offres et annonces proposées');
     expect(html).toContain('Stylo noir');
     expect(html).toContain('0 FCFA');
-    expect(html).toContain('overflow-x-auto');
+    expect(html).toContain('Comparer 0/5');
   });
 });
 

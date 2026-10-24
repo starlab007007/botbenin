@@ -195,9 +195,9 @@ void main() {
     expect(find.text('iPhone 15'), findsOneWidget);
     expect(find.text('Je suis intéressé'), findsNWidgets(2));
     expect(find.text('1/2'), findsOneWidget);
-    expect(find.textContaining('116 250 FCFA'), findsOneWidget);
+    expect(find.textContaining('Références comparables insuffisantes'), findsNWidgets(2));
     expect(find.textContaining('2,4 km'), findsOneWidget);
-    expect(find.textContaining('29 % sous la médiane'), findsOneWidget);
+    expect(find.textContaining('29 % sous la médiane'), findsNothing);
     expect(
         find.textContaining('Meilleur rapport qualité-prix'), findsOneWidget);
     expect(find.byType(Image).evaluate().length, greaterThanOrEqualTo(2));
@@ -282,8 +282,8 @@ void main() {
     expect(find.text('iPhone 15'), findsOneWidget);
     expect(find.text('1/2'), findsOneWidget);
     expect(find.textContaining('3.2 km'), findsOneWidget);
-    expect(find.textContaining('116250 – 138750 FCFA'), findsOneWidget);
-    expect(find.textContaining('18 % sous la médiane'), findsOneWidget);
+    expect(find.textContaining('Références comparables insuffisantes'), findsOneWidget);
+    expect(find.textContaining('18 % sous la médiane'), findsNothing);
     expect(find.text('Acheter'), findsOneWidget);
     expect(find.text('Je suis intéressé'), findsNothing);
 

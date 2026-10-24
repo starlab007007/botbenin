@@ -1,3 +1,5 @@
+import 'convergence/live_convergence_contract.dart';
+import 'convergence/live_convergence_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1135,6 +1137,7 @@ String _opportunityActionLabel(String? action) {
 class _PremiumProduct {
   const _PremiumProduct({
     this.id,
+    this.raw = const {},
     required this.title,
     this.subtitle,
     this.images = const [],
@@ -1168,6 +1171,7 @@ class _PremiumProduct {
     this.workflowState,
     this.role,
   });
+  final Map<String,dynamic> raw;
   final String? id;
   final String title;
   final String? subtitle;
@@ -1729,6 +1733,7 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
               .toList(growable: false)
           : const <String>[];
       return _PremiumProduct(
+        raw: row,
         id: _premiumString(
           row['id'] ?? row['article_id'] ?? row['radar_item_id'],
         ),
@@ -1924,6 +1929,7 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
       fallbackAttachmentIndex += 1;
     }
     products.add(_PremiumProduct(
+      raw: {'title':title,'price':_premiumAmount(price),'category':category,'condition':condition,'availability':availability,'recommendation':explicitRecommendation},
       title: title,
       images: images,
       price: price,
@@ -1980,157 +1986,84 @@ class _PremiumResultsGrid extends StatefulWidget {
 }
 
 class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
-  final ScrollController _controller = ScrollController();
-  int _current = 0;
-  double _itemExtent = 320;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  int page = 0;
+  bool all = false;
+  String order = 'selection';
+  final selected = <int>{};
+  final anchors = <int, GlobalKey>{};
+  @override void didUpdateWidget(covariant _PremiumResultsGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.products != widget.products) { page = 0; selected.clear(); anchors.clear(); }
   }
-
-  void _move(int delta) {
-    if (!_controller.hasClients) return;
-    final next = (_current + delta).clamp(0, widget.products.length - 1);
-    _controller.animateTo(
-      next * _itemExtent,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
-    setState(() => _current = next);
+  Future<void> compare() async {
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Comparer ${selected.length} offres'),
+      content: SizedBox(width: 1000, child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: selected.map((i) {
+        final p = widget.products[i];
+        return SizedBox(width: 245, child: Padding(padding: const EdgeInsets.all(8), child: Column(mainAxisSize: MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children: [
+          Text(p.title,style:const TextStyle(fontWeight:FontWeight.w700)), const SizedBox(height:8), Text(p.price ?? 'Prix à préciser'), Text(p.city ?? 'Ville à préciser'),
+          ...liveConvergenceMissing(p.raw).map((m)=>Text('• $m',style:const TextStyle(fontSize:12))),
+          TextButton(onPressed: () { Navigator.pop(ctx); setState(() { all=true; }); WidgetsBinding.instance.addPostFrameCallback((_) { final target=anchors[i]?.currentContext; if(target!=null) Scrollable.ensureVisible(target,duration:const Duration(milliseconds:250)); }); },child:const Text('Retrouver la fiche')),
+        ])));
+      }).toList()))),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer'))],
+    ));
   }
+  @override Widget build(BuildContext context) => LayoutBuilder(builder: (_, constraints) {
+    final indices = List<int>.generate(widget.products.length,(i)=>i);
+    if(order!='selection') indices.sort((a,b) { final x=convergenceAmount(widget.products[a].raw['price'] ?? widget.products[a].raw['price_min']),y=convergenceAmount(widget.products[b].raw['price'] ?? widget.products[b].raw['price_min']); if(x==null)return y==null?a.compareTo(b):1;if(y==null)return -1;return order=='price_asc'?x.compareTo(y):y.compareTo(x); });
+    final enriched=liveConvergenceWithReferences(widget.products.map((p)=>p.raw).toList());
+    final pages=(indices.length/5).ceil();
+    final visible=all?indices:indices.skip(page*5).take(5).toList();
+    final width=constraints.maxWidth>=720?(constraints.maxWidth-12)/2:constraints.maxWidth;
+    return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Wrap(spacing:8,runSpacing:8,crossAxisAlignment:WrapCrossAlignment.center,children:[
+        Text('${indices.length} résultat${indices.length>1?'s':''}',style:const TextStyle(fontWeight:FontWeight.w800,color:Color(0xFF46324D))),
+        DropdownButton<String>(value:order,items:const [DropdownMenuItem(value:'selection',child:Text('Sélection')),DropdownMenuItem(value:'price_asc',child:Text('Prix croissant')),DropdownMenuItem(value:'price_desc',child:Text('Prix décroissant'))],onChanged:(v)=>setState(() {order=v!;page=0;})),
+        OutlinedButton(onPressed:()=>setState(()=>all=!all),child:Text(all?'Afficher par 5':'Tout afficher')),
+        FilledButton(onPressed:selected.length<2?null:compare,child:Text('Comparer ${selected.length}/5')),
+      ]),
+      const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('Sélectionnez jusqu’à 5 offres. Les prix et disponibilités restent à confirmer.',style:TextStyle(fontSize:12,color:Color(0xFF756B79)))),
+      Wrap(spacing:12,runSpacing:12,children:visible.map((i)=>SizedBox(width:width,key:anchors.putIfAbsent(i,()=>GlobalKey()),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        CheckboxListTile(contentPadding:EdgeInsets.zero,dense:true,title:Text('Comparer l’offre ${i+1}'),value:selected.contains(i),onChanged:!selected.contains(i)&&selected.length>=5?null:(v)=>setState(() {if(v==true){selected.add(i);}else{selected.remove(i);}})),
+        _PremiumProductCard(product:widget.products[i],insights:enriched[i],index:i,onPayload:widget.onPayload,actionsEnabled:widget.actionsEnabled),
+      ]))).toList()),
+      if(!all && pages>1) Row(mainAxisAlignment:MainAxisAlignment.center,children:[IconButton(tooltip:'Résultats précédents',onPressed:page>0?()=>setState(()=>page--):null,icon:const Icon(Icons.chevron_left)),Text('${page+1}/$pages'),IconButton(tooltip:'Résultats suivants',onPressed:page<pages-1?()=>setState(()=>page++):null,icon:const Icon(Icons.chevron_right))]),
+      OutlinedButton.icon(onPressed:()=>openLiveConvergence(context),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser mon besoin')),
+    ]);
+  });
+}
 
-  bool _observe(ScrollNotification notification) {
-    if (notification.metrics.axis != Axis.horizontal) return false;
-    final next = (notification.metrics.pixels / _itemExtent)
-        .round()
-        .clamp(0, widget.products.length - 1);
-    if (next != _current) setState(() => _current = next);
-    return false;
+class _ConvergenceResultInsights extends StatelessWidget {
+  const _ConvergenceResultInsights({required this.raw});
+  final Map<String,dynamic> raw;
+  @override Widget build(BuildContext context) {
+    final refs=liveConvergenceReferences(raw),missing=liveConvergenceMissing(raw);
+    final evidence=convergenceMap(raw['evidence']);
+    final reasons=raw['reasons'] is List ? raw['reasons'] as List : const [];
+    final supplied=[raw['recommendation'],raw['advice'],evidence['recommendation'],...reasons].whereType<String>().where((s)=>s.trim().isNotEmpty);
+    final prices=refs.where((r)=>r['comparable']==true).map((r)=>r['amount'] as double).toList()..sort();
+    final comparable=prices.length;
+    final median=comparable<2?null:comparable.isOdd?prices[comparable~/2]:(prices[comparable~/2-1]+prices[comparable~/2])/2;
+    return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:const Color(0xFFF5F0F7),borderRadius:BorderRadius.circular(14)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(supplied.isEmpty?'À savoir':'Avis IA',style:const TextStyle(fontWeight:FontWeight.w700,color:Color(0xFF65406F))),const SizedBox(height:4),Text(supplied.isEmpty?'Confirmez les conditions de cette offre avant de vous engager.':supplied.first,style:const TextStyle(fontSize:13))])),
+      ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Repère marché',style:TextStyle(fontSize:13,fontWeight:FontWeight.w600)),subtitle:Text(comparable>=2?'$comparable références comparables documentées':refs.isNotEmpty?'${refs.length} références · équivalence à confirmer':'Références comparables insuffisantes',style:const TextStyle(fontSize:12)),children:refs.map((r)=>ListTile(contentPadding:EdgeInsets.zero,dense:true,title:Text('${r['seller']} · ${r['currency']=='XOF'?convergenceMoney(r['amount']):'${r['amount']} ${r['currency']}'}'),subtitle:Text('${r['comparable']==true?'Comparabilité annoncée':'Équivalence à confirmer'} · ${r['observed_at'] ?? 'Date non précisée'}'),trailing:const Icon(Icons.open_in_new,size:17),onTap:()=>launchUrl(Uri.parse('${r['url']}'),mode:LaunchMode.externalApplication))).toList()),
+      if(median!=null)Text('Médiane de ces références : ${refs.firstWhere((r)=>r['comparable']==true)['currency']=='XOF'?convergenceMoney(median):'$median ${refs.firstWhere((r)=>r['comparable']==true)['currency']}'} · échantillon limité aux sources affichées.',style:const TextStyle(fontSize:12)),
+      if(missing.isNotEmpty)Padding(padding:const EdgeInsets.only(bottom:10),child:Text(missing.join(' · '),style:const TextStyle(fontSize:12,color:Color(0xFF896121)))),
+    ]);
   }
-
-  @override
-  Widget build(BuildContext context) =>
-      LayoutBuilder(builder: (_, constraints) {
-        var topPickIndex = 0;
-        double? bestScore;
-        for (var i = 0; i < widget.products.length; i += 1) {
-          final score = widget.products[i].score;
-          if (score != null && (bestScore == null || score > bestScore)) {
-            bestScore = score;
-            topPickIndex = i;
-          }
-        }
-        final itemWidth = widget.products.length == 1
-            ? constraints.maxWidth
-            : constraints.maxWidth >= 720
-                ? 420.0
-                : (constraints.maxWidth - 22).clamp(272.0, 420.0).toDouble();
-        _itemExtent = itemWidth + 11;
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECF7F1),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    color: Color(0xFF08745D), fontSize: 12,
-                    fontWeight: FontWeight.w800),
-                ),
-              ),
-              if (widget.products.length > 1) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Article ${_current + 1} sur ${widget.products.length}',
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: Color(0xFF52675F),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Article précédent',
-                  onPressed: _current > 0 ? () => _move(-1) : null,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                IconButton(
-                  tooltip: 'Article suivant',
-                  onPressed: _current < widget.products.length - 1
-                      ? () => _move(1)
-                      : null,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          Semantics(
-            container: true,
-            label:
-                'Carrousel de ${widget.products.length} articles, article ${_current + 1} affiché',
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _observe,
-              child: Scrollbar(
-                controller: _controller,
-                thumbVisibility: widget.products.length > 1,
-                child: SingleChildScrollView(
-                  controller: _controller,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: List.generate(widget.products.length, (index) {
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          right: index == widget.products.length - 1 ? 0 : 11,
-                        ),
-                        child: SizedBox(
-                          width: itemWidth,
-                          child: Semantics(
-                            label:
-                                'Article ${index + 1} sur ${widget.products.length}: ${widget.products[index].title}',
-                            child: _PremiumProductCard(
-                              product: widget.products[index],
-                              index: index,
-                              onPayload: widget.onPayload,
-                              actionsEnabled: widget.actionsEnabled,
-                              topPick: index == topPickIndex,
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const Padding(
-              padding: EdgeInsets.only(top: 9, left: 3),
-              child: Text(
-                  '🔒 Résultats issus des données retournées par WAOUH — mise à jour en temps réel.',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF78988A)))),
-        ]);
-      });
 }
 
 class _PremiumProductCard extends StatelessWidget {
   const _PremiumProductCard({
+    this.insights,
     required this.product,
     required this.index,
     this.onPayload,
     this.actionsEnabled = true,
     this.topPick = false,
   });
+  final Map<String,dynamic>? insights;
   final _PremiumProduct product;
   final int index;
   final ValueChanged<String>? onPayload;
@@ -2144,286 +2077,29 @@ class _PremiumProductCard extends StatelessWidget {
           liveCommerceActionKind(action.payload) ==
           LiveCommerceActionKind.interest,
     );
+    final kind = liveConvergenceKind(product.raw);
     return Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: topPick ? const Color(0xFF67C9A9) : const Color(0xFFCDE5DB),
-              width: topPick ? 1.4 : 1,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                  color: Color(0x1A063F33),
-                  blurRadius: 16,
-                  offset: Offset(0, 6))
-            ]),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (product.images.isNotEmpty)
-            _PremiumProductGallery(
-                images: product.images, articleNumber: index + 1)
-          else
-            Container(
-              height: 150,
-              width: double.infinity,
-              color: const Color(0xFFF1F6F4),
-              alignment: Alignment.center,
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.image_not_supported_outlined,
-                      color: Color(0xFF78958A), size: 28),
-                  SizedBox(height: 7),
-                  Text('Aucune photo fournie',
-                      style: TextStyle(
-                          color: Color(0xFF78958A),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: [
-                  if (topPick)
-                    const _PremiumBadge(
-                      '✨ Top Pick WAOUH',
-                      Color(0xFFE8F8F1),
-                      Color(0xFF08745D),
-                    ),
-                  if (product.isBuyerOpportunity)
-                    const _PremiumBadge(
-                      '👥 Opportunité acheteur',
-                      Color(0xFFEAF3FF),
-                      Color(0xFF2368FF),
-                    ),
-                  if (product.score != null)
-                    _PremiumBadge(
-                      'Match ${product.score!.round()}%',
-                      const Color(0xFFE8F8F1),
-                      const Color(0xFF08745D),
-                    ),
-                  if (product.trustScore != null)
-                    _PremiumBadge(
-                      'Confiance ${product.trustScore!.round()}%',
-                      const Color(0xFFEAF3FF),
-                      const Color(0xFF2368FF),
-                    ),
-                  if (product.actionabilityScore != null)
-                    _PremiumBadge(
-                      'Bot ${product.actionabilityScore!.round()}%',
-                      const Color(0xFFF3EDFF),
-                      const Color(0xFF6D3FD1),
-                    ),
-                  if (product.readiness != null)
-                    _PremiumBadge(
-                      product.readiness!,
-                      const Color(0xFFE8F8FA),
-                      const Color(0xFF087A9B),
-                    ),
-                  if (product.contactability != null)
-                    LiveContactabilityBadge(level: product.contactability),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(
-                    product.isBuyerOpportunity
-                        ? Icons.groups_2_outlined
-                        : Icons.shopping_bag_outlined,
-                    size: 20,
-                    color: product.isBuyerOpportunity
-                        ? const Color(0xFF087A9B)
-                        : const Color(0xFF2368FF),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                    child: Text(product.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 19,
-                            height: 1.15,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF15372F)))),
-              ]),
-              if (product.subtitle != null)
-                Text(product.subtitle!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF667A73))),
-              if (product.price != null) ...[
-                const SizedBox(height: 8),
-                Text(product.price!,
-                    style: const TextStyle(
-                        fontSize: 23,
-                        height: 1.1,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF07996D))),
-              ],
-              const SizedBox(height: 9),
-              if (product.nextBestAction != null || product.bestChannel != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F2FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE3D6FF)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Action recommandée par Bot',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF6D3FD1),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _opportunityActionLabel(product.nextBestAction) +
-                            (product.bestChannel == null ? '' : ' · canal ' + product.bestChannel!),
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF382567),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 9),
-              ],
-              Wrap(spacing: 5, runSpacing: 5, children: [
-                if (product.badges.any((badge) =>
-                    badge.toLowerCase().contains('vérifi') ||
-                    badge.toLowerCase().contains('verifi')))
-                  _PremiumBadge('✅ Vérifié', const Color(0xFFFFF4C5),
-                      const Color(0xFF6C5700)),
-                if (product.city != null)
-                  _PremiumBadge('📍 ${product.city!}', const Color(0xFFE9F7F1),
-                      const Color(0xFF08745D)),
-                if (_premiumConditionLabel(product.condition) != null)
-                  _PremiumBadge(_premiumConditionLabel(product.condition)!,
-                      const Color(0xFFF1F4F8), const Color(0xFF5E6F8A)),
-                if (product.category != null)
-                  _PremiumBadge('🏷️ ${product.category!}',
-                      const Color(0xFFEEF3FA), const Color(0xFF42658B)),
-                _PremiumBadge(
-                    '📏 ${product.distance ?? 'Distance non communiquée'}',
-                    const Color(0xFFFFF4D9),
-                    const Color(0xFF8B6500)),
-                if (product.availability != null)
-                  _PremiumBadge(
-                      product.availability!.toLowerCase().contains('réserv')
-                          ? '🔴 ${product.availability!}'
-                          : '🟢 ${product.availability!}',
-                      const Color(0xFFF0F7F3),
-                      const Color(0xFF2B6654)),
-              ]),
-              if (product.rating != null || product.sellerLabel != null) ...[
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.star_rounded,
-                      size: 17, color: Color(0xFFF5B82E)),
-                  const SizedBox(width: 4),
-                  Expanded(
-                      child: Text(
-                          [
-                            if (product.rating != null) product.rating!,
-                            if (product.sellerLabel != null)
-                              product.sellerLabel!
-                          ].join(' · '),
-                          style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF52675F)))),
-                ]),
-              ],
-              const SizedBox(height: 9),
-              if (product.displayDetails != null ||
-                  product.displayMarketComparison != null ||
-                  product.displayComparativeAnalysis != null ||
-                  product.displayRecommendation != null) ...[
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    'ANALYSE DE BOT',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                      color: Color(0xFF6D3FD1),
-                    ),
-                  ),
-                ),
-                if (product.displayDetails != null) ...[
-                  _PremiumInformationPanel(
-                      icon: Icons.description_outlined,
-                      title: 'Détails',
-                      text: product.displayDetails!),
-                  const SizedBox(height: 8),
-                ],
-                if (product.displayMarketComparison != null) ...[
-                  _PremiumInformationPanel(
-                      icon: Icons.bar_chart_rounded,
-                      title: 'Marché',
-                      text: product.displayMarketComparison!,
-                      accent: const Color(0xFF08745D),
-                      background: const Color(0xFFEAF8F2)),
-                  const SizedBox(height: 8),
-                ],
-                if (product.displayComparativeAnalysis != null) ...[
-                  _PremiumInformationPanel(
-                      icon: Icons.compare_arrows_rounded,
-                      title: 'Comparaison',
-                      text: product.displayComparativeAnalysis!,
-                      accent: const Color(0xFF42658B),
-                      background: const Color(0xFFF1F5FB)),
-                  const SizedBox(height: 8),
-                ],
-                if (product.displayRecommendation != null)
-                  _PremiumInformationPanel(
-                      icon: Icons.lightbulb_outline_rounded,
-                      title: 'Avis de Bot',
-                      text: product.displayRecommendation!,
-                      accent: const Color(0xFF8B6500),
-                      background: const Color(0xFFFFF8E6)),
-              ],
-              const SizedBox(height: 9),
-              Row(children: [
-                Icon(
-                    product.images.isEmpty
-                        ? Icons.image_not_supported_outlined
-                        : Icons.photo_library_outlined,
-                    size: 17,
-                    color: const Color(0xFF5D746B)),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Text(
-                        product.images.isEmpty
-                            ? 'Aucune photo fournie'
-                            : '${product.images.length} photo${product.images.length > 1 ? 's' : ''} · balayez pour toutes les voir',
-                        style: const TextStyle(
-                            color: Color(0xFF52675F),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700))),
-              ]),
-              const SizedBox(height: 12),
-              if (actionsEnabled && product.actions.isNotEmpty)
+      clipBehavior: Clip.antiAlias,
+      decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(22),border:Border.all(color:const Color(0xFFE8DFE9)),boxShadow:const[BoxShadow(color:Color(0x0946324D),blurRadius:20,offset:Offset(0,6))]),
+      child: Padding(padding:const EdgeInsets.all(13), child: Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          ClipRRect(borderRadius:BorderRadius.circular(15),child:SizedBox(width:100,height:112,child:product.images.isNotEmpty?_PremiumProductGallery(images:product.images,articleNumber:index+1):const ColoredBox(color:Color(0xFFF6F1F4),child:Icon(Icons.image_not_supported_outlined,color:Color(0xFF8E7A93))))),
+          const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(kind=='service'?'Prestation':kind=='announcement'?'Annonce':'Offre produit',style:const TextStyle(fontSize:11,color:Color(0xFF796681))),
+            Text(product.title,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w800,color:Color(0xFF302237))),
+            const SizedBox(height:5),Text([product.city,product.distance,_premiumConditionLabel(product.condition)].whereType<String>().join(' · '),style:const TextStyle(fontSize:12,color:Color(0xFF756B79))),
+            const SizedBox(height:7),Text(product.price ?? 'Prix à préciser',style:const TextStyle(fontSize:19,fontWeight:FontWeight.w800,color:Color(0xFF08745D))),
+          ])),
+        ]),
+        Wrap(spacing:6,runSpacing:5,children:[
+          if(product.isBuyerOpportunity)const _PremiumBadge('👥 Opportunité acheteur',Color(0xFFF0EDF7),Color(0xFF65406F)),
+          if(product.score!=null)_PremiumBadge('Match ${product.score!.round()}%',const Color(0xFFECF6F0),const Color(0xFF08745D)),
+          if(product.contactability!=null)LiveContactabilityBadge(level:product.contactability),
+        ]),
+        const SizedBox(height:12),_ConvergenceResultInsights(raw:insights ?? product.raw),
+        if(product.displayDetails!=null)ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Détails de l’offre',style:TextStyle(fontSize:13)),children:[Align(alignment:Alignment.centerLeft,child:Text(product.displayDetails!))]),
+        if(kind=='announcement')FilledButton(onPressed:()=>openLiveConvergence(context,source:product.raw),child:const Text('Préparer une réponse à l’annonce')),
+              if (kind!='announcement' && actionsEnabled && product.actions.isNotEmpty)
                 Wrap(
                   spacing: 7,
                   runSpacing: 7,
@@ -2518,7 +2194,7 @@ class _PremiumProductCard extends StatelessWidget {
                   ),
                 ),
               ],
-              if (actionsEnabled && onPayload != null) ...[
+              if (kind!='announcement' && actionsEnabled && onPayload != null) ...[
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
@@ -2537,10 +2213,9 @@ class _PremiumProductCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ]),
-          ),
-        ]),
-      );
+        OutlinedButton.icon(onPressed:()=>openLiveConvergence(context,source:product.raw.isEmpty?{'title':product.title,'city':product.city,'category':product.category}:product.raw),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser ce besoin')),
+      ])),
+    );
   }
 }
 

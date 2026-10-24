@@ -1,3 +1,4 @@
+import 'convergence/live_convergence_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -114,6 +115,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
       body: auth.signedIn
           ? Column(
               children: [
+                Padding(padding: const EdgeInsets.fromLTRB(14,8,14,8),child:OutlinedButton.icon(onPressed:()=>openLiveConvergence(context),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser mon besoin · produits, services, annonces'))),
                 ListenableBuilder(
                   listenable: agentic,
                   builder: (_, __) => _MissionHero(

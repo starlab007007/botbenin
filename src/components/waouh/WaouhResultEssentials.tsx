@@ -1,0 +1,11 @@
+import { BarChart3, CircleHelp, Sparkles } from 'lucide-react';
+import { resultEssentials, safeReferenceUrl } from '../../../supabase/functions/_shared/waouh-convergence-contract';
+import type { WaouhResultCard } from './WaouhProductCard';
+export function WaouhResultEssentials({ result }: { result: WaouhResultCard }) {
+  const view = resultEssentials(result);
+  return <div className="wr-essentials">
+    {view.facts.length > 0 && <div className="wr-facts">{view.facts.map((x,i) => <span key={i}>{x}</span>)}</div>}
+    <div className="wr-insights"><div className="wr-insight wr-ai"><span><Sparkles size={14} />{view.advice ? 'Avis IA' : 'À savoir'}</span><p>{view.advice || (view.kind === 'announcement' ? 'Vérifiez les conditions et la validité avant de répondre.' : 'Confirmez les conditions de cette offre avant de vous engager.')}</p></div><details className="wr-insight wr-market"><summary><BarChart3 size={14} />Repère marché</summary><p>{view.market}</p><small>{view.referenceScope}</small>{view.median !== null && <p>Médiane de ces références : {new Intl.NumberFormat('fr-FR').format(view.median)} {view.refs.find(r => r.comparable)?.currency === 'XOF' ? 'F CFA' : view.refs.find(r => r.comparable)?.currency}. Échantillon limité aux sources affichées.</p>}<small>{view.refs.length} référence{view.refs.length > 1 ? 's' : ''} disponible{view.refs.length > 1 ? 's' : ''} · 5 maximum</small>{view.refs.map((r,i) => <div className="wr-reference" key={r.url}><a href={safeReferenceUrl(r.url)!} target="_blank" rel="noreferrer">{r.seller}</a><strong>{new Intl.NumberFormat('fr-FR').format(r.amount)} {r.currency === 'XOF' ? 'F CFA' : r.currency}</strong><small>{r.observed_at ? new Date(r.observed_at).toLocaleDateString('fr-FR') : 'Date non précisée'} · {r.comparable ? 'Référence comparable annoncée' : 'Équivalence à confirmer'}</small></div>)}{view.refs.length === 0 && <small>Aucun prix moyen n’est déduit sans sources comparables.</small>}</details></div>
+    {view.missing.length > 0 && <div className="wr-missing"><CircleHelp size={14} /><span>{view.missing.slice(0, 2).join(' · ')}</span>{view.missing.length > 2 && <details><summary>+{view.missing.length - 2}</summary>{view.missing.slice(2).map(x => <p key={x}>{x}</p>)}</details>}</div>}
+  </div>;
+}
