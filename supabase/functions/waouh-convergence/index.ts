@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
 import { getRequestUser, jsonResponse, waouhCorsHeaders } from '../_shared/waouh-auth.ts';
 import { chatCompletion } from '../_shared/agent-ai.ts';
-import { sanitizeAiPlans, validateConvergenceRequest } from '../_shared/waouh-convergence-contract.ts';
+import { poolDirectory, sanitizeAiPlans, validateConvergenceRequest } from '../_shared/waouh-convergence-contract.ts';
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: waouhCorsHeaders });
@@ -33,7 +33,8 @@ Deno.serve(async req => {
         return jsonResponse({ ok: false, error: 'Les suggestions IA ne sont pas disponibles. Vous pouvez créer un chemin manuellement et réessayer plus tard.' }, 503);
       } finally { clearTimeout(timer); await command('ai_usage', { mission_id: payload.mission_id, ...usage, latency_ms: Date.now() - started, success }).catch(() => {}); }
     }
-    return jsonResponse({ ok: true, data: await command(action, payload) });
+    const data = await command(action, payload);
+    return jsonResponse({ ok: true, data: action === 'pool_list' ? poolDirectory(data) : data });
   } catch (error) {
     const code = String((error as any)?.code ?? '');
     const messages: Record<string,string> = {

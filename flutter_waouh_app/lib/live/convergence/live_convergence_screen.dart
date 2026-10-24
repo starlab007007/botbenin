@@ -176,14 +176,14 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     ]),
     ...pools.map((g)=>panel('${g['topic']}',[
       Text('${g['city']} · ${g['member_count']}/5 participants · ${g['status']=='confirmed' ? 'Accord de tous enregistré' : g['status']=='cancelled' ? 'Clôturé' : 'Ouvert'}'),
-      if(g['shared_cost']!=null)Text('Coût partagé proposé : ${convergenceMoney(g['shared_cost'])}\nAu nombre actuel : ${convergenceMoney((convergenceAmount(g['shared_cost']) ?? 0)/(g['member_count'] as num).clamp(1,5))} par participant\n${g['quote_scope']}\nVersion ${g['quote_version']} · valable jusqu’au ${g['quote_expires_at']}') else const Text('Coût à proposer par le professionnel.'),
+      if(g['shared_cost']!=null)Text('Coût partagé proposé : ${convergenceMoney(g['shared_cost'])}\nAu nombre actuel : ${convergenceMoney((convergenceAmount(g['shared_cost']) ?? 0)/(g['member_count'] as num).clamp(1,5))} par participant\n${g['quote_scope']}\nVersion ${g['quote_version']} · valable jusqu’au ${g['quote_expires_at']}') else const Text('Le devis est réservé aux participants ; le professionnel doit le proposer ou le renouveler.'),
       if(g['is_owner']==true && g['status']=='open' && g['provider_linked']!=true && g['shared_cost']==null)button('Inviter le professionnel',()=>run('pool_invite',{'pool_id':g['id']})),
       if(g['is_provider']==true && g['status']=='open')button('Proposer le coût partagé',() async { final p=await form('Coût partagé total',{'shared_cost':'Montant total à répartir · F CFA','scope':'Ce que couvre ce coût','expires_at':'Valable jusqu’au'},numeric:{'shared_cost'},dates:{'expires_at'});if(p!=null){await run('pool_quote',{'pool_id':g['id'],...p,'shared_cost':convergenceAmount(p['shared_cost']),'minimum_members':2});await groups();}}),
       if(g['joined']!=true && g['is_provider']!=true && own && bundle!=null && g['status']=='open')button('Rejoindre avec mon accord',() async {await run('pool_join',{'pool_id':g['id'],'mission_id':mission['id'],'consent':consent});await groups();},enabled:consent),
       if(g['joined']==true) ...[
         if(g['shared_cost']!=null && g['status']=='open')button(g['accepted_version']==g['quote_version']?'Votre accord est enregistré':'Accepter cette répartition',() async {await run('pool_accept',{'pool_id':g['id'],'version':g['quote_version']});await groups();},enabled:g['accepted_version']!=g['quote_version'],primary:true),
         button('Quitter le groupe',() async {await run('pool_leave',{'pool_id':g['id']});await groups();}),
-      ],const Text('Tout changement de participants ou de proposition nécessite un nouvel accord. Aucun paiement automatique.',style:TextStyle(fontSize:12)),
+      ],const Text('Tout changement de participants nécessite un nouveau devis du professionnel et un nouvel accord de chacun. Aucun paiement automatique.',style:TextStyle(fontSize:12)),
     ])),
   ]);
   @override Widget build(BuildContext context) {

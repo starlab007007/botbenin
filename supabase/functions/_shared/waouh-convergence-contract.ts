@@ -137,3 +137,12 @@ export function validateConvergenceRequest(body: unknown) {
   const { actor_id: _a, owner_id: _o, provider_id: _pr, user_id: _u, ...payload } = p;
   return { action, payload };
 }
+
+/** Discovery reveals only the fields participants explicitly agreed to publish. */
+export function poolDirectory(data: ConvergenceRow) {
+  const publicKeys = ['id','topic','city','kind','deadline','status','member_count','is_owner','is_provider','provider_linked','joined'];
+  return { ...data, pools: (Array.isArray(data.pools) ? data.pools : []).map(value => {
+    const g = record(value);
+    return g.joined === true || g.is_owner === true || g.is_provider === true ? g : Object.fromEntries(publicKeys.filter(k => k in g).map(k => [k,g[k]]));
+  }) };
+}

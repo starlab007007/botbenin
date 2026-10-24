@@ -1,9 +1,12 @@
-import { readFile } from 'node:fs/promises';
+import { readFile,readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const { PGlite } = await import(process.env.WAOUH_DB_TEST_MODULE || '@electric-sql/pglite');
 const db = new PGlite();
 await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create table auth.users(id uuid primary key); create function public.is_admin(uuid) returns boolean language sql as $$select false$$;`);
 await db.exec(await readFile(new URL('../../supabase/migrations/20261024095753_waouh_convergence.sql',import.meta.url),'utf8'));
+const guards = (await readdir(new URL('../../supabase/migrations/',import.meta.url))).filter(x=>x.endsWith('_waouh_convergence_group_quote_guard.sql'));
+assert.equal(guards.length,1);
+await db.exec(await readFile(new URL('../../supabase/migrations/'+guards[0],import.meta.url),'utf8'));
 const users=Array.from({length:8},(_,i)=>`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`);
 for(const u of users)await db.query('insert into auth.users values($1)',[u]);
 let checks=0;
@@ -54,8 +57,13 @@ g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.
 await cmd(users[4],'pool_accept',{pool_id:gid,version:qv});
 g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.status,'confirmed');checks++;
 await cmd(users[4],'pool_leave',{pool_id:gid});
-g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.status,'open');assert.equal(g.accepted_version,null);checks++;
+g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.status,'open');assert.equal(g.accepted_version,null);assert.equal(g.shared_cost,null);checks++;
 await denied(users[0],'pool_accept',{pool_id:gid,version:qv},'quote_unavailable_or_changed');
+await denied(users[0],'pool_accept',{pool_id:gid,version:g.quote_version},'quote_unavailable_or_changed');
+await cmd(users[6],'pool_quote',{pool_id:gid,shared_cost:18000,scope:'Nouveau devis pour quatre participants',expires_at:'2030-11-01T18:00:00Z'});
+g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.shared_cost,18000);checks++;
+await cmd(users[5],'pool_join',{pool_id:gid,mission_id:memberMissions[5],consent:true});
+g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.shared_cost,null);checks++;
 await cmd(users[0],'cancel',{mission_id:memberMissions[0]});
 g=(await cmd(users[0],'pool_list',{})).pools.find(x=>x.id===gid);assert.equal(g.status,'cancelled');checks++;
 // Client roles cannot bypass the verified Edge actor or access private tables.
