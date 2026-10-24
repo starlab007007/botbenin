@@ -573,7 +573,7 @@ export function WaouhProductCard({
             )}
           </div>
         )}
-        <details className="wr-more"><summary>Autres actions et résultat attendu</summary><div className="wr-more-actions">{externalDeal && result.fabric_id && <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} />}<Button variant="outline" onClick={() => setConvergenceOpen(true)}>Organiser ce besoin avec Ayo</Button>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="text-xs underline">Voir l’annonce d’origine</a>}</div></details>
+        <details className="wr-more"><summary>Autres actions et résultat attendu</summary><div className="wr-more-actions">{externalDeal && result.fabric_id && <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} />}<Button variant="outline" onClick={() => setConvergenceOpen(true)}>Organiser ce besoin avec Bot</Button>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="text-xs underline">Voir l’annonce d’origine</a>}</div></details>
       </div>
       <WaouhConvergenceDialog open={convergenceOpen} onOpenChange={setConvergenceOpen} source={result} />
 

@@ -149,7 +149,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
       TextButton.icon(onPressed:() { setState(() => bundle=null); run('list'); },icon:const Icon(Icons.chevron_left),label:const Text('Mes besoins')),
       panel('${mission['goal']}',[Text('${kinds[mission['kind']]} · ${mission['city']}\n${statuses[mission['status']]}${mission['budget_max'] == null ? '' : '\nBudget ${convergenceMoney(mission['budget_max'])}'}'),if (mission['criteria'] is List) ...((mission['criteria'] as List).map((x) => Text('• $x')))]),
       if(own && !closed)button('Ajuster mon budget',() async { final p=await form('Confirmer le nouveau plafond',{'budget_max':'Budget maximum · F CFA (vide = sans plafond)'},initial:{'budget_max':mission['budget_max']},numeric:{'budget_max'}); if(p!=null)run('mission_update',{'mission_id':mission['id'],'budget_max':convergenceAmount(p['budget_max'])}); }),
-      if (own && !closed) panel('Chemins possibles',[const Text('Les approches proposées restent à valider. Aucun prix ni professionnel n’est inventé.'),button('Explorer avec Ayo',() => run('suggest',{'mission_id':mission['id']}),enabled:plans.length<5,primary:true),button('Ajouter un chemin',() async { final p=await form('Ajouter un chemin',{'title':'Nom du chemin'}); if(p!=null)run('plan_add',{'mission_id':mission['id'],...p}); },enabled:plans.length<5)]),
+      if (own && !closed) panel('Chemins possibles',[const Text('Les approches proposées restent à valider. Aucun prix ni professionnel n’est inventé.'),button('Explorer avec Bot',() => run('suggest',{'mission_id':mission['id']}),enabled:plans.length<5,primary:true),button('Ajouter un chemin',() async { final p=await form('Ajouter un chemin',{'title':'Nom du chemin'}); if(p!=null)run('plan_add',{'mission_id':mission['id'],...p}); },enabled:plans.length<5)]),
       ...plans.map((plan) {
         final parts=components.where((c) => c['plan_id']==plan['id']).toList(), total=liveConvergenceTotal(parts);
         return panel('${plan['title']}',[
@@ -196,7 +196,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
         if(tab=='pilot' && metrics!=null)panel('Pilote · ${metrics!['scope']=='platform'?'vue administrateur':'vos besoins'}',[
           Text('Objectif proposé : ${metrics!['target_missions']} missions et ${metrics!['target_professionals']} professionnels volontaires.'),
           ...{'missions':'Besoins créés','completed':'Résultats confirmés','agreements_confirmed':'Accords confirmés des deux côtés','professionals':'Professionnels reliés','terms_revised':'Conditions révisées','ai_requests':'Appels IA','ai_input_tokens':'Tokens IA en entrée','ai_output_tokens':'Tokens IA en sortie'}.entries.map((e)=>ListTile(contentPadding:EdgeInsets.zero,title:Text(e.value),trailing:Text('${metrics![e.key]}'))),
-          Text('Délai médian jusqu’au premier accord proposé : ${metrics!['quote_delay_seconds']==null?'Non disponible':'${((metrics!['quote_delay_seconds'] as num)/60).round()} min'}'),const Text('Coût IA en F CFA : non mesuré.'),
+          Text('Délai médian de proposition d’accord : ${metrics!['quote_delay_seconds']==null?'Non disponible':'${((metrics!['quote_delay_seconds'] as num)/60).round()} min'}'),const Text('Coût IA en F CFA : non mesuré.'),
         ]),
       ],
     ])));

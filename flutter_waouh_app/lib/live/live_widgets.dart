@@ -1993,7 +1993,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
   final anchors = <int, GlobalKey>{};
   @override void didUpdateWidget(covariant _PremiumResultsGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.products != widget.products) { page = 0; selected.clear(); anchors.clear(); }
+    if (oldWidget.products.map((p)=>'${p.id}:${p.title}:${p.fabricId}').join('|') != widget.products.map((p)=>'${p.id}:${p.title}:${p.fabricId}').join('|')) { page = 0; selected.clear(); anchors.clear(); }
   }
   Future<void> compare() async {
     await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
@@ -2019,13 +2019,13 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
     return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
       Wrap(spacing:8,runSpacing:8,crossAxisAlignment:WrapCrossAlignment.center,children:[
         Text('${indices.length} résultat${indices.length>1?'s':''}',style:const TextStyle(fontWeight:FontWeight.w800,color:Color(0xFF46324D))),
-        DropdownButton<String>(value:order,items:const [DropdownMenuItem(value:'selection',child:Text('Sélection')),DropdownMenuItem(value:'price_asc',child:Text('Prix croissant')),DropdownMenuItem(value:'price_desc',child:Text('Prix décroissant'))],onChanged:(v)=>setState(() {order=v!;page=0;})),
+        SizedBox(width:constraints.maxWidth.clamp(0,190).toDouble(),child:DropdownButton<String>(isExpanded:true,style:const TextStyle(fontSize:13,color:Color(0xFF46324D)),value:order,items:const [DropdownMenuItem(value:'selection',child:Text('Sélection')),DropdownMenuItem(value:'price_asc',child:Text('Prix croissant')),DropdownMenuItem(value:'price_desc',child:Text('Prix décroissant'))],onChanged:(v)=>setState(() {order=v!;page=0;}))),
         OutlinedButton(onPressed:()=>setState(()=>all=!all),child:Text(all?'Afficher par 5':'Tout afficher')),
         FilledButton(onPressed:selected.length<2?null:compare,child:Text('Comparer ${selected.length}/5')),
       ]),
       const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('Sélectionnez jusqu’à 5 offres. Les prix et disponibilités restent à confirmer.',style:TextStyle(fontSize:12,color:Color(0xFF756B79)))),
       Wrap(spacing:12,runSpacing:12,children:visible.map((i)=>SizedBox(width:width,key:anchors.putIfAbsent(i,()=>GlobalKey()),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        CheckboxListTile(contentPadding:EdgeInsets.zero,dense:true,title:Text('Comparer l’offre ${i+1}'),value:selected.contains(i),onChanged:!selected.contains(i)&&selected.length>=5?null:(v)=>setState(() {if(v==true){selected.add(i);}else{selected.remove(i);}})),
+        Material(type:MaterialType.transparency,child:CheckboxListTile(contentPadding:EdgeInsets.zero,dense:true,title:Text('Comparer l’offre ${i+1}'),value:selected.contains(i),onChanged:!selected.contains(i)&&selected.length>=5?null:(v)=>setState(() {if(v==true){selected.add(i);}else{selected.remove(i);}}))),
         _PremiumProductCard(product:widget.products[i],insights:enriched[i],index:i,onPayload:widget.onPayload,actionsEnabled:widget.actionsEnabled),
       ]))).toList()),
       if(!all && pages>1) Row(mainAxisAlignment:MainAxisAlignment.center,children:[IconButton(tooltip:'Résultats précédents',onPressed:page>0?()=>setState(()=>page--):null,icon:const Icon(Icons.chevron_left)),Text('${page+1}/$pages'),IconButton(tooltip:'Résultats suivants',onPressed:page<pages-1?()=>setState(()=>page++):null,icon:const Icon(Icons.chevron_right))]),
@@ -2081,7 +2081,7 @@ class _PremiumProductCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(22),border:Border.all(color:const Color(0xFFE8DFE9)),boxShadow:const[BoxShadow(color:Color(0x0946324D),blurRadius:20,offset:Offset(0,6))]),
-      child: Padding(padding:const EdgeInsets.all(13), child: Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      child: Material(type:MaterialType.transparency,child: Padding(padding:const EdgeInsets.all(13), child: Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
         Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
           ClipRRect(borderRadius:BorderRadius.circular(15),child:SizedBox(width:100,height:112,child:product.images.isNotEmpty?_PremiumProductGallery(images:product.images,articleNumber:index+1):const ColoredBox(color:Color(0xFFF6F1F4),child:Icon(Icons.image_not_supported_outlined,color:Color(0xFF8E7A93))))),
           const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -2214,7 +2214,7 @@ class _PremiumProductCard extends StatelessWidget {
                 ),
               ],
         OutlinedButton.icon(onPressed:()=>openLiveConvergence(context,source:product.raw.isEmpty?{'title':product.title,'city':product.city,'category':product.category}:product.raw),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser ce besoin')),
-      ])),
+      ]))),
     );
   }
 }

@@ -213,7 +213,7 @@ void main() {
     );
   });
 
-  testWidgets('product carousel is usable at 320px and emits a watch action',
+  testWidgets('product results are usable at 320px and preserve the exact watch identity',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 1150));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -251,19 +251,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Article 1 sur 2'), findsOneWidget);
-    expect(find.byTooltip('Article suivant'), findsOneWidget);
+    expect(find.text('2 résultats'), findsOneWidget);
+    expect(find.text('Comparer 0/5'), findsOneWidget);
     expect(find.text('Suivre prix / stock'), findsNWidgets(2));
-
-    await tester.drag(find.byType(ListView), const Offset(0, 360));
+    final watch = find.text('Suivre prix / stock').last;
+    await tester.ensureVisible(watch);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Article suivant'));
-    await tester.pumpAndSettle();
-    expect(find.text('Article 2 sur 2'), findsOneWidget);
-
-    await tester.drag(find.byType(ListView), const Offset(0, -420));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Suivre prix / stock').last);
+    await tester.tap(watch);
     await tester.pump();
     expect(selected, startsWith('waouh:watch?'));
     expect(selected, contains('product_id=p-2'));
