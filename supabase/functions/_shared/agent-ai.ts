@@ -47,6 +47,8 @@ export async function chatCompletion(opts: {
   messages: Array<{ role: string; content: any }>;
   jsonMode?: boolean;
   temperature?: number;
+  signal?: AbortSignal;
+  onUsage?: (usage: { model: string; input_tokens: number; output_tokens: number }) => void;
 }): Promise<string> {
   const model = normalizeModel(opts.model);
   const contents = (opts.messages || []).map((message) => ({
@@ -62,6 +64,7 @@ export async function chatCompletion(opts: {
 
   const response = await fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
     method: "POST",
+    signal: opts.signal,
     headers: {
       "Content-Type": "application/json",
       "x-goog-api-key": getGeminiKey(),
@@ -76,6 +79,7 @@ export async function chatCompletion(opts: {
   const raw = await response.text();
   if (!response.ok) throw new Error(`Gemini chat ${response.status}: ${raw.slice(0, 1000)}`);
   const data = JSON.parse(raw);
+  opts.onUsage?.({ model, input_tokens: Number(data?.usageMetadata?.promptTokenCount) || 0, output_tokens: Number(data?.usageMetadata?.candidatesTokenCount) || 0 });
   const answer = extractText(data);
   if (!answer) throw new Error(`Gemini chat vide: ${raw.slice(0, 1000)}`);
   return answer;

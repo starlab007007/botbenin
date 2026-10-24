@@ -1,11 +1,12 @@
 // Cartes produit « chaudes » : chaque carte propose l'entrée du parcours (je le veux / proposer un prix /
 // poser une question) et mène à la fenêtre de négociation, jamais un simple « contacter ».
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { WaouhProductResults } from "../WaouhProductCard";
 
-const render = (results: any[]) => renderToStaticMarkup(<WaouhProductResults results={results} onAction={() => {}} />);
+const render = (results: any[]) => renderToStaticMarkup(<MemoryRouter><WaouhProductResults results={results} onAction={() => {}} /></MemoryRouter>);
 const base = { id: "a1", index: 1, title: "Vélo tout terrain", price: 300000, photos: [], source: "waouh" };
 
 describe("cartes produit chaudes", () => {

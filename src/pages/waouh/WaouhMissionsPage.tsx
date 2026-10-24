@@ -1,3 +1,4 @@
+import { WaouhConvergenceDialog } from '@/components/waouh/WaouhConvergenceWorkspace';
 import { useCallback, useState } from "react";
 import { openNewChat } from "@/lib/waouh/newChat";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -24,6 +25,7 @@ const avatarName = () => {
 export default function WaouhMissionsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const [convergenceOpen, setConvergenceOpen] = useState(() => params.has('convergence_invite'));
   const view = params.get("view") === "suivi" ? "suivi" : "nexus";
   const [activity, setActivity] = useState<NexusActivity>({ state: "idle", line: "Dites-moi ce que vous cherchez." });
   const onActivity = useCallback((next: NexusActivity) => setActivity((prev) => (prev.state === next.state && prev.line === next.line ? prev : next)), []);
@@ -61,6 +63,8 @@ export default function WaouhMissionsPage() {
           </div>
         </header>
 
+        <button type="button" className="min-h-12 w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-left font-bold text-emerald-900 shadow-sm" onClick={() => setConvergenceOpen(true)}>Organiser mon besoin <span className="block text-xs font-normal text-slate-500">Produits, services et annonces · comparer les chemins, préciser les accords, suivre le résultat</span></button>
+        <WaouhConvergenceDialog open={convergenceOpen} onOpenChange={setConvergenceOpen} />
         <div role="tablist" aria-label="Vue Missions" className="sticky top-0 z-10 grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm backdrop-blur">
           {VIEWS.map((item) => (
             <button

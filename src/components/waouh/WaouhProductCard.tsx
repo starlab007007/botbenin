@@ -1,3 +1,8 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { WaouhConvergenceDialog } from "./WaouhConvergenceWorkspace";
+import { WaouhResultEssentials } from "./WaouhResultEssentials";
+import { CONVERGENCE_LIMIT, resultEssentials, resultKind, withSearchReferences } from "@/lib/waouh/convergence";
+import "./waouh-results-vip.css";
 import React, { useEffect, useRef, useState } from "react";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-message-text.css";
@@ -293,6 +298,7 @@ export function WaouhProductCard({
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
+  const [convergenceOpen, setConvergenceOpen] = useState(false);
   // Parcours v3 : saisie d'offre pré-remplie avec le prix suggéré.
   const [offering, setOffering] = useState(false);
   // Résultat Nexus externe : Deal Room directe. Passe à false si le serveur garde la fiche de contact.
@@ -428,208 +434,24 @@ export function WaouhProductCard({
   };
 
   return (
-    <div className={cn(
-      "not-prose overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md",
-      topPick ? "border-emerald-300 ring-1 ring-emerald-200/70" : "border-border"
-    )}>
-      <div className={cn("relative bg-muted", !photos.length ? "h-16" : compact ? "h-[170px] sm:h-[190px] lg:h-[210px] 2xl:h-[230px]" : "h-[clamp(170px,30vh,300px)]")}>
-        {photos.length > 0 ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setZoom(cur)}
-              className="block w-full h-full"
-              aria-label={`Agrandir la photo de ${result.title}`}
-            >
-              {!ready && !failed && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />}
-              {failed ? <span className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground"><ImageOff className="h-5 w-5" />Photo indisponible</span> : <img
-                src={photos[cur]}
-                alt={result.title}
-                loading="lazy"
-                decoding="async"
-                onLoad={() => setReady(true)}
-                onError={() => setFailed(true)}
-                className={cn("w-full h-full object-cover transition-opacity duration-200", ready ? "opacity-100" : "opacity-0")}
-              />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoom(cur)}
-              aria-label="Voir en plein écran"
-              className="absolute right-1 top-1 rounded-full bg-background/80 p-1 shadow"
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-            </button>
-            {photos.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => go(-1)}
-                  aria-label="Photo précédente"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-1 shadow"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => go(1)}
-                  aria-label="Photo suivante"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-1 shadow"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <span className="absolute bottom-1 right-1 rounded bg-foreground/70 px-1.5 py-0.5 text-[10px] font-medium text-background">
-                  {cur + 1}/{photos.length}
-                </span>
-              </>
-            )}
-          </>
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground">
-            <ImageOff className="h-5 w-5" />
-            <span className="text-[11px]">Pas de photo</span>
-          </div>
-        )}
-        <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
-          <span className="rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-bold shadow-sm">
-            #{result.index}
-          </span>
-          {topPick && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm">
-              <Sparkles className="h-3 w-3" /> Top Pick
-            </span>
-          )}
-          {opportunity && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-700 px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm">
-              <Users className="h-3 w-3" /> Acheteur
-            </span>
-          )}
-        </div>
+    <div className="wr-vip-card">
+      <div className="wr-card-head">
+        <div className="wr-photo"><button type="button" onClick={() => photos.length && setZoom(cur)} aria-label={`Agrandir la photo de ${result.title}`}>
+          {photos.length && !failed ? <img src={photos[cur]} alt={result.title} loading="lazy" decoding="async" onLoad={() => setReady(true)} onError={() => setFailed(true)} /> : <span className="flex flex-col gap-2 items-center text-xs text-muted-foreground"><ImageOff size={22} />Photo non fournie</span>}
+        </button>{photos.length > 1 && <div className="wr-photo-controls"><button type="button" aria-label="Photo précédente" onClick={() => go(-1)}><ChevronLeft size={14} /></button><span>{cur + 1}/{photos.length}</span><button type="button" aria-label="Photo suivante" onClick={() => go(1)}><ChevronRight size={14} /></button></div>}</div>
+        <div className="wr-card-title"><span>{opportunity ? 'Demande d’un acheteur' : resultKind(result) === 'service' ? 'Prestation' : resultKind(result) === 'announcement' ? 'Annonce' : 'Offre produit'}</span><h4>{result.title}</h4><div className="wr-location">{[result.city, result.quartier, conditionLabel(result.condition)].filter(Boolean).join(' · ') || 'Localisation à préciser'}</div><div className="wr-price">{priceLabel(result)}</div></div>
       </div>
-
-      <div className="p-2.5 space-y-1.5">
-        <div className="flex items-start gap-1.5">
-          {opportunity ? <Users className="h-4 w-4 shrink-0 text-cyan-700" /> : <SourceIcon source={result.source} />}
-          <div className="min-w-0 flex-1">
-            <div className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-              {opportunity ? "Opportunité acheteur" : "Offre vendeur"}
-            </div>
-            <h4 className="text-sm font-semibold leading-tight text-foreground line-clamp-2">{result.title}</h4>
-          </div>
-        </div>
-        <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{priceLabel(result)}</div>
-
-        {(score != null || trust != null || priceFit != null || level || actionability != null || readiness) && (
-          <div className="flex flex-wrap gap-1.5">
-            {score != null && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">
-                <Sparkles className="h-3 w-3" /> Match {Math.round(score)}%
-              </span>
-            )}
-            {trust != null && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-800">
-                <ShieldCheck className="h-3 w-3" /> Confiance {Math.round(trust)}%
-              </span>
-            )}
-            {priceFit != null && (
-              <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800">
-                Prix {Math.round(priceFit)}%
-              </span>
-            )}
-            {actionability != null && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-800">
-                <Bot className="h-3 w-3" /> Action {Math.round(actionability)}%
-              </span>
-            )}
-            {readiness && (
-              <span className="rounded-full bg-cyan-50 px-2 py-1 text-[10px] font-black text-cyan-800">
-                {readiness}
-              </span>
-            )}
-            {level && <WaouhContactabilityBadge level={level} />}
-          </div>
-        )}
-
-        {(nextBestAction || bestChannel) && (
-          <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-2.5 py-2">
-            <div className="text-[9px] font-black uppercase tracking-wide text-violet-800">Action recommandée par Bot</div>
-            <div className="mt-1 text-[10px] font-bold text-violet-950">
-              {nextBestAction === "CONTACT_NOW" ? "Contacter maintenant" :
-               nextBestAction === "OPEN_DEAL_ROOM" ? "Ouvrir le Deal Room" :
-               nextBestAction === "REQUEST_APPROVAL" ? "Valider le contact" :
-               nextBestAction === "WAIT_REPLY" ? "Attendre la réponse" :
-               nextBestAction === "FOLLOW_UP" ? "Relancer" :
-               nextBestAction === "NEGOTIATE" ? "Négocier" :
-               nextBestAction === "ENRICH" ? "Enrichir le contact" :
-               nextBestAction || "Poursuivre"}
-              {bestChannel ? ` · canal ${bestChannel}` : ""}
-            </div>
-          </div>
-        )}
-
-        {(cleanDetails || intelligence.market || intelligence.comparison || intelligence.recommendation) && (
-          <details className="waouh-message-details rounded-xl border border-slate-200 px-2.5">
-            <summary>Analyse de Bot</summary>
-            <div className="grid gap-1.5 pb-2">
-              {cleanDetails && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-700">Détails</div>
-                  <div className="text-[11px] leading-snug text-slate-700 break-words">{cleanDetails}</div>
-                </div>
-              )}
-              {intelligence.market && (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">Marché</div>
-                  <div className="text-[11px] leading-snug text-emerald-950 break-words">{intelligence.market}</div>
-                </div>
-              )}
-              {intelligence.comparison && (
-                <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-2.5 py-2">
-                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-blue-800">Comparaison</div>
-                  <div className="text-[11px] leading-snug text-blue-950 break-words">{intelligence.comparison}</div>
-                </div>
-              )}
-              {intelligence.recommendation && (
-                <div className="rounded-xl border border-amber-100 bg-amber-50/65 px-2.5 py-2">
-                  <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
-                    <Bot className="h-3 w-3" /> Avis de Bot
-                  </div>
-                  <div className="text-[11px] leading-snug text-amber-950 break-words">{intelligence.recommendation}</div>
-                </div>
-              )}
-            </div>
-          </details>
-        )}
-
-        <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-          {(result.city || result.quartier) && (
-            <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
-              <MapPin className="h-3 w-3" />
-              {[result.city, result.quartier].filter(Boolean).join(" · ")}
-            </span>
-          )}
-          {typeof result.distance_km === "number" && (
-            <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
-              <Navigation className="h-3 w-3" />
-              {result.distance_km} km
-            </span>
-          )}
-          {conditionLabel(result.condition) && <span className="rounded bg-muted px-1.5 py-0.5">{conditionLabel(result.condition)}</span>}
-          {result.badge && !SOURCE_LABEL.test(String(result.badge)) && !FILLER.test(String(result.badge)) && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
-        </div>
-
-        {cleanLine(result.market_line) && (
-          <p className="text-[11px] leading-snug text-muted-foreground break-words">{cleanLine(result.market_line)}</p>
-        )}
-
-        {(onAction || externalDeal) && v3Entry && (!externalOpportunity || externalDeal) && (
+      <WaouhResultEssentials result={result} />
+      <div className="wr-actions">
+        {resultKind(result) === "announcement" && <Button className="w-full min-h-11" onClick={() => setConvergenceOpen(true)}>Préparer une réponse à l’annonce</Button>}
+        {resultKind(result) !== "announcement" && (onAction || externalDeal) && v3Entry && (!externalOpportunity || externalDeal) && (
           <div className="mt-1 space-y-1.5">
             <Button
               size="sm"
               className="h-auto min-h-11 w-full whitespace-normal rounded-xl px-2 py-2 text-[13px] font-black leading-tight bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handleWant}
             >
-              {v3Entry.label}
+              {resultKind(result) === "service" ? "Demander cette prestation" : resultKind(result) === "announcement" ? "Répondre à l’annonce" : v3Entry.label}
             </Button>
             <div className="grid grid-cols-1 gap-1.5">
               {/* Bouton intelligent : le prix suggéré est dans le libellé et part en un geste dans la fenêtre de négociation. */}
@@ -693,7 +515,7 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {onAction && !(v3Entry && (!externalOpportunity || externalDeal)) && (
+        {onAction && resultKind(result) !== "announcement" && !(v3Entry && (!externalOpportunity || externalDeal)) && (
           <div className="mt-1 space-y-1.5">
             {interestAction && !externalOpportunity && (
               <Button
@@ -751,7 +573,9 @@ export function WaouhProductCard({
             )}
           </div>
         )}
+        <details className="wr-more"><summary>Autres actions et résultat attendu</summary><div className="wr-more-actions">{externalDeal && result.fabric_id && <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} />}<Button variant="outline" onClick={() => setConvergenceOpen(true)}>Organiser ce besoin avec Bot</Button>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="text-xs underline">Voir l’annonce d’origine</a>}</div></details>
       </div>
+      <WaouhConvergenceDialog open={convergenceOpen} onOpenChange={setConvergenceOpen} source={result} />
 
       {zoom !== null && photos.length > 0 && (
         <ChatImageLightbox images={gallery} index={zoom} onClose={() => setZoom(null)} />
@@ -760,78 +584,29 @@ export function WaouhProductCard({
   );
 }
 
-export function WaouhProductResults({
-  results,
-  onAction,
-  compact,
-}: {
-  results: WaouhResultCard[];
-  onAction?: (text: string, meta?: Record<string, unknown>) => void;
-  compact?: boolean;
-}) {
-  const normalized = normalizeResultCards(results);
-  const scored = normalized
-    .map((result, position) => {
-      const match = metric(result, "total_score") ?? 0;
-      const actionability = metric(result, "actionability_score") ?? 0;
-      return { result, position, score: match * 0.72 + actionability * 0.28 };
-    })
-    .sort((a, b) => b.score - a.score);
-  const top = scored[0]?.result ?? normalized[0];
-  const remaining = top
-    ? normalized.filter((result) => !(result.id === top.id && result.index === top.index))
-    : normalized;
-  const topOpportunity = top ? isBuyerOpportunity(top) : false;
-  const rail = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState(0);
-  const scroll = (step: number) => {
-    const el = rail.current;
-    if (!el) return;
-    el.scrollBy({ left: step * Math.max(1, el.clientWidth - 24), behavior: 'smooth' });
-  };
-  const updatePosition = () => {
-    const el = rail.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setPosition(max <= 1 ? 2 : el.scrollLeft <= 1 ? 0 : el.scrollLeft >= max - 1 ? 2 : 1);
-  };
-  useEffect(() => {
-    updatePosition();
-    if (typeof ResizeObserver === 'undefined' || !rail.current) return;
-    const observer = new ResizeObserver(updatePosition);
-    observer.observe(rail.current);
-    return () => observer.disconnect();
-  }, [normalized.length]);
+export function WaouhProductResults({ results, onAction, compact }: { results: WaouhResultCard[]; onAction?: (text: string, meta?: Record<string, unknown>) => void; compact?: boolean }) {
+  const normalized = withSearchReferences(normalizeResultCards(results));
+  const [selected, setSelected] = useState<string[]>([]), [page, setPage] = useState(0), [all, setAll] = useState(false), [sort, setSort] = useState('selection');
+  const [comparing, setComparing] = useState(false), [organizing, setOrganizing] = useState(false), [notice, setNotice] = useState('');
+  const refs = useRef(new Map<string, HTMLDivElement>());
+  const key = (r: WaouhResultCard) => `${r.id}:${r.index}`;
+  const signature = normalized.map(key).join('|');
+  useEffect(() => { setSelected(old => old.filter(k => normalized.some(r => key(r) === k))); setPage(0); }, [signature]);
+  // Sort the presentation only; never rewrite canonical indices or action IDs.
+  const ordered = [...normalized].sort((a,b) => sort === 'asc' ? (a.price ?? a.price_min ?? Infinity) - (b.price ?? b.price_min ?? Infinity) : sort === 'desc' ? (b.price ?? b.price_min ?? -1) - (a.price ?? a.price_min ?? -1) : 0);
+  const size = all ? Math.max(1, ordered.length) : 5, currentPage = Math.min(page, Math.max(0, Math.ceil(ordered.length / size) - 1));
+  const visible = ordered.slice(currentPage * size, (currentPage + 1) * size), chosen = normalized.filter(r => selected.includes(key(r)));
   if (!normalized.length) return null;
-  return (
-    <section aria-label="Articles proposés" aria-roledescription="carrousel" className="not-prose mt-2 min-w-0 w-full overflow-hidden">
-      {top && (
-        // Lisibilité du fil : la meilleure fiche ne dépasse plus 560 px de large.
-        <div className="mb-3 w-full max-w-[min(100%,560px)]">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
-              <Sparkles className="h-3 w-3" />
-              {topOpportunity ? "Meilleure opportunité" : "Meilleur choix WAOUH"}
-            </span>
-            <span className="text-[10px] text-muted-foreground">Classement personnalisé</span>
-          </div>
-          <WaouhProductCard result={top} onAction={top.source === "catalogue" ? undefined : onAction} compact={compact} topPick />
-        </div>
-      )}
-      {remaining.length > 0 && <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{remaining.length} autre{remaining.length > 1 ? "s" : ""} option{remaining.length > 1 ? "s" : ""} · Faites défiler</span>
-        <div className="flex gap-1">
-          <Button type="button" size="icon" variant="outline" className="h-11 w-11" aria-label="Articles précédents" disabled={position === 0 || (position === 2 && (rail.current?.scrollLeft || 0) <= 1)} onClick={() => scroll(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button type="button" size="icon" variant="outline" className="h-11 w-11" aria-label="Articles suivants" disabled={position === 2} onClick={() => scroll(1)}><ChevronRight className="h-4 w-4" /></Button>
-        </div>
-      </div>}
-      <div ref={rail} onScroll={updatePosition} className="flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-2">
-        {remaining.map((r, i) => <div key={`${r.id}-${r.index}`} role="group" aria-label={`${i + 2} sur ${normalized.length}`} className={cn("min-w-0 shrink-0 snap-start", "w-[calc(100%-1rem)] sm:w-[260px]")}>
-          <WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} />
-        </div>)}
-      </div>
-    </section>
-  );
+  return <section className="wr-results not-prose" aria-label="Offres et annonces proposées">
+    <div className="wr-toolbar"><h3>{normalized.length} résultat{normalized.length > 1 ? 's' : ''} · le choix en clair</h3><div className="wr-toolbar-actions"><label><span className="sr-only">Trier les résultats</span><select value={sort} onChange={e => { setSort(e.target.value); setPage(0); }}><option value="selection">Sélection reçue</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label><Button variant="outline" disabled={chosen.length < 2} onClick={() => setComparing(true)}>Comparer {chosen.length}/5</Button><Button variant="outline" onClick={() => setOrganizing(true)}><Sparkles size={15} />Organiser mon besoin</Button></div></div>
+    <p className="text-xs text-muted-foreground mb-3">Produits, services et annonces · informations annoncées, à confirmer avec l’interlocuteur.</p>
+    <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{notice}</p>
+    <div className="wr-grid">{visible.map(r => <div key={key(r)} ref={el => { if (el) refs.current.set(key(r), el); else refs.current.delete(key(r)); }} className="wr-wrap"><div className="wr-pick"><span>Résultat {r.index}</span><label><input type="checkbox" aria-label={`Comparer ${r.title}, résultat ${r.index}`} checked={selected.includes(key(r))} onChange={e => { if (!e.target.checked) setSelected(old => old.filter(x => x !== key(r))); else if (selected.length < CONVERGENCE_LIMIT) setSelected(old => [...old, key(r)]); else setNotice('Vous pouvez comparer jusqu’à 5 offres. Retirez-en une pour en ajouter une autre.'); }} />Comparer</label></div><WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} /></div>)}</div>
+    <div className="wr-paging"><Button variant="outline" size="icon" aria-label="Résultats précédents" disabled={currentPage === 0} onClick={() => setPage(p => p - 1)}><ChevronLeft size={16} /></Button><span>{currentPage * size + 1}–{Math.min((currentPage + 1) * size, normalized.length)} sur {normalized.length}</span><Button variant="outline" size="icon" aria-label="Résultats suivants" disabled={(currentPage + 1) * size >= normalized.length} onClick={() => setPage(p => p + 1)}><ChevronRight size={16} /></Button></div>
+    {normalized.length > 5 && <div className="wr-all"><Button variant="ghost" onClick={() => { setAll(x => !x); setPage(0); }}>{all ? 'Revenir à 5 résultats par page' : `Afficher les ${normalized.length} résultats ensemble`}</Button></div>}
+    <Dialog open={comparing} onOpenChange={setComparing}><DialogContent className="wr-compare-dialog"><DialogHeader><DialogTitle>Comparer votre sélection · {chosen.length}/5</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Comparez les références, le périmètre et le coût total. Les différences de modèle ou de prestation limitent la comparaison des prix.</p><div className="wr-compare-grid">{chosen.map(r => { const v = resultEssentials(r); return <article className="wr-compare-item" key={key(r)}>{r.photos?.[0] && <img src={r.photos[0]} alt={r.title} />}<h3>{r.title}</h3><p>{priceLabel(r)}</p><small>{r.city || 'Localisation à confirmer'}</small><p>{v.advice || v.market}</p><small>{v.missing.join(' · ')}</small><Button variant="outline" onClick={() => { setComparing(false); setAll(true); setTimeout(() => refs.current.get(key(r))?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0); }}>Retrouver cette fiche</Button><Button variant="ghost" onClick={() => setSelected(old => old.filter(k => k !== key(r)))}>Retirer</Button></article>; })}</div></DialogContent></Dialog>
+    <WaouhConvergenceDialog open={organizing} onOpenChange={setOrganizing} />
+  </section>;
 }
 
 export default WaouhProductCard;

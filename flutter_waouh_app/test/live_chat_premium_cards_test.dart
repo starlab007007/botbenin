@@ -18,6 +18,38 @@ const _thirdOnePixelPng =
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('ten results remain reachable and comparison is limited to five', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    String? payload;
+    final message = LiveMessage.fromJson({
+      'id':'ten-convergence-results', 'direction':'out', 'created_at':'2026-10-24T09:00:00Z',
+      'schema':'waouh.message.v1', 'text':'Dix offres.',
+      'products':List.generate(10,(i)=>{'product_id':'product-${i+1}','title':'Offre ${i+1}','price':1000*(i+1),'photos':<String>[]}),
+    });
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:LiveSmartTimeline(messages:[message],onPayload:(v)=>payload=v))));
+    await tester.pumpAndSettle();
+    expect(find.text('Offre 1'),findsOneWidget);
+    expect(find.text('Offre 6'),findsNothing);
+    for(var i=0;i<5;i++){
+      final option=find.byType(CheckboxListTile).at(i);
+      await tester.ensureVisible(option); await tester.pumpAndSettle();
+      await tester.tap(option); await tester.pumpAndSettle();
+    }
+    final next=find.byTooltip('Résultats suivants');
+    await tester.ensureVisible(next); await tester.pumpAndSettle();
+    await tester.tap(next); await tester.pumpAndSettle();
+    expect(find.text('Offre 6'),findsOneWidget);
+    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile).first).onChanged,isNull);
+    final compare=find.text('Comparer 5/5');
+    await tester.ensureVisible(compare); await tester.pumpAndSettle();
+    await tester.tap(compare); await tester.pumpAndSettle();
+    expect(find.text('Comparer 5 offres'),findsOneWidget);
+    expect(payload,isNull);
+    expect(tester.takeException(),isNull);
+  });
+
+
   test('guide action opens the matching article and counterpart', () {
     final messages = [
       LiveMessage(
@@ -195,9 +227,9 @@ void main() {
     expect(find.text('iPhone 15'), findsOneWidget);
     expect(find.text('Je suis intéressé'), findsNWidgets(2));
     expect(find.text('1/2'), findsOneWidget);
-    expect(find.textContaining('116 250 FCFA'), findsOneWidget);
+    expect(find.textContaining('Références comparables insuffisantes'), findsNWidgets(2));
     expect(find.textContaining('2,4 km'), findsOneWidget);
-    expect(find.textContaining('29 % sous la médiane'), findsOneWidget);
+    expect(find.textContaining('29 % sous la médiane'), findsNothing);
     expect(
         find.textContaining('Meilleur rapport qualité-prix'), findsOneWidget);
     expect(find.byType(Image).evaluate().length, greaterThanOrEqualTo(2));
@@ -282,8 +314,8 @@ void main() {
     expect(find.text('iPhone 15'), findsOneWidget);
     expect(find.text('1/2'), findsOneWidget);
     expect(find.textContaining('3.2 km'), findsOneWidget);
-    expect(find.textContaining('116250 – 138750 FCFA'), findsOneWidget);
-    expect(find.textContaining('18 % sous la médiane'), findsOneWidget);
+    expect(find.textContaining('Références comparables insuffisantes'), findsOneWidget);
+    expect(find.textContaining('18 % sous la médiane'), findsNothing);
     expect(find.text('Acheter'), findsOneWidget);
     expect(find.text('Je suis intéressé'), findsNothing);
 

@@ -1,0 +1,6 @@
+[
+ {"name":"unknown-is-not-free","row":{"title":"Intervention","offer_kind":"service"},"kind":"service","missing":["Prix à préciser","Périmètre de prestation à préciser","Créneau à confirmer","Frais et exclusions à préciser"]},
+ {"name":"announcement-is-not-a-sale","row":{"title":"Formation","category":"formation","conditions":"Inscription requise"},"kind":"announcement","missing":["Validité à confirmer"]},
+ {"name":"timestamp-is-not-stock","row":{"title":"Téléphone","price":0,"last_verified_at":"2026-10-24T08:00:00Z","delivery_fee":0},"kind":"product","missing":["Stock à confirmer"]},
+ {"name":"explicit-service","row":{"kind":"service","price":5000,"scope":"Pose uniquement","availability":"Demain","exclusions":"Pièces exclues"},"kind":"service","missing":[]}
+]

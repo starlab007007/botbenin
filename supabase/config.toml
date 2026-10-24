@@ -425,3 +425,6 @@ verify_jwt = false
 
 [functions.waouh-opportunity-worker]
 verify_jwt = false
+
+[functions.waouh-convergence]
+verify_jwt = false # JWT is verified with auth.getUser inside the function.

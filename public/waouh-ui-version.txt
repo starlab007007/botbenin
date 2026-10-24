@@ -1,5 +1,5 @@
-2026.10.23.3
-ui=opportunity-os-v1+signal-fabric-admin+responsive-premium+avatar-mission-e2e+bot-onboarding+quick-ask
+2026.10.24.1
+ui=convergence-v1+fiches-eclairees-v1+opportunity-os-v1+signal-fabric-admin+responsive-premium+avatar-mission-e2e+bot-onboarding+quick-ask
 chat=bot-copilot-v2+focus-premium+compact-header+scrollable-context
-flutter=18.31.6+1792763487
-backend=opportunity-os-v1+contact-pack+channel-router+conversation-bus
+flutter=18.32.0+1792835761
+backend=convergence-v1+opportunity-os-v1+contact-pack+channel-router+conversation-bus
