@@ -134,6 +134,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps --no-audit --no-fund
 
+      - name: Compatible Vite 5 test runner
+        run: npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.21 vitest@2.1.9
+
       - name: Build Web
         run: npm run build
 

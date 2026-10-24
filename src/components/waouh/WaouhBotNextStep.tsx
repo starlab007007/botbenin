@@ -4,6 +4,8 @@ import { CheckCircle2, Handshake, Loader2, ShieldCheck, Sparkles } from "lucide-
 import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import "./waouh-essential.css";
 
 type Mode = "buy" | "sell" | "ask";
 type Autonomy = "assisted" | "semi_autonomous" | "autonomous";
@@ -43,6 +45,7 @@ export function WaouhBotNextStep({
   const copy = COPY[mode];
   const available = results.length;
   const maxPick = Math.max(1, Math.min(10, available));
+  const [open, setOpen] = useState(false);
   const [autonomy, setAutonomy] = useState<Autonomy>("semi_autonomous");
   const [count, setCount] = useState(Math.min(3, maxPick));
   const [whatsapp, setWhatsapp] = useState(false);
@@ -132,26 +135,10 @@ export function WaouhBotNextStep({
     );
   }
 
-  return (
-    <section aria-label="Et maintenant ?" className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-white via-blue-50/60 to-violet-50/70 p-4 shadow-[0_24px_60px_-40px_rgba(79,70,229,.55)]">
-      <div className="flex items-center gap-3">
-        <BotLiveAvatar size={56} state="idle" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Et maintenant ?</div>
-          <h3 className="text-base font-black leading-tight text-slate-950">{copy.title}</h3>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500">{available} {copy.who}{available > 1 ? "s" : ""} trouvé{available > 1 ? "s" : ""}.</p>
-        </div>
-      </div>
-
-      <ol className="mt-3 grid grid-cols-4 gap-1" aria-label="Déroulé">
-        {STEPS.map((step, index) => (
-          <li key={step} className="text-center">
-            <span className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-[10px] font-black ${index === 0 ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"}`}>{index + 1}</span>
-            <span className="mt-1 block text-[10px] font-bold leading-tight text-slate-600">{step}</span>
-          </li>
-        ))}
-      </ol>
-
+  return (<>
+    <button type="button" className="we-bot-trigger" onClick={() => setOpen(true)}><Handshake size={18} /><span>Confier à Bot</span><span aria-hidden>→</span></button>
+    <Sheet open={open} onOpenChange={setOpen}><SheetContent side="bottom" className="we-detail we-bot-sheet">
+      <SheetTitle>Bot s’en occupe</SheetTitle><SheetDescription>Vous validez l’accord final.</SheetDescription>
       {needsArticle && articles && (
         <div className="mt-3">
           <div className="text-xs font-black text-slate-700">Article à vendre</div>
@@ -173,13 +160,13 @@ export function WaouhBotNextStep({
           <button key={item.id} type="button" role="radio" aria-checked={autonomy === item.id} onClick={() => { setAutonomy(item.id); setConfirm(false); }}
             className={`rounded-2xl border p-2 text-left transition ${autonomy === item.id ? "border-blue-500 bg-blue-50 ring-1 ring-blue-200" : "border-slate-200 bg-white"}`}>
             <div className="text-[11px] font-black text-slate-900">{item.label}</div>
-            <div className="mt-0.5 text-[9.5px] font-semibold leading-tight text-slate-500">{item.hint}</div>
+
           </button>
         ))}
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-xs font-black text-slate-700">Contacter jusqu’à</span>
+        <span className="text-xs font-black text-slate-700">Offres à contacter</span>
         <div className="flex gap-1">
           {options.map((n) => (
             <button key={n} type="button" onClick={() => { setCount(n); setConfirm(false); }} className={`h-9 min-w-9 rounded-xl px-2 text-xs font-black ${picked === n ? "bg-blue-600 text-white" : "border border-blue-100 bg-white text-slate-700"}`}>{n}</button>
@@ -187,20 +174,21 @@ export function WaouhBotNextStep({
         </div>
       </div>
 
-      <label className="mt-2 flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700">
+      <details className="we-disclosure mt-2"><summary>Réglages avancés</summary><label className="mt-2 flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700">
         WhatsApp vérifié
         <input type="checkbox" checked={whatsapp} onChange={(e) => { setWhatsapp(e.target.checked); setConfirm(false); }} className="h-5 w-5 accent-blue-600" />
-      </label>
+      </label></details>
+      <p className="we-advice">{picked} offre{picked > 1 ? "s" : ""} · {AUTONOMY.find(x => x.id === autonomy)?.label}</p>
 
       {error && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{error}</p>}
 
       <button type="button" onClick={() => void launch()} disabled={busy}
         className={`mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-black text-white shadow-lg active:scale-[0.99] ${confirm ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-emerald-600/25" : "bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-600/25"}`}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : confirm ? <ShieldCheck className="h-4 w-4" /> : <Handshake className="h-4 w-4" />}
-        {confirm ? `Confirmer : ${picked} contact${picked > 1 ? "s" : ""} max` : copy.cta}
+        {confirm ? `Confirmer : ${picked} contact${picked > 1 ? "s" : ""} max` : "Lancer la démarche"}
       </button>
-      <p className="mt-2 flex items-center justify-center gap-1 text-[10.5px] font-semibold text-slate-500"><Sparkles className="h-3 w-3" />Aucun paiement. Vous validez l’accord final.</p>
-    </section>
+      <p className="mt-2 flex items-center justify-center gap-1 text-[10.5px] font-semibold text-slate-500"><Sparkles className="h-3 w-3" />Aucun paiement à cette étape.</p>
+    </SheetContent></Sheet></>
   );
 }
 

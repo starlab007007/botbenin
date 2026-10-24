@@ -106,6 +106,7 @@ export function WaouhReasoningFeed({
   onWatch,
   onAdvice,
   watching,
+  compact = false,
 }: {
   steps: ReasonStep[];
   running: boolean;
@@ -115,6 +116,7 @@ export function WaouhReasoningFeed({
   onWatch?: () => void;
   onAdvice?: () => void;
   watching?: boolean;
+  compact?: boolean;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const done = !running && pending === 0;
@@ -124,6 +126,8 @@ export function WaouhReasoningFeed({
   }, [steps.length, done]);
 
   if (!steps.length) return null;
+
+  if (compact) return <div className="we-advice" role="status"><Brain className="h-4 w-4 shrink-0" /><span>{done ? 'Recherche terminée. Explorez les offres.' : 'Bot recherche les offres…'}</span>{!done && pending > 0 && <button className="we-text-button ml-auto" onClick={onSkip}>Passer</button>}</div>;
 
   return (
     <section

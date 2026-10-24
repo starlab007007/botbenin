@@ -11,10 +11,10 @@ export function WaouhOfferComparison({ results }: { results: NexusDiscoveryResul
   const offers = results.filter(result => selected.includes(result.fabric_id));
   return <details className="col-span-full min-w-0 rounded-xl border bg-background px-3">
     <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">Comparer les offres{selected.length ? ` · ${selected.length}` : ""}</summary>
-    <p className="mb-2 text-xs text-muted-foreground">Choisissez jusqu’à 3 offres. Prix observés, conditions à confirmer.</p>
+    <p className="mb-2 text-xs text-muted-foreground">Choisissez jusqu’à 5 offres. Prix observés, conditions à confirmer.</p>
     <div className="max-h-40 overflow-y-auto space-y-1">
       {results.map(result => <label key={result.fabric_id} className="flex min-h-11 items-center gap-2 text-xs">
-        <input type="checkbox" className="h-4 w-4 shrink-0" checked={selected.includes(result.fabric_id)} disabled={selected.length >= 3 && !selected.includes(result.fabric_id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, result.fabric_id] : ids.filter(id => id !== result.fabric_id))} />
+        <input type="checkbox" className="h-4 w-4 shrink-0" checked={selected.includes(result.fabric_id)} disabled={selected.length >= 5 && !selected.includes(result.fabric_id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, result.fabric_id] : ids.filter(id => id !== result.fabric_id))} />
         <span className="min-w-0 break-words">{result.subject || result.category || "Offre"}</span>
       </label>)}
     </div>
