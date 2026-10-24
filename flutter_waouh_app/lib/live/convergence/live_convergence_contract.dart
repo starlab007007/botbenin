@@ -1,7 +1,8 @@
 const liveConvergenceLimit = 5;
 Map<String, dynamic> convergenceMap(dynamic v) => v is Map ? v.map((k, v) => MapEntry(k.toString(), v)) : <String, dynamic>{};
 double? convergenceAmount(dynamic v) {
-  if (v == null || v == '' || v is bool) return null;
+  if (v is! num && v is! String) return null;
+  if (v is String && !RegExp(r'^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$',caseSensitive:false).hasMatch(v.trim())) return null;
   final n = double.tryParse(v.toString());
   return n != null && n.isFinite && n >= 0 ? n : null;
 }

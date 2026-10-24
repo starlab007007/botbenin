@@ -6,7 +6,8 @@ export function record(v: unknown): ConvergenceRow {
   return v && typeof v === 'object' && !Array.isArray(v) ? v as ConvergenceRow : {};
 }
 export function amount(v: unknown): number | null {
-  if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null;
+  if (typeof v !== 'number' && typeof v !== 'string') return null;
+  if (typeof v === 'string' && !/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(v.trim())) return null;
   const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : null;
 }
 export function safeReferenceUrl(v: unknown): string | null {
