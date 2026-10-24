@@ -218,7 +218,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           'source_mix': const <String, dynamic>{},
           'refresh': const <String, dynamic>{},
         });
-        setState(() => _response = response);
+        setState(() { _response = response; _selectedOffers.clear(); });
       }
       await _loadConversationBus();
       if (mounted) {

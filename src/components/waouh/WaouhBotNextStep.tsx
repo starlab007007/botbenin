@@ -124,7 +124,7 @@ export function WaouhBotNextStep({
           <div className="min-w-0 flex-1">
             <h3 className="flex items-center gap-1.5 text-base font-black text-slate-950"><CheckCircle2 className="h-5 w-5 text-emerald-600" />Bot s’en occupe</h3>
             <p className="mt-1 text-xs font-semibold text-slate-600">
-              {done.linked} {copy.who}{done.linked > 1 ? "s" : ""} pris en charge. {autonomy === "assisted" ? "Vous validez chaque message." : "Je vous préviens à chaque réponse."}
+              {done.linked} offre{done.linked > 1 ? "s" : ""} prise{done.linked > 1 ? "s" : ""} en charge. {autonomy === "assisted" ? "Vous validez chaque message." : "Je vous préviens à chaque réponse."}
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function WaouhBotNextStep({
   return (<>
     <button type="button" className="we-bot-trigger" onClick={() => setOpen(true)}><Handshake size={18} /><span>Confier à Bot</span><span aria-hidden>→</span></button>
     <Sheet open={open} onOpenChange={setOpen}><SheetContent side="bottom" className="we-detail we-bot-sheet">
-      <SheetTitle>Bot s’en occupe</SheetTitle><SheetDescription>Vous validez l’accord final.</SheetDescription>
+      <SheetTitle>Bot s’en occupe</SheetTitle><SheetDescription>{autonomy === "assisted" ? "Vous validez chaque message." : autonomy === "autonomous" ? "Bot négocie dans vos limites. Vous validez l’accord." : "Vous validez l’accord final."}</SheetDescription>
       {needsArticle && articles && (
         <div className="mt-3">
           <div className="text-xs font-black text-slate-700">Article à vendre</div>

@@ -202,8 +202,10 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 2),
             padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minHeight: 44),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFFEFF5FF) : Colors.white,
+              color: selected ? const Color(0xFFF2ECF8) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                   color: selected ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0)),
@@ -231,7 +233,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children:[const Expanded(child:Text('Bot s’en occupe',style:TextStyle(fontSize:22,fontWeight:FontWeight.w800,color:essentialPlum))),IconButton(tooltip:'Fermer',onPressed:_busy?null:()=>Navigator.pop(context),icon:const Icon(Icons.close))]),
-          const Text('Vous validez l’accord final.',style:TextStyle(fontSize:12,color:WaouhPalette.muted)),
+          Text(_autonomy == 'assisted' ? 'Vous validez chaque message.' : _autonomy == 'autonomous' ? 'Bot négocie dans vos limites. Vous validez l’accord.' : 'Vous validez l’accord final.',style:const TextStyle(fontSize:12,color:WaouhPalette.muted)),
           const SizedBox(height:14),
           if (_needsArticle && _articles != null) ...[
             const Text('Article à vendre',
