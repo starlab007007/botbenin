@@ -89,7 +89,10 @@ export function resultEssentials(value: unknown) {
     primaryLabel: kind === 'service' ? 'Demander cette prestation' : kind === 'announcement' ? 'Répondre à l’annonce' : 'Je le veux' };
 }
 export function planTotal(components: ConvergenceRow[]) {
-  const parts = components.map(c => ({ base: amount(c.amount), extra: amount(c.extra_cost) }));
+  const parts = components.map(c => {
+    const agreement = record(c.agreement), agreed = amount(record(agreement.terms).amount);
+    return agreement.status !== 'rejected' && agreed !== null ? { base: agreed, extra: 0 } : { base: amount(c.amount), extra: amount(c.extra_cost) };
+  });
   const known = parts.reduce((sum, c) => sum + (c.base ?? 0) + (c.extra ?? 0), 0);
   return { known, complete: parts.length > 0 && parts.every(c => c.base !== null && c.extra !== null), count: parts.length };
 }
