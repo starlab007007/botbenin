@@ -17,6 +17,8 @@ import 'live_bot_next_step.dart';
 import 'live_city_field.dart';
 import 'live_sell_photos.dart';
 import 'live_hot_labels.dart';
+import 'live_essential_offers.dart';
+import 'live_essential_offer_data.dart';
 import 'live_reasoning.dart' as rs;
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 
@@ -54,6 +56,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
   List<Map<String, dynamic>> _conversationBus = const <Map<String, dynamic>>[];
   bool _loading = false;
+  bool _showFollow = false;
+  final Set<String> _selectedOffers = <String>{};
   bool _loadingJourneys = false;
   bool _loadingBus = false;
   String? _error;
@@ -214,7 +218,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           'source_mix': const <String, dynamic>{},
           'refresh': const <String, dynamic>{},
         });
-        setState(() => _response = response);
+        setState(() { _response = response; _selectedOffers.clear(); });
       }
       await _loadConversationBus();
       if (mounted) {
@@ -303,7 +307,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         return;
       }
       setState(() => _steps.add(_queue.removeAt(0)));
-      _followFeed();
+      // Keep the user at the offers; no automatic scrolling through diagnostics.
       if (_queue.isEmpty) {
         _ticker?.cancel();
         _ticker = null;
@@ -344,8 +348,11 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     _ticker = null;
     setState(() {
       _loading = true;
+      _response = null;
       _error = null;
       _summary = null;
+      _showFollow = false;
+      _selectedOffers.clear();
       _steps.clear();
       _queue.clear();
     });
@@ -442,13 +449,12 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Votre Avatar ouvre le Deal Room',
+              'Proposer un prix',
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),
             Text(
-              'Proposez votre prix pour « ' + item.title +
-                  ' ». Ensuite Avatar suit la réponse, vous suggère les contre-offres et conduit le deal jusqu’à l’accord.',
+              item.title,
               style: const TextStyle(
                 color: WaouhPalette.muted,
                 fontSize: 11.5,
@@ -598,8 +604,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              journey.progress.toString() + '% · ' +
-                  journey.contactability + ' · ' + journey.stage,
+              _journeyBusinessPhase(journey),
               style: const TextStyle(
                 color: WaouhPalette.blue,
                 fontWeight: FontWeight.w900,
@@ -613,7 +618,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Prochaine étape : ' + journey.nextAction,
+              essentialJourneyAction(journey.stage,(journey.threadId??'').isNotEmpty),
               style: const TextStyle(
                 color: WaouhPalette.muted,
                 fontSize: 11.5,
@@ -762,7 +767,11 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
-  Future<void> _continue(NexusDiscoveryItem item) async {
+  Future<void> _continue(NexusDiscoveryItem item, {bool proposePrice = false}) async {
+    if (!proposePrice && !essentialPrimaryNeedsPrice(item)) {
+      await _mediatedContact(item);
+      return;
+    }
     if (item.internalArticle) {
       await _internalInterest(item);
       return;
@@ -957,10 +966,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${current.progress}% · ${current.contactability}' +
-                      ((current.readinessLevel ?? '').isEmpty ? '' : ' · ${current.readinessLevel}') +
-                      ((current.actionabilityScore ?? 0) <= 0 ? '' : ' · Action ${current.actionabilityScore!.round()}%') +
-                      ' · ${_journeyBusinessPhase(current)}',
+                  _journeyBusinessPhase(current),
                   style: const TextStyle(
                     color: WaouhPalette.blue,
                     fontWeight: FontWeight.w900,
@@ -976,13 +982,13 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 const SizedBox(height: 7),
                 _InfoStrip(
                   icon: Icons.arrow_forward_rounded,
-                  text: 'Prochaine étape : ${current.nextAction}',
+                  text: essentialJourneyAction(current.stage,(current.threadId??'').isNotEmpty),
                   accent: const Color(0xFF159A69),
                 ),
                 if (maskedPhones.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   const Text(
-                    'Contact vérifié / masqué',
+                    'Contact protégé',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 6),
@@ -1244,7 +1250,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             const Row(children: [
               Icon(Icons.bolt_rounded, color: Color(0xFF6D3FD1)),
               SizedBox(width: 7),
-              Expanded(child: Text('Mandat Avatar · Opportunity OS', style: TextStyle(fontWeight: FontWeight.w900))),
+              Expanded(child: Text('Réglages de la veille', style: TextStyle(fontWeight: FontWeight.w900))),
             ]),
             const SizedBox(height: 8),
             Row(children: [
@@ -1417,51 +1423,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final avatar = context.watch<LiveAvatarController>();
-    final results = _response?.results ?? const <NexusDiscoveryItem>[];
-
-    return Scaffold(
-      backgroundColor: WaouhPalette.pearl,
-      appBar: LiveHeader(
-        title: avatar.name,
-        subtitle: _title,
-        back: true,
-      ),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: WaouhGradients.air),
-        child: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 120),
-          children: [
-            _CommerceHeader(
-              avatar: avatar,
-              title: _title,
-              mode: widget.mode,
-              loading: _loading,
-              found: results.length,
-              controller: _goal,
-              city: _city,
-              budget: _budget,
-              hint: _hint,
-              cta: _cta,
-              onSearch: _search,
-            ),
-            const SizedBox(height: 12),
-            if (_steps.isNotEmpty) ...[
-              KeyedSubtree(
-                key: _feedKey,
-                child: LiveReasoningFeed(
-                steps: _steps,
-                running: _loading || _revealing,
-                summary: _summary,
-                onSkip: _skipReasoning,
-                showActions: false,
-              )),
-              const SizedBox(height: 12),
-            ],
-            Container(
+  Widget _missionSettings() => Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(22),
@@ -1471,11 +1433,11 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               child: Theme(
                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  initiallyExpanded: _mandate != null,
+                  initiallyExpanded: false,
                   tilePadding: const EdgeInsets.symmetric(horizontal: 14),
                   childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   leading: const Icon(Icons.bolt_rounded, color: WaouhPalette.blue),
-                  title: const Text('Mission automatique · 72 h',
+                  title: Text(_mandate == null ? 'Configurer une veille' : 'Bot en veille · ${_mandate!['status'] == 'active' ? 'Active' : _mandate!['status'] == 'paused' ? 'En pause' : 'Terminée'}',
                       style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
                   children: [
             DropdownButtonFormField<String>(
@@ -1489,97 +1451,50 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (_loadingJourneys || _journeys.isNotEmpty) ...[
-              _ActiveJourneysPanel(
-                journeys: _journeys,
-                loading: _loadingJourneys,
-                onRefresh: _loadJourneys,
-                onOpen: (journey) => journey.negotiating &&
-                        (journey.threadId ?? '').trim().isNotEmpty
-                    ? _openJourneyDealRoom(journey)
-                    : _showJourneyProgress(journey),
-                phaseLabel: _journeyBusinessPhase,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_loadingBus || _conversationBus.isNotEmpty) ...[
-              _ConversationBusPanel(
-                events: _conversationBus,
-                loading: _loadingBus,
-                onRefresh: _loadConversationBus,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_error != null) ...[
-              const SizedBox(height: 10),
-              _InfoStrip(
-                icon: Icons.error_outline_rounded,
-                text: _error!,
-                accent: const Color(0xFFE05E68),
-              ),
-            ],
-            if (_response != null) ...[
-              const SizedBox(height: 14),
-              _SearchPoint(response: _response!, query: _goal.text, city: _city.text),
-              if (results.isNotEmpty && widget.mode == LiveAvatarCommerceMode.sell) ...[
-                const SizedBox(height: 12),
-                Builder(builder: (context) {
-                  Map<String, dynamic>? art;
-                  for (final a in _ownedArticles) {
-                    if ('${a['id']}' == _selectedArticle) art = a;
-                  }
-                  return LiveMyArticleCard(
-                    title: art != null ? '${art['title']}' : _goal.text.trim(),
-                    price: art == null ? null : double.tryParse('${art['price']}'),
-                    floor: double.tryParse(_priceFloor),
-                    city: _city.text,
-                    photos: _sellPhotos,
-                    notes: _sellNotes,
-                  );
-                }),
-              ],
-              if (results.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                LiveBotNextStep(
-                  service: _nexus,
-                  mode: switch (widget.mode) {
-                    LiveAvatarCommerceMode.sell => 'sell',
-                    LiveAvatarCommerceMode.ask => 'ask',
-                    LiveAvatarCommerceMode.buy => 'buy',
-                  },
-                  goal: _goal.text.trim(),
-                  city: _city.text,
-                  budget: double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'), '')),
-                  items: results,
-                  articleId: widget.mode == LiveAvatarCommerceMode.sell ? _selectedArticle : null,
-                  priceFloor: widget.mode == LiveAvatarCommerceMode.sell ? double.tryParse(_priceFloor) : null,
-                ),
-              ],
-              const SizedBox(height: 12),
-              if (results.isEmpty)
-                _EmptyDiscovery(avatarName: avatar.name)
-              else
-                ...results.asMap().entries.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _OpportunityCard(
-                          rank: entry.key + 1,
-                          item: entry.value,
-                          busy: _workingFabric == entry.value.fabricId,
-                          onContinue: () => _continue(entry.value),
-                          onFollow: () => _followOpportunity(entry.value),
-                          onDelegate: () => _delegateToBot(entry.value),
-                        ),
-                      ),
-                    ),
-            ],
+            );
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
+    final results = essentialUnique(_response?.results ?? const <NexusDiscoveryItem>[]);
+    final chosen = results.where((r)=>_selectedOffers.contains(r.fabricId)).toList();
+    final commerceMode = widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : widget.mode == LiveAvatarCommerceMode.ask ? 'ask' : 'buy';
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAF9F7),
+      appBar: LiveHeader(title: avatar.name, subtitle: _title, back: true),
+      body: Column(children:[
+        Expanded(child:ListView(
+          padding:const EdgeInsets.fromLTRB(14,8,14,20),
+          children:[
+            _CommerceHeader(avatar:avatar,title:_title,mode:widget.mode,loading:_loading,found:results.length,controller:_goal,city:_city,budget:_budget,hint:_hint,cta:_cta,onSearch:_search),
+            const SizedBox(height:10),
+            Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(color:const Color(0xFFEFECEF),borderRadius:BorderRadius.circular(14)),child:Row(children:[
+              for(final follow in [false,true]) Expanded(child:TextButton(style:TextButton.styleFrom(backgroundColor:_showFollow==follow?essentialPlum:Colors.transparent,foregroundColor:_showFollow==follow?Colors.white:essentialPlum,minimumSize:const Size(0,44),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(11))),onPressed:()=>setState(()=>_showFollow=follow),child:Text(follow?'Suivi${_journeys.any((j)=>!['completed','cancelled'].contains(j.stage))?' •':''}':'Offres')))
+            ])),
+            const SizedBox(height:10),
+            if(_showFollow)...[
+              _ActiveJourneysPanel(journeys:_journeys,loading:_loadingJourneys,onRefresh:_loadJourneys,onOpen:(journey)=>(journey.threadId??'').trim().isNotEmpty?_openJourneyDealRoom(journey):_showJourneyProgress(journey),phaseLabel:_journeyBusinessPhase),
+              const SizedBox(height:10),_missionSettings(),
+              const SizedBox(height:10),
+              ExpansionTile(title:const Text('Historique',style:TextStyle(fontSize:14,fontWeight:FontWeight.w600)),children:[_ConversationBusPanel(events:_conversationBus,loading:_loadingBus,onRefresh:_loadConversationBus)]),
+            ]else...[
+              if(_loading)const Padding(padding:EdgeInsets.all(12),child:Row(children:[SizedBox.square(dimension:16,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:10),Text('Bot recherche les offres…',style:TextStyle(fontSize:12,color:essentialMuted))])),
+              if(_error!=null)const Padding(padding:EdgeInsets.all(12),child:Text('La recherche n’a pas abouti. Réessayez.',style:TextStyle(color:Colors.red))),
+              if(results.isNotEmpty)...[
+                if(widget.mode==LiveAvatarCommerceMode.sell)Padding(padding:const EdgeInsets.only(bottom:10),child:LiveMyArticleCard(title:_goal.text.trim(),floor:double.tryParse(_priceFloor),city:_city.text,photos:_sellPhotos,notes:_sellNotes)),
+                LiveBotNextStep(service:_nexus,mode:commerceMode,goal:_goal.text.trim(),city:_city.text,budget:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),items:results,articleId:widget.mode==LiveAvatarCommerceMode.sell?_selectedArticle:null,priceFloor:widget.mode==LiveAvatarCommerceMode.sell?double.tryParse(_priceFloor):null),
+                LiveEssentialOffers(items:_response!.results,city:_city.text,mode:commerceMode,selected:_selectedOffers,onToggle:(id)=>setState((){if(_selectedOffers.contains(id)){_selectedOffers.remove(id);}else if(_selectedOffers.length<5){_selectedOffers.add(id);}}),onContinue:(item)=>_continue(item),onPropose:(item)=>_continue(item,proposePrice:true),onDelegate:(item)=>_delegateToBot(item),onFollow:(item)=>_followOpportunity(item)),
+              ]else if(_response!=null&&!_loading)_EmptyDiscovery(avatarName:avatar.name),
+              if(results.isEmpty&&!_loading)TextButton.icon(onPressed:()=>setState(()=>_showFollow=true),icon:const Icon(Icons.bolt_outlined,size:17),label:const Text('Configurer une veille')),
+            ]
           ],
-        ),
-      ),
+        )),
+        if(!_showFollow&&chosen.isNotEmpty)LiveEssentialCompareTray(items:chosen,onClear:()=>setState(()=>_selectedOffers.clear())),
+        const SizedBox(height:84),
+      ]),
     );
   }
+
 }
 
 class _MandateMetric extends StatelessWidget {
@@ -1635,7 +1550,7 @@ class _ConversationBusPanel extends StatelessWidget {
         'autonomy.followup_queued' => 'Relance Avatar',
         'nexus.contact.queued' => 'Contact mis en file',
         'avatar.mandate.created' => 'Mandat Avatar activé',
-        _ => type.replaceAll('.', ' ').replaceAll('_', ' '),
+        _ => 'Démarche mise à jour',
       };
 
   String _text(Map<String, dynamic> event) {
@@ -1648,7 +1563,7 @@ class _ConversationBusPanel extends StatelessWidget {
       if (value.isNotEmpty) return value;
     }
     final fabric = '${event['fabric_id'] ?? ''}'.trim();
-    return fabric.isEmpty ? 'Événement WAOUH' : 'Opportunité $fabric';
+    return 'Mise à jour de votre démarche';
   }
 
   String _date(dynamic value) {
@@ -1676,7 +1591,7 @@ class _ConversationBusPanel extends StatelessWidget {
               const SizedBox(width: 7),
               const Expanded(
                 child: Text(
-                  'Activité multicanale',
+                  'Dernières activités',
                   style: TextStyle(
                     color: WaouhPalette.ink,
                     fontWeight: FontWeight.w900,
@@ -1695,7 +1610,7 @@ class _ConversationBusPanel extends StatelessWidget {
               ),
             ]),
             const Text(
-              'WAOUH · WhatsApp · NEXUS · Deal Room dans un seul journal.',
+              'Les dernières nouvelles de vos démarches.',
               style: TextStyle(
                 color: WaouhPalette.muted,
                 fontSize: 10.5,
@@ -1778,240 +1693,14 @@ class _ConversationBusPanel extends StatelessWidget {
 }
 
 class _ActiveJourneysPanel extends StatelessWidget {
-  const _ActiveJourneysPanel({
-    required this.journeys,
-    required this.loading,
-    required this.onRefresh,
-    required this.onOpen,
-    required this.phaseLabel,
-  });
-
-  final List<NexusOpportunityJourney> journeys;
-  final bool loading;
-  final VoidCallback onRefresh;
-  final ValueChanged<NexusOpportunityJourney> onOpen;
-  final String Function(NexusOpportunityJourney) phaseLabel;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FBFF),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFDCE7F8)),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.route_rounded, color: WaouhPalette.blue),
-                const SizedBox(width: 7),
-                const Expanded(
-                  child: Text(
-                    'Mes démarches',
-                    style: TextStyle(
-                      color: WaouhPalette.ink,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Actualiser',
-                  onPressed: loading ? null : onRefresh,
-                  icon: loading
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh_rounded),
-                ),
-              ],
-            ),
-            const Text(
-              'Avatar conserve chaque opportunité jusqu’à la réponse, la négociation, l’accord et l’exécution.',
-              style: TextStyle(
-                color: WaouhPalette.muted,
-                fontSize: 11,
-                height: 1.35,
-              ),
-            ),
-            if (journeys.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              ...journeys.take(4).map(
-                (journey) => Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => onOpen(journey),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: WaouhPalette.line),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  journey.subject ?? 'Démarche WAOUH',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: WaouhPalette.ink,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${journey.progress}%',
-                                style: const TextStyle(
-                                  color: WaouhPalette.blue,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          LinearProgressIndicator(
-                            value: journey.progress.clamp(0, 100) / 100,
-                            minHeight: 5,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${journey.contactability} · ${phaseLabel(journey)} · ${journey.nextAction}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: WaouhPalette.muted,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
+  const _ActiveJourneysPanel({required this.journeys,required this.loading,required this.onRefresh,required this.onOpen,required this.phaseLabel});
+  final List<NexusOpportunityJourney> journeys;final bool loading;final VoidCallback onRefresh;final ValueChanged<NexusOpportunityJourney> onOpen;final String Function(NexusOpportunityJourney) phaseLabel;
+  @override Widget build(BuildContext context)=>Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(18),border:Border.all(color:essentialLine)),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    Row(children:[const Expanded(child:Text('Mes démarches',style:TextStyle(fontSize:17,fontWeight:FontWeight.w700,color:essentialPlum))),IconButton(tooltip:'Actualiser les démarches',onPressed:loading?null:onRefresh,icon:loading?const SizedBox.square(dimension:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.refresh))]),
+    if(journeys.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('Vos démarches apparaîtront ici.',style:TextStyle(fontSize:12,color:essentialMuted))),
+    for(final journey in journeys)InkWell(onTap:()=>onOpen(journey),child:Container(padding:const EdgeInsets.symmetric(vertical:12),decoration:const BoxDecoration(border:Border(bottom:BorderSide(color:essentialLine))),child:Row(children:[const CircleAvatar(backgroundColor:Color(0xFFF2ECF8),child:Icon(Icons.route_outlined,color:essentialPlum)),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(journey.subject??'Démarche WAOUH',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:14,fontWeight:FontWeight.w700)),const SizedBox(height:5),Text(phaseLabel(journey),style:const TextStyle(fontSize:11,color:essentialMuted)),const SizedBox(height:6),Text('${essentialJourneyAction(journey.stage,(journey.threadId??'').isNotEmpty)} →',style:const TextStyle(fontSize:12,color:essentialPlum,fontWeight:FontWeight.w600))])),const Icon(Icons.chevron_right,size:18,color:essentialMuted)])))
+  ]));
 }
-
-class _SearchPoint extends StatelessWidget {
-  const _SearchPoint({required this.response, required this.query, required this.city});
-  final NexusDiscoveryResponse response;
-  final String query;
-  final String city;
-
-  @override
-  Widget build(BuildContext context) {
-    final ctx = rs.ReasonContext(query: query.trim(), city: city.trim());
-    final summary = rs.buildSummary(const <Map<String, dynamic>>[], response, ctx);
-    final line = rs.summaryStep(summary, ctx).text;
-    final best = rs.reasonMoney(summary.bestPrice);
-    Widget chip(String label, String value) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFDCE7F8)),
-            ),
-            child: Column(children: [
-              Text(value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: WaouhPalette.blue, fontWeight: FontWeight.w900, fontSize: 14)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: const TextStyle(color: WaouhPalette.muted, fontWeight: FontWeight.w700, fontSize: 10)),
-            ]),
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F6FF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDCE7F8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.psychology_alt_rounded, color: WaouhPalette.blue, size: 20),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(line,
-                  style: const TextStyle(color: WaouhPalette.ink, fontSize: 12.5, fontWeight: FontWeight.w800, height: 1.3)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            chip('Trouvés', '${summary.found}'),
-            const SizedBox(width: 6),
-            chip('Dans la zone', '${summary.inZone}'),
-            const SizedBox(width: 6),
-            chip('Joignables', '${summary.contactable}'),
-            if (best != null) ...[const SizedBox(width: 6), chip('Meilleur prix', best)],
-          ]),
-          if (summary.nextSteps.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(summary.nextSteps.first,
-                style: const TextStyle(color: WaouhPalette.muted, fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.3)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceChip extends StatelessWidget {
-  const _SourceChip({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(99),
-          border: Border.all(color: WaouhPalette.line),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: WaouhPalette.muted,
-            fontSize: 8.5,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-}
-
-String _nextBestActionLabel(String? value) => switch ((value ?? '').toUpperCase()) {
-      'CONTACT_NOW' => 'contacter maintenant',
-      'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
-      'REQUEST_APPROVAL' => 'valider le contact',
-      'WAIT_REPLY' => 'attendre la réponse',
-      'FOLLOW_UP' => 'relancer',
-      'NEGOTIATE' => 'négocier',
-      'EXECUTE' => 'exécuter l’accord',
-      'COMPLETE' => 'terminé',
-      'DROP_LOW_QUALITY' => 'priorité faible',
-      _ => 'enrichir le contact',
-    };
 
 /// Parité Web `cleanLine` : jamais de provenance ni de remplissage, seulement
 /// les informations réelles.
@@ -2030,326 +1719,6 @@ String cleanCardLine(String? value) {
           !RegExp(r'^source\b', caseSensitive: false).hasMatch(part))
       .join(' · ')
       .trim();
-}
-
-class _OpportunityCard extends StatelessWidget {
-  const _OpportunityCard({
-    required this.rank,
-    required this.item,
-    required this.busy,
-    required this.onContinue,
-    required this.onFollow,
-    required this.onDelegate,
-  });
-  final int rank;
-  final NexusDiscoveryItem item;
-  final bool busy;
-  final VoidCallback onContinue;
-  final VoidCallback onFollow;
-  final VoidCallback onDelegate;
-
-  String? get _maskedPhone {
-    var raw = '';
-    final masked = item.contactPack?.maskedContacts ?? <Map<String, dynamic>>[];
-    for (final entry in masked) {
-      final value = (entry['last4'] ?? '').toString().trim();
-      if (value.isNotEmpty) {
-        raw = value;
-        break;
-      }
-    }
-    if (raw.isEmpty) {
-      final fromEvidence =
-          item.evidence['contact_last4'] ?? item.evidence['contact_phone_last4'];
-      raw = (fromEvidence ?? '').toString().trim();
-    }
-    return rs.maskPhone(raw.isEmpty ? null : raw);
-  }
-
-  String get _price {
-    if (item.priceMin == null && item.priceMax == null) return 'Prix non publié';
-    if (item.priceMin != null &&
-        item.priceMax != null &&
-        item.priceMin != item.priceMax) {
-      return '${item.priceMin!.round()} – ${item.priceMax!.round()} FCFA';
-    }
-    return '${(item.priceMin ?? item.priceMax)!.round()} FCFA';
-  }
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: WaouhPalette.line),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item.photoUrls.isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: Image.network(
-                    item.photoUrls.first,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: const Color(0xFFF2F5FA),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.image_not_supported_outlined,
-                        color: WaouhPalette.muted,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F5FF),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Text(
-                    '#$rank',
-                    style: const TextStyle(
-                      color: WaouhPalette.blue,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          color: WaouhPalette.ink,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        [
-                          if ((item.city ?? '').isNotEmpty) item.city!,
-                          item.contactPolicy.label,
-                        ].join(' · '),
-                        style: const TextStyle(
-                          color: WaouhPalette.muted,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '${item.scores.total.round()}%',
-                  style: const TextStyle(
-                    color: WaouhPalette.blue,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _price,
-              style: const TextStyle(
-                color: Color(0xFF159A69),
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F8FD),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(children: [
-                const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF6366F1)),
-                const SizedBox(width: 8),
-                Text(_maskedPhone ?? 'Contact via Bot',
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w800, color: WaouhPalette.ink)),
-              ]),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: _ScoreBar(label: 'Pertinence', value: item.scores.relevance)),
-                const SizedBox(width: 7),
-                Expanded(child: _ScoreBar(label: 'Confiance', value: item.scores.trust)),
-              ],
-            ),
-            if (item.actionabilityScore != null || item.contactPack != null) ...[
-              const SizedBox(height: 7),
-              _ScoreBar(
-                label: 'Actionnable',
-                value: item.actionabilityScore ?? item.contactPack!.actionabilityScore,
-              ),
-            ],
-            if (item.scores.reasons.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: item.scores.reasons
-                    .map(cleanCardLine)
-                    .where((reason) => reason.isNotEmpty)
-                    .take(3)
-                    .map((reason) => _SourceChip(label: reason))
-                    .toList(),
-              ),
-            ],
-            const SizedBox(height: 10),
-            if (cleanCardLine(item.detailsSummary).isNotEmpty) ...[
-              _InfoStrip(
-                icon: Icons.description_outlined,
-                text: cleanCardLine(item.detailsSummary),
-                accent: const Color(0xFF61718D),
-              ),
-              const SizedBox(height: 7),
-            ],
-            if (cleanCardLine(item.marketSummary).isNotEmpty) ...[
-              _InfoStrip(
-                icon: Icons.bar_chart_rounded,
-                text: cleanCardLine(item.marketSummary),
-                accent: const Color(0xFF159A69),
-              ),
-              const SizedBox(height: 7),
-            ],
-            if (cleanCardLine(item.comparativeSummary).isNotEmpty) ...[
-              _InfoStrip(
-                icon: Icons.compare_arrows_rounded,
-                text: cleanCardLine(item.comparativeSummary),
-                accent: const Color(0xFF42658B),
-              ),
-              const SizedBox(height: 7),
-            ],
-            if (cleanCardLine(item.recommendationSummary).isNotEmpty) ...[
-              _InfoStrip(
-                icon: Icons.auto_awesome_rounded,
-                text: cleanCardLine(item.recommendationSummary),
-                accent: const Color(0xFF8B6500),
-              ),
-              const SizedBox(height: 7),
-            ],
-            if (item.nextBestAction != null || item.contactPack != null) ...[
-              _InfoStrip(
-                icon: Icons.bolt_rounded,
-                text: 'Bot recommande : ' + _nextBestActionLabel(item.nextBestAction ?? item.contactPack!.nextBestAction) +
-                    ((item.bestChannel ?? item.contactPack?.bestChannel)?.isNotEmpty == true
-                        ? ' · canal ' + (item.bestChannel ?? item.contactPack!.bestChannel!)
-                        : ''),
-                accent: const Color(0xFF6D3FD1),
-              ),
-              const SizedBox(height: 7),
-            ],
-            _InfoStrip(
-              icon: item.internalArticle
-                  ? Icons.lock_person_outlined
-                  : Icons.shield_outlined,
-              text: item.internalArticle
-                  ? 'WAOUH ouvrira un Deal Room privé. Les contacts ne sont pas révélés directement.'
-                  : 'Contact médié : les coordonnées restent masquées.',
-              accent: WaouhPalette.blue,
-            ),
-            const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: busy ? null : onContinue,
-              icon: busy
-                  ? const SizedBox.square(
-                      dimension: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      item.internalArticle
-                          ? Icons.handshake_outlined
-                          : item.contactPolicy.level == 'C0'
-                              ? Icons.travel_explore_rounded
-                              : item.contactPolicy.level == 'C5'
-                                  ? Icons.handshake_rounded
-                                  : Icons.send_rounded,
-                    ),
-              label: Text(
-                item.internalArticle
-                    ? 'Je suis intéressé · proposer un prix'
-                    : item.contactPolicy.level == 'C5'
-                        ? 'Continuer vers l’accord'
-                        : liveContactabilityActionLabel(item.contactPolicy.level),
-              ),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-            const SizedBox(height: 7),
-            FilledButton.tonalIcon(
-              onPressed: busy ? null : onDelegate,
-              icon: const Icon(Icons.smart_toy_rounded),
-              label: const Text('Confier à Bot'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(46),
-              ),
-            ),
-            const SizedBox(height: 7),
-            OutlinedButton.icon(
-              onPressed: busy ? null : onFollow,
-              icon: const Icon(Icons.notifications_active_outlined),
-              label: const Text('Suivre prix / disponibilité'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
-              ),
-            ),
-          ],
-        ),
-      );
-
-}
-
-class _ScoreBar extends StatelessWidget {
-  const _ScoreBar({required this.label, required this.value});
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label ${value.round()}%',
-            style: const TextStyle(
-              color: WaouhPalette.muted,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: (value / 100).clamp(0, 1),
-              minHeight: 5,
-              backgroundColor: const Color(0xFFEAF0F8),
-            ),
-          ),
-        ],
-      );
 }
 
 class _InfoStrip extends StatelessWidget {
@@ -2484,153 +1853,12 @@ class _CommerceHeaderState extends State<_CommerceHeader> {
     if (mounted) setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final empty = widget.controller.text.trim().isEmpty;
-    final status = widget.loading
-        ? 'Je cherche pour vous…'
-        : widget.found > 0
-            ? '${widget.found} option${widget.found > 1 ? 's' : ''} trouvée${widget.found > 1 ? 's' : ''}.'
-            : 'Dites-moi ce qu’il vous faut.';
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: WaouhGradients.airHero,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFDCE7F8)),
-        boxShadow: WaouhShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              LiveAvatarVisual(
-                preset: widget.avatar.profile.preset,
-                state: widget.loading
-                    ? LiveAvatarPresenceState.searching
-                    : widget.avatar.state,
-                size: 64,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.title,
-                        style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.92),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(4),
-                          topRight: Radius.circular(16),
-                          bottomLeft: Radius.circular(16),
-                          bottomRight: Radius.circular(16),
-                        ),
-                        border: Border.all(color: const Color(0xFFD9E6FF)),
-                      ),
-                      child: Text(status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1E3A8A))),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: widget.controller,
-            minLines: 1,
-            maxLines: 3,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => widget.onSearch(),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              filled: true,
-              fillColor: Colors.white,
-              prefixIcon: const Icon(Icons.auto_awesome_rounded),
-            ),
-          ),
-          if (empty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final chip in _chips)
-                  ActionChip(
-                    label: Text(chip),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFD9E6FF)),
-                    labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF315BD8),
-                        fontSize: 12),
-                    onPressed: () => widget.controller.text = chip,
-                  ),
-              ],
-            ),
-          ],
-          Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 4),
-              dense: true,
-              title: const Text('Ville · Budget',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: WaouhPalette.muted)),
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: LiveCityField(
-                          controller: widget.city, hint: 'Ville ou quartier'),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.budget,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            hintText: 'Budget FCFA', filled: true, fillColor: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          FilledButton.icon(
-            onPressed: widget.loading || empty ? null : widget.onSearch,
-            icon: widget.loading
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.travel_explore_rounded),
-            label: Text(widget.cta),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18)),
-            ),
-          ),
-        ],
-      ),
-    );
+  @override Widget build(BuildContext context) {
+    final empty=widget.controller.text.trim().isEmpty;
+    return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      TextField(controller:widget.controller,minLines:1,maxLines:2,textInputAction:TextInputAction.search,onSubmitted:(_)=>widget.onSearch(),decoration:InputDecoration(hintText:widget.hint,filled:true,fillColor:Colors.white,prefixIcon:const Icon(Icons.search_rounded,color:essentialPlum),suffixIcon:IconButton(tooltip:'Rechercher',onPressed:widget.loading||empty?null:widget.onSearch,icon:widget.loading?const SizedBox.square(dimension:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.arrow_forward_rounded,color:essentialJade)))),
+      if(empty)Padding(padding:const EdgeInsets.only(top:8),child:Wrap(spacing:6,children:[for(final chip in _chips)ActionChip(label:Text(chip,style:const TextStyle(fontSize:11)),onPressed:()=>setState(()=>widget.controller.text=chip))])),
+      Theme(data:Theme.of(context).copyWith(dividerColor:Colors.transparent),child:ExpansionTile(tilePadding:const EdgeInsets.symmetric(horizontal:4),dense:true,title:Text(widget.city.text.trim().isEmpty?'Ville · Budget':'${widget.city.text} · Budget',style:const TextStyle(fontSize:12,color:essentialMuted)),children:[Row(children:[Expanded(child:LiveCityField(controller:widget.city,hint:'Ville ou quartier')),const SizedBox(width:8),Expanded(child:TextField(controller:widget.budget,keyboardType:TextInputType.number,decoration:const InputDecoration(hintText:'Budget FCFA')))])]))
+    ]);
   }
 }

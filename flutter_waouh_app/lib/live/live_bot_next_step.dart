@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'live_nexus_service.dart';
 import 'live_theme.dart';
+import 'live_essential_offers.dart' show essentialPlum, essentialJade, essentialLine;
 
 /// « Et maintenant ? » : après les résultats, une action fait passer Bot du
 /// repérage au contact puis à la négociation. Rien ne part sans confirmation,
@@ -18,6 +19,7 @@ class LiveBotNextStep extends StatefulWidget {
     required this.items,
     this.articleId,
     this.priceFloor,
+    this.expanded = false,
   });
 
   final LiveNexusService service;
@@ -28,6 +30,7 @@ class LiveBotNextStep extends StatefulWidget {
   final List<NexusDiscoveryItem> items;
   final String? articleId;
   final double? priceFloor;
+  final bool expanded;
 
   @override
   State<LiveBotNextStep> createState() => _LiveBotNextStepState();
@@ -151,15 +154,11 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty) return const SizedBox.shrink();
-    final decoration = BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Colors.white, Color(0xFFEFF5FF), Color(0xFFF3EFFF)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: const Color(0xFFDCE7F8)),
+    if (!widget.expanded) return OutlinedButton.icon(
+      onPressed:()=>showModalBottomSheet<void>(context:context,isScrollControlled:true,useSafeArea:true,showDragHandle:true,backgroundColor:const Color(0xFFFCFBF9),constraints:const BoxConstraints(maxWidth:560),builder:(sheet)=>ConstrainedBox(constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(sheet).height*.9),child:SingleChildScrollView(padding:EdgeInsets.only(bottom:MediaQuery.viewInsetsOf(sheet).bottom),child:LiveBotNextStep(service:widget.service,mode:widget.mode,goal:widget.goal,city:widget.city,budget:widget.budget,items:widget.items,articleId:widget.articleId,priceFloor:widget.priceFloor,expanded:true)))),
+      icon:const Icon(Icons.smart_toy_outlined,size:18),label:const Text('Confier à Bot'),style:OutlinedButton.styleFrom(foregroundColor:essentialPlum,backgroundColor:const Color(0xFFF4EFF7),minimumSize:const Size.fromHeight(48),side:const BorderSide(color:essentialLine),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14))),
     );
+    final decoration=BoxDecoration(color:const Color(0xFFFCFBF9),borderRadius:BorderRadius.circular(22));
 
     if (_linked != null) {
       return Container(
@@ -178,7 +177,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
             ]),
             const SizedBox(height: 6),
             Text(
-              '$_linked $_who${_linked! > 1 ? 's' : ''} pris en charge. ${_autonomy == 'assisted' ? 'Vous validez chaque message.' : 'Je vous préviens à chaque réponse.'}',
+              '$_linked offre${_linked! > 1 ? 's' : ''} prise${_linked! > 1 ? 's' : ''} en charge. ${_autonomy == 'assisted' ? 'Vous validez chaque message.' : 'Je vous préviens à chaque réponse.'}',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: WaouhPalette.muted),
             ),
             const SizedBox(height: 10),
@@ -203,8 +202,10 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 2),
             padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minHeight: 44),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFFEFF5FF) : Colors.white,
+              color: selected ? const Color(0xFFF2ECF8) : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                   color: selected ? const Color(0xFF3B82F6) : const Color(0xFFE2E8F0)),
@@ -214,10 +215,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               children: [
                 Text(label,
                     style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 2),
-                Text(hint,
-                    style: const TextStyle(
-                        fontSize: 9.5, fontWeight: FontWeight.w600, color: WaouhPalette.muted)),
+
               ],
             ),
           ),
@@ -234,29 +232,9 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('ET MAINTENANT ?',
-              style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1.6,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF2563EB))),
-          const SizedBox(height: 2),
-          Text(_title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 2),
-          Text(
-            '${widget.items.length} $_who${widget.items.length > 1 ? 's' : ''} trouvé${widget.items.length > 1 ? 's' : ''}.',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: WaouhPalette.muted),
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            for (final step in const ['Bot contacte', 'Vous validez', 'Négociation', 'Accord'])
-              Expanded(
-                child: Text(step,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF475569))),
-              ),
-          ]),
-          const SizedBox(height: 10),
+          Row(children:[const Expanded(child:Text('Bot s’en occupe',style:TextStyle(fontSize:22,fontWeight:FontWeight.w800,color:essentialPlum))),IconButton(tooltip:'Fermer',onPressed:_busy?null:()=>Navigator.pop(context),icon:const Icon(Icons.close))]),
+          Text(_autonomy == 'assisted' ? 'Vous validez chaque message.' : _autonomy == 'autonomous' ? 'Bot négocie dans vos limites. Vous validez l’accord.' : 'Vous validez l’accord final.',style:const TextStyle(fontSize:12,color:WaouhPalette.muted)),
+          const SizedBox(height:14),
           if (_needsArticle && _articles != null) ...[
             const Text('Article à vendre',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
@@ -288,25 +266,10 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
             autonomyChip('autonomous', 'Autonome', 'Bot négocie dans mes limites'),
           ]),
           const SizedBox(height: 10),
-          Row(children: [
-            const Expanded(
-              child: Text('Contacter jusqu’à',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-            ),
-            for (final n in counts)
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: ChoiceChip(
-                  label: Text('$n'),
-                  selected: _picked == n,
-                  onSelected: (_) => setState(() {
-                    _count = n;
-                    _confirm = false;
-                  }),
-                ),
-              ),
-          ]),
-          SwitchListTile.adaptive(
+          const Text('Offres à contacter',style:TextStyle(fontSize:12,fontWeight:FontWeight.w700)),
+          const SizedBox(height:6),
+          Wrap(spacing:6,children:[for(final n in counts)ChoiceChip(label:Text('$n'),selected:_picked==n,onSelected:(_)=>setState((){_count=n;_confirm=false;}))]),
+          ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Réglages avancés',style:TextStyle(fontSize:13)),children:[SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: const Text('WhatsApp vérifié',
@@ -317,6 +280,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               _confirm = false;
             }),
           ),
+          ]),
           if (_error.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -331,15 +295,15 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
                 : Icon(_confirm ? Icons.verified_user_rounded : Icons.handshake_rounded),
             label: Text(_confirm
                 ? 'Confirmer : $_picked contact${_picked > 1 ? 's' : ''} max'
-                : 'Lancer Bot'),
+                : 'Lancer la démarche'),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
-              backgroundColor: _confirm ? const Color(0xFF059669) : null,
+              backgroundColor: essentialJade,
             ),
           ),
           const SizedBox(height: 6),
           const Center(
-            child: Text('Aucun paiement. Vous validez l’accord final.',
+            child: Text('Aucun paiement à cette étape.',
                 style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: WaouhPalette.muted)),
           ),
         ],

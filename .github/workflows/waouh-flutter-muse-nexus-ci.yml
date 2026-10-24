@@ -119,6 +119,7 @@ jobs:
 
       - name: NEXUS and agentic tests
         run: |
+          flutter test test/live_essential_offers_test.dart
           flutter test test/live_convergence_contract_test.dart
           flutter test test/live_nexus_service_test.dart
           flutter test test/live_agentic_waouh_test.dart

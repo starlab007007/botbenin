@@ -250,7 +250,7 @@ class NexusDiscoveryItem {
         }
       }
     }
-    for (final key in ['image_url', 'photo', 'thumbnail']) {
+    for (final key in ['primary_photo_url', 'image_url', 'photo', 'thumbnail']) {
       final text = evidence[key]?.toString().trim() ?? '';
       if (text.startsWith('http://') || text.startsWith('https://')) {
         out.add(text);
@@ -340,7 +340,7 @@ class NexusDiscoveryItem {
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
-    final evidence = _map(json['evidence']);
+    final evidence = {..._map(json['evidence']), for (final key in ['model','unit','price_unit','offer_kind','kind','condition','market_references','price_references']) if (json[key] != null) key: json[key]};
     String? optionalId(dynamic value) {
       final text = _text(value).trim();
       return text.isEmpty || text == 'null' ? null : text;

@@ -134,6 +134,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps --no-audit --no-fund
 
+      - name: Compatible Vite 5 test runner
+        run: npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.21 vitest@2.1.9
+
       - name: Build Web
         run: npm run build
 
@@ -157,13 +160,13 @@ jobs:
           deno-version: v2.x
 
       - name: Check NEXUS Edge Function
-        run: deno check supabase/functions/waouh-agentic-core/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-agentic-core/index.ts
 
       - name: Check Opportunity OS worker
-        run: deno check supabase/functions/waouh-opportunity-worker/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-opportunity-worker/index.ts
 
       - name: Check WAOUH webhook
-        run: deno check supabase/functions/waouh-webhook/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-webhook/index.ts
 
       - name: Validate Opportunity OS SQL
         run: |
@@ -185,74 +188,74 @@ jobs:
           PY
 
       - name: Opportunity OS contract tests
-        run: deno test supabase/functions/_shared/waouh-opportunity-os-test.ts
+        run: deno test --node-modules-dir=none supabase/functions/_shared/waouh-opportunity-os-test.ts
 
       - name: Channel Router contract tests
-        run: deno test supabase/functions/_shared/waouh-channel-router-test.ts
+        run: deno test --node-modules-dir=none supabase/functions/_shared/waouh-channel-router-test.ts
 
       - name: Check WAOUH Chat Channel
-        run: deno check supabase/functions/waouh-channel-in/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-channel-in/index.ts
 
       - name: Check WAOUH Chat Orchestrator
-        run: deno check supabase/functions/waouh-webhook/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-webhook/index.ts
 
       - name: Check WAOUH Buy Handler
-        run: deno check supabase/functions/waouh-buy-handler/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-buy-handler/index.ts
 
       - name: Check WAOUH Negotiation Router
-        run: deno check supabase/functions/waouh-negotiation-router/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-negotiation-router/index.ts
 
       - name: Check WAOUH Deal Operations
-        run: deno check supabase/functions/waouh-deal-ops/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-deal-ops/index.ts
 
       - name: Check WAOUH Payment
-        run: deno check supabase/functions/waouh-payment/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-payment/index.ts
 
       - name: Check WAOUH history scope
         run: |
-          deno check supabase/functions/waouh-history/index.ts
-          deno check supabase/functions/waouh-match-history/index.ts
+          deno check --node-modules-dir=none supabase/functions/waouh-history/index.ts
+          deno check --node-modules-dir=none supabase/functions/waouh-match-history/index.ts
 
       - name: Check WAOUH Commerce Action
-        run: deno check supabase/functions/waouh-commerce-action/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-commerce-action/index.ts
 
       - name: Check WAOUH Channel In (recherche unifiée)
-        run: deno check supabase/functions/waouh-channel-in/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-channel-in/index.ts
 
       - name: Check WAOUH Avatar Briefing et suivi Nexus
         run: |
-          deno check supabase/functions/waouh-avatar-briefing/index.ts
-          deno check supabase/functions/waouh-nexus-followup/index.ts
+          deno check --node-modules-dir=none supabase/functions/waouh-avatar-briefing/index.ts
+          deno check --node-modules-dir=none supabase/functions/waouh-nexus-followup/index.ts
 
       - name: Check WAOUH Buyer Interest
-        run: deno check supabase/functions/waouh-buyer-interest/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-buyer-interest/index.ts
 
       - name: Check WAOUH Notify Dispatch
-        run: deno check supabase/functions/waouh-notify-dispatch/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-notify-dispatch/index.ts
 
       - name: WAOUH Chat V3 contract tests
         run: |
-          deno test supabase/functions/_shared/waouh-commands-test.ts
-          deno test supabase/functions/_shared/waouh-negotiation-intent-test.ts
-          deno test supabase/functions/_shared/waouh-deal-open-test.ts
-          deno test supabase/functions/_shared/waouh-promote-test.ts
-          deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
-          deno test supabase/functions/_shared/waouh-message-catalog-test.ts
-          deno test supabase/functions/_shared/waouh-smart-payload-test.ts
-          deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
-          deno test supabase/functions/_shared/waouh-commerce-states-test.ts
-          deno test supabase/functions/_shared/waouh-dedupe-test.ts
-          deno test supabase/functions/_shared/waouh-notif-thread-test.ts
-          deno test supabase/functions/_shared/waouh-identity-paging-test.ts
-          deno test supabase/functions/_shared/waouh-partner-seller-test.ts
-          deno test supabase/functions/_shared/waouh-unified-quality-test.ts
-          deno test supabase/functions/_shared/waouh-internal-call-test.ts
-          deno test supabase/functions/_shared/waouh-avatar-briefing-test.ts
-          deno test supabase/functions/_shared/waouh-avatar-briefing-core-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-commands-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-negotiation-intent-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-deal-open-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-promote-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-interest-fastpath-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-message-catalog-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-smart-payload-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-commerce-v3-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-commerce-states-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-dedupe-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-notif-thread-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-identity-paging-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-partner-seller-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-unified-quality-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-internal-call-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-avatar-briefing-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-avatar-briefing-core-test.ts
           npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
 
       - name: Check WAOUH Outbound Dispatcher
-        run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
+        run: deno check --node-modules-dir=none supabase/functions/waouh-outbound-dispatch/index.ts
 
       - name: Responsive browser smoke — desktop tablet mobile
         timeout-minutes: 12
