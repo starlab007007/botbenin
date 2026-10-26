@@ -3,16 +3,20 @@ import { Bell, LayoutGrid, MessageCircle, Radar, Sparkles, UserCircle, Workflow,
 
 import { cn } from '@/lib/utils';
 import { unreadBadge } from '../utils/chatSpaceLayout';
+import { useFrontendModules } from '@/hooks/useFrontendModules';
 
 export const TABLET_RAIL_WIDTH = 76;
 
+// Chat/Avatar/Missions/IA sont des onglets structurels (toujours visibles,
+// comme dans BottomTabBar). Seuls Radar et Bots correspondent à un module
+// de public.waouh_frontend_modules et peuvent être masqués par l'admin.
 const railItems = [
   { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
-  { to: '/app/radar-map', icon: Radar, label: 'Radar' },
+  { to: '/app/radar-map', icon: Radar, label: 'Radar', key: 'radar' },
   { to: '/app/avatar', icon: UserCircle, label: 'Avatar' },
   { to: '/app/missions', icon: Workflow, label: 'Missions' },
   { to: '/app/ia', icon: Sparkles, label: 'IA' },
-  { to: '/app/bots', icon: Bot, label: 'Bots' },
+  { to: '/app/bots', icon: Bot, label: 'Bots', key: 'bots' },
 ];
 
 type Props = {
@@ -25,6 +29,8 @@ export const TabletRail = ({ unreadChat = 0, onOpenMenu }: Props) => {
   // La racine « / » affiche l'accueil Avatar : l'onglet Avatar y reste sélectionné.
   const { pathname } = useLocation();
   const avatarHome = pathname === '/' || pathname === '';
+  const { visibleKeys } = useFrontendModules();
+  const items = railItems.filter((item) => !item.key || !visibleKeys || visibleKeys.has(item.key));
   const itemClass = (active: boolean) =>
     cn(
       'relative flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-[10px] font-medium transition-colors',
@@ -47,7 +53,7 @@ export const TabletRail = ({ unreadChat = 0, onOpenMenu }: Props) => {
       >
         W
       </div>
-      {railItems.map(({ to, icon: Icon, label }) => {
+      {items.map(({ to, icon: Icon, label }) => {
         const badge = to === '/app/chat' ? unreadBadge(unreadChat) : null;
         return (
           <NavLink key={to} to={to} aria-label={label} className={({ isActive }) => itemClass(isActive || (to === '/app/avatar' && avatarHome))}>

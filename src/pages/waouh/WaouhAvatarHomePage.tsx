@@ -6,12 +6,19 @@ import {
   ArrowRight,
   BellRing,
   Bot,
+  Briefcase,
   CheckCircle2,
   ChevronRight,
+  EyeOff,
   Flag,
+  Gauge,
   Globe2,
-  MessageSquareText,
+  Heart,
   Mic,
+  Moon,
+  MessageSquareText,
+  Rocket,
+  Scale,
   Search,
   Send,
   ShieldCheck,
@@ -20,7 +27,9 @@ import {
   Sparkles,
   Tag,
   Volume2,
+  Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { WaouhQuickAsk, type QuickAskKind } from "@/components/waouh/WaouhQuickAsk";
@@ -59,6 +68,25 @@ type AgenticSummary = {
 
 export type WaouhAvatarHomePageProps = {
   onAsk?: (prompt: string) => void;
+  /** N'affiche que le réglage de l'Avatar (nom, apparence, personnalité, initiative) —
+   * sans la salutation complète, les 4 actions ni la jauge. Utilisé pour l'onglet
+   * « Avatar » dans l'app (/app/avatar) ; l'accueil public (bot.bj, /) garde la version
+   * complète. */
+  settingsOnly?: boolean;
+};
+
+const PERSONALITY_ICON: Record<string, LucideIcon> = {
+  Calme: Moon,
+  Dynamique: Zap,
+  Business: Briefcase,
+  Chaleureux: Heart,
+  Équilibré: Scale,
+};
+
+const PROACTIVITY_ICON: Record<string, LucideIcon> = {
+  Discret: EyeOff,
+  Équilibré: Gauge,
+  Proactif: Rocket,
 };
 
 const DEFAULT_PROFILE: AvatarProfile = {
@@ -112,7 +140,77 @@ const saveAvatarProfile = (profile: AvatarProfile) => {
   }
 };
 
-export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps) {
+/** Réglage avatar — symboles d'abord, texte minimal : chaque choix est une icône
+ * avec une légende courte, pas un bouton-texte. */
+function AvatarSettingsFields({ draft, setDraft }: { draft: AvatarProfile; setDraft: (update: (value: AvatarProfile) => AvatarProfile) => void }) {
+  return (
+    <div className="space-y-5">
+      <Input
+        value={draft.name}
+        onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value.slice(0, 18) }))}
+        placeholder="Nom de l'Avatar"
+        className="h-11 rounded-xl text-center font-bold"
+      />
+
+      <div className="grid grid-cols-6 gap-2">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => setDraft((value) => ({ ...value, preset }))}
+            className={`h-12 rounded-2xl border bg-gradient-to-br ${presetGradient[preset]} ${draft.preset === preset ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
+            aria-label={`Apparence ${preset}`}
+            title={preset}
+          />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-5 gap-1.5">
+        {PERSONALITIES.map((item) => {
+          const Icon = PERSONALITY_ICON[item] ?? Scale;
+          const active = draft.personality === item;
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setDraft((value) => ({ ...value, personality: item }))}
+              aria-label={`Personnalité : ${item}`}
+              aria-pressed={active}
+              title={item}
+              className={`flex flex-col items-center gap-1 rounded-2xl border py-2.5 ${active ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"}`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[9px] font-bold leading-none">{item}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {PROACTIVITIES.map((item) => {
+          const Icon = PROACTIVITY_ICON[item] ?? Gauge;
+          const active = draft.proactivity === item;
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setDraft((value) => ({ ...value, proactivity: item }))}
+              aria-label={`Initiative : ${item}`}
+              aria-pressed={active}
+              title={item}
+              className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 ${active ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-500"}`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-[9px] font-bold leading-none">{item}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: WaouhAvatarHomePageProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -159,6 +257,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   }, [user]);
 
   useEffect(() => {
+    if (settingsOnly) return;
     void refreshSummary();
     const timer = window.setInterval(() => void refreshSummary(), 30000);
     const onFocus = () => void refreshSummary();
@@ -167,7 +266,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [refreshSummary]);
+  }, [refreshSummary, settingsOnly]);
 
   const phase: WaouhMusePhase = useMemo(() => {
     if (voiceActive) return "listening";
@@ -348,6 +447,34 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   return (
     <main data-waouh-ui="bot-home-v3" className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(139,92,246,.08),transparent_26%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]">
       <div className="mx-auto w-full max-w-6xl space-y-3 px-3 py-3 sm:space-y-5 sm:px-6 lg:px-8">
+        {settingsOnly ? (
+          <section data-waouh-ui="avatar-settings-only" className="relative overflow-hidden rounded-[24px] border border-blue-100 bg-gradient-to-br from-blue-50/90 via-white to-violet-50/80 px-5 py-6 shadow-[0_24px_70px_-48px_rgba(37,99,235,.45)] sm:px-7">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-300/15 blur-3xl" />
+            <div className="relative flex items-center gap-3">
+              <BotLiveAvatar size="56px" expression="idle" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl font-black leading-none tracking-tight text-slate-950">Réglage avatar</h1>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Ce que vous voulez de {profile.name}</p>
+              </div>
+            </div>
+
+            <div className="relative mt-5 flex justify-center">
+              <div className={`grid h-24 w-24 place-items-center rounded-[28px] border-4 border-white bg-gradient-to-br ${presetGradient[draft.preset]} shadow-xl`}>
+                <WaouhMuseAvatar phase="listening" size="lg" />
+              </div>
+            </div>
+
+            <div className="relative mt-5">
+              <AvatarSettingsFields draft={draft} setDraft={setDraft} />
+            </div>
+
+            <Button type="button" className="relative mt-5 h-11 w-full rounded-xl" onClick={storeProfile}>
+              <Bot className="mr-2 h-4 w-4" />
+              Enregistrer
+            </Button>
+          </section>
+        ) : (
+        <>
         <section className="avatar-home-welcome relative overflow-hidden rounded-[24px] border border-blue-100 bg-gradient-to-br from-blue-50/90 via-white to-violet-50/80 px-5 py-5 shadow-[0_24px_70px_-48px_rgba(37,99,235,.45)] sm:px-7 sm:py-6">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-300/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-violet-300/10 blur-3xl" />
@@ -544,88 +671,41 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
           <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
           <span>Votre Avatar prépare, recherche et conseille. Vous validez toujours les actions sensibles et les décisions finales.</span>
         </div>
+        </>
+        )}
       </div>
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-xl rounded-3xl">
-          <DialogHeader>
-            <DialogTitle>Personnaliser mon Avatar</DialogTitle>
-          </DialogHeader>
+      {!settingsOnly && (
+        <>
+          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <DialogContent className="max-w-xl rounded-3xl">
+              <DialogHeader>
+                <DialogTitle>Réglage avatar</DialogTitle>
+              </DialogHeader>
 
-          <div className="space-y-5">
-            <div className="flex justify-center">
-              <div className={`grid h-28 w-28 place-items-center rounded-[32px] border-4 border-white bg-gradient-to-br ${presetGradient[draft.preset]} shadow-xl`}>
-                <WaouhMuseAvatar phase="listening" size="lg" />
+              <div className="space-y-5">
+                <div className="flex justify-center">
+                  <div className={`grid h-28 w-28 place-items-center rounded-[32px] border-4 border-white bg-gradient-to-br ${presetGradient[draft.preset]} shadow-xl`}>
+                    <WaouhMuseAvatar phase="listening" size="lg" />
+                  </div>
+                </div>
+
+                <AvatarSettingsFields draft={draft} setDraft={setDraft} />
+
+                <Button type="button" className="h-11 w-full rounded-xl" onClick={storeProfile}>
+                  <Bot className="mr-2 h-4 w-4" />
+                  Enregistrer
+                </Button>
               </div>
-            </div>
-
-            <Input
-              value={draft.name}
-              onChange={(event) => setDraft((value) => ({ ...value, name: event.target.value.slice(0, 18) }))}
-              placeholder="Nom de votre Avatar"
-              className="h-11 rounded-xl text-center font-bold"
-            />
-
-            <div>
-              <div className="mb-2 text-sm font-bold text-slate-800">Apparence</div>
-              <div className="grid grid-cols-6 gap-2">
-                {PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setDraft((value) => ({ ...value, preset }))}
-                    className={`h-12 rounded-2xl border bg-gradient-to-br ${presetGradient[preset]} ${draft.preset === preset ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
-                    aria-label={preset}
-                    title={preset}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 text-sm font-bold text-slate-800">Personnalité</div>
-              <div className="flex flex-wrap gap-2">
-                {PERSONALITIES.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setDraft((value) => ({ ...value, personality: item }))}
-                    className={`rounded-full border px-3 py-2 text-xs font-bold ${draft.personality === item ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 text-sm font-bold text-slate-800">Initiative</div>
-              <div className="grid grid-cols-3 gap-2">
-                {PROACTIVITIES.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setDraft((value) => ({ ...value, proactivity: item }))}
-                    className={`rounded-xl border px-3 py-2 text-xs font-bold ${draft.proactivity === item ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Button type="button" className="h-11 w-full rounded-xl" onClick={storeProfile}>
-              <Bot className="mr-2 h-4 w-4" />
-              Enregistrer mon Avatar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <WaouhQuickAsk
-        kind={quickAsk}
-        onClose={() => setQuickAsk(null)}
-        onSubmit={(path) => { setQuickAsk(null); navigate(path); }}
-      />
+            </DialogContent>
+          </Dialog>
+          <WaouhQuickAsk
+            kind={quickAsk}
+            onClose={() => setQuickAsk(null)}
+            onSubmit={(path) => { setQuickAsk(null); navigate(path); }}
+          />
+        </>
+      )}
     </main>
   );
 }

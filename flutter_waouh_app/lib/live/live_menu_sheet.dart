@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'access_policy.dart';
+import 'live_frontend_modules.dart';
 import 'live_theme.dart';
 
 /// Menu « tous les modules » — parité Web `WorkspaceMenuSheet` /
 /// `erp/navigation.ts` (mêmes sections, mêmes libellés, même ordre).
 class LiveMenuItem {
-  const LiveMenuItem(this.label, this.route, this.icon, {this.external = false});
+  const LiveMenuItem(this.label, this.route, this.icon,
+      {this.external = false, this.moduleKey});
   final String label;
   final String route;
   final IconData icon;
   final bool external;
+  /// Clé public.waouh_frontend_modules (parité src/erp/navigation.ts) :
+  /// quand elle est renseignée, l'administrateur peut masquer ce module
+  /// (voir /admin/modules). `null` = élément propre à Flutter ou en
+  /// décalage avec le Web (ex. route différente) : toujours visible.
+  final String? moduleKey;
 }
 
 class LiveMenuSection {
@@ -21,35 +29,56 @@ class LiveMenuSection {
   final List<LiveMenuItem> items;
 }
 
+// moduleKey aligné sur src/erp/navigation.ts. Laissé à null pour les
+// éléments propres à Flutter (Versements, Paiements) ou dont la route a
+// dérivé du Web (Agents IA → /app/agents/new ici vs /app/whatsapp/select-agent
+// côté Web) : non gérés par l'admin tant que cet écart n'est pas résolu.
 const liveMenuSections = <LiveMenuSection>[
   LiveMenuSection('Communication', [
-    LiveMenuItem('Chat Command Center', '/app/chat', Icons.forum_outlined),
-    LiveMenuItem('Radar', '/app/radar-map', Icons.radar_rounded),
-    LiveMenuItem('WhatsApp IA', '/app/whatsapp', Icons.groups_2_outlined),
-    LiveMenuItem('Diffusion', '/app/diffusion', Icons.campaign_outlined),
+    LiveMenuItem('Chat Command Center', '/app/chat', Icons.forum_outlined,
+        moduleKey: 'chat'),
+    LiveMenuItem('Radar', '/app/radar-map', Icons.radar_rounded,
+        moduleKey: 'radar'),
+    LiveMenuItem('WhatsApp IA', '/app/whatsapp', Icons.groups_2_outlined,
+        moduleKey: 'whatsapp'),
+    LiveMenuItem('Diffusion', '/app/diffusion', Icons.campaign_outlined,
+        moduleKey: 'diffusion'),
   ]),
   LiveMenuSection('Agents IA', [
-    LiveMenuItem('Avatar', '/app/avatar', Icons.auto_awesome_rounded),
-    LiveMenuItem('Missions & veille', '/app/missions', Icons.account_tree_outlined),
-    LiveMenuItem('Bots', '/app/bots', Icons.smart_toy_outlined),
+    LiveMenuItem('Avatar', '/app/avatar', Icons.auto_awesome_rounded,
+        moduleKey: 'avatar'),
+    LiveMenuItem(
+        'Missions & veille', '/app/missions', Icons.account_tree_outlined,
+        moduleKey: 'missions'),
+    LiveMenuItem('Bots', '/app/bots', Icons.smart_toy_outlined,
+        moduleKey: 'bots'),
     LiveMenuItem('Agents IA', '/app/agents/new', Icons.auto_awesome_outlined),
-    LiveMenuItem('Conversationnel', '/app/whatsapp/conversationnel', Icons.chat_outlined),
-    LiveMenuItem('BI WAOUH IA', '/app/whatsapp/bi', Icons.bar_chart_rounded),
-    LiveMenuItem('Stock WAOUH IA', '/app/stock', Icons.inventory_2_outlined),
-    LiveMenuItem('Présence QR', '/app/presence', Icons.qr_code_2_rounded),
+    LiveMenuItem('Conversationnel', '/app/whatsapp/conversationnel',
+        Icons.chat_outlined, moduleKey: 'conversationnel'),
+    LiveMenuItem('BI WAOUH IA', '/app/whatsapp/bi', Icons.bar_chart_rounded,
+        moduleKey: 'bi'),
+    LiveMenuItem('Stock WAOUH IA', '/app/stock', Icons.inventory_2_outlined,
+        moduleKey: 'stock'),
+    LiveMenuItem('Présence QR', '/app/presence', Icons.qr_code_2_rounded,
+        moduleKey: 'presence'),
     LiveMenuItem('PrivatAI (IA locale)', 'https://bot.bj/privatia', Icons.shield_outlined,
-        external: true),
+        external: true, moduleKey: 'privatia'),
   ]),
   LiveMenuSection('Commerce', [
-    LiveMenuItem('Boutiques & magasins', '/app/partner/businesses', Icons.storefront_outlined),
-    LiveMenuItem('Ventes', '/app/partner/sales', Icons.shopping_cart_outlined),
+    LiveMenuItem('Boutiques & magasins', '/app/partner/businesses',
+        Icons.storefront_outlined, moduleKey: 'boutiques'),
+    LiveMenuItem('Ventes', '/app/partner/sales', Icons.shopping_cart_outlined,
+        moduleKey: 'ventes'),
     LiveMenuItem('Versements', '/app/partner/payouts', Icons.account_balance_wallet_outlined),
     LiveMenuItem('Paiements', '/app/partner/payments', Icons.receipt_long_outlined),
-    LiveMenuItem('Partenaires', '/app/partner', Icons.handshake_outlined),
+    LiveMenuItem('Partenaires', '/app/partner', Icons.handshake_outlined,
+        moduleKey: 'partenaires'),
   ]),
   LiveMenuSection('Services IA', [
-    LiveMenuItem('AprèsBac IA', '/app/apresbac', Icons.school_outlined),
-    LiveMenuItem('FA IA', '/app/fa-ia', Icons.menu_book_outlined),
+    LiveMenuItem('AprèsBac IA', '/app/apresbac', Icons.school_outlined,
+        moduleKey: 'apresbac'),
+    LiveMenuItem('FA IA', '/app/fa-ia', Icons.menu_book_outlined,
+        moduleKey: 'fa_ia'),
   ]),
 ];
 
@@ -96,11 +125,22 @@ class _MenuSheet extends StatefulWidget {
 class _MenuSheetState extends State<_MenuSheet> {
   String _q = '';
 
-  List<LiveMenuSection> get _sections {
-    final q = _fold(_q.trim());
-    if (q.isEmpty) return liveMenuSections;
+  List<LiveMenuSection> _visibleBy(Set<String>? visibleKeys) {
+    if (visibleKeys == null) return liveMenuSections;
     return [
       for (final s in liveMenuSections)
+        LiveMenuSection(s.title, [
+          for (final i in s.items)
+            if (i.moduleKey == null || visibleKeys.contains(i.moduleKey)) i,
+        ]),
+    ].where((s) => s.items.isNotEmpty).toList();
+  }
+
+  List<LiveMenuSection> _filterBy(List<LiveMenuSection> sections) {
+    final q = _fold(_q.trim());
+    if (q.isEmpty) return sections;
+    return [
+      for (final s in sections)
         if (_fold(s.title).contains(q))
           s
         else
@@ -126,6 +166,8 @@ class _MenuSheetState extends State<_MenuSheet> {
   @override
   Widget build(BuildContext context) {
     final here = widget.currentPath;
+    final visibleKeys = context.watch<FrontendModulesController>().visibleKeys;
+    final sections = _filterBy(_visibleBy(visibleKeys));
     return DraggableScrollableSheet(
       initialChildSize: .86,
       maxChildSize: .95,
@@ -175,14 +217,14 @@ class _MenuSheetState extends State<_MenuSheet> {
                 controller: scroll,
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 children: [
-                  if (_sections.isEmpty)
+                  if (sections.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(24),
                       child: Center(
                           child: Text('Aucun module trouvé.',
                               style: TextStyle(color: WaouhPalette.muted))),
                     ),
-                  for (final s in _sections) ...[
+                  for (final s in sections) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 12, 0, 6),
                       child: Text(s.title.toUpperCase(),

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Plus, Edit, Trash2 } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, LayoutGrid } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Link } from 'react-router-dom';
 
 interface Role {
   id: string;
@@ -150,6 +151,13 @@ export const AdminRolesPage: React.FC = () => {
         <div>
           <h1 className="text-4xl font-bold mb-2">Gestion des Rôles</h1>
           <p className="text-muted-foreground">Créer et gérer les rôles système</p>
+          <Link
+            to="/admin/modules"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Activer/désactiver les modules visibles par rôle
+          </Link>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

@@ -1,4 +1,3 @@
-import { newChatRoute } from "@/lib/waouh/newChat";
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -29,6 +28,7 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
+import { WaouhQuickAsk, type QuickAskKind } from "@/components/waouh/WaouhQuickAsk";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting";
 import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
@@ -126,10 +126,20 @@ export default function ChatListScreen() {
       window.setTimeout(() => setBotLeaving(false), 400);
     }, 420);
   };
-  const askBot = (prompt: string) => {
-    const target = newChatRoute(prompt);
-    if (!requireAuth(target)) return;
-    navigate(target);
+  const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
+  // Les 4 actions ouvrent toutes le moteur NEXUS, invité ou non — comme "Trouver".
+  const askQuick = (kind: QuickAskKind) => {
+    if (isGuest) {
+      const mode: Record<QuickAskKind, string> = {
+        acheter: "find_sellers",
+        vendre: "find_buyers",
+        trouver: "auto",
+        demander: "auto",
+      };
+      navigate(`/app/nexus?mode=${mode[kind]}`);
+      return;
+    }
+    setQuickAsk(kind);
   };
 
   const tabFromUrl = (): ChatTab => {
@@ -433,14 +443,32 @@ export default function ChatListScreen() {
                 firstName={isGuest ? null : profile?.full_name}
                 thirdLine={botActivityLine(matchChats.matches?.length ?? 0, "Deal Room")}
                 onExpressionChange={setBotExpression}
-                choices={[
-                  { label: "Acheter", onSelect: () => glideThen(() => askBot("Je veux acheter ")) },
-                  { label: "Vendre", onSelect: () => glideThen(() => askBot("Je veux vendre ")) },
-                  { label: "Explorer", onSelect: () => glideThen(() => navigate("/app/nexus")) },
-                ]}
                 className="mt-2"
               />
             </div>
+          </div>
+
+          {/* Les 4 actions essentielles : chacune lance NEXUS, comme "Trouver". */}
+          <div className="mt-[clamp(14px,3.6vw,20px)] grid grid-cols-2 gap-[clamp(9px,2.2vw,13px)]">
+            {[
+              { kind: "acheter" as QuickAskKind, label: "Acheter", Icon: ShoppingBag, tint: "from-blue-50 to-blue-100/70 border-blue-100/80", chip: "bg-blue-600", glow: "shadow-[0_14px_30px_-16px_rgba(37,99,235,.55)]" },
+              { kind: "vendre" as QuickAskKind, label: "Vendre", Icon: Tag, tint: "from-amber-50 to-orange-100/70 border-amber-100/80", chip: "bg-amber-500", glow: "shadow-[0_14px_30px_-16px_rgba(217,119,6,.5)]" },
+              { kind: "trouver" as QuickAskKind, label: "Trouver", Icon: Globe2, tint: "from-cyan-50 to-sky-100/70 border-cyan-100/80", chip: "bg-cyan-600", glow: "shadow-[0_14px_30px_-16px_rgba(8,145,178,.5)]" },
+              { kind: "demander" as QuickAskKind, label: "Demander", Icon: MessageSquareText, tint: "from-violet-50 to-purple-100/70 border-violet-100/80", chip: "bg-violet-600", glow: "shadow-[0_14px_30px_-16px_rgba(124,58,237,.5)]" },
+            ].map(({ kind, label, Icon, tint, chip, glow }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => glideThen(() => askQuick(kind))}
+                data-waouh-action={label.toLowerCase()}
+                className={`group flex min-h-[clamp(72px,18vw,92px)] min-w-0 items-center gap-3 rounded-[20px] border bg-gradient-to-br ${tint} px-3.5 py-3 text-left transition ${glow} hover:-translate-y-0.5 active:translate-y-0 active:scale-[.97]`}
+              >
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${chip} text-white`}>
+                  <Icon className="h-[clamp(18px,4.6vw,20px)] w-[clamp(18px,4.6vw,20px)]" />
+                </span>
+                <span className="truncate text-[clamp(14px,3.8vw,16.5px)] font-black text-slate-950">{label}</span>
+              </button>
+            ))}
           </div>
 
           <button
@@ -448,43 +476,15 @@ export default function ChatListScreen() {
             onClick={() => glideThen(openNewWaouh)}
             onPointerEnter={() => setBotExpression("listen")}
             onPointerLeave={() => setBotExpression("idle")}
-            className="mt-[clamp(12px,3.5vw,18px)] flex h-[clamp(48px,12vw,56px)] w-full items-center gap-3 rounded-2xl border border-slate-200/90 bg-white pl-4 pr-1.5 text-left shadow-sm transition hover:border-cyan-200 active:scale-[.99]"
+            className="mt-[clamp(10px,2.8vw,14px)] flex h-[clamp(44px,11vw,50px)] w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/70 pl-4 pr-1.5 text-left shadow-sm transition hover:border-cyan-200 active:scale-[.99]"
             aria-label="Demander à Bot"
           >
-            <Sparkles className="h-[clamp(16px,4vw,20px)] w-[clamp(16px,4vw,20px)] shrink-0 text-teal-600" />
-            <span className="min-w-0 flex-1 truncate text-[clamp(14px,3.6vw,16px)] font-medium text-slate-400">Demandez à Bot…</span>
-            <span className="grid h-[clamp(38px,10vw,44px)] w-[clamp(38px,10vw,44px)] shrink-0 place-items-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-sm">
-              <ArrowUp className="h-5 w-5" />
+            <Sparkles className="h-4 w-4 shrink-0 text-teal-600" />
+            <span className="min-w-0 flex-1 truncate text-[clamp(13px,3.4vw,14.5px)] font-medium text-slate-400">Demandez à Bot…</span>
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
+              <ArrowUp className="h-4 w-4" />
             </span>
           </button>
-
-          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-2 gap-[clamp(6px,1.8vw,10px)]">
-            {[
-              { label: "Acheter", sub: "Je trouve et compare", Icon: ShoppingBag, onClick: () => glideThen(() => askBot("Je veux acheter ")), primary: true },
-              { label: "Vendre", sub: "Je trouve des acheteurs", Icon: Tag, onClick: () => glideThen(() => askBot("Je veux vendre ")), primary: false },
-              { label: "Trouver", sub: "Partout avec NEXUS", Icon: Globe2, onClick: () => glideThen(() => navigate("/app/nexus")), primary: false },
-              { label: "Demander", sub: "Parlez naturellement", Icon: MessageSquareText, onClick: () => glideThen(openNewWaouh), primary: false },
-            ].map(({ label, sub, Icon, onClick, primary }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={onClick}
-                data-waouh-action={label.toLowerCase()}
-                className={
-                  "flex min-h-11 min-w-0 flex-row items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
-                  (primary
-                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white"
-                    : "border border-slate-200/80 bg-white/90 text-slate-800 hover:bg-white")
-                }
-              >
-                <Icon className={"h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] shrink-0 " + (primary ? "text-white" : "text-blue-600")} />
-                <span className="min-w-0 leading-tight">
-                  <span className="block truncate text-[clamp(12px,3.2vw,14px)] font-black">{label}</span>
-                  <span className={"hidden sm:block truncate text-[clamp(11.5px,2.9vw,12.5px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
-                </span>
-              </button>
-            ))}
-          </div>
 
           <BotWorkingStrip activeDeals={matchChats.matches?.length ?? 0} className="mt-[clamp(10px,2.6vw,14px)]" />
         </section>
@@ -636,6 +636,7 @@ export default function ChatListScreen() {
             </SheetContent>
           </Sheet>
         )}
+        <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
       </div>
     );
   }
@@ -643,6 +644,7 @@ export default function ChatListScreen() {
   return (
     <div className="min-h-[100dvh] waouh-chat-list-bg">
       {listContent}
+      <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
     </div>
   );
 }

@@ -8,6 +8,14 @@ import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 
 export type QuickAskKind = "acheter" | "vendre" | "trouver" | "demander";
 
+/** Les 4 actions passent toutes par le moteur NEXUS, comme "Trouver". */
+const NEXUS_MODE: Record<QuickAskKind, string> = {
+  acheter: "find_sellers",
+  vendre: "find_buyers",
+  trouver: "auto",
+  demander: "auto",
+};
+
 const COPY: Record<QuickAskKind, {
   title: string; line: string; field: string; chips: string[]; cta: string; budget: string | null; path: (p: URLSearchParams) => string;
 }> = {
@@ -18,7 +26,7 @@ const COPY: Record<QuickAskKind, {
     chips: ["Samsung S25", "Moto d’occasion", "Climatiseur 1,5 CV"],
     cta: "Chercher pour moi",
     budget: "Budget max (FCFA)",
-    path: (p) => `/app/avatar/acheter?${p}`,
+    path: (p) => `/app/nexus?${p}`,
   },
   vendre: {
     title: "Vendre",
@@ -27,7 +35,7 @@ const COPY: Record<QuickAskKind, {
     chips: ["Mon téléphone", "10 tonnes de soja", "Ma moto"],
     cta: "Trouver des acheteurs",
     budget: "Prix souhaité (FCFA)",
-    path: (p) => `/app/avatar/vendre?${p}`,
+    path: (p) => `/app/nexus?${p}`,
   },
   trouver: {
     title: "Trouver",
@@ -45,7 +53,7 @@ const COPY: Record<QuickAskKind, {
     chips: ["Un livreur fiable", "Traiteur pour 50 personnes", "Un plombier"],
     cta: "Demander à Bot",
     budget: null,
-    path: (p) => `/app/avatar/demander?${p}`,
+    path: (p) => `/app/nexus?${p}`,
   },
 };
 
@@ -68,7 +76,7 @@ export function WaouhQuickAsk({
     const p = new URLSearchParams({ q: q.trim(), go: "1" });
     if (city.trim()) p.set("city", city.trim());
     if (budget) p.set("budget", budget);
-    if (kind === "trouver") p.set("mode", "auto");
+    p.set("mode", NEXUS_MODE[kind]);
     onSubmit(c.path(p));
   };
 

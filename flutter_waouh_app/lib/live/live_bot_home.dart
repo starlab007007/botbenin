@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'avatar/bot_character.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
+import 'live_quick_ask.dart';
 import 'live_theme.dart';
 
 /// UI V3 — Bot, cœur de WAOUH, sur l'accueil Flutter (parité avec le Web
@@ -164,9 +166,12 @@ class _BotHomeHeroState extends State<BotHomeHero> {
     }));
   }
 
-  void _prompt(String seed) {
-    final onPrompt = widget.onPrompt;
-    _glideThen(onPrompt == null ? widget.onAsk : () => onPrompt(seed));
+  /// Les 4 actions essentielles pilotent toutes NEXUS, avec les mêmes étapes
+  /// que "Trouver" : une question, puis la recherche démarre automatiquement.
+  void _askQuick(LiveQuickAskKind kind) {
+    showLiveQuickAsk(context, kind).then((path) {
+      if (path != null && mounted) context.push(path);
+    });
   }
 
   BotExpression get _expression => _leaving
@@ -309,26 +314,6 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                             ),
                           if (_typing && _shown < _steps)
                             _TypingBubble(scale: k),
-                          if (_shown >= _steps)
-                            Wrap(
-                              spacing: 6 * k,
-                              runSpacing: 6 * k,
-                              children: [
-                                _ChoiceChip(label: 'Acheter', scale: k, onTap: () => _prompt('Je veux acheter ')),
-                                _ChoiceChip(label: 'Vendre', scale: k, onTap: () => _prompt('Je veux vendre ')),
-                                widget.missionCount + widget.approvalCount > 0
-                                    ? _ChoiceChip(
-                                        label: 'Voir mes missions',
-                                        scale: k,
-                                        onTap: () => _glideThen(widget.onMissions),
-                                      )
-                                    : _ChoiceChip(
-                                        label: 'Trouver une opportunité',
-                                        scale: k,
-                                        onTap: () => _glideThen(widget.onFindOpportunity),
-                                      ),
-                              ],
-                            ),
                         ],
                       ),
                     ),
@@ -392,19 +377,18 @@ class _BotHomeHeroState extends State<BotHomeHero> {
             ),
           ),
           SizedBox(height: 10 * k),
-          // UI V3 — un seul jeu d'actions, clair et sans doublon (parité avec
-          // le Web : Acheter/Vendre/Trouver/Demander), au lieu de trois
-          // boutons dont deux ouvraient la même conversation.
+          // UI V3 — les 4 actions essentielles, chacune pilotant NEXUS avec
+          // les mêmes étapes que "Trouver" (parité avec le Web).
           Row(
             children: [
               Expanded(
                 child: _HeroAction(
                   icon: Icons.shopping_bag_outlined,
                   label: 'Acheter',
-                  caption: 'Je trouve et compare',
-                  primary: true,
+                  accent: WaouhPalette.blue,
+                  background: const Color(0xFFEAF3FF),
                   scale: k,
-                  onTap: () => _prompt('Je veux acheter '),
+                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.acheter)),
                 ),
               ),
               SizedBox(width: 7 * k),
@@ -412,9 +396,10 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                 child: _HeroAction(
                   icon: Icons.sell_outlined,
                   label: 'Vendre',
-                  caption: "J'ai un acheteur",
+                  accent: const Color(0xFFE18A27),
+                  background: const Color(0xFFFFF2E2),
                   scale: k,
-                  onTap: () => _prompt('Je veux vendre '),
+                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.vendre)),
                 ),
               ),
             ],
@@ -426,9 +411,10 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                 child: _HeroAction(
                   icon: Icons.travel_explore_rounded,
                   label: 'Trouver',
-                  caption: 'une opportunité',
+                  accent: const Color(0xFF2A9CCB),
+                  background: const Color(0xFFEAF9FC),
                   scale: k,
-                  onTap: widget.onFindOpportunity,
+                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.trouver)),
                 ),
               ),
               SizedBox(width: 7 * k),
@@ -436,9 +422,10 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                 child: _HeroAction(
                   icon: Icons.chat_bubble_outline_rounded,
                   label: 'Demander',
-                  caption: 'avec $name',
+                  accent: const Color(0xFF8B7CFF),
+                  background: const Color(0xFFF2EFFF),
                   scale: k,
-                  onTap: () => _glideThen(widget.onAsk),
+                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.demander)),
                 ),
               ),
             ],
@@ -449,40 +436,6 @@ class _BotHomeHeroState extends State<BotHomeHero> {
       ),
     );
   }
-}
-
-class _ChoiceChip extends StatelessWidget {
-  const _ChoiceChip({required this.label, required this.scale, required this.onTap});
-
-  final String label;
-  final double scale;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.white,
-        shape: StadiumBorder(
-          side: BorderSide(color: const Color(0xFF0F766E), width: 1.5 * scale.clamp(.9, 1.1).toDouble()),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const StadiumBorder(),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 40),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 13 * scale, vertical: 8 * scale),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: const Color(0xFF115E59),
-                  fontSize: 13 * scale,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
 }
 
 class _Pill extends StatelessWidget {
@@ -646,74 +599,70 @@ class _TypingBubbleState extends State<_TypingBubble>
       );
 }
 
+// Les 4 grandes fonctionnalités (Acheter/Vendre/Trouver/Demander) sont mises
+// en avant à égalité — même traitement visuel, une teinte par action
+// (parité avec les cartes du Web et de l'écran Avatar).
 class _HeroAction extends StatelessWidget {
   const _HeroAction({
     required this.icon,
     required this.label,
-    required this.caption,
     required this.scale,
     required this.onTap,
-    this.primary = false,
+    required this.accent,
+    required this.background,
   });
 
   final IconData icon;
   final String label;
-  final String caption;
   final double scale;
   final VoidCallback onTap;
-  final bool primary;
+  final Color accent;
+  final Color background;
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Ink(
-            height: 62 * scale,
+          child: Container(
+            height: 60 * scale,
+            padding: EdgeInsets.symmetric(horizontal: 11 * scale),
             decoration: BoxDecoration(
-              gradient: primary
-                  ? const LinearGradient(
-                      colors: [Color(0xFF14B8A6), Color(0xFF0891B2)],
-                    )
-                  : null,
-              color: primary ? null : Colors.white.withValues(alpha: .92),
-              borderRadius: BorderRadius.circular(18),
-              border: primary
-                  ? null
-                  : Border.all(color: const Color(0xFFE2EBF5)),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: .22),
+                  blurRadius: 18 * scale,
+                  offset: Offset(0, 8 * scale),
+                  spreadRadius: -11 * scale,
+                ),
+              ],
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
               children: [
-                Icon(
-                  icon,
-                  size: 19 * scale,
-                  color: primary ? Colors.white : WaouhPalette.blue,
-                ),
-                SizedBox(height: 3 * scale),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primary ? Colors.white : WaouhPalette.ink,
-                    fontSize: 12 * scale,
-                    height: 1.05,
-                    fontWeight: FontWeight.w900,
+                Container(
+                  width: 34 * scale,
+                  height: 34 * scale,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(12 * scale),
                   ),
+                  child: Icon(icon, size: 18 * scale, color: Colors.white),
                 ),
-                Text(
-                  caption,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primary
-                        ? Colors.white.withValues(alpha: .8)
-                        : WaouhPalette.muted,
-                    fontSize: 11 * scale,
-                    height: 1.1,
-                    fontWeight: FontWeight.w600,
+                SizedBox(width: 9 * scale),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: WaouhPalette.ink,
+                      fontSize: 14.5 * scale,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
