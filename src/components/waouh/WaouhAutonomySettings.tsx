@@ -9,7 +9,8 @@ export function WaouhAutonomySettings({appearance}:{appearance?:ReactNode}) {
   const [rules,setRules]=useState<AvatarAutonomySettings>({...DEFAULT_AVATAR_AUTONOMY});
   const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState(false);
   const [section,setSection]=useState('');
-  useEffect(()=>{let active=true;setLoading(true);if(!user){setLoading(false);return;}loadAvatarAutonomy().then(r=>{if(active)setRules(r);}).catch(()=>{if(active)setError('Chargement impossible. Réessayez avant de modifier vos règles.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[user?.id]);
+  const [reload,setReload]=useState(0);
+  useEffect(()=>{let active=true;setLoading(true);setError('');if(!user){setLoading(false);return;}loadAvatarAutonomy().then(r=>{if(active)setRules(r);}).catch(()=>{if(active)setError('Chargement impossible. Réessayez avant de modifier vos règles.');}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[user?.id,reload]);
   const patch=(p:Partial<AvatarAutonomySettings>)=>{setRules(r=>({...r,...p}));setSaved(false);};
   const field=(key:keyof AvatarAutonomySettings,label:string,type='text')=><label className="wap-field"><span>{label}</span><input type={type} value={String(rules[key]??'')} onChange={e=>patch({[key]:type==='number'?(e.target.value?Number(e.target.value):null):e.target.value})} min={type==='number'?1:undefined} max={type==='number'?1e9:undefined} maxLength={1000}/></label>;
   const select=(key:keyof AvatarAutonomySettings,label:string,options:Array<[string|number,string]>)=><label className="wap-field"><span>{label}</span><select value={String(rules[key])} onChange={e=>patch({[key]:typeof rules[key]==='number'?Number(e.target.value):e.target.value})}>{options.map(([value,text])=><option value={value} key={value}>{text}</option>)}</select></label>;
@@ -32,6 +33,6 @@ export function WaouhAutonomySettings({appearance}:{appearance?:ReactNode}) {
       <button type="button" className="wap-primary" onClick={()=>void store()} disabled={saving||!!error&&error.startsWith('Chargement')}><Check size={18}/>{saving?'Enregistrement…':'Enregistrer mes règles'}</button>
       {saved&&<p className="wap-notice" role="status">Vos règles sont enregistrées sur votre compte.</p>}
     </>}
-    {error&&<p className="wap-error" role="alert">{error}</p>}
+    {error&&<p className="wap-error" role="alert">{error}</p>}{error.startsWith('Chargement')&&<button type="button" className="wap-link" onClick={()=>setReload(v=>v+1)}>Réessayer</button>}
   </section>;
 }

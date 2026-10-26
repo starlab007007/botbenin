@@ -372,7 +372,7 @@ async function testDesktopSidebar(viewport) {
 async function testRoutes(viewport) {
   const routes = [
     ["/app/chat", "Que puis-je faire pour vous", false],
-    ["/app/avatar", "Réglage avatar", false],
+    ["/app/avatar", "Mon Avatar, mes règles", false],
     ["/app/avatar/acheter", "Acheter avec mon Avatar", true],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
     ["/app/avatar/demander", "Demander à mon Avatar", true],

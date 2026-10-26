@@ -20,10 +20,16 @@ export function WaouhEssentialOffers({ results, city = '', renderActions }: { re
   const offers = useMemo(() => uniqueOffers(results), [results]);
   const [active, setActive] = useState<string | null>(null), [selected, setSelected] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false), [filter, setFilter] = useState('all'), [compare, setCompare] = useState(false), [photo, setPhoto] = useState(0), [gallery, setGallery] = useState(false);
-  useEffect(() => { setActive(null); setSelected([]); setCompare(false); setFilter('all'); setGallery(false); }, [results]);
+  useEffect(() => {
+    const ids=new Set(uniqueOffers(results).map(r=>r.fabric_id));
+    setActive(id=>id&&ids.has(id)?id:null);
+    setSelected(previous=>previous.filter(id=>ids.has(id)));
+    if(!ids.size){setCompare(false);setFilter('all');setGallery(false);}
+  }, [results]);
   const item = offers.find(r => r.fabric_id === active);
   const visible = offers.filter(r => filter === 'near' ? !!city.trim() && normalizeOfferText(r.city) === normalizeOfferText(city) : filter === 'contact' ? contactPossible(r) : true);
   const chosen = offers.filter(r => selected.includes(r.fabric_id));
+  useEffect(()=>{if(chosen.length<2)setCompare(false);},[chosen.length]);
   const toggle = (id: string) => setSelected(ids => ids.includes(id) ? ids.filter(x => x !== id) : ids.length < 5 ? [...ids,id] : ids);
   const people = knownPeopleCount(offers);
   if (!offers.length) return null;

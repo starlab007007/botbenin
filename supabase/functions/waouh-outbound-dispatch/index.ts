@@ -1,4 +1,5 @@
 import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
+import { autonomyWindowOpen,autonomyNextWindow } from "../_shared/waouh-avatar-autonomy-settings.ts";
 // WAOUH Outbound Dispatch — envoie les messages WhatsApp en attente via WAHA
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -840,6 +841,10 @@ Deno.serve(async (req) => {
         if (it.payload?.mandate_id && !it.payload?.request_id) {
           const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata").eq("id", it.payload.mandate_id).maybeSingle();
           if (error || !mandate || mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) blocked = "mandate_inactive";
+          if(!blocked&&mandate&&!autonomyWindowOpen(mandate)){
+            await sb.from('waouh_outbound_queue').update({status:'pending',attempts:it.attempts,next_attempt_at:autonomyNextWindow(mandate).toISOString(),last_error:'avatar_outside_intervention_hours'}).eq('id',it.id).eq('status','sending');
+            skipped++;continue;
+          }
         }
         if (it.payload?.journey_id) {
           const { data: journey, error } = await sb.from("waouh_opportunity_journeys").select("stage,metadata").eq("id", it.payload.journey_id).maybeSingle();

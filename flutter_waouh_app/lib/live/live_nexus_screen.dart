@@ -181,6 +181,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       if (!mounted || version != _searchVersion) return;
       setState(() {
         discovery = value;
+        _selectedOffers.removeWhere(
+          (id) => !value.results.any((r) => r.fabricId == id),
+        );
         findSellers = value.findSellers;
         _events.add(
           LiveMissionActivity(

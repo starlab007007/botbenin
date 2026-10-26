@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {DEFAULT_AVATAR_AUTONOMY,normalizeAvatarAutonomy,avatarAutonomyError,autonomyWindowOpen,autonomyContactAllowed,autonomyStartsAt} from '../../../../supabase/functions/_shared/waouh-avatar-autonomy-settings';
+import {DEFAULT_AVATAR_AUTONOMY,normalizeAvatarAutonomy,avatarAutonomyError,autonomyWindowOpen,autonomyContactAllowed,autonomyStartsAt,autonomyNextWindow} from '../../../../supabase/functions/_shared/waouh-avatar-autonomy-settings';
 describe('Avatar autonomy contract',()=>{
   it('does not grant outreach or negotiation from malformed preferences',()=>{
     const rules=normalizeAvatarAutonomy({allow_contact:'yes',allow_negotiate:1,max_contacts:100,duration_hours:100000});
@@ -25,5 +25,12 @@ describe('Avatar autonomy contract',()=>{
     expect(autonomyStartsAt({...DEFAULT_AVATAR_AUTONOMY,start:'tomorrow'},new Date('2026-10-26T23:30:00Z')).toISOString()).toBe('2026-10-28T07:00:00.000Z');
     expect(autonomyWindowOpen({metadata:{}})).toBe(true);
     expect(normalizeAvatarAutonomy({agreement:'automatic'}).agreement).toBe('confirm');
+  });
+  it('defers a delayed queue item to the next intervention window',()=>{
+    const mandate={metadata:{autonomy_settings:DEFAULT_AVATAR_AUTONOMY}};
+    expect(autonomyNextWindow(mandate,new Date('2026-10-26T19:01:00Z')).toISOString()).toBe('2026-10-27T07:00:00.000Z');
+    expect(autonomyNextWindow(mandate,new Date('2026-10-26T06:30:00Z')).toISOString()).toBe('2026-10-26T07:00:00.000Z');
+    const deferred={metadata:{...mandate.metadata,starts_at:'2026-10-28T07:00:00Z'}};
+    expect(autonomyNextWindow(deferred,new Date('2026-10-26T10:00:00Z')).toISOString()).toBe('2026-10-28T07:00:00.000Z');
   });
 });

@@ -50,4 +50,12 @@ describe('Essential offers', () => {
     await render(rows);await click(host.querySelector('.we-select'));await click(host.querySelector('.we-card-open'));
     expect(document.querySelector('.we-detail')).not.toBeNull();await render([offer('new')]);expect(document.querySelector('.we-detail')).toBeNull();expect(host.querySelector('.we-compare-tray')).toBeNull();
   });
+  it('keeps the chosen offer open when new search results arrive progressively',async()=>{
+    const rows=[offer('a'),offer('b')];
+    await act(async()=>root.render(<WaouhEssentialOffers results={rows} renderActions={()=>null}/>));
+    await click(host.querySelector('.we-select'));await click(host.querySelector('.we-card-open'));
+    await act(async()=>root.render(<WaouhEssentialOffers results={[...rows,offer('c')]} renderActions={()=>null}/>));
+    expect(document.querySelector('.we-detail')).not.toBeNull();
+    expect(host.querySelector('.we-compare-tray')?.textContent).toContain('1 / 5');
+  });
 });

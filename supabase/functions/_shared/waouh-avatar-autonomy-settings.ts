@@ -43,3 +43,14 @@ export function autonomyContactAllowed(mandate:{autonomy_mode?:string;metadata?:
   const r=normalizeAvatarAutonomy(mandate.metadata.autonomy_settings);
   return r.allow_contact&&r.mode!=='assisted'&&autonomyWindowOpen(mandate,now);
 }
+/** A queued action is rechecked before sending, without consuming a retry. */
+export function autonomyNextWindow(mandate:{metadata?:Record<string,unknown>},now=new Date()):Date {
+  if(!mandate.metadata?.autonomy_settings)return now;
+  const rules=normalizeAvatarAutonomy(mandate.metadata.autonomy_settings);
+  const start=typeof mandate.metadata.starts_at==='string'?Date.parse(mandate.metadata.starts_at):NaN;
+  const at=new Date(Number.isFinite(start)?Math.max(now.getTime(),start):now.getTime());
+  const local=new Date(at.getTime()+3600000),clock=local.toISOString().slice(11,16);
+  if(clock>=rules.active_start&&clock<rules.active_end)return at;
+  const [hour,minute]=rules.active_start.split(':').map(Number);
+  return new Date(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()+(clock>=rules.active_end?1:0),hour-1,minute));
+}
