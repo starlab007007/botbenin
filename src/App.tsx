@@ -158,6 +158,7 @@ import { SystemTestPage } from "./pages/SystemTestPage";
 import { PlatformTestPage } from "./pages/PlatformTestPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
+import { AdminModulesPage } from "./pages/admin/AdminModulesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
 import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
 import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
@@ -305,6 +306,7 @@ const AppContent = () => {
                     {/* Admin dashboard - Protected */}
                     <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
                     <Route path="/admin/roles" element={<AdminRoute><AdminRolesPage /></AdminRoute>} />
+                    <Route path="/admin/modules" element={<AdminRoute><AdminModulesPage /></AdminRoute>} />
                     <Route path="/admin/permissions" element={<AdminRoute><AdminPermissionsPage /></AdminRoute>} />
                     <Route path="/admin/users" element={<AdminRoute><AdminUsersManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />

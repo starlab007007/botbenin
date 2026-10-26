@@ -19,6 +19,7 @@ import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
 import 'live_match_chat_v2.dart';
 import 'live_error_fallback.dart';
+import 'live_frontend_modules.dart';
 import 'live_menu_sheet.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
@@ -95,6 +96,13 @@ class LiveWaouhProductionApp extends StatelessWidget {
                 legacy.PartnerController(context.read<legacy.AuthController>()),
             update: (_, auth, previous) =>
                 previous ?? legacy.PartnerController(auth),
+          ),
+          ChangeNotifierProxyProvider<legacy.AuthController,
+              FrontendModulesController>(
+            create: (context) =>
+                FrontendModulesController(context.read<legacy.AuthController>()),
+            update: (_, auth, previous) =>
+                previous ?? FrontendModulesController(auth),
           ),
         ],
         child: Builder(

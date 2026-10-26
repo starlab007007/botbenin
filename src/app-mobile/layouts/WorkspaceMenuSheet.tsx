@@ -4,10 +4,11 @@ import { LockKeyhole, Search } from 'lucide-react';
 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { filterNavigationSections, type NavigationItem } from '@/erp/navigation';
+import { filterNavigationSections, filterNavigationSectionsByVisibility, type NavigationItem } from '@/erp/navigation';
 import { requiresWaouhAuthentication } from '@/lib/waouhAccessPolicy';
 import { useMobileAuth } from '../hooks/useMobileAuth';
 import { unreadBadge } from '../utils/chatSpaceLayout';
+import { useFrontendModules } from '@/hooks/useFrontendModules';
 
 type Props = {
   open: boolean;
@@ -26,7 +27,11 @@ export const WorkspaceMenuSheet = ({ open, onOpenChange, side = 'bottom', unread
   const { pathname } = useLocation();
   const { user } = useMobileAuth();
   const [query, setQuery] = useState('');
-  const sections = useMemo(() => filterNavigationSections(query), [query]);
+  const { visibleKeys } = useFrontendModules();
+  const sections = useMemo(
+    () => filterNavigationSectionsByVisibility(filterNavigationSections(query), visibleKeys),
+    [query, visibleKeys],
+  );
 
   const go = (item: NavigationItem) => {
     onOpenChange(false);

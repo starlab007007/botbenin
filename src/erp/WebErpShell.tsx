@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 import { useMobileProfile } from '@/app-mobile/hooks/useMobileProfile';
+import { useFrontendModules } from '@/hooks/useFrontendModules';
 
 import { CenterCanvas } from './CenterCanvas';
 import { ErpBrickCanvas, preloadBrick, type BrickId } from './ErpBrickCanvas';
@@ -56,6 +57,7 @@ import {
   CHAT_PATH,
   navigationSections,
   navigation,
+  filterNavigationSectionsByVisibility,
 } from './navigation';
 
 
@@ -228,8 +230,14 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
+  const { visibleKeys } = useFrontendModules();
   // Sous 1440 px la barre latérale démarre repliée en rail d'icônes (même contenu, plus de place pour le travail).
   const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1440);
+
+  const visibleNavigationSections = useMemo(
+    () => filterNavigationSectionsByVisibility(navigationSections, visibleKeys),
+    [visibleKeys],
+  );
 
   const activeBrick = useMemo(
     () => brickForLocation(location.pathname, location.search),
@@ -296,7 +304,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         {!collapsed && <div className="waouh-erp-nav-label">ESPACE DE TRAVAIL</div>}
 
         <nav className="waouh-erp-nav">
-          {navigationSections.map((section) => (
+          {visibleNavigationSections.map((section) => (
             <div key={section.title} className="waouh-erp-nav__group">
               {!collapsed && <div className="waouh-erp-nav__group-title">{section.title}</div>}
               {section.items.map((item) => {
