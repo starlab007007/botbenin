@@ -1,3 +1,4 @@
+import 'live_avatar_autonomy.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -45,196 +46,13 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatar = context.watch<LiveAvatarController>();
-    if (!avatar.loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (!avatar.profile.configured || _editing) {
+    if (_editing)
       return _AvatarSetupScreen(
-        editMode: avatar.profile.configured,
+        editMode: true,
         onDone: () => setState(() => _editing = false),
       );
-    }
-
-    final waouh = context.watch<LiveWaouhController>();
-    final agentic = waouh.agentic;
-
-    final presence = avatar.state != LiveAvatarPresenceState.idle
-        ? avatar.state
-        : agentic.pendingApprovalCount > 0
-            ? LiveAvatarPresenceState.waiting
-            : agentic.activeMissionCount > 0
-                ? LiveAvatarPresenceState.searching
-                : agentic.activeWatchCount > 0
-                    ? LiveAvatarPresenceState.watching
-                    : LiveAvatarPresenceState.idle;
-
-    final status = agentic.pendingApprovalCount > 0
-        ? 'Une décision vous attend.'
-        : agentic.activeMissionCount > 0
-            ? 'Je poursuis vos missions.'
-            : agentic.activeWatchCount > 0
-                ? 'Je surveille le marché pour vous.'
-                : 'Je suis prêt. Que faisons-nous ?';
-
-    return Scaffold(
-      backgroundColor: WaouhPalette.pearl,
-      appBar: LiveHeader(
-        title: avatar.name,
-        subtitle: 'Votre Avatar WAOUH · ${avatar.profile.personality}',
-        back: true,
-        actions: [
-          IconButton(
-            tooltip: 'Réglage avatar',
-            onPressed: () => setState(() => _editing = true),
-            icon: const Icon(Icons.tune_rounded),
-          ),
-        ],
-      ),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(gradient: WaouhGradients.air),
-        child: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-          children: [
-            _AvatarHero(
-              avatar: avatar,
-              presence: presence,
-              status: status,
-            ),
-            const SizedBox(height: 12),
-            _AvatarPromptBar(
-              suggestions: agentic.pendingApprovalCount > 0
-                  ? const [
-                      'Que dois-je valider ?',
-                      'Résume mes négociations',
-                      'Quelles actions sont urgentes ?'
-                    ]
-                  : agentic.activeMissionCount > 0
-                      ? const [
-                          'Où en sont mes missions ?',
-                          'Compare les meilleures options',
-                          'Que faut-il faire ensuite ?'
-                        ]
-                      : const [
-                          'Trouve-moi un bon téléphone à Cotonou',
-                          'Je veux vendre un produit',
-                          'Aide-moi à trouver un service'
-                        ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Que voulez-vous faire ?',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _GoalCard(
-                    icon: Icons.shopping_bag_outlined,
-                    title: 'Acheter',
-                    subtitle: 'Je trouve et compare',
-                    accent: WaouhPalette.blue,
-                    background: const Color(0xFFEAF3FF),
-                    onTap: () => _quick(context, LiveQuickAskKind.acheter),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _GoalCard(
-                    icon: Icons.sell_outlined,
-                    title: 'Vendre',
-                    subtitle: 'Je trouve des acheteurs',
-                    accent: const Color(0xFFE18A27),
-                    background: const Color(0xFFFFF2E2),
-                    onTap: () => _quick(context, LiveQuickAskKind.vendre),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _GoalCard(
-                    icon: Icons.travel_explore_rounded,
-                    title: 'Trouver',
-                    subtitle: 'Partout avec NEXUS',
-                    accent: const Color(0xFF2A9CCB),
-                    background: const Color(0xFFEAF9FC),
-                    onTap: () {
-                      avatar.showState(LiveAvatarPresenceState.searching);
-                      _quick(context, LiveQuickAskKind.trouver);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _GoalCard(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    title: 'Demander',
-                    subtitle: 'Parlez naturellement',
-                    accent: const Color(0xFF8B7CFF),
-                    background: const Color(0xFFF2EFFF),
-                    onTap: () => _quick(context, LiveQuickAskKind.demander),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            _AvatarActivityCard(
-              avatarName: avatar.name,
-              missions: agentic.activeMissionCount,
-              watches: agentic.activeWatchCount,
-              approvals: agentic.pendingApprovalCount,
-              onMissions: () => context.push('/app/missions'),
-            ),
-            const SizedBox(height: 14),
-            _ForYouCard(
-              avatarName: avatar.name,
-              missions: agentic.activeMissionCount,
-              watches: agentic.activeWatchCount,
-              approvals: agentic.pendingApprovalCount,
-              onNexus: () => context.push('/app/nexus'),
-              onMissions: () => context.push('/app/missions'),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: WaouhPalette.line),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.shield_outlined,
-                    color: WaouhPalette.blue,
-                    size: 21,
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Vous validez toujours les actions sensibles.',
-                      style: TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return LiveAvatarAutonomyScreen(
+      onAppearance: () => setState(() => _editing = true),
     );
   }
 }
@@ -252,76 +70,71 @@ class _AvatarHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-        decoration: BoxDecoration(
-          gradient: WaouhGradients.airHero,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: const Color(0xFFDCE7F8)),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+    decoration: BoxDecoration(
+      gradient: WaouhGradients.airHero,
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: const Color(0xFFDCE7F8)),
+      boxShadow: WaouhShadows.card,
+    ),
+    child: Column(
+      children: [
+        Stack(
+          alignment: Alignment.center,
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                LiveAvatarVisual(
-                  preset: avatar.profile.preset,
-                  state: presence,
-                  size: 148,
+            LiveAvatarVisual(
+              preset: avatar.profile.preset,
+              state: presence,
+              size: 148,
+            ),
+            Positioned(
+              right: 6,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .85),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: WaouhPalette.line),
                 ),
-                Positioned(
-                  right: 6,
-                  top: 8,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .85),
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: WaouhPalette.line),
-                    ),
-                    child: const Text(
-                      'WAOUH AI',
-                      style: TextStyle(
-                        color: WaouhPalette.blue,
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                child: const Text(
+                  'WAOUH AI',
+                  style: TextStyle(
+                    color: WaouhPalette.blue,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              avatar.name,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              status,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: WaouhPalette.muted,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-            const SizedBox(height: 9),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _MiniPill(label: avatar.profile.personality),
-                _MiniPill(label: avatar.profile.proactivity),
-                const _MiniPill(label: 'NEXUS'),
-              ],
             ),
           ],
         ),
-      );
-
+        const SizedBox(height: 5),
+        Text(avatar.name, style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 3),
+        Text(
+          status,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: WaouhPalette.muted,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _MiniPill(label: avatar.profile.personality),
+            _MiniPill(label: avatar.profile.proactivity),
+            const _MiniPill(label: 'NEXUS'),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _MiniPill extends StatelessWidget {
@@ -330,21 +143,21 @@ class _MiniPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.white70,
-          borderRadius: BorderRadius.circular(99),
-          border: Border.all(color: WaouhPalette.line),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: WaouhPalette.blue,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: Colors.white70,
+      borderRadius: BorderRadius.circular(99),
+      border: Border.all(color: WaouhPalette.line),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        color: WaouhPalette.blue,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 }
 
 class _GoalCard extends StatelessWidget {
@@ -366,55 +179,55 @@ class _GoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: background,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white),
-              boxShadow: WaouhShadows.card,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white70,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(icon, color: accent, size: 20),
-                ),
-                const SizedBox(height: 11),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: WaouhPalette.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: WaouhPalette.muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    color: background,
+    borderRadius: BorderRadius.circular(22),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white),
+          boxShadow: WaouhShadows.card,
         ),
-      );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white70,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: accent, size: 20),
+            ),
+            const SizedBox(height: 11),
+            Text(
+              title,
+              style: const TextStyle(
+                color: WaouhPalette.ink,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _AvatarActivityCard extends StatelessWidget {
@@ -434,78 +247,78 @@ class _AvatarActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onMissions,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              border: Border.all(color: WaouhPalette.line),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(22),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onMissions,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          border: Border.all(color: WaouhPalette.line),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      color: WaouhPalette.blue,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        'Ce que $avatarName fait pour vous',
-                        style: const TextStyle(
-                          color: WaouhPalette.ink,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Color(0xFF9AA9C0),
-                    ),
-                  ],
+                const Icon(
+                  Icons.bolt_rounded,
+                  color: WaouhPalette.blue,
+                  size: 20,
                 ),
-                const SizedBox(height: 11),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ActivityMetric(
-                        value: missions,
-                        label: 'Missions',
-                        icon: Icons.flag_outlined,
-                      ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Ce que $avatarName fait pour vous',
+                    style: const TextStyle(
+                      color: WaouhPalette.ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _ActivityMetric(
-                        value: watches,
-                        label: 'Veilles',
-                        icon: Icons.radar_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _ActivityMetric(
-                        value: approvals,
-                        label: 'À valider',
-                        icon: Icons.verified_user_outlined,
-                        alert: approvals > 0,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF9AA9C0),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                Expanded(
+                  child: _ActivityMetric(
+                    value: missions,
+                    label: 'Missions',
+                    icon: Icons.flag_outlined,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _ActivityMetric(
+                    value: watches,
+                    label: 'Veilles',
+                    icon: Icons.radar_rounded,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _ActivityMetric(
+                    value: approvals,
+                    label: 'À valider',
+                    icon: Icons.verified_user_outlined,
+                    alert: approvals > 0,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _ActivityMetric extends StatelessWidget {
@@ -523,40 +336,40 @@ class _ActivityMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-        decoration: BoxDecoration(
-          color: alert ? const Color(0xFFFFF3E2) : const Color(0xFFF5F8FF),
-          borderRadius: BorderRadius.circular(15),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+    decoration: BoxDecoration(
+      color: alert ? const Color(0xFFFFF3E2) : const Color(0xFFF5F8FF),
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Column(
+      children: [
+        Icon(
+          icon,
+          size: 17,
+          color: alert ? const Color(0xFFE18A27) : WaouhPalette.blue,
         ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 17,
-              color: alert ? const Color(0xFFE18A27) : WaouhPalette.blue,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$value',
-              style: const TextStyle(
-                color: WaouhPalette.ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: WaouhPalette.muted,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          '$value',
+          style: const TextStyle(
+            color: WaouhPalette.ink,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      );
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: WaouhPalette.muted,
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ForYouCard extends StatelessWidget {
@@ -674,10 +487,7 @@ class _ForYouCard extends StatelessWidget {
 }
 
 class _AvatarSetupScreen extends StatefulWidget {
-  const _AvatarSetupScreen({
-    required this.editMode,
-    required this.onDone,
-  });
+  const _AvatarSetupScreen({required this.editMode, required this.onDone});
 
   final bool editMode;
   final VoidCallback onDone;
@@ -735,11 +545,11 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
   Future<void> _save() async {
     setState(() => _saving = true);
     await context.read<LiveAvatarController>().saveProfile(
-          name: _name.text,
-          preset: _preset,
-          personality: _personality,
-          proactivity: _proactivity,
-        );
+      name: _name.text,
+      preset: _preset,
+      personality: _personality,
+      proactivity: _proactivity,
+    );
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onDone();
@@ -747,135 +557,120 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: WaouhPalette.pearl,
-        appBar: LiveHeader(
-          title: widget.editMode ? 'Réglage avatar' : 'Créer mon Avatar',
-          subtitle: widget.editMode
-              ? 'Ce que vous voulez de votre Avatar'
-              : 'Son style',
-          back: widget.editMode,
-        ),
-        body: DecoratedBox(
-          decoration: const BoxDecoration(gradient: WaouhGradients.air),
-          child: ListView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+    backgroundColor: WaouhPalette.pearl,
+    appBar: LiveHeader(
+      title: widget.editMode ? 'Réglage avatar' : 'Créer mon Avatar',
+      subtitle: widget.editMode
+          ? 'Ce que vous voulez de votre Avatar'
+          : 'Son style',
+      back: widget.editMode,
+    ),
+    body: DecoratedBox(
+      decoration: const BoxDecoration(gradient: WaouhGradients.air),
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+        children: [
+          Center(
+            child: LiveAvatarVisual(
+              preset: _preset,
+              state: LiveAvatarPresenceState.listening,
+              size: 142,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _name,
+            textAlign: TextAlign.center,
+            maxLength: 18,
+            decoration: const InputDecoration(
+              labelText: 'Nom de votre Avatar',
+              hintText: 'Ex. Bot',
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('Apparence', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 9),
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 9,
+            crossAxisSpacing: 9,
+            childAspectRatio: 1.05,
             children: [
-              Center(
-                child: LiveAvatarVisual(
-                  preset: _preset,
-                  state: LiveAvatarPresenceState.listening,
-                  size: 142,
+              for (final preset in LiveAvatarPreset.values)
+                _PresetCard(
+                  preset: preset,
+                  selected: preset == _preset,
+                  onTap: () => setState(() => _preset = preset),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _name,
-                textAlign: TextAlign.center,
-                maxLength: 18,
-                decoration: const InputDecoration(
-                  labelText: 'Nom de votre Avatar',
-                  hintText: 'Ex. Bot',
-                  counterText: '',
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Apparence',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 9),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 9,
-                crossAxisSpacing: 9,
-                childAspectRatio: 1.05,
-                children: [
-                  for (final preset in LiveAvatarPreset.values)
-                    _PresetCard(
-                      preset: preset,
-                      selected: preset == _preset,
-                      onTap: () => setState(() => _preset = preset),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Personnalité',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  for (var i = 0; i < personalities.length; i++) ...[
-                    Expanded(
-                      child: _IconChoice(
-                        icon: _personalityIcon[personalities[i]]!,
-                        label: personalities[i],
-                        selected: _personality == personalities[i],
-                        onTap: () => setState(
-                          () => _personality = personalities[i],
-                        ),
-                      ),
-                    ),
-                    if (i != personalities.length - 1)
-                      const SizedBox(width: 6),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Initiative',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  for (var i = 0; i < proactivities.length; i++) ...[
-                    Expanded(
-                      child: _IconChoice(
-                        icon: _proactivityIcon[proactivities[i]]!,
-                        label: proactivities[i],
-                        selected: _proactivity == proactivities[i],
-                        onTap: () => setState(
-                          () => _proactivity = proactivities[i],
-                        ),
-                      ),
-                    ),
-                    if (i != proactivities.length - 1)
-                      const SizedBox(width: 6),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox.square(
-                        dimension: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_rounded),
-                label: Text(
-                  widget.editMode ? 'Enregistrer' : 'Créer mon Avatar',
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enregistré sur cet appareil.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: WaouhPalette.muted,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 18),
+          Text('Personnalité', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < personalities.length; i++) ...[
+                Expanded(
+                  child: _IconChoice(
+                    icon: _personalityIcon[personalities[i]]!,
+                    label: personalities[i],
+                    selected: _personality == personalities[i],
+                    onTap: () =>
+                        setState(() => _personality = personalities[i]),
+                  ),
+                ),
+                if (i != personalities.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text('Initiative', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < proactivities.length; i++) ...[
+                Expanded(
+                  child: _IconChoice(
+                    icon: _proactivityIcon[proactivities[i]]!,
+                    label: proactivities[i],
+                    selected: _proactivity == proactivities[i],
+                    onTap: () =>
+                        setState(() => _proactivity = proactivities[i]),
+                  ),
+                ),
+                if (i != proactivities.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox.square(
+                    dimension: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome_rounded),
+            label: Text(widget.editMode ? 'Enregistrer' : 'Créer mon Avatar'),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Enregistré sur cet appareil.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: WaouhPalette.muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PresetCard extends StatelessWidget {
@@ -891,46 +686,43 @@ class _PresetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFEAF2FF) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(6, 8, 6, 7),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFFB8CCFF)
-                    : WaouhPalette.line,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: LiveAvatarVisual(
-                    preset: preset,
-                    size: 68,
-                    showStatusBadge: false,
-                  ),
-                ),
-                Text(
-                  preset.label,
-                  style: TextStyle(
-                    color: selected ? WaouhPalette.blue : WaouhPalette.ink,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
+    color: selected ? const Color(0xFFEAF2FF) : Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(6, 8, 6, 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? const Color(0xFFB8CCFF) : WaouhPalette.line,
+            width: selected ? 1.5 : 1,
           ),
         ),
-      );
+        child: Column(
+          children: [
+            Expanded(
+              child: LiveAvatarVisual(
+                preset: preset,
+                size: 68,
+                showStatusBadge: false,
+              ),
+            ),
+            Text(
+              preset.label,
+              style: TextStyle(
+                color: selected ? WaouhPalette.blue : WaouhPalette.ink,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
-
 
 /// Réglage avatar — symbole d'abord, texte minimal : une icône avec une
 /// légende courte, pas un bouton-texte (parité avec le Web).
@@ -949,45 +741,45 @@ class _IconChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFEAF2FF) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: selected ? const Color(0xFFB8CCFF) : WaouhPalette.line,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: selected ? WaouhPalette.blue : WaouhPalette.muted,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: selected ? WaouhPalette.blue : WaouhPalette.muted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
+    color: selected ? const Color(0xFFEAF2FF) : Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? const Color(0xFFB8CCFF) : WaouhPalette.line,
+            width: selected ? 1.5 : 1,
           ),
         ),
-      );
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? WaouhPalette.blue : WaouhPalette.muted,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: selected ? WaouhPalette.blue : WaouhPalette.muted,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// Barre de demande libre + suggestions (parité Web : toute nouvelle demande
@@ -1026,50 +818,51 @@ class _AvatarPromptBarState extends State<_AvatarPromptBar> {
 
   @override
   Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _c,
-            textInputAction: TextInputAction.send,
-            onSubmitted: _ask,
-            decoration: InputDecoration(
-              hintText: 'Dites-moi ce qu’il vous faut…',
-              filled: true,
-              fillColor: Colors.white,
-              prefixIcon: const Icon(Icons.auto_awesome_rounded),
-              suffixIcon: IconButton(
-                tooltip: 'Envoyer',
-                onPressed: () => _ask(_c.text),
-                icon: const Icon(Icons.send_rounded, color: WaouhPalette.blue),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xFFD9E6FF)),
-              ),
-            ),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      TextField(
+        controller: _c,
+        textInputAction: TextInputAction.send,
+        onSubmitted: _ask,
+        decoration: InputDecoration(
+          hintText: 'Dites-moi ce qu’il vous faut…',
+          filled: true,
+          fillColor: Colors.white,
+          prefixIcon: const Icon(Icons.auto_awesome_rounded),
+          suffixIcon: IconButton(
+            tooltip: 'Envoyer',
+            onPressed: () => _ask(_c.text),
+            icon: const Icon(Icons.send_rounded, color: WaouhPalette.blue),
           ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final chip in widget.suggestions)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      label: Text(chip),
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFFD9E6FF)),
-                      labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF315BD8),
-                          fontSize: 12),
-                      onPressed: () => _ask(chip),
-                    ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFD9E6FF)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final chip in widget.suggestions)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ActionChip(
+                  label: Text(chip),
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFD9E6FF)),
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF315BD8),
+                    fontSize: 12,
                   ),
-              ],
-            ),
-          ),
-        ],
-      );
+                  onPressed: () => _ask(chip),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

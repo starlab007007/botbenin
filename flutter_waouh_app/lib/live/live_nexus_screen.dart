@@ -1,3 +1,6 @@
+import 'live_premium_mission.dart';
+import 'live_avatar_autonomy.dart';
+import 'live_essential_offers.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,6 +27,7 @@ class LiveNexusScreen extends StatefulWidget {
     this.initialCity,
     this.initialBudget,
     this.initialMode,
+    this.initialKind,
     this.autoLaunch = false,
   });
 
@@ -35,6 +39,7 @@ class LiveNexusScreen extends StatefulWidget {
   /// Parité Web `?mode=` : 'find_sellers' (Acheter), 'find_buyers' (Vendre)
   /// ou 'auto' (Trouver/Demander). Ignoré si absent ou non reconnu.
   final String? initialMode;
+  final String? initialKind;
   final bool autoLaunch;
   @override
   State<LiveNexusScreen> createState() => _LiveNexusScreenState();
@@ -58,6 +63,12 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   String sellNotes = '';
   bool smartMode = true;
   bool busy = false;
+  bool _started = false, _paused = false, _refreshing = false;
+  int _searchVersion = 0;
+  String? _liveError;
+  String _kind = 'trouver';
+  final List<LiveMissionActivity> _events = [];
+  final Set<String> _selectedOffers = {};
   String shareOrigin = 'whatsapp';
   String? shareImageUrl;
   String? shareImageName;
@@ -69,6 +80,13 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   void initState() {
     super.initState();
     service = LiveNexusService(legacy.supabase);
+    _kind =
+        widget.initialKind ??
+        (widget.initialMode == 'find_buyers'
+            ? 'vendre'
+            : widget.initialMode == 'find_sellers'
+            ? 'acheter'
+            : 'trouver');
     query.text = widget.initialQuery ?? '';
     city.text = widget.initialCity ?? '';
     budget.text = widget.initialBudget ?? '';
@@ -89,9 +107,18 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   @override
   void dispose() {
+    _searchVersion++;
     for (final item in <TextEditingController>[
-      query, city, budget, shareText, shareUrl,
-      scoutTitle, scoutPrice, scoutCity, scoutPlace, scoutGtin,
+      query,
+      city,
+      budget,
+      shareText,
+      shareUrl,
+      scoutTitle,
+      scoutPrice,
+      scoutCity,
+      scoutPlace,
+      scoutGtin,
     ]) {
       item.dispose();
     }
@@ -109,48 +136,75 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   Future<void> runSearch() async {
     final text = query.text.trim();
     if (text.isEmpty) {
-      notice('Décrivez ce que WAOUH doit chercher.');
+      notice('Décrivez votre besoin.');
       return;
     }
-    setState(() => busy = true);
+    final version = ++_searchVersion;
+    setState(() {
+      busy = true;
+      _started = true;
+      _paused = false;
+      _refreshing = false;
+      _liveError = null;
+      discovery = null;
+      _selectedOffers.clear();
+      _events
+        ..clear()
+        ..add(LiveMissionActivity('Recherche lancée selon votre besoin.'));
+    });
     try {
-      final maxBudget =
-          double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
-      final value = await service.search(
+      final value = await service.searchProgressive(
         query: text,
         findSellers: findSellers,
         smartMode: smartMode,
         city: city.text.trim(),
-        budgetMax: maxBudget,
+        budgetMax: findSellers
+            ? double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''))
+            : null,
+        refreshExternal: legacy.supabase.auth.currentSession != null,
+        onIndexed: (indexed) {
+          if (!mounted || version != _searchVersion) return;
+          setState(() {
+            discovery = indexed;
+            findSellers = indexed.findSellers;
+            _refreshing = true;
+            _events.add(
+              LiveMissionActivity(
+                indexed.results.isEmpty
+                    ? 'Première recherche terminée. Recherche de nouvelles pistes.'
+                    : '${indexed.results.length} premières offres reçues.',
+              ),
+            );
+          });
+        },
       );
-      if (!mounted) return;
+      if (!mounted || version != _searchVersion) return;
       setState(() {
         discovery = value;
+        _selectedOffers.removeWhere(
+          (id) => !value.results.any((r) => r.fabricId == id),
+        );
         findSellers = value.findSellers;
-        final plan = value.intelligence;
-        if (smartMode &&
-            plan?.city != null &&
-            plan!.city!.trim().isNotEmpty &&
-            city.text.trim().isEmpty) {
-          city.text = plan.city!;
-        }
-        if (smartMode &&
-            value.findSellers &&
-            budget.text.trim().isEmpty &&
-            plan?.budgetMax != null) {
-          budget.text = plan!.budgetMax!.round().toString();
-        }
+        _events.add(
+          LiveMissionActivity(
+            value.results.isEmpty
+                ? 'Recherche terminée. Aucune piste pour le moment.'
+                : '${value.results.length} offres reçues. Vous pouvez les comparer.',
+          ),
+        );
       });
-      if (value.results.isEmpty) {
-        notice(value.findSellers
-            ? 'Aucun vendeur suffisamment proche pour le moment.'
-            : 'Aucun acheteur suffisamment proche pour le moment.');
-      }
-      loadSources();
-    } catch (error) {
-      if (mounted) notice(errorText(error));
+    } catch (_) {
+      if (mounted && version == _searchVersion)
+        setState(() {
+          _liveError = 'Recherche interrompue. Réessayez.';
+          _events.add(
+            LiveMissionActivity(
+              'Recherche interrompue. Vos premières pistes restent accessibles.',
+            ),
+          );
+        });
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted && version == _searchVersion) setState(() => busy = false);
     }
   }
 
@@ -159,7 +213,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'analyser une photo avec NEXUS',
-    )) return;
+    ))
+      return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.camera,
       imageQuality: 82,
@@ -188,7 +243,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'analyser un code-barres avec NEXUS',
-    )) return;
+    ))
+      return;
     final code = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -218,7 +274,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/missions',
       actionLabel: 'confier la recherche à votre Avatar',
-    )) return;
+    ))
+      return;
     final goal = query.text.trim();
     if (goal.isEmpty) {
       notice('Lancez d’abord une recherche.');
@@ -226,26 +283,26 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     }
     setState(() => busy = true);
     try {
-      final maxBudget =
-          double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
+      final maxBudget = double.tryParse(
+        budget.text.replaceAll(RegExp(r'\D'), ''),
+      );
+      final rules = await loadLiveAvatarAutonomy();
       await service.createMandate(
         mode: findSellers ? 'buy' : 'sell',
         goal: goal,
-        autonomyMode: 'semi_autonomous',
+        autonomyMode: '${rules['mode']}',
         city: city.text.trim(),
         budgetMax: maxBudget,
-        maxContacts: 3,
-        maxFollowups: 1,
-        durationHours: 24,
-        scanIntervalMinutes: 60,
+        maxContacts: (rules['max_contacts'] as num).toInt(),
+        maxFollowups: (rules['max_followups'] as num).toInt(),
+        durationHours: (rules['duration_hours'] as num).toInt(),
+        scanIntervalMinutes: (rules['scan_interval_minutes'] as num).toInt(),
+        allowWhatsapp: rules['allow_whatsapp'] == true,
         photos: findSellers ? const <String>[] : sellPhotos,
         articleNotes: findSellers ? '' : sellNotes,
       );
       if (!mounted) return;
-      notice(
-        'Mandat semi-autonome créé pour 24 h · 3 contacts maximum.',
-        success: true,
-      );
+      notice('Votre mission est enregistrée selon vos règles.', success: true);
       context.read<LiveAvatarController>().showState(
         LiveAvatarPresenceState.watching,
         duration: const Duration(seconds: 4),
@@ -266,7 +323,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'ajouter une capture à NEXUS',
-    )) return;
+    ))
+      return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       imageQuality: 84,
@@ -294,7 +352,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'ajouter un signal au réseau NEXUS',
-    )) return;
+    ))
+      return;
     if (shareText.text.trim().isEmpty &&
         shareUrl.text.trim().isEmpty &&
         (shareImageUrl?.isEmpty ?? true)) {
@@ -332,7 +391,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'contribuer au réseau de prix NEXUS',
-    )) return;
+    ))
+      return;
     final title = scoutTitle.text.trim();
     if (title.isEmpty) {
       notice('Indiquez le produit observé.');
@@ -340,8 +400,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     }
     setState(() => busy = true);
     try {
-      final price =
-          double.tryParse(scoutPrice.text.replaceAll(RegExp(r'\D'), ''));
+      final price = double.tryParse(
+        scoutPrice.text.replaceAll(RegExp(r'\D'), ''),
+      );
       await service.submitScout(
         title: title,
         observedPrice: price,
@@ -369,7 +430,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       context,
       next: '/app/nexus',
       actionLabel: 'contacter cette opportunité',
-    )) return;
+    ))
+      return;
     setState(() => busy = true);
     try {
       final contact = await service.prepareContact(item.fabricId);
@@ -379,11 +441,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _ContactSheet(
-          service: service,
-          item: item,
-          contact: contact,
-        ),
+        builder: (_) =>
+            _ContactSheet(service: service, item: item, contact: contact),
       );
     } catch (error) {
       if (mounted) notice(errorText(error));
@@ -408,19 +467,41 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       length: 4,
       child: Scaffold(
         backgroundColor: WaouhPalette.pearl,
-        appBar: const LiveHeader(
-          title: 'WAOUH NEXUS',
-          subtitle: 'Trouver · comparer · contacter',
+        appBar: LiveHeader(
+          title: 'Ma mission',
+          subtitle: 'Un objectif. Bot s’en occupe.',
           back: true,
+          actions: [
+            IconButton(
+              tooltip: 'Régler mon avatar',
+              onPressed: () => context.push('/app/avatar'),
+              icon: const Icon(Icons.tune_rounded),
+            ),
+            Builder(
+              builder: (tabs) => PopupMenuButton<int>(
+                tooltip: 'Autres actions',
+                onSelected: (index) =>
+                    DefaultTabController.of(tabs).animateTo(index),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Ma recherche')),
+                  PopupMenuItem(value: 1, child: Text('Partager')),
+                  PopupMenuItem(value: 2, child: Text('Terrain')),
+                  PopupMenuItem(value: 3, child: Text('Sources')),
+                ],
+              ),
+            ),
+          ],
         ),
         body: Column(
           children: [
-            _Hero(liveCount: sources.where((source) => source.live).length),
             if (!auth.signedIn)
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0F5FF),
                   borderRadius: BorderRadius.circular(14),
@@ -435,7 +516,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   ),
                 ),
               ),
-            _Tabs(signedIn: auth.signedIn),
             Expanded(
               child: TabBarView(
                 children: [
@@ -444,13 +524,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                       ? buildShare()
                       : const _GuestLockedNexusPane(
                           title: 'Partager à WAOUH',
-                          description: 'Connectez-vous pour analyser et ajouter un signal personnel au Signal Fabric.',
+                          description:
+                              'Connectez-vous pour analyser et ajouter un signal personnel au Signal Fabric.',
                         ),
                   auth.signedIn
                       ? buildScout()
                       : const _GuestLockedNexusPane(
                           title: 'Scout terrain',
-                          description: 'Connectez-vous pour contribuer au réseau de prix et publier une observation.',
+                          description:
+                              'Connectez-vous pour contribuer au réseau de prix et publier une observation.',
                         ),
                   buildSources(),
                 ],
@@ -462,241 +544,369 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     );
   }
 
-  Widget buildSearch() {
-    final results = discovery?.results ?? const <NexusDiscoveryItem>[];
-    final resolvedFindSellers = discovery?.findSellers ?? findSellers;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
-      children: [
-        Wrap(
-          spacing: 8,
-          children: [
-            ChoiceChip(
-              avatar: const Icon(Icons.auto_awesome_rounded, size: 16),
-              label: const Text('IA'),
-              selected: smartMode,
-              onSelected: busy
-                  ? null
-                  : (_) => setState(() {
-                        smartMode = true;
-                        discovery = null;
-                      }),
-            ),
-            ChoiceChip(
-              avatar: const Icon(Icons.storefront_outlined, size: 16),
-              label: const Text('Acheter'),
-              selected: !smartMode && findSellers,
-              onSelected: busy
-                  ? null
-                  : (_) => setState(() {
-                        smartMode = false;
-                        findSellers = true;
-                        discovery = null;
-                      }),
-            ),
-            ChoiceChip(
-              avatar: const Icon(Icons.groups_2_outlined, size: 16),
-              label: const Text('Vendre'),
-              selected: !smartMode && !findSellers,
-              onSelected: busy
-                  ? null
-                  : (_) => setState(() {
-                        smartMode = false;
-                        findSellers = false;
-                        discovery = null;
-                      }),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: query,
-          maxLines: 3,
-          minLines: 1,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (_) => runSearch(),
-          decoration: InputDecoration(
-            hintText: smartMode
-                ? 'Décrivez simplement votre besoin'
-                : findSellers
-                    ? 'Que voulez-vous acheter ?'
-                    : 'Que voulez-vous vendre ?',
-            prefixIcon: const Icon(Icons.auto_awesome_rounded),
+  Widget _searchEditor() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Wrap(
+        spacing: 8,
+        children: [
+          ChoiceChip(
+            avatar: const Icon(Icons.auto_awesome_rounded, size: 16),
+            label: const Text('IA'),
+            selected: smartMode,
+            onSelected: busy
+                ? null
+                : (_) => setState(() {
+                    smartMode = true;
+                    discovery = null;
+                  }),
           ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: city,
-                decoration: const InputDecoration(
-                  labelText: 'Ville / zone',
-                  prefixIcon: Icon(Icons.location_on_outlined),
-                ),
-              ),
-            ),
-            if (findSellers || smartMode) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: budget,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Budget max',
-                    suffixText: 'F',
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (!smartMode && !findSellers) ...[
-          LiveSellPhotos(
-            service: service,
-            photos: sellPhotos,
-            onChanged: (v) => setState(() => sellPhotos = v),
-            onNotes: (v) => sellNotes = v,
+          ChoiceChip(
+            avatar: const Icon(Icons.storefront_outlined, size: 16),
+            label: const Text('Acheter'),
+            selected: !smartMode && findSellers,
+            onSelected: busy
+                ? null
+                : (_) => setState(() {
+                    smartMode = false;
+                    findSellers = true;
+                    discovery = null;
+                  }),
           ),
-          if (sellPhotos.isNotEmpty)
-            LiveMyArticleCard(
-              title: query.text.trim(),
-              photos: sellPhotos,
-              notes: sellNotes,
-              city: city.text,
-            ),
+          ChoiceChip(
+            avatar: const Icon(Icons.groups_2_outlined, size: 16),
+            label: const Text('Vendre'),
+            selected: !smartMode && !findSellers,
+            onSelected: busy
+                ? null
+                : (_) => setState(() {
+                    smartMode = false;
+                    findSellers = false;
+                    discovery = null;
+                  }),
+          ),
         ],
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: busy ? null : recognizeProduct,
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Photo'),
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        controller: query,
+        maxLines: 3,
+        minLines: 1,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => runSearch(),
+        decoration: InputDecoration(
+          hintText: smartMode
+              ? 'Décrivez simplement votre besoin'
+              : findSellers
+              ? 'Que voulez-vous acheter ?'
+              : 'Que voulez-vous vendre ?',
+          prefixIcon: const Icon(Icons.auto_awesome_rounded),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: city,
+              decoration: const InputDecoration(
+                labelText: 'Ville / zone',
+                prefixIcon: Icon(Icons.location_on_outlined),
               ),
             ),
+          ),
+          if (findSellers || smartMode) ...[
             const SizedBox(width: 8),
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: busy ? null : scanBarcode,
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                label: const Text('Code-barres'),
+              child: TextField(
+                controller: budget,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Budget max',
+                  suffixText: 'F',
+                ),
               ),
             ),
           ],
+        ],
+      ),
+      if (!smartMode && !findSellers) ...[
+        LiveSellPhotos(
+          service: service,
+          photos: sellPhotos,
+          onChanged: (v) => setState(() => sellPhotos = v),
+          onNotes: (v) => sellNotes = v,
         ),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          onPressed: busy ? null : runSearch,
-          icon: Icon(
-            smartMode
-                ? Icons.auto_awesome_rounded
-                : findSellers
-                    ? Icons.travel_explore_rounded
-                    : Icons.person_search_rounded,
+        if (sellPhotos.isNotEmpty)
+          LiveMyArticleCard(
+            title: query.text.trim(),
+            photos: sellPhotos,
+            notes: sellNotes,
+            city: city.text,
           ),
-          label: Text(
-            smartMode
-                ? 'Comprendre et chercher partout'
-                : findSellers
-                    ? 'Trouver les vendeurs partout'
-                    : 'Trouver les acheteurs partout',
+      ],
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : recognizeProduct,
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text('Photo'),
+            ),
           ),
-        ),
-        if (discovery?.intelligence != null) ...[
-          const SizedBox(height: 10),
-          _SmartPlanCard(
-            plan: discovery!.intelligence!,
-            findSellers: resolvedFindSellers,
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : scanBarcode,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('Code-barres'),
+            ),
           ),
         ],
-        if (resolvedFindSellers && query.text.trim().isNotEmpty) ...[
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: busy ? null : startBuyerAutopilot,
-            icon: const Icon(Icons.smart_toy_outlined),
-            label: const Text('Avatar : poursuivre la recherche'),
+      ),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+        onPressed: busy ? null : runSearch,
+        icon: Icon(
+          smartMode
+              ? Icons.auto_awesome_rounded
+              : findSellers
+              ? Icons.travel_explore_rounded
+              : Icons.person_search_rounded,
+        ),
+        label: Text(
+          smartMode
+              ? 'Comprendre et chercher partout'
+              : findSellers
+              ? 'Trouver les vendeurs partout'
+              : 'Trouver les acheteurs partout',
+        ),
+      ),
+    ],
+  );
+  Future<void> _delegateOne(NexusDiscoveryItem item) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'confier cette piste à Bot',
+    ))
+      return;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confier à Bot'),
+        content: const Text(
+          'Bot prépare le contact avec ce profil. Vous validez l’accord final.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmer'),
           ),
         ],
-        if ((discovery?.sourceMix ?? const <String, int>{}).isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: discovery!.sourceMix.entries
-                .map(
-                  (entry) => Chip(
-                    label: Text(
-                      sourceLabel(entry.key) + ' · ' + entry.value.toString(),
-                      style: const TextStyle(fontSize: 11),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      String? article;
+      if (!findSellers) {
+        final data = await service.ownedArticles();
+        final raw = data['articles'];
+        final rows = raw is List ? raw.whereType<Map>().toList() : <Map>[];
+        if (rows.length != 1) {
+          notice(
+            rows.isEmpty
+                ? 'Publiez d’abord votre article.'
+                : 'Choisissez l’article dans votre parcours de vente.',
+          );
+          return;
+        }
+        article = '${rows.first['id']}';
+      }
+      final data = await service.createMandate(
+        mode: findSellers ? 'buy' : 'sell',
+        goal: item.title,
+        articleId: article,
+        maxContacts: 1,
+        allowWhatsapp: item.bestChannel == 'whatsapp',
+      );
+      final mandate = data['mandate'];
+      await service.startOpportunity(
+        fabricId: item.fabricId,
+        mode: findSellers ? 'buy' : 'sell',
+        mandateId: mandate is Map ? '${mandate['id']}' : null,
+      );
+      if (mounted) {
+        notice(
+          'Bot s’en occupe. Retrouvez le suivi dans Missions.',
+          success: true,
+        );
+        context.push('/app/missions');
+      }
+    } catch (_) {
+      if (mounted) notice('Enregistrement impossible. Réessayez.');
+    }
+  }
+
+  Future<void> _watchOne(NexusDiscoveryItem item) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'suivre cette offre',
+    ))
+      return;
+    try {
+      await service.createWatch(
+        query: item.title,
+        sourceUrl: item.sourceUrl,
+        targetAmount: item.priceMin ?? item.priceMax,
+      );
+      if (mounted) notice('Suivi enregistré.', success: true);
+    } catch (_) {
+      if (mounted) notice('Enregistrement impossible. Réessayez.');
+    }
+  }
+
+  Widget buildSearch() {
+    final results = discovery?.results ?? const <NexusDiscoveryItem>[];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
+      children: [
+        Row(
+          children: [
+            for (final k in [
+              ('acheter', 'Acheter'),
+              ('vendre', 'Vendre'),
+              ('trouver', 'Trouver'),
+              ('demander', 'Demander'),
+            ])
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: _kind == k.$1
+                        ? Colors.white
+                        : avatarPremiumBg,
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () => setState(() {
+                          _kind = k.$1;
+                          smartMode = ['trouver', 'demander'].contains(_kind);
+                          findSellers = _kind != 'vendre';
+                          discovery = null;
+                          _started = false;
+                          _selectedOffers.clear();
+                        }),
+                  child: Text(
+                    k.$2,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _kind == k.$1
+                          ? avatarPremiumInk
+                          : avatarPremiumMuted,
                     ),
                   ),
-                )
-                .toList(growable: false),
-          ),
-        ],
-        if ((discovery?.refresh ?? const <String, dynamic>{}).isNotEmpty) ...[
-          const SizedBox(height: 7),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: discovery!.refresh.entries.map((entry) {
-              final raw = entry.value;
-              final state = raw is Map
-                  ? Map<String, dynamic>.from(raw)
-                  : <String, dynamic>{};
-              final configured = state['configured'] == true;
-              final inserted = (state['inserted'] as num?)?.round() ?? 0;
-              final reason = state['reason']?.toString();
-              final skipped = reason == 'not_selected_by_ai_plan';
-              return Chip(
-                avatar: Icon(
-                  skipped
-                      ? Icons.remove_circle_outline_rounded
-                      : configured
-                          ? Icons.wifi_rounded
-                          : Icons.wifi_off_rounded,
-                  size: 15,
-                  color: skipped
-                      ? Colors.blueGrey
-                      : configured
-                          ? const Color(0xFF08745D)
-                          : Colors.blueGrey,
                 ),
-                label: Text(
-                  skipped
-                      ? sourceLabel(entry.key) + ' · non nécessaire'
-                      : configured
-                          ? sourceLabel(entry.key) + ' +' + inserted.toString()
-                          : sourceLabel(entry.key) + ' · non configuré',
-                  style: const TextStyle(fontSize: 11),
-                ),
-              );
-            }).toList(growable: false),
-          ),
-        ],
-        if (results.isNotEmpty) ...[
-          const SizedBox(height: 14),
+              ),
+          ],
+        ),
+        if (_started) ...[
+          const SizedBox(height: 18),
           Text(
-            resolvedFindSellers
-                ? 'Vendeurs et offres compatibles'
-                : 'Acheteurs et demandes compatibles',
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            query.text,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: avatarPremiumInk,
+            ),
           ),
-          const SizedBox(height: 3),
-          const Text(
-            'Classés par pertinence + capacité réelle de Bot à agir maintenant.',
-            style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+          const SizedBox(height: 7),
+          Text(
+            '${city.text.isEmpty ? 'Zone à préciser' : city.text}${budget.text.isEmpty ? '' : ' · ${budget.text} FCFA ${findSellers ? 'max' : 'souhaités'}'}',
+            style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
           ),
-          const SizedBox(height: 8),
-          for (final item in results)
-            _DiscoveryCard(
-              item: item,
-              onContact: () => prepareContact(item),
-              onSource: item.sourceUrl == null
-                  ? null
-                  : () => openExternal(Uri.parse(item.sourceUrl!)),
+          const SizedBox(height: 12),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text(
+              'Modifier mon besoin',
+              style: TextStyle(fontSize: 12, color: avatarPremiumBlue),
+            ),
+            children: [_searchEditor()],
+          ),
+          const SizedBox(height: 10),
+          LivePremiumMission(
+            busy: busy,
+            paused: _paused,
+            refreshing: _refreshing,
+            error: _liveError,
+            count: results.length,
+            events: _events,
+            onPause: () {
+              _searchVersion++;
+              setState(() {
+                busy = false;
+                _paused = true;
+                _events.add(LiveMissionActivity('Recherche mise en pause.'));
+              });
+            },
+            onResume: runSearch,
+          ),
+        ] else
+          _searchEditor(),
+        if (_started && results.isEmpty && !busy)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              children: [
+                Text(
+                  _paused
+                      ? 'Reprenez votre recherche quand vous le souhaitez.'
+                      : 'Aucune piste à afficher. Ajustez votre besoin.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: avatarPremiumMuted,
+                  ),
+                ),
+                TextButton(
+                  onPressed: runSearch,
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+        if (results.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          LiveEssentialOffers(
+            premium: true,
+            items: results,
+            city: city.text,
+            mode: findSellers ? 'buy' : 'sell',
+            selected: _selectedOffers,
+            onToggle: (id) => setState(() {
+              if (_selectedOffers.contains(id)) {
+                _selectedOffers.remove(id);
+              } else if (_selectedOffers.length < 5) {
+                _selectedOffers.add(id);
+              }
+            }),
+            onContinue: prepareContact,
+            onDelegate: _delegateOne,
+            onFollow: _watchOne,
+          ),
+          if (_selectedOffers.isNotEmpty)
+            LiveEssentialCompareTray(
+              items: results
+                  .where((r) => _selectedOffers.contains(r.fabricId))
+                  .toList(),
+              onClear: () => setState(() => _selectedOffers.clear()),
             ),
         ],
       ],
@@ -704,188 +914,184 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Widget buildShare() => ListView(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
-        children: [
-          const _InfoCard(
-            icon: Icons.share_rounded,
-            title: 'Partager vers WAOUH',
-            text:
-                'Collez un message WhatsApp, une annonce sociale, un lien Web ou une RFQ. Ajoutez une capture si besoin.',
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            value: shareOrigin,
-            decoration: const InputDecoration(labelText: 'Origine'),
-            items: const [
-              DropdownMenuItem(value: 'whatsapp', child: Text('WhatsApp')),
-              DropdownMenuItem(value: 'facebook', child: Text('Facebook')),
-              DropdownMenuItem(value: 'instagram', child: Text('Instagram')),
-              DropdownMenuItem(value: 'tiktok', child: Text('TikTok')),
-              DropdownMenuItem(value: 'telegram', child: Text('Telegram')),
-              DropdownMenuItem(value: 'web', child: Text('Site / annonce Web')),
-              DropdownMenuItem(value: 'b2b', child: Text('B2B / RFQ')),
-              DropdownMenuItem(value: 'other', child: Text('Autre')),
-            ],
-            onChanged: (value) =>
-                setState(() => shareOrigin = value ?? 'whatsapp'),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: shareUrl,
-            decoration: const InputDecoration(
-              labelText: 'Lien source',
-              hintText: 'Optionnel',
-              prefixIcon: Icon(Icons.link_rounded),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: shareText,
-            minLines: 4,
-            maxLines: 8,
-            decoration: const InputDecoration(labelText: 'Message / annonce'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: busy ? null : pickShareImage,
-            icon: const Icon(Icons.image_search_rounded),
-            label: Text(
-              shareImageName == null
-                  ? 'Ajouter une capture'
-                  : 'Capture : ' + shareImageName!,
-            ),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: busy ? null : ingestShared,
-            icon: const Icon(Icons.auto_awesome_rounded),
-            label: const Text('Comprendre et ajouter au réseau'),
-          ),
-          if (sharedSignal != null) ...[
-            const SizedBox(height: 12),
-            _InfoCard(
-              icon: Icons.check_circle_outline,
-              title: sharedSignal!.intent +
-                  ' · ' +
-                  (sharedSignal!.productName ??
-                      sharedSignal!.category ??
-                      'Signal'),
-              text: 'Acteur ' +
-                  sharedSignal!.actorType +
-                  ' · confiance ' +
-                  (sharedSignal!.confidence * 100).round().toString() +
-                  '% · contact ' +
-                  sharedSignal!.contactability,
-            ),
-          ],
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
+    children: [
+      const _InfoCard(
+        icon: Icons.share_rounded,
+        title: 'Partager vers WAOUH',
+        text:
+            'Collez un message WhatsApp, une annonce sociale, un lien Web ou une RFQ. Ajoutez une capture si besoin.',
+      ),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        value: shareOrigin,
+        decoration: const InputDecoration(labelText: 'Origine'),
+        items: const [
+          DropdownMenuItem(value: 'whatsapp', child: Text('WhatsApp')),
+          DropdownMenuItem(value: 'facebook', child: Text('Facebook')),
+          DropdownMenuItem(value: 'instagram', child: Text('Instagram')),
+          DropdownMenuItem(value: 'tiktok', child: Text('TikTok')),
+          DropdownMenuItem(value: 'telegram', child: Text('Telegram')),
+          DropdownMenuItem(value: 'web', child: Text('Site / annonce Web')),
+          DropdownMenuItem(value: 'b2b', child: Text('B2B / RFQ')),
+          DropdownMenuItem(value: 'other', child: Text('Autre')),
         ],
-      );
+        onChanged: (value) => setState(() => shareOrigin = value ?? 'whatsapp'),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: shareUrl,
+        decoration: const InputDecoration(
+          labelText: 'Lien source',
+          hintText: 'Optionnel',
+          prefixIcon: Icon(Icons.link_rounded),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: shareText,
+        minLines: 4,
+        maxLines: 8,
+        decoration: const InputDecoration(labelText: 'Message / annonce'),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: busy ? null : pickShareImage,
+        icon: const Icon(Icons.image_search_rounded),
+        label: Text(
+          shareImageName == null
+              ? 'Ajouter une capture'
+              : 'Capture : ' + shareImageName!,
+        ),
+      ),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+        onPressed: busy ? null : ingestShared,
+        icon: const Icon(Icons.auto_awesome_rounded),
+        label: const Text('Comprendre et ajouter au réseau'),
+      ),
+      if (sharedSignal != null) ...[
+        const SizedBox(height: 12),
+        _InfoCard(
+          icon: Icons.check_circle_outline,
+          title:
+              sharedSignal!.intent +
+              ' · ' +
+              (sharedSignal!.productName ?? sharedSignal!.category ?? 'Signal'),
+          text:
+              'Acteur ' +
+              sharedSignal!.actorType +
+              ' · confiance ' +
+              (sharedSignal!.confidence * 100).round().toString() +
+              '% · contact ' +
+              sharedSignal!.contactability,
+        ),
+      ],
+    ],
+  );
 
   Widget buildScout() => ListView(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
+    children: [
+      const _InfoCard(
+        icon: Icons.explore_outlined,
+        title: 'WAOUH Scout',
+        text:
+            'Ajoutez un prix réellement observé dans une boutique ou un marché.',
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        controller: scoutTitle,
+        decoration: const InputDecoration(labelText: 'Produit observé'),
+      ),
+      const SizedBox(height: 8),
+      Row(
         children: [
-          const _InfoCard(
-            icon: Icons.explore_outlined,
-            title: 'WAOUH Scout',
-            text:
-                'Ajoutez un prix réellement observé dans une boutique ou un marché.',
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: scoutTitle,
-            decoration: const InputDecoration(labelText: 'Produit observé'),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: scoutPrice,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Prix',
-                    suffixText: 'F',
-                  ),
-                ),
+          Expanded(
+            child: TextField(
+              controller: scoutPrice,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Prix',
+                suffixText: 'F',
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: scoutCity,
-                  decoration: const InputDecoration(labelText: 'Ville'),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: scoutPlace,
-            decoration: const InputDecoration(labelText: 'Boutique / marché'),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: scoutGtin,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'GTIN / code-barres'),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: busy ? null : submitScout,
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('Ajouter au réseau de prix'),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: scoutCity,
+              decoration: const InputDecoration(labelText: 'Ville'),
+            ),
           ),
         ],
-      );
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: scoutPlace,
+        decoration: const InputDecoration(labelText: 'Boutique / marché'),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: scoutGtin,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(labelText: 'GTIN / code-barres'),
+      ),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+        onPressed: busy ? null : submitScout,
+        icon: const Icon(Icons.add_location_alt_outlined),
+        label: const Text('Ajouter au réseau de prix'),
+      ),
+    ],
+  );
 
   Widget buildSources() => RefreshIndicator(
-        onRefresh: loadSources,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
-          children: [
-            const _InfoCard(
-              icon: Icons.hub_outlined,
-              title: 'Signal Fabric',
-              text:
-                  'Chaque canal affiche son état réel.',
-            ),
-            const SizedBox(height: 10),
-            for (final source in sources)
-              Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    source.live ? Icons.wifi_rounded : Icons.wifi_off_rounded,
-                    color: source.live
-                        ? const Color(0xFF08745D)
-                        : Colors.blueGrey,
-                  ),
-                  title: Text(
-                    source.label,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(
-                    source.family +
-                        ' · ' +
-                        source.mode +
-                        ' · ' +
-                        source.contactability,
-                  ),
-                  trailing: Text(
-                    source.live ? 'LIVE' : source.state.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: source.live
-                          ? const Color(0xFF08745D)
-                          : Colors.blueGrey,
-                    ),
-                  ),
+    onRefresh: loadSources,
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
+      children: [
+        const _InfoCard(
+          icon: Icons.hub_outlined,
+          title: 'Signal Fabric',
+          text: 'Chaque canal affiche son état réel.',
+        ),
+        const SizedBox(height: 10),
+        for (final source in sources)
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Icon(
+                source.live ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                color: source.live ? const Color(0xFF08745D) : Colors.blueGrey,
+              ),
+              title: Text(
+                source.label,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(
+                source.family +
+                    ' · ' +
+                    source.mode +
+                    ' · ' +
+                    source.contactability,
+              ),
+              trailing: Text(
+                source.live ? 'LIVE' : source.state.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: source.live
+                      ? const Color(0xFF08745D)
+                      : Colors.blueGrey,
                 ),
               ),
-          ],
-        ),
-      );
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class _Hero extends StatelessWidget {
@@ -894,77 +1100,77 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: WaouhGradients.airHero,
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0xFFDDE7F7)),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              padding: const EdgeInsets.all(2.5),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(colors: [
-                  Color(0xFF55DDF2),
-                  Color(0xFF4F7FFF),
-                  Color(0xFF8B7CFF),
-                ]),
-              ),
-              child: ClipOval(
-                child: Image.asset(botAvatarAsset, fit: BoxFit.cover),
-              ),
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      gradient: WaouhGradients.airHero,
+      borderRadius: BorderRadius.circular(26),
+      border: Border.all(color: const Color(0xFFDDE7F7)),
+      boxShadow: WaouhShadows.card,
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 58,
+          height: 58,
+          padding: const EdgeInsets.all(2.5),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF55DDF2), Color(0xFF4F7FFF), Color(0xFF8B7CFF)],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'WAOUH NEXUS',
-                    style: TextStyle(
-                      color: WaouhPalette.ink,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 19,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.92),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(4),
-                        topRight: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(16),
-                      ),
-                      border: Border.all(color: const Color(0xFFD9E6FF)),
-                    ),
-                    child: const Text(
-                      'Je trouve, je compare, je contacte.',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E3A8A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
+          child: ClipOval(
+            child: Image.asset(botAvatarAsset, fit: BoxFit.cover),
+          ),
         ),
-      );
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'WAOUH NEXUS',
+                style: TextStyle(
+                  color: WaouhPalette.ink,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 19,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.92),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
+                  border: Border.all(color: const Color(0xFFD9E6FF)),
+                ),
+                child: const Text(
+                  'Je trouve, je compare, je contacte.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Tabs extends StatelessWidget {
@@ -973,192 +1179,188 @@ class _Tabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        height: 44,
-        margin: const EdgeInsets.symmetric(horizontal: 14),
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F4FB),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: TabBar(
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          dividerColor: Colors.transparent,
-          indicatorSize: TabBarIndicatorSize.tab,
-          indicator: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x1552709F),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
+    height: 44,
+    margin: const EdgeInsets.symmetric(horizontal: 14),
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0F4FB),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: TabBar(
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      dividerColor: Colors.transparent,
+      indicatorSize: TabBarIndicatorSize.tab,
+      indicator: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1552709F),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
-          labelColor: WaouhPalette.blue,
-          unselectedLabelColor: WaouhPalette.muted,
-          labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-          unselectedLabelStyle:
-              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          tabs: [
-            const Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Découvrir'),
-            Tab(
-              icon: Icon(
-                signedIn ? Icons.share_rounded : Icons.lock_outline_rounded,
-                size: 17,
-              ),
-              text: 'Partager',
-            ),
-            Tab(
-              icon: Icon(
-                signedIn ? Icons.explore_outlined : Icons.lock_outline_rounded,
-                size: 17,
-              ),
-              text: 'Scout',
-            ),
-            const Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
-          ],
+        ],
+      ),
+      labelColor: WaouhPalette.blue,
+      unselectedLabelColor: WaouhPalette.muted,
+      labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      unselectedLabelStyle: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+      ),
+      tabs: [
+        const Tab(
+          icon: Icon(Icons.search_rounded, size: 17),
+          text: 'Découvrir',
         ),
-      );
+        Tab(
+          icon: Icon(
+            signedIn ? Icons.share_rounded : Icons.lock_outline_rounded,
+            size: 17,
+          ),
+          text: 'Partager',
+        ),
+        Tab(
+          icon: Icon(
+            signedIn ? Icons.explore_outlined : Icons.lock_outline_rounded,
+            size: 17,
+          ),
+          text: 'Scout',
+        ),
+        const Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
+      ],
+    ),
+  );
 }
 
 class _GuestLockedNexusPane extends StatelessWidget {
-  const _GuestLockedNexusPane({
-    required this.title,
-    required this.description,
-  });
+  const _GuestLockedNexusPane({required this.title, required this.description});
 
   final String title;
   final String description;
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: WaouhPalette.line),
-                boxShadow: WaouhShadows.card,
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: WaouhPalette.line),
+            boxShadow: WaouhShadows.card,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.lock_person_outlined,
+                size: 42,
+                color: WaouhPalette.blue,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.lock_person_outlined,
-                    size: 42,
-                    color: WaouhPalette.blue,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: WaouhPalette.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: WaouhPalette.muted,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => context.go('/app/auth?next=/app/nexus'),
-                    icon: const Icon(Icons.login_rounded),
-                    label: const Text('Se connecter'),
-                  ),
-                ],
+              const SizedBox(height: 12),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: WaouhPalette.ink,
+                ),
               ),
-            ),
+              const SizedBox(height: 7),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: WaouhPalette.muted, height: 1.35),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => context.go('/app/auth?next=/app/nexus'),
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Se connecter'),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _SmartPlanCard extends StatelessWidget {
-  const _SmartPlanCard({
-    required this.plan,
-    required this.findSellers,
-  });
+  const _SmartPlanCard({required this.plan, required this.findSellers});
 
   final NexusSmartDiscoveryPlan plan;
   final bool findSellers;
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4F7FF),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: WaouhPalette.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF4F7FF),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: WaouhPalette.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.psychology_alt_outlined,
-                  color: WaouhPalette.blue,
-                  size: 19,
-                ),
-                const SizedBox(width: 7),
-                const Expanded(
-                  child: Text(
-                    'Lecture NEXUS',
-                    style: TextStyle(
-                      color: WaouhPalette.ink,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                _Pill('IA ' + (plan.confidence * 100).round().toString() + '%'),
-              ],
+            const Icon(
+              Icons.psychology_alt_outlined,
+              color: WaouhPalette.blue,
+              size: 19,
             ),
-            const SizedBox(height: 6),
-            Text(
-              findSellers ? 'Acheter → vendeurs' : 'Vendre → acheteurs',
-              style: const TextStyle(
-                color: WaouhPalette.blue,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
+            const SizedBox(width: 7),
+            const Expanded(
+              child: Text(
+                'Lecture NEXUS',
+                style: TextStyle(
+                  color: WaouhPalette.ink,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-            if (plan.normalizedQuery.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                plan.normalizedQuery,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11.5),
-              ),
-            ],
-            if (plan.priorities.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: plan.priorities
-                    .take(4)
-                    .map((item) => _Pill(item.replaceAll('_', ' ')))
-                    .toList(growable: false),
-              ),
-            ],
+            _Pill('IA ' + (plan.confidence * 100).round().toString() + '%'),
           ],
         ),
-      );
+        const SizedBox(height: 6),
+        Text(
+          findSellers ? 'Acheter → vendeurs' : 'Vendre → acheteurs',
+          style: const TextStyle(
+            color: WaouhPalette.blue,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (plan.normalizedQuery.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            plan.normalizedQuery,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11.5),
+          ),
+        ],
+        if (plan.priorities.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: plan.priorities
+                .take(4)
+                .map((item) => _Pill(item.replaceAll('_', ' ')))
+                .toList(growable: false),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _DiscoveryCard extends StatelessWidget {
@@ -1174,110 +1376,124 @@ class _DiscoveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        elevation: 0,
-        margin: const EdgeInsets.only(bottom: 9),
-        child: Padding(
-          padding: const EdgeInsets.all(13),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    elevation: 0,
+    margin: const EdgeInsets.only(bottom: 9),
+    child: Padding(
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      item.title,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  Text(
-                    item.scores.total.round().toString() + '%',
-                    style: const TextStyle(
-                      color: WaouhPalette.blue,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 5,
-                runSpacing: 5,
-                children: [
-                  if (item.city != null) _Pill(item.city!),
-                  _Pill(item.contactPolicy.level),
-                  if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)
-                    _Pill(item.readinessLevel ?? item.contactPack!.readiness),
-                  if (item.actionabilityScore != null || item.contactPack != null)
-                    _Pill('Action ' + (item.actionabilityScore ?? item.contactPack!.actionabilityScore).round().toString() + '%'),
-                ],
-              ),
-              if (item.priceMin != null || item.priceMax != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  priceRange(item),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
-              ],
-              const SizedBox(height: 7),
+              ),
               Text(
-                'Confiance ' +
-                    item.scores.trust.round().toString() +
-                    '% · pertinence ' +
-                    item.scores.relevance.round().toString() +
-                    '%',
-                style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
-              ),
-              if (item.nextBestAction != null || item.contactPack != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F2FF),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Bot recommande : ' +
-                        nexusActionLabel(item.nextBestAction ?? item.contactPack!.nextBestAction) +
-                        ((item.bestChannel ?? item.contactPack?.bestChannel)?.isNotEmpty == true
-                            ? ' · ' + (item.bestChannel ?? item.contactPack!.bestChannel!)
-                            : ''),
-                    style: const TextStyle(
-                      color: Color(0xFF5A36A8),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10.5,
-                    ),
-                  ),
+                item.scores.total.round().toString() + '%',
+                style: const TextStyle(
+                  color: WaouhPalette.blue,
+                  fontWeight: FontWeight.w900,
                 ),
-              ],
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  if (onSource != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onSource,
-                        icon: const Icon(Icons.open_in_new_rounded),
-                        label: const Text('Voir'),
-                      ),
-                    ),
-                  if (onSource != null) const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onContact,
-                      icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      label: Text(liveContactabilityActionLabel(item.contactPolicy.level)),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              if (item.city != null) _Pill(item.city!),
+              _Pill(item.contactPolicy.level),
+              if ((item.readinessLevel ?? item.contactPack?.readiness)
+                      ?.isNotEmpty ==
+                  true)
+                _Pill(item.readinessLevel ?? item.contactPack!.readiness),
+              if (item.actionabilityScore != null || item.contactPack != null)
+                _Pill(
+                  'Action ' +
+                      (item.actionabilityScore ??
+                              item.contactPack!.actionabilityScore)
+                          .round()
+                          .toString() +
+                      '%',
+                ),
+            ],
+          ),
+          if (item.priceMin != null || item.priceMax != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              priceRange(item),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+          ],
+          const SizedBox(height: 7),
+          Text(
+            'Confiance ' +
+                item.scores.trust.round().toString() +
+                '% · pertinence ' +
+                item.scores.relevance.round().toString() +
+                '%',
+            style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+          ),
+          if (item.nextBestAction != null || item.contactPack != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F2FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Bot recommande : ' +
+                    nexusActionLabel(
+                      item.nextBestAction ?? item.contactPack!.nextBestAction,
+                    ) +
+                    ((item.bestChannel ?? item.contactPack?.bestChannel)
+                                ?.isNotEmpty ==
+                            true
+                        ? ' · ' +
+                              (item.bestChannel ??
+                                  item.contactPack!.bestChannel!)
+                        : ''),
+                style: const TextStyle(
+                  color: Color(0xFF5A36A8),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 10.5,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              if (onSource != null)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onSource,
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: const Text('Voir'),
+                  ),
+                ),
+              if (onSource != null) const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onContact,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: Text(
+                    liveContactabilityActionLabel(item.contactPolicy.level),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ContactSheet extends StatefulWidget {
@@ -1303,7 +1519,8 @@ class _ContactSheetState extends State<_ContactSheet> {
   void initState() {
     super.initState();
     message = TextEditingController(
-      text: 'Bonjour, je vous contacte via WAOUH au sujet de « ' +
+      text:
+          'Bonjour, je vous contacte via WAOUH au sujet de « ' +
           widget.item.title +
           ' ». Est-ce toujours disponible / pertinent ?',
     );
@@ -1326,9 +1543,9 @@ class _ContactSheetState extends State<_ContactSheet> {
       Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorText(error))));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1338,7 +1555,9 @@ class _ContactSheetState extends State<_ContactSheet> {
   Widget build(BuildContext context) {
     final policy = widget.contact.policy;
     final canSend =
-        policy.canAutoContact || policy.canBlindMessage || policy.canUserConfirmContact;
+        policy.canAutoContact ||
+        policy.canBlindMessage ||
+        policy.canUserConfirmContact;
     return Container(
       margin: const EdgeInsets.only(top: 60),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
@@ -1379,8 +1598,8 @@ class _ContactSheetState extends State<_ContactSheet> {
                 labelText: policy.level == 'C1'
                     ? 'Message vers le contact professionnel public'
                     : policy.canBlindMessage
-                        ? 'Message privé via WAOUH'
-                        : 'Message à transmettre',
+                    ? 'Message privé via WAOUH'
+                    : 'Message à transmettre',
               ),
             ),
             const SizedBox(height: 10),
@@ -1403,9 +1622,7 @@ class _ContactSheetState extends State<_ContactSheet> {
     final value = contact.value.trim();
     Uri? uri;
     if (contact.channel == 'whatsapp') {
-      uri = Uri.parse(
-        'https://wa.me/' + value.replaceAll(RegExp(r'\D'), ''),
-      );
+      uri = Uri.parse('https://wa.me/' + value.replaceAll(RegExp(r'\D'), ''));
     } else if (contact.channel == 'phone') {
       uri = Uri.parse('tel:' + value);
     } else if (contact.channel == 'email') {
@@ -1426,25 +1643,25 @@ class _BarcodeScannerSheetState extends State<_BarcodeScannerSheet> {
 
   @override
   Widget build(BuildContext context) => Container(
-        height: MediaQuery.sizeOf(context).height * .72,
-        decoration: const BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: MobileScanner(
-          onDetect: (capture) {
-            if (done) return;
-            for (final barcode in capture.barcodes) {
-              final value = barcode.rawValue?.trim();
-              if (value == null || value.length < 6) continue;
-              done = true;
-              Navigator.of(context).pop(value);
-              break;
-            }
-          },
-        ),
-      );
+    height: MediaQuery.sizeOf(context).height * .72,
+    decoration: const BoxDecoration(
+      color: Colors.black,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: MobileScanner(
+      onDetect: (capture) {
+        if (done) return;
+        for (final barcode in capture.barcodes) {
+          final value = barcode.rawValue?.trim();
+          if (value == null || value.length < 6) continue;
+          done = true;
+          Navigator.of(context).pop(value);
+          break;
+        }
+      },
+    ),
+  );
 }
 
 class _InfoCard extends StatelessWidget {
@@ -1460,32 +1677,29 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4FBF7),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFCBE4D9)),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF4FBF7),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFCBE4D9)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: const Color(0xFF08745D)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Text(text, style: const TextStyle(fontSize: 12)),
+            ],
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFF08745D)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(text, style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }
 
 class _Pill extends StatelessWidget {
@@ -1494,55 +1708,55 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F3),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0F4F3),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+    ),
+  );
 }
 
 String nexusActionLabel(String? value) => switch ((value ?? '').toUpperCase()) {
-      'CONTACT_NOW' => 'contacter maintenant',
-      'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
-      'REQUEST_APPROVAL' => 'valider le contact',
-      'WAIT_REPLY' => 'attendre la réponse',
-      'FOLLOW_UP' => 'relancer',
-      'NEGOTIATE' => 'négocier',
-      'EXECUTE' => 'exécuter',
-      'COMPLETE' => 'terminé',
-      'DROP_LOW_QUALITY' => 'priorité faible',
-      _ => 'enrichir le contact',
-    };
+  'CONTACT_NOW' => 'contacter maintenant',
+  'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
+  'REQUEST_APPROVAL' => 'valider le contact',
+  'WAIT_REPLY' => 'attendre la réponse',
+  'FOLLOW_UP' => 'relancer',
+  'NEGOTIATE' => 'négocier',
+  'EXECUTE' => 'exécuter',
+  'COMPLETE' => 'terminé',
+  'DROP_LOW_QUALITY' => 'priorité faible',
+  _ => 'enrichir le contact',
+};
 
 String sourceLabel(String key) => switch (key) {
-      'waouh_app' => 'WAOUH',
-      'partner' => 'Partenaire',
-      'whatsapp' => 'WhatsApp',
-      'share_to_waouh' => 'Partagé',
-      'radar_ia' => 'Radar IA',
-      'serpapi' => 'Web public',
-      'apify' => 'Web social',
-      'google_places' => 'Google Maps',
-      'facebook_business' => 'Facebook',
-      'instagram_business' => 'Instagram',
-      'tiktok_connected' => 'TikTok',
-      'telegram_public' => 'Telegram',
-      'benin_directory' => 'Annuaire Bénin',
-      'b2b_rfq' => 'B2B / RFQ',
-      'scout' => 'Scout',
-      _ => key,
-    };
+  'waouh_app' => 'WAOUH',
+  'partner' => 'Partenaire',
+  'whatsapp' => 'WhatsApp',
+  'share_to_waouh' => 'Partagé',
+  'radar_ia' => 'Radar IA',
+  'serpapi' => 'Web public',
+  'apify' => 'Web social',
+  'google_places' => 'Google Maps',
+  'facebook_business' => 'Facebook',
+  'instagram_business' => 'Instagram',
+  'tiktok_connected' => 'TikTok',
+  'telegram_public' => 'Telegram',
+  'benin_directory' => 'Annuaire Bénin',
+  'b2b_rfq' => 'B2B / RFQ',
+  'scout' => 'Scout',
+  _ => key,
+};
 
 String priceRange(NexusDiscoveryItem item) {
-  String amount(double value) => value
-      .round()
-      .toString()
-      .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ' ');
+  String amount(double value) => value.round().toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => ' ',
+  );
   if (item.priceMin != null &&
       item.priceMax != null &&
       item.priceMin != item.priceMax) {
@@ -1552,10 +1766,9 @@ String priceRange(NexusDiscoveryItem item) {
   return value == null ? '' : amount(value) + ' F';
 }
 
-String errorText(Object error) =>
-    error is NexusApiException
-        ? error.message
-        : waouhUserMessage(error, action: 'load');
+String errorText(Object error) => error is NexusApiException
+    ? error.message
+    : waouhUserMessage(error, action: 'load');
 
 Future<void> openExternal(Uri uri) async {
   if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {

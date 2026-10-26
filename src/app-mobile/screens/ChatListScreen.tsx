@@ -1,3 +1,4 @@
+import { WaouhPremiumAvatar } from '@/components/waouh/WaouhPremiumAvatar';
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -414,80 +415,12 @@ export default function ChatListScreen() {
       ) : (
       <main className="px-[clamp(12px,3.5vw,24px)] pb-6 pt-3">
         {/* UI V3 — Bot est le cœur de WAOUH : il accueille, explique ce qu'il fait et mène les échanges. */}
-        <section
-          data-waouh-ui="bot-avatar-v3"
-          className="compact-chat-welcome relative mx-auto mb-3 w-full max-w-[760px] overflow-hidden rounded-[30px] border border-cyan-100/80 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,.24),transparent_40%),radial-gradient(circle_at_95%_0%,rgba(139,92,246,.14),transparent_34%),linear-gradient(140deg,#e9fbfb_0%,#ffffff_48%,#f3f1ff_100%)] p-3 sm:p-5 shadow-[0_28px_70px_-42px_rgba(14,116,144,.6)]"
-        >
-          <Sparkles className="pointer-events-none absolute right-5 top-5 h-6 w-6 text-cyan-400/80 motion-safe:animate-pulse" aria-hidden />
-          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/app/avatar")}
-              className="rounded-full transition active:scale-[.97]"
-              aria-label="Ouvrir Bot, mon Avatar IA"
-            >
-              <span className="botc-glide inline-flex" data-leaving={botLeaving}>
-                <BotLiveAvatar size="clamp(56px, 15vw, 88px)" expression={botExpression} />
-              </span>
-            </button>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[clamp(22px,5vw,30px)] font-black leading-none tracking-[-.05em] text-slate-950">Bot</h2>
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white/85 px-2.5 py-1 text-[clamp(11.5px,2.9vw,12.5px)] font-bold text-emerald-700 shadow-sm">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> En ligne
-                </span>
-              </div>
-              <p className="mt-1 text-[clamp(12px,3.2vw,14px)] font-bold text-slate-500">Votre Avatar IA</p>
-              <BotGreeting
-                compact
-                firstName={isGuest ? null : profile?.full_name}
-                thirdLine={botActivityLine(matchChats.matches?.length ?? 0, "Deal Room")}
-                onExpressionChange={setBotExpression}
-                className="mt-2"
-              />
-            </div>
-          </div>
-
-          {/* Les 4 actions essentielles : chacune lance NEXUS, comme "Trouver". */}
-          <div className="mt-[clamp(14px,3.6vw,20px)] grid grid-cols-2 gap-[clamp(9px,2.2vw,13px)]">
-            {[
-              { kind: "acheter" as QuickAskKind, label: "Acheter", Icon: ShoppingBag, tint: "from-blue-50 to-blue-100/70 border-blue-100/80", chip: "bg-blue-600", glow: "shadow-[0_14px_30px_-16px_rgba(37,99,235,.55)]" },
-              { kind: "vendre" as QuickAskKind, label: "Vendre", Icon: Tag, tint: "from-amber-50 to-orange-100/70 border-amber-100/80", chip: "bg-amber-500", glow: "shadow-[0_14px_30px_-16px_rgba(217,119,6,.5)]" },
-              { kind: "trouver" as QuickAskKind, label: "Trouver", Icon: Globe2, tint: "from-cyan-50 to-sky-100/70 border-cyan-100/80", chip: "bg-cyan-600", glow: "shadow-[0_14px_30px_-16px_rgba(8,145,178,.5)]" },
-              { kind: "demander" as QuickAskKind, label: "Demander", Icon: MessageSquareText, tint: "from-violet-50 to-purple-100/70 border-violet-100/80", chip: "bg-violet-600", glow: "shadow-[0_14px_30px_-16px_rgba(124,58,237,.5)]" },
-            ].map(({ kind, label, Icon, tint, chip, glow }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => glideThen(() => askQuick(kind))}
-                data-waouh-action={label.toLowerCase()}
-                className={`group flex min-h-[clamp(72px,18vw,92px)] min-w-0 items-center gap-3 rounded-[20px] border bg-gradient-to-br ${tint} px-3.5 py-3 text-left transition ${glow} hover:-translate-y-0.5 active:translate-y-0 active:scale-[.97]`}
-              >
-                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${chip} text-white`}>
-                  <Icon className="h-[clamp(18px,4.6vw,20px)] w-[clamp(18px,4.6vw,20px)]" />
-                </span>
-                <span className="truncate text-[clamp(14px,3.8vw,16.5px)] font-black text-slate-950">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => glideThen(openNewWaouh)}
-            onPointerEnter={() => setBotExpression("listen")}
-            onPointerLeave={() => setBotExpression("idle")}
-            className="mt-[clamp(10px,2.8vw,14px)] flex h-[clamp(44px,11vw,50px)] w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/70 pl-4 pr-1.5 text-left shadow-sm transition hover:border-cyan-200 active:scale-[.99]"
-            aria-label="Demander à Bot"
-          >
-            <Sparkles className="h-4 w-4 shrink-0 text-teal-600" />
-            <span className="min-w-0 flex-1 truncate text-[clamp(13px,3.4vw,14.5px)] font-medium text-slate-400">Demandez à Bot…</span>
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 text-white">
-              <ArrowUp className="h-4 w-4" />
-            </span>
-          </button>
-
-          <BotWorkingStrip activeDeals={matchChats.matches?.length ?? 0} className="mt-[clamp(10px,2.6vw,14px)]" />
-        </section>
+        <WaouhPremiumAvatar firstName={isGuest ? null : profile?.full_name}
+          deals={matchChats.matches?.length ?? 0}
+          onSettings={() => navigate('/app/avatar')}
+          onMissions={() => navigate('/app/missions')}
+          onAction={askQuick}
+          onAsk={(value) => navigate(`/app/nexus?${new URLSearchParams({q:value,go:'1',kind:'trouver',mode:'auto'})}`)} />
 
         {!isGuest && (
           <div className="mx-auto mb-2 flex w-full max-w-[760px] items-center gap-2 px-1">

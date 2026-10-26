@@ -77,6 +77,7 @@ export function WaouhQuickAsk({
     if (city.trim()) p.set("city", city.trim());
     if (budget) p.set("budget", budget);
     p.set("mode", NEXUS_MODE[kind]);
+    p.set("kind", kind);
     onSubmit(c.path(p));
   };
 

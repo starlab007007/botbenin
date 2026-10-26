@@ -9,8 +9,15 @@ import 'live_theme.dart';
 enum LiveQuickAskKind { acheter, vendre, trouver, demander }
 
 class _Copy {
-  const _Copy(this.title, this.line, this.field, this.chips, this.cta,
-      this.budget, this.route);
+  const _Copy(
+    this.title,
+    this.line,
+    this.field,
+    this.chips,
+    this.cta,
+    this.budget,
+    this.route,
+  );
   final String title, line, field, cta, route;
   final List<String> chips;
   final String? budget;
@@ -39,7 +46,11 @@ const _copy = <LiveQuickAskKind, _Copy>{
     'Trouver',
     'Bot cherche partout pour vous.',
     'Produit, service, vendeur ou acheteur…',
-    ['Un S25 fiable à Cotonou', 'Vendre 10 tonnes de soja', 'Plombier à Porto-Novo'],
+    [
+      'Un S25 fiable à Cotonou',
+      'Vendre 10 tonnes de soja',
+      'Plombier à Porto-Novo',
+    ],
     'Lancer la recherche',
     'Budget (FCFA, facultatif)',
     '/app/nexus',
@@ -102,6 +113,7 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
       'q': text,
       'go': '1',
       'mode': _modeFor[widget.kind]!,
+      'kind': widget.kind.name,
     };
     if (_city.text.trim().isNotEmpty) params['city'] = _city.text.trim();
     final b = _budget.text.replaceAll(RegExp(r'\D'), '');
@@ -141,7 +153,12 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
-                          colors: [Color(0xFF55DDF2), Color(0xFF4F7FFF), Color(0xFF8B7CFF)]),
+                        colors: [
+                          Color(0xFF55DDF2),
+                          Color(0xFF4F7FFF),
+                          Color(0xFF8B7CFF),
+                        ],
+                      ),
                     ),
                     child: ClipOval(
                       child: Image.asset(botAvatarAsset, fit: BoxFit.cover),
@@ -152,17 +169,24 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(c.title,
-                            style: const TextStyle(
-                                fontSize: 21, fontWeight: FontWeight.w900)),
+                        Text(
+                          c.title,
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(c.line,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF55688A))),
+                        Text(
+                          c.line,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF55688A),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -202,9 +226,10 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                         backgroundColor: Colors.white,
                         side: const BorderSide(color: Color(0xFFD9E6FF)),
                         labelStyle: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF315BD8),
-                            fontSize: 12),
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF315BD8),
+                          fontSize: 12,
+                        ),
                         onPressed: () => setState(() => _q.text = chip),
                       ),
                   ],
@@ -236,11 +261,16 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                   style: FilledButton.styleFrom(
                     backgroundColor: WaouhPalette.blue,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                   ),
-                  child: Text(c.cta,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 16)),
+                  child: Text(
+                    c.cta,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ),
             ],

@@ -12,6 +12,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SESSION_RE = /^[A-Za-z0-9_.:-]{6,200}$/;
 
 const publicPrefs = (p: Awaited<ReturnType<typeof loadPrefs>>, now: Date) => ({
+  autonomy_settings:p.autonomySettings??null,
   welcome: p.welcome, cadence: p.cadence, quiet_start: p.quietStart, quiet_end: p.quietEnd, notify_events: p.notifyEvents, notify_digest: p.notifyDigest,
   last_briefing_at: p.lastBriefingAt?.toISOString() ?? null, next_briefing_at: nextBriefingAt(p, p.lastBriefingAt, now)?.toISOString() ?? null,
 });

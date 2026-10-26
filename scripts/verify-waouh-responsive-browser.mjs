@@ -221,12 +221,12 @@ async function waitForText(marker, timeoutMs = 7000) {
 
 async function testRoot(viewport) {
   let state = await navigate("http://127.0.0.1:4173/", viewport);
-  if (!state.text.includes("Votre assistant personnel") && !state.fallback) {
-    const waited = await waitForText("Votre assistant personnel");
+  if (!state.text.includes("Votre Avatar") && !state.fallback) {
+    const waited = await waitForText("Votre Avatar");
     state = { ...state, ...waited };
   }
   if (state.fallback) fail(`${viewport.name}: root rendered the ErrorBoundary fallback`);
-  if (!state.text.includes("Votre assistant personnel")) {
+  if (!state.text.includes("Votre Avatar")) {
     fail(`${viewport.name}: Avatar home is missing at ${state.path}; body=${state.text.slice(0, 300)}`);
   }
   for (const label of ["Acheter", "Vendre", "Trouver", "Demander"]) {
@@ -303,14 +303,14 @@ async function testRoot(viewport) {
   await navigate("http://127.0.0.1:4173/", viewport);
   const asked = await evaluate(`(() => {
     const input = [...document.querySelectorAll("input")]
-      .find((element) => element.getAttribute("aria-label") === "Votre demande à Bot");
+      .find((element) => element.getAttribute("aria-label") === "Votre besoin");
     if (!input) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
     setter.call(input, "Je cherche un téléphone à Cotonou");
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     const button = [...input.parentElement.querySelectorAll("button")]
-      .find((element) => (element.innerText || "").trim() === "Demander" || element.getAttribute("aria-label") === "Demander");
+      .find((element) => (element.innerText || "").trim() === "Demander" || element.getAttribute("aria-label") === "Démarrer ma demande");
     if (!button) return false;
     button.click();
     return true;
@@ -318,13 +318,9 @@ async function testRoot(viewport) {
   if (!asked) fail(`${viewport.name}: Bot command composer is not operable`);
   await sleep(700);
   const afterAsk = await evaluate(`({ path: location.pathname, search: location.search, text: document.body.innerText })`);
-  if (!afterAsk.path.startsWith("/app/auth")) {
-    fail(`${viewport.name}: Bot command should require authentication, got ${afterAsk.path}`);
-  }
-  const askNext = new URLSearchParams(afterAsk.search).get("next");
-  if (!askNext || !askNext.startsWith("/app/chat/waouh")) {
-    fail(`${viewport.name}: Bot command did not preserve the intended WAOUH chat destination`);
-  }
+  if (afterAsk.path !== '/app/nexus') fail(`${viewport.name}: Bot command did not open the live mission`);
+  if (!new URLSearchParams(afterAsk.search).get('q')) fail(`${viewport.name}: Bot command lost the requested goal`);
+
 }
 
 async function testDesktopSidebar(viewport) {
@@ -375,12 +371,12 @@ async function testDesktopSidebar(viewport) {
 
 async function testRoutes(viewport) {
   const routes = [
-    ["/app/chat", "Demandez à Bot", false],
-    ["/app/avatar", "Réglage avatar", false],
+    ["/app/chat", "Que puis-je faire pour vous", false],
+    ["/app/avatar", "Mon Avatar, mes règles", false],
     ["/app/avatar/acheter", "Acheter avec mon Avatar", true],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
     ["/app/avatar/demander", "Demander à mon Avatar", true],
-    ["/app/nexus", "WAOUH NEXUS", false],
+    ["/app/nexus", "Ma mission", false],
     ["/app/missions", "Missions", true],
     ["/app/ia", "Bots & IA WAOUH", true],
     ["/app/bots", "Bots WAOUH", true],
@@ -418,7 +414,7 @@ async function testRoutes(viewport) {
       fail(`${viewport.name}: ${route} missing marker "${marker}" at ${state.path}; body=${state.text.slice(0, 300)}`);
     }
     if (route === "/app/chat") {
-      const hasBotV2 = await evaluate(`Boolean(document.querySelector('[data-waouh-ui="bot-avatar-v3"]'))`);
+      const hasBotV2 = await evaluate(`Boolean(document.querySelector('[data-waouh-ui="avatar-premium-home"]'))`);
       if (!hasBotV2) fail(`${viewport.name}: /app/chat is not rendering the Bot avatar V2 home`);
     }
     if (route === "/app/auth" && state.text.includes("Comment fonctionne WAOUH")) {

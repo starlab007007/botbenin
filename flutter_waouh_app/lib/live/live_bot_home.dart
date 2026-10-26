@@ -10,6 +10,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_quick_ask.dart';
 import 'live_theme.dart';
+import 'live_avatar_autonomy.dart';
 
 /// UI V3 — Bot, cœur de WAOUH, sur l'accueil Flutter (parité avec le Web
 /// `src/components/waouh/bot/*`). Purement visuel : aucune donnée serveur
@@ -31,7 +32,9 @@ List<String> liveBotGreetingLines(String? firstName, [String? thirdLine]) {
   return [
     named ? 'Bonjour $name, je suis Bot.' : 'Bonjour, je suis Bot.',
     'Je cherche, compare et négocie pour vous.',
-    third.isNotEmpty ? third : "Dites-moi ce qu'il vous faut, je m'occupe du reste.",
+    third.isNotEmpty
+        ? third
+        : "Dites-moi ce qu'il vous faut, je m'occupe du reste.",
   ];
 }
 
@@ -105,575 +108,308 @@ class BotHomeHero extends StatefulWidget {
 }
 
 class _BotHomeHeroState extends State<BotHomeHero> {
-  final _timers = <Timer>[];
-  late final List<String> _lines = liveBotGreetingLines(
-    widget.firstName,
-    liveBotActivityLine(missions: widget.missionCount, deals: widget.activeDeals),
-  );
-  late final bool _instant = BotHomeHero.greetingPlayed;
-  int _shown = 0;
-  bool _typing = false;
-  bool _leaving = false;
-
-  int get _steps => _lines.length + 1;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_instant) {
-      _shown = _steps;
-      return;
-    }
-    var at = 350;
-    for (var i = 0; i < _steps; i++) {
-      _timers.add(Timer(Duration(milliseconds: at), () {
-        if (mounted) setState(() => _typing = true);
-      }));
-      at += 750;
-      final index = i;
-      _timers.add(Timer(Duration(milliseconds: at), () {
-        if (mounted) {
-          setState(() {
-            _typing = false;
-            _shown = index + 1;
-          });
-        }
-      }));
-      at += 650;
-    }
-    _timers.add(Timer(Duration(milliseconds: at), () {
-      BotHomeHero.greetingPlayed = true;
-    }));
-  }
-
+  final _prompt = TextEditingController();
   @override
   void dispose() {
-    for (final timer in _timers) {
-      timer.cancel();
-    }
+    _prompt.dispose();
     super.dispose();
   }
 
-  /// Bot glisse vers la conversation, puis l'action s'ouvre.
-  void _glideThen(VoidCallback action) {
-    if (_leaving) return;
-    setState(() => _leaving = true);
-    _timers.add(Timer(const Duration(milliseconds: 420), () {
-      action();
-      _timers.add(Timer(const Duration(milliseconds: 600), () {
-        if (mounted) setState(() => _leaving = false);
-      }));
-    }));
-  }
-
-  /// Les 4 actions essentielles pilotent toutes NEXUS, avec les mêmes étapes
-  /// que "Trouver" : une question, puis la recherche démarre automatiquement.
   void _askQuick(LiveQuickAskKind kind) {
     showLiveQuickAsk(context, kind).then((path) {
       if (path != null && mounted) context.push(path);
     });
   }
 
-  BotExpression get _expression => _leaving
-      ? BotExpression.think
-      : liveBotGreetingExpression(
-          shown: _shown,
-          lineCount: _lines.length,
-          instant: _instant,
-          missions: widget.missionCount,
-          approvals: widget.approvalCount,
-        );
+  void _submit() {
+    final value = _prompt.text.trim();
+    if (value.isEmpty) return;
+    context.push(
+      Uri(
+        path: '/app/nexus',
+        queryParameters: {
+          'q': value,
+          'go': '1',
+          'mode': 'auto',
+          'kind': 'trouver',
+        },
+      ).toString(),
+    );
+    _prompt.clear();
+  }
 
   @override
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
-    final stored = widget.avatarName.trim();
-    final name =
-        stored.isEmpty || stored.toLowerCase() == 'ayo' ? 'Bot' : stored;
-    final k = liveBotUiScale(context);
-    final avatarSize = 118.0 * k;
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final pending = widget.approvalCount > 0
-        ? '${widget.approvalCount} à valider'
-        : widget.missionCount > 0
-            ? '${widget.missionCount} mission${widget.missionCount > 1 ? 's' : ''}'
-            : null;
-
+    final first = (widget.firstName ?? '').trim().split(RegExp(r'\s+')).first;
+    final named = first.isNotEmpty && first.toLowerCase() != 'waouhapp';
+    final count = widget.missionCount;
     return Container(
-      padding: EdgeInsets.fromLTRB(16 * k, 16 * k, 16 * k, 14 * k),
+      key: const ValueKey('avatar-premium-home'),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE6FAFA), Color(0xFFFFFFFF), Color(0xFFF3F1FF)],
-        ),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFD5EEF4)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0E7490).withValues(alpha: .14),
-            blurRadius: 36,
-            offset: const Offset(0, 18),
-            spreadRadius: -20,
-          ),
-        ],
+        color: avatarPremiumBg,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Semantics(
-                button: true,
-                label: 'Ouvrir $name, mon Avatar IA',
-                child: GestureDetector(
-                  onTap: widget.onAvatar,
-                  child: AnimatedSlide(
-                    offset: _leaving ? const Offset(-.25, -.45) : Offset.zero,
-                    duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
-                    curve: Curves.easeInOutCubic,
-                    child: AnimatedScale(
-                      scale: _leaving ? .32 : 1,
-                      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
-                      curve: Curves.easeInOutCubic,
-                      child: AnimatedOpacity(
-                        opacity: _leaving ? .25 : 1,
-                        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
-                        child: LiveAvatarVisual(
-                          preset: avatar.profile.preset,
-                          expression: _expression,
-                          size: avatarSize,
-                          showStatusBadge: true,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 12 * k),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        Text(
-                          name,
-                          style: TextStyle(
-                            color: WaouhPalette.ink,
-                            fontSize: 32 * k,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1,
-                          ),
-                        ),
-                        _Pill(
-                          text: 'En ligne',
-                          dot: const Color(0xFF10B981),
-                          scale: k,
-                        ),
-                        if (pending != null)
-                          GestureDetector(
-                            onTap: widget.onMissions,
-                            child: _Pill(text: pending, scale: k),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 4 * k),
                     Text(
-                      'Votre Avatar IA',
+                      'Votre Avatar',
                       style: TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 12.5 * k,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
+                        color: avatarPremiumInk,
                       ),
                     ),
-                    SizedBox(height: 8 * k),
-                    ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: 104 * k),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (var i = 0; i < math.min(_shown, _lines.length); i++)
-                            _GreetingBubble(
-                              key: ValueKey('greet_$i'),
-                              text: _lines[i],
-                              last: false,
-                              scale: k,
-                            ),
-                          if (_shown > _lines.length)
-                            _GreetingBubble(
-                              key: const ValueKey('greet_question'),
-                              text: liveBotQuestion,
-                              last: true,
-                              scale: k,
-                            ),
-                          if (_typing && _shown < _steps)
-                            _TypingBubble(scale: k),
-                        ],
-                      ),
+                    SizedBox(height: 3),
+                    Text(
+                      'WAOUH, à vos côtés.',
+                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
                     ),
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: 'Paramétrer mon avatar',
+                onPressed: widget.onAvatar,
+                icon: const Icon(Icons.tune_rounded, size: 20),
+              ),
             ],
           ),
-          SizedBox(height: 12 * k),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: () => _glideThen(widget.onAsk),
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                height: 50 * k,
-                padding: EdgeInsets.only(left: 14 * k, right: 6 * k),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFD9E7F2)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 18 * k,
-                      color: const Color(0xFF0AAE9A),
-                    ),
-                    SizedBox(width: 10 * k),
-                    Expanded(
-                      child: Text(
-                        'Demandez à $name…',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: WaouhPalette.muted,
-                          fontSize: 14 * k,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 38 * k,
-                      height: 38 * k,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF14B8A6), Color(0xFF0891B2)],
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.arrow_upward_rounded,
-                        size: 19 * k,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+          const SizedBox(height: 12),
+          Center(
+            child: Semantics(
+              label: 'Ouvrir mon avatar',
+              button: true,
+              child: GestureDetector(
+                onTap: widget.onAvatar,
+                child: LiveAvatarVisual(
+                  preset: avatar.profile.preset,
+                  expression: widget.approvalCount > 0
+                      ? BotExpression.ask
+                      : count > 0
+                      ? BotExpression.work
+                      : BotExpression.idle,
+                  size: 84,
+                  showStatusBadge: true,
                 ),
               ),
             ),
           ),
-          SizedBox(height: 10 * k),
-          // UI V3 — les 4 actions essentielles, chacune pilotant NEXUS avec
-          // les mêmes étapes que "Trouver" (parité avec le Web).
-          Row(
-            children: [
-              Expanded(
-                child: _HeroAction(
-                  icon: Icons.shopping_bag_outlined,
-                  label: 'Acheter',
-                  accent: WaouhPalette.blue,
-                  background: const Color(0xFFEAF3FF),
-                  scale: k,
-                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.acheter)),
+          const SizedBox(height: 11),
+          Text(
+            '${avatar.name} · À vos côtés',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: avatarPremiumMuted,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            key: const ValueKey('avatar-greeting-below'),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: avatarPremiumLine),
+              boxShadow: [
+                BoxShadow(
+                  color: avatarPremiumInk.withValues(alpha: .04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
                 ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  named ? 'Bonjour $first' : 'Bonjour',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    color: avatarPremiumInk,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Que puis-je faire pour vous ?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: avatarPremiumMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: avatarPremiumLine),
+              borderRadius: BorderRadius.circular(19),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _prompt,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _submit(),
+                    decoration: const InputDecoration(
+                      hintText: 'Décrivez votre besoin…',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.all(7),
+                    ),
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF008B87),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                  ),
+                  tooltip: 'Démarrer ma demande',
+                  onPressed: _submit,
+                  icon: const Icon(Icons.arrow_upward, size: 20),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 13),
+          for (final row in [
+            [
+              (
+                LiveQuickAskKind.acheter,
+                'Acheter',
+                Icons.shopping_bag_outlined,
               ),
-              SizedBox(width: 7 * k),
-              Expanded(
-                child: _HeroAction(
-                  icon: Icons.sell_outlined,
-                  label: 'Vendre',
-                  accent: const Color(0xFFE18A27),
-                  background: const Color(0xFFFFF2E2),
-                  scale: k,
-                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.vendre)),
-                ),
+              (LiveQuickAskKind.vendre, 'Vendre', Icons.sell_outlined),
+            ],
+            [
+              (LiveQuickAskKind.trouver, 'Trouver', Icons.travel_explore),
+              (
+                LiveQuickAskKind.demander,
+                'Demander',
+                Icons.chat_bubble_outline,
               ),
             ],
-          ),
-          SizedBox(height: 7 * k),
-          Row(
-            children: [
-              Expanded(
-                child: _HeroAction(
-                  icon: Icons.travel_explore_rounded,
-                  label: 'Trouver',
-                  accent: const Color(0xFF2A9CCB),
-                  background: const Color(0xFFEAF9FC),
-                  scale: k,
-                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.trouver)),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  for (var i = 0; i < row.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: avatarPremiumInk,
+                          side: const BorderSide(color: avatarPremiumLine),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 14,
+                          ),
+                        ),
+                        onPressed: () => _askQuick(row[i].$1),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 35,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEDF1FF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                row[i].$3,
+                                size: 19,
+                                color: avatarPremiumBlue,
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                row[i].$2,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          if (count > 0 || widget.approvalCount > 0)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDF1FF),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  dense: true,
+                  onTap: widget.onMissions,
+                  leading: const Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: Color(0xFF008B87),
+                  ),
+                  title: Text(
+                    widget.approvalCount > 0
+                        ? '${widget.approvalCount} décision(s) à valider'
+                        : '$count mission${count > 1 ? 's' : ''} en cours',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Voir l’activité et la prochaine action',
+                    style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                  ),
+                  trailing: const Icon(Icons.north_east, size: 18),
                 ),
               ),
-              SizedBox(width: 7 * k),
-              Expanded(
-                child: _HeroAction(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Demander',
-                  accent: const Color(0xFF8B7CFF),
-                  background: const Color(0xFFF2EFFF),
-                  scale: k,
-                  onTap: () => _glideThen(() => _askQuick(LiveQuickAskKind.demander)),
-                ),
-              ),
-            ],
+            ),
+          TextButton.icon(
+            onPressed: widget.onAvatar,
+            icon: const Icon(Icons.verified_user_outlined, size: 15),
+            label: const Text(
+              'Mon Avatar, mes règles',
+              style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+            ),
           ),
-          SizedBox(height: 10 * k),
-          BotWorkingStrip(activeDeals: widget.activeDeals),
         ],
       ),
     );
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.scale, this.dot});
-
-  final String text;
-  final double scale;
-  final Color? dot;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .9),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFFD5F0E6)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (dot != null) ...[
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              text,
-              style: TextStyle(
-                color: dot != null ? const Color(0xFF047857) : WaouhPalette.blue,
-                fontSize: 11 * scale,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _GreetingBubble extends StatelessWidget {
-  const _GreetingBubble({
-    super.key,
-    required this.text,
-    required this.last,
-    required this.scale,
-  });
-
-  final String text;
-  final bool last;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic,
-        builder: (_, t, child) => Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * 6),
-            child: child,
-          ),
-        ),
-        child: Container(
-          margin: EdgeInsets.only(bottom: 5 * scale),
-          padding: EdgeInsets.symmetric(
-            horizontal: 11 * scale,
-            vertical: 6 * scale,
-          ),
-          decoration: BoxDecoration(
-            color: last ? const Color(0xFFFFF7E6) : Colors.white.withValues(alpha: .92),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(6),
-              topRight: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
-            ),
-            border: Border.all(
-              color: last ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
-            ),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: last ? const Color(0xFF0A1226) : const Color(0xFF334155),
-              fontSize: 13 * scale,
-              height: 1.3,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      );
-}
-
-class _TypingBubble extends StatefulWidget {
-  const _TypingBubble({required this.scale});
-  final double scale;
-
-  @override
-  State<_TypingBubble> createState() => _TypingBubbleState();
-}
-
-class _TypingBubbleState extends State<_TypingBubble>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _dots = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _dots.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        label: 'Bot écrit',
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 12 * widget.scale,
-            vertical: 9 * widget.scale,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .92),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: AnimatedBuilder(
-            animation: _dots,
-            builder: (_, __) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < 3; i++)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                    child: Opacity(
-                      opacity: .3 +
-                          .7 *
-                              (0.5 +
-                                  0.5 *
-                                      math.sin(
-                                        (_dots.value * 2 * math.pi) - i * .9,
-                                      )),
-                      child: Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF0D9488),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
-// Les 4 grandes fonctionnalités (Acheter/Vendre/Trouver/Demander) sont mises
-// en avant à égalité — même traitement visuel, une teinte par action
-// (parité avec les cartes du Web et de l'écran Avatar).
-class _HeroAction extends StatelessWidget {
-  const _HeroAction({
-    required this.icon,
-    required this.label,
-    required this.scale,
-    required this.onTap,
-    required this.accent,
-    required this.background,
-  });
-
-  final IconData icon;
-  final String label;
-  final double scale;
-  final VoidCallback onTap;
-  final Color accent;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 60 * scale,
-            padding: EdgeInsets.symmetric(horizontal: 11 * scale),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: .22),
-                  blurRadius: 18 * scale,
-                  offset: Offset(0, 8 * scale),
-                  spreadRadius: -11 * scale,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 34 * scale,
-                  height: 34 * scale,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(12 * scale),
-                  ),
-                  child: Icon(icon, size: 18 * scale, color: Colors.white),
-                ),
-                SizedBox(width: 9 * scale),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: WaouhPalette.ink,
-                      fontSize: 14.5 * scale,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
-/// « Bot travaille » : capacités réelles de WAOUH, une à la fois ; le seul
-/// chiffre affiché est le nombre réel de Deal Rooms.
 class BotWorkingStrip extends StatefulWidget {
   const BotWorkingStrip({super.key, required this.activeDeals});
   final int activeDeals;
@@ -687,16 +423,19 @@ class _BotWorkingStripState extends State<BotWorkingStrip> {
   int _index = 0;
 
   List<(IconData, String)> get _signals => [
-        (Icons.radar_rounded, 'NEXUS explore les annonces près de vous'),
-        (Icons.auto_awesome_rounded, 'Signal Fabric classe les meilleures offres'),
-        (Icons.verified_user_outlined, 'Contact protégé : vos numéros restent privés'),
-        if (widget.activeDeals > 0)
-          (
-            Icons.handshake_outlined,
-            '${widget.activeDeals} Deal Room${widget.activeDeals > 1 ? 's' : ''} '
-                'suivie${widget.activeDeals > 1 ? 's' : ''} en direct',
-          ),
-      ];
+    (Icons.radar_rounded, 'NEXUS explore les annonces près de vous'),
+    (Icons.auto_awesome_rounded, 'Signal Fabric classe les meilleures offres'),
+    (
+      Icons.verified_user_outlined,
+      'Contact protégé : vos numéros restent privés',
+    ),
+    if (widget.activeDeals > 0)
+      (
+        Icons.handshake_outlined,
+        '${widget.activeDeals} Deal Room${widget.activeDeals > 1 ? 's' : ''} '
+            'suivie${widget.activeDeals > 1 ? 's' : ''} en direct',
+      ),
+  ];
 
   @override
   void initState() {
@@ -761,7 +500,11 @@ class _BotWorkingStripState extends State<BotWorkingStrip> {
               child: Row(
                 key: ValueKey(current.$2),
                 children: [
-                  Icon(current.$1, size: 16 * k, color: const Color(0xFF0891B2)),
+                  Icon(
+                    current.$1,
+                    size: 16 * k,
+                    color: const Color(0xFF0891B2),
+                  ),
                   SizedBox(width: 6 * k),
                   Expanded(
                     child: Text(
@@ -800,10 +543,20 @@ class WaouhOneQuickCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final k = liveBotUiScale(context);
     const tiles = [
-      (Icons.shopping_cart_outlined, 'Acheter', 'Je veux acheter ', Color(0xFF059669)),
+      (
+        Icons.shopping_cart_outlined,
+        'Acheter',
+        'Je veux acheter ',
+        Color(0xFF059669),
+      ),
       (Icons.sell_outlined, 'Vendre', 'Je vends : ', Color(0xFF2563EB)),
       (Icons.search_rounded, 'Chercher', 'Je cherche ', Color(0xFF7C3AED)),
-      (Icons.compare_arrows_rounded, 'Comparer', 'Compare les meilleures options pour ', Color(0xFFD97706)),
+      (
+        Icons.compare_arrows_rounded,
+        'Comparer',
+        'Compare les meilleures options pour ',
+        Color(0xFFD97706),
+      ),
     ];
     return Container(
       padding: EdgeInsets.all(14 * k),
@@ -861,7 +614,10 @@ class WaouhOneQuickCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: WaouhPalette.muted),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: WaouhPalette.muted,
+                ),
               ],
             ),
           ),

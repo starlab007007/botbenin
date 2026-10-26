@@ -1,3 +1,7 @@
+import {loadAvatarAutonomy} from '@/lib/waouh/avatarAutonomy';
+import { WaouhLiveMission,type MissionActivity } from './WaouhLiveMission';
+import { WaouhEssentialOffers } from './WaouhEssentialOffers';
+import { WaouhDelegateButton } from './WaouhDelegateButton';
 import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhCityField } from "./WaouhCityField";
 import { WaouhSellPhotos, WaouhMyArticleCard } from "./WaouhSellPhotos";
@@ -100,6 +104,7 @@ export function WaouhGlobalDiscoveryPanel() {
   const [mode, setMode] = useState<NexusDiscoveryMode>(
     urlMode === "find_sellers" || urlMode === "find_buyers" ? urlMode : "auto",
   );
+  const [kind,setKind]=useState(urlParams.get('kind')|| (urlMode==='find_buyers'?'vendre':urlMode==='find_sellers'?'acheter':'trouver'));
   const autoStarted = useRef(false);
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
   const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
@@ -107,6 +112,10 @@ export function WaouhGlobalDiscoveryPanel() {
   const [city, setCity] = useState(() => urlParams.get("city") || "");
   const [budget, setBudget] = useState(() => (urlParams.get("budget") || "").replace(/\D/g, ""));
   const [busy, setBusy] = useState(false);
+  const [paused,setPaused]=useState(false),[started,setStarted]=useState(false),[refreshing,setRefreshing]=useState(false),[liveError,setLiveError]=useState('');
+  const [events,setEvents]=useState<MissionActivity[]>([]);
+  const eventId=useRef(0);
+  const record=(text:string)=>setEvents(items=>[...items,{id:++eventId.current,at:new Date().toISOString(),text}]);
   const [sellPhotos, setSellPhotos] = useState<string[]>([]);
   const [sellNotes, setSellNotes] = useState("");
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
@@ -149,7 +158,8 @@ export function WaouhGlobalDiscoveryPanel() {
   const searchEverywhere = async () => {
     if (!query.trim() || busy) return;
     const version = ++searchVersion.current;
-    setBusy(true);
+    setBusy(true);setPaused(false);setStarted(true);setRefreshing(false);setLiveError('');
+    setEvents([{id:++eventId.current,at:new Date().toISOString(),text:'Recherche lancée selon votre besoin.'}]);
     setResults([]);
     setIntelligence(null);
     setRefreshState({});
@@ -172,12 +182,15 @@ export function WaouhGlobalDiscoveryPanel() {
       }, indexed => {
         if (version !== searchVersion.current) return;
         setResults(indexed.results);
+        setRefreshing(!!user);
+        record(indexed.results.length?`${indexed.results.length} premières offres reçues.`:'Première recherche terminée. Recherche de nouvelles pistes.');
         setSourceMix(indexed.source_mix);
         setResolvedMode(indexed.mode);
         setRefreshState({});
       });
       if (version !== searchVersion.current) return;
       setResults(response.results);
+      record(response.results.length?`${response.results.length} offres reçues. Vous pouvez les comparer.`:'Recherche terminée. Aucune piste à afficher pour le moment.');
       setSourceMix(response.source_mix);
       setRefreshState(response.refresh ?? {});
       setResolvedMode(response.mode);
@@ -206,6 +219,7 @@ export function WaouhGlobalDiscoveryPanel() {
       void loadSources();
     } catch (error) {
       if (version !== searchVersion.current) return;
+      setLiveError('Recherche interrompue. Réessayez.');record('Recherche interrompue. Vos premières pistes restent accessibles.');
       toast({ title: "Recherche impossible", description: errorText(error), variant: "destructive" });
     } finally {
       if (version === searchVersion.current) setBusy(false);
@@ -223,26 +237,28 @@ export function WaouhGlobalDiscoveryPanel() {
     if (!requireAuth("/app/missions")) return;
     setMandateBusy(true);
     try {
+      const rules=await loadAvatarAutonomy();
       const response = await createNexusMandate({
         mode: resolvedMode === "find_buyers" ? "sell" : "buy",
         goal: query.trim(),
-        autonomy_mode: "semi_autonomous",
+        autonomy_mode: rules.mode,
         city: city.trim() || undefined,
         budget_max: resolvedMode === "find_sellers" && budget ? Number(budget) : undefined,
         photos: resolvedMode === "find_buyers" && sellPhotos.length ? sellPhotos : undefined,
         article_notes: resolvedMode === "find_buyers" && sellNotes.trim() ? sellNotes.trim() : undefined,
-        max_contacts: 3,
-        max_followups: 1,
-        duration_hours: 24,
-        scan_interval_minutes: 60,
+        max_contacts: rules.max_contacts,
+        max_followups: rules.max_followups,
+        duration_hours: rules.duration_hours,
+        scan_interval_minutes: rules.scan_interval_minutes,
+        allow_whatsapp:rules.allow_whatsapp,
         min_match_score: 70,
         min_actionability_score: 65,
         origin_surface: "global_discovery",
       });
       if (response.results?.length) setResults(response.results);
       toast({
-        title: "Recherche confiée à Bot pour 24 h",
-        description: `Maximum 3 prises de contact · ${response.actionable_count} opportunité(s) immédiatement actionnable(s).`,
+        title: "Votre recherche est confiée à Bot",
+        description: `Jusqu’à ${response.mandate.max_contacts} contacts, selon vos autorisations. Suivi disponible dans Missions.`,
       });
     } catch (error) {
       toast({ title: "Mission non créée", description: errorText(error), variant: "destructive" });
@@ -360,17 +376,19 @@ export function WaouhGlobalDiscoveryPanel() {
   };
 
   return (
-    <Card className="overflow-hidden rounded-[28px] border-blue-100 shadow-[0_24px_60px_-40px_rgba(37,99,235,.5)]">
+    <Card className="wap wap-mission border-0 bg-transparent shadow-none">
       <CardContent className="space-y-4 p-3 sm:p-5">
         <Tabs defaultValue="hunt">
-          <TabsList className="grid h-11 grid-cols-3 rounded-2xl bg-blue-50/70 p-1">
+          <details className="wap-mobile-editor"><summary>Autres actions</summary><TabsList className="grid h-11 grid-cols-3 rounded-2xl bg-blue-50/70 p-1">
             <TabsTrigger value="hunt" className="gap-1 rounded-xl text-xs font-bold"><Search className="h-3.5 w-3.5" />Chercher</TabsTrigger>
             <TabsTrigger value="share" className="gap-1 rounded-xl text-xs font-bold"><Share2 className="h-3.5 w-3.5" />Partager</TabsTrigger>
             <TabsTrigger value="sources" className="gap-1 rounded-xl text-xs font-bold"><Radar className="h-3.5 w-3.5" />Réseau</TabsTrigger>
-          </TabsList>
+          </TabsList></details>
 
           <TabsContent value="hunt" className="space-y-3">
-            <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/60 to-violet-50/60 p-3 sm:p-4">
+            <div className="wap-scenarios" role="group" aria-label="Mon parcours">{[['acheter','Acheter'],['vendre','Vendre'],['trouver','Trouver'],['demander','Demander']].map(([value,label])=><button type="button" key={value} aria-pressed={kind===value} disabled={busy} onClick={()=>{setKind(value);setMode(value==='vendre'?'find_buyers':value==='acheter'?'find_sellers':'auto');setResults([]);setStarted(false);}}>{label}</button>)}</div>
+            {started&&<><h1 className="wap-goal">{query}</h1><div className="wap-meta"><MapPin size={14}/>{city||'Zone à préciser'}{budget&&` · ${moneyXof(Number(budget))}${resolvedMode==='find_buyers'?' souhaités':' max'}`}</div></>}
+            <details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">
               <div className="grid grid-cols-3 gap-1.5" role="tablist" aria-label="Intention">
                 {([
                   ["auto", "IA", Sparkles],
@@ -449,47 +467,14 @@ export function WaouhGlobalDiscoveryPanel() {
                     : user
                       ? <Sparkles className="mr-2 h-4 w-4" />
                       : <LockKeyhole className="mr-2 h-4 w-4" />}
-                  {user ? "Confier à Bot · 24 h" : "Connexion pour confier à Bot"}
+                  {user ? "Confier à Bot" : "Connexion pour confier à Bot"}
                 </Button>
               </div>
-            </div>
-
-            <WaouhReasoningFeed
-              steps={feed.shown}
-              running={busy}
-              pending={feed.pending}
-              summary={reasonSummary}
-              onSkip={feed.skip}
-            />
-
-            {results.length > 0 && !busy && feed.pending === 0 && user && (
-              <WaouhBotNextStep
-                mode={resolvedMode === "find_buyers" ? "sell" : "buy"}
-                goal={query}
-                city={city}
-                budget={Number(budget) || null}
-                results={results}
-                originSurface="web_global_discovery_next_step"
-              />
-            )}
-
-            {results.length > 0 && (
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">
-                    {resolvedMode === "find_sellers" ? "Meilleures offres" : "Meilleurs acheteurs"}
-                  </div>
-                </div>
-                <Badge variant="outline" className="border-blue-200 text-blue-700">{results.length}</Badge>
-              </div>
-            )}
-
-            <div className="grid gap-2 lg:grid-cols-2">
-              <WaouhOfferComparison results={results} />
-              {results.map((result) => (
-                <WaouhNexusResultCard key={result.fabric_id} result={result} mode={resolvedMode === "find_buyers" ? "sell" : "buy"} />
-              ))}
-            </div>
+            </div></details>
+            {started&&<WaouhLiveMission busy={busy} paused={paused} count={results.length} refreshing={refreshing} error={liveError} events={events} onPause={()=>{searchVersion.current++;setBusy(false);setPaused(true);record('Recherche mise en pause.');}} onResume={()=>void searchEverywhere()}/>}
+            {started&&!busy&&!results.length&&<div className="wap-empty">{paused?'Reprenez votre recherche quand vous le souhaitez.':'Aucune piste à afficher. Ajustez votre besoin ou relancez la recherche.'}<button type="button" className="wap-link" onClick={()=>void searchEverywhere()}>Réessayer</button></div>}
+            {results.length>0&&<WaouhEssentialOffers results={results} city={city} renderActions={result=><><WaouhDelegateButton result={result} mode={resolvedMode==='find_buyers'?'sell':'buy'}/><WaouhNexusContactSheet fabricId={result.fabric_id} title={result.subject||'Offre'} sourceUrl={result.source_url} contactabilityLevel={result.contact_policy.level} mode={resolvedMode==='find_buyers'?'sell':'buy'}/></>}/>}
+            {started&&user&&<details className="wap-mobile-editor"><summary>Suivre cette recherche avec Bot</summary><WaouhBotNextStep mode={resolvedMode==='find_buyers'?'sell':'buy'} goal={query} city={city} budget={Number(budget)||null} results={results} originSurface="web_global_discovery_next_step"/></details>}
 
             {contact && (
               <div className="rounded-xl border bg-muted/20 p-3">

@@ -1,9 +1,16 @@
+import { autonomyWindowOpen } from "./waouh-avatar-autonomy-settings.ts";
 // deno-lint-ignore-file no-explicit-any
 import { openBuyerDeal } from './waouh-deal-open.ts';
 import { planAvatarNegotiation, journeyReplyToken } from './waouh-avatar-lifecycle.ts';
 import { CENTRAL_WAHA_SESSION } from './waouh-central-whatsapp.ts';
 
 export async function avatarNotice(sb: any, ownerId: string, key: string, text: string, context: any = {}) {
+  if(context.mandate_id){
+    const {data:noticeMandate}=await sb.from('waouh_avatar_mandates').select('metadata').eq('id',context.mandate_id).eq('owner_id',ownerId).maybeSingle();
+    const rules=noticeMandate?.metadata?.autonomy_settings;
+    const critical=/approval|agreed|complete|expired|failed|no-reply/.test(key);
+    if(rules&&!critical&&(rules.digest_only===true||(/reply|response/.test(key)&&rules.notify_reply===false)||(/results|offer|price|search/.test(key)&&rules.notify_offer===false)))return;
+  }
   const { data: user } = await sb.from('waouh_users').select('id,web_session_id')
     .eq('auth_user_id', ownerId).order('created_at').limit(1).maybeSingle();
   if (!user) return;
@@ -209,7 +216,7 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20, journeyId?: st
   let advanced = 0;
   for (const j of journeys ?? []) {
     const m = j.waouh_avatar_mandates;
-    if (!m || m.status !== 'active') continue;
+    if (!m || m.status !== 'active' || !autonomyWindowOpen(m)) continue;
     try {
       if (j.metadata?.external_agreement_id) continue; // The external participants confirm their exact terms and execution milestones.
       if (j.stage === 'negotiating' && await (await import('./waouh-external-exchange.ts')).advanceExternalNegotiation(sb,j,m)) continue;

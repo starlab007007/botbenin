@@ -47,7 +47,7 @@ export function planAvatarNegotiation(mandate: any, negotiation: any, rounds: nu
   const limit = role === "buyer" ? Number(mandate.budget_max) : Number(mandate.metadata?.price_floor);
   const within = limit > 0 && (role === "buyer" ? amount <= limit : amount >= limit);
   if (within) return { kind: "approval", action: "accept_offer", reason: "agreement_confirmation", amount };
-  if (mandate.autonomy_mode !== "autonomous" || !(limit > 0) || rounds >= Number(mandate.metadata?.max_negotiation_rounds ?? 3)) {
+  if (mandate.metadata?.autonomy_settings?.allow_negotiate === false || mandate.autonomy_mode !== "autonomous" || !(limit > 0) || rounds >= Number(mandate.metadata?.max_negotiation_rounds ?? 3)) {
     return { kind: "approval", action: "negotiate_offer", reason: "terms_require_owner", amount };
   }
   return { kind: "counter", amount: limit, reason: "within_explicit_limit" };

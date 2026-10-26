@@ -23,10 +23,12 @@ String? _cleanInfo(String? value) {
   if (text.isEmpty) return null;
   final kept = text
       .split(RegExp(r'\s*[·|]\s*'))
-      .where((part) =>
-          part.isNotEmpty &&
-          !_infoFiller.hasMatch(part) &&
-          !RegExp(r'^source\b', caseSensitive: false).hasMatch(part))
+      .where(
+        (part) =>
+            part.isNotEmpty &&
+            !_infoFiller.hasMatch(part) &&
+            !RegExp(r'^source\b', caseSensitive: false).hasMatch(part),
+      )
       .join(' · ')
       .trim();
   return kept.isEmpty ? null : kept;
@@ -73,18 +75,18 @@ class NexusScore {
   final List<String> reasons;
 
   factory NexusScore.fromJson(Map<String, dynamic> json) => NexusScore(
-        total: _number(json['total_score']),
-        relevance: _number(json['relevance_score']),
-        trust: _number(json['trust_score']),
-        contactability: _number(json['contactability_score']),
-        price: _number(json['price_score']),
-        location: _number(json['location_score']),
-        freshness: _number(json['freshness_score']),
-        reasons: _list(json['reasons'])
-            .map(_text)
-            .where((value) => value.trim().isNotEmpty)
-            .toList(growable: false),
-      );
+    total: _number(json['total_score']),
+    relevance: _number(json['relevance_score']),
+    trust: _number(json['trust_score']),
+    contactability: _number(json['contactability_score']),
+    price: _number(json['price_score']),
+    location: _number(json['location_score']),
+    freshness: _number(json['freshness_score']),
+    reasons: _list(json['reasons'])
+        .map(_text)
+        .where((value) => value.trim().isNotEmpty)
+        .toList(growable: false),
+  );
 }
 
 class NexusContactPolicy {
@@ -156,19 +158,27 @@ class NexusContactPack {
   factory NexusContactPack.fromJson(Map<String, dynamic> json) =>
       NexusContactPack(
         fabricId: _text(json['fabric_id']),
-        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+        sourceKey: json['source_key'] == null
+            ? null
+            : _text(json['source_key']),
         contactability: _text(json['contactability_level'], 'C0'),
         readiness: _text(json['readiness_level'], 'R0'),
         readinessScore: _number(json['readiness_score']),
         actionabilityScore: _number(json['actionability_score']),
         nextBestAction: _text(json['next_best_action'], 'ENRICH'),
-        bestChannel: json['best_channel'] == null ? null : _text(json['best_channel']),
-        messageTemplate: json['message_template'] == null ? null : _text(json['message_template']),
+        bestChannel: json['best_channel'] == null
+            ? null
+            : _text(json['best_channel']),
+        messageTemplate: json['message_template'] == null
+            ? null
+            : _text(json['message_template']),
         entityId: json['entity_id'] == null ? null : _text(json['entity_id']),
-        availableChannels: _list(json['available_channels'])
-            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
-        maskedContacts: _list(json['masked_contacts'])
-            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
+        availableChannels: _list(
+          json['available_channels'],
+        ).map(_map).where((row) => row.isNotEmpty).toList(growable: false),
+        maskedContacts: _list(
+          json['masked_contacts'],
+        ).map(_map).where((row) => row.isNotEmpty).toList(growable: false),
       );
 }
 
@@ -250,7 +260,12 @@ class NexusDiscoveryItem {
         }
       }
     }
-    for (final key in ['primary_photo_url', 'image_url', 'photo', 'thumbnail']) {
+    for (final key in [
+      'primary_photo_url',
+      'image_url',
+      'photo',
+      'thumbnail',
+    ]) {
       final text = evidence[key]?.toString().trim() ?? '';
       if (text.startsWith('http://') || text.startsWith('https://')) {
         out.add(text);
@@ -260,7 +275,9 @@ class NexusDiscoveryItem {
   }
 
   String get detailsSummary =>
-      _cleanInfo(_evidenceText(['details', 'description', 'summary', 'raw_text'])) ??
+      _cleanInfo(
+        _evidenceText(['details', 'description', 'summary', 'raw_text']),
+      ) ??
       [
         if (category?.trim().isNotEmpty == true) 'Catégorie : $category',
         if (city?.trim().isNotEmpty == true) 'Zone : $city',
@@ -340,19 +357,30 @@ class NexusDiscoveryItem {
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
-    final evidence = {..._map(json['evidence']), for (final key in ['model','unit','price_unit','offer_kind','kind','condition','market_references','price_references']) if (json[key] != null) key: json[key]};
+    final evidence = {
+      ..._map(json['evidence']),
+      for (final key in [
+        'model',
+        'unit',
+        'price_unit',
+        'offer_kind',
+        'kind',
+        'condition',
+        'market_references',
+        'price_references',
+      ])
+        if (json[key] != null) key: json[key],
+    };
     String? optionalId(dynamic value) {
       final text = _text(value).trim();
       return text.isEmpty || text == 'null' ? null : text;
     }
+
     return NexusDiscoveryItem(
       fabricId: _text(json['fabric_id']),
       sourceKey: _text(json['source_key'], 'waouh_app'),
       intent: _text(json['intent'], 'UNKNOWN'),
-      title: _text(
-        json['subject'] ?? json['category'],
-        'Signal commercial',
-      ),
+      title: _text(json['subject'] ?? json['category'], 'Signal commercial'),
       actorType: json['actor_type'] == null ? null : _text(json['actor_type']),
       category: json['category'] == null ? null : _text(json['category']),
       city: json['city'] == null ? null : _text(json['city']),
@@ -363,7 +391,9 @@ class NexusDiscoveryItem {
       articleId: optionalId(
         json['article_id'] ??
             evidence['article_id'] ??
-            (json['source_key'] == 'waouh_app' ? json['source_record_id'] : null),
+            (json['source_key'] == 'waouh_app'
+                ? json['source_record_id']
+                : null),
       ),
       catalogId: optionalId(json['catalog_id'] ?? evidence['catalog_id']),
       sellerUserId: optionalId(
@@ -395,8 +425,7 @@ class NexusDiscoveryItem {
           : _text(json['best_channel']),
       evidence: evidence,
       scores: NexusScore.fromJson(_map(json['scores'])),
-      contactPolicy:
-          NexusContactPolicy.fromJson(_map(json['contact_policy'])),
+      contactPolicy: NexusContactPolicy.fromJson(_map(json['contact_policy'])),
     );
   }
 }
@@ -485,8 +514,9 @@ class NexusDiscoveryResponse {
       normalizedQuery: json['normalized_query'] == null
           ? null
           : _text(json['normalized_query']),
-      explanation:
-          json['explanation'] == null ? null : _text(json['explanation']),
+      explanation: json['explanation'] == null
+          ? null
+          : _text(json['explanation']),
       intelligence: intelligenceJson.isEmpty
           ? null
           : NexusSmartDiscoveryPlan.fromJson(intelligenceJson),
@@ -494,9 +524,9 @@ class NexusDiscoveryResponse {
           .map((value) => NexusDiscoveryItem.fromJson(_map(value)))
           .where((item) => item.fabricId.isNotEmpty)
           .toList(growable: false),
-      sourceMix: _map(json['source_mix']).map(
-        (key, value) => MapEntry(key, _number(value).round()),
-      ),
+      sourceMix: _map(
+        json['source_mix'],
+      ).map((key, value) => MapEntry(key, _number(value).round())),
       refresh: _map(json['refresh']),
     );
   }
@@ -568,8 +598,7 @@ class NexusContactItem {
         value: _text(json['value']),
         level: _text(json['contactability_level'], 'C0'),
         canAutoContact: _bool(json['can_auto_contact']),
-        last4:
-            json['value_last4'] == null ? null : _text(json['value_last4']),
+        last4: json['value_last4'] == null ? null : _text(json['value_last4']),
       );
 }
 
@@ -600,34 +629,34 @@ class NexusPreparedContact {
   final String? sourceUrl;
   final String? note;
 
-  factory NexusPreparedContact.fromJson(Map<String, dynamic> json) =>
-      NexusPreparedContact(
-        fabricId: _text(json['fabric_id']),
-        policy: NexusContactPolicy.fromJson(_map(json['contact_policy'])),
-        contacts: _list(json['contacts'])
-            .map((value) => NexusContactItem.fromJson(_map(value)))
-            .where((item) => item.value.trim().isNotEmpty)
-            .toList(growable: false),
-        contactPack: _map(json['contact_pack']).isEmpty
-            ? null
-            : NexusContactPack.fromJson(_map(json['contact_pack'])),
-        readinessLevel: json['readiness_level'] == null
-            ? null
-            : _text(json['readiness_level']),
-        actionabilityScore: json['actionability_score'] == null
-            ? null
-            : _number(json['actionability_score']),
-        nextBestAction: json['next_best_action'] == null
-            ? null
-            : _text(json['next_best_action']),
-        actorName:
-            json['actor_name'] == null ? null : _text(json['actor_name']),
-        productName:
-            json['product_name'] == null ? null : _text(json['product_name']),
-        sourceUrl:
-            json['source_url'] == null ? null : _text(json['source_url']),
-        note: json['note'] == null ? null : _text(json['note']),
-      );
+  factory NexusPreparedContact.fromJson(
+    Map<String, dynamic> json,
+  ) => NexusPreparedContact(
+    fabricId: _text(json['fabric_id']),
+    policy: NexusContactPolicy.fromJson(_map(json['contact_policy'])),
+    contacts: _list(json['contacts'])
+        .map((value) => NexusContactItem.fromJson(_map(value)))
+        .where((item) => item.value.trim().isNotEmpty)
+        .toList(growable: false),
+    contactPack: _map(json['contact_pack']).isEmpty
+        ? null
+        : NexusContactPack.fromJson(_map(json['contact_pack'])),
+    readinessLevel: json['readiness_level'] == null
+        ? null
+        : _text(json['readiness_level']),
+    actionabilityScore: json['actionability_score'] == null
+        ? null
+        : _number(json['actionability_score']),
+    nextBestAction: json['next_best_action'] == null
+        ? null
+        : _text(json['next_best_action']),
+    actorName: json['actor_name'] == null ? null : _text(json['actor_name']),
+    productName: json['product_name'] == null
+        ? null
+        : _text(json['product_name']),
+    sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+    note: json['note'] == null ? null : _text(json['note']),
+  );
 }
 
 class NexusSharedSignal {
@@ -655,13 +684,13 @@ class NexusSharedSignal {
         actorType: _text(json['actor_type'], 'unknown'),
         contactability: _text(json['contactability_level'], 'C0'),
         confidence: _number(json['confidence']),
-        productName:
-            json['product_name'] == null ? null : _text(json['product_name']),
+        productName: json['product_name'] == null
+            ? null
+            : _text(json['product_name']),
         category: json['category'] == null ? null : _text(json['category']),
         city: json['city'] == null ? null : _text(json['city']),
       );
 }
-
 
 class NexusOpportunityJourney {
   const NexusOpportunityJourney({
@@ -722,43 +751,53 @@ class NexusOpportunityJourney {
   bool get negotiating => stage == 'negotiating' || contactability == 'C5';
   bool get completed => stage == 'completed';
 
-  factory NexusOpportunityJourney.fromJson(Map<String, dynamic> json) =>
-      NexusOpportunityJourney(
-        id: _text(json['id']),
-        fabricId: _text(json['fabric_id']),
-        stage: _text(json['stage'], 'discovered'),
-        mode: _text(json['mode'], 'buy'),
-        contactability: _text(json['contactability_level'], 'C0'),
-        progress: _number(json['progress'], 10).round(),
-        nextAction: _text(json['next_action'], 'Avatar analyse la prochaine étape'),
-        subject: json['subject'] == null ? null : _text(json['subject']),
-        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
-        sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
-        contactChannel: json['contact_channel'] == null
-            ? null
-            : _text(json['contact_channel']),
-        lastAction:
-            json['last_action'] == null ? null : _text(json['last_action']),
-        lastMessage:
-            json['last_message'] == null ? null : _text(json['last_message']),
-        articleId: json['article_id'] == null ? null : _text(json['article_id']),
-        threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
-        negotiationId: json['negotiation_id'] == null ? null : _text(json['negotiation_id']),
-        dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
-        mandateId: json['mandate_id'] == null ? null : _text(json['mandate_id']),
-        readinessLevel: json['readiness_level'] == null ? null : _text(json['readiness_level']),
-        readinessScore: json['readiness_score'] == null ? null : _number(json['readiness_score']),
-        actionabilityScore: json['actionability_score'] == null ? null : _number(json['actionability_score']),
-        nextBestActionCode: json['next_best_action'] == null ? null : _text(json['next_best_action']),
-        contactPack: _map(json['contact_pack']).isEmpty
-            ? null
-            : NexusContactPack.fromJson(_map(json['contact_pack'])),
-        maskedContact: _map(json['masked_contact']),
-        timeline: _list(json['timeline'])
-            .map(_map)
-            .where((item) => item.isNotEmpty)
-            .toList(growable: false),
-      );
+  factory NexusOpportunityJourney.fromJson(
+    Map<String, dynamic> json,
+  ) => NexusOpportunityJourney(
+    id: _text(json['id']),
+    fabricId: _text(json['fabric_id']),
+    stage: _text(json['stage'], 'discovered'),
+    mode: _text(json['mode'], 'buy'),
+    contactability: _text(json['contactability_level'], 'C0'),
+    progress: _number(json['progress'], 10).round(),
+    nextAction: _text(json['next_action'], 'Avatar analyse la prochaine étape'),
+    subject: json['subject'] == null ? null : _text(json['subject']),
+    sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+    sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+    contactChannel: json['contact_channel'] == null
+        ? null
+        : _text(json['contact_channel']),
+    lastAction: json['last_action'] == null ? null : _text(json['last_action']),
+    lastMessage: json['last_message'] == null
+        ? null
+        : _text(json['last_message']),
+    articleId: json['article_id'] == null ? null : _text(json['article_id']),
+    threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
+    negotiationId: json['negotiation_id'] == null
+        ? null
+        : _text(json['negotiation_id']),
+    dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
+    mandateId: json['mandate_id'] == null ? null : _text(json['mandate_id']),
+    readinessLevel: json['readiness_level'] == null
+        ? null
+        : _text(json['readiness_level']),
+    readinessScore: json['readiness_score'] == null
+        ? null
+        : _number(json['readiness_score']),
+    actionabilityScore: json['actionability_score'] == null
+        ? null
+        : _number(json['actionability_score']),
+    nextBestActionCode: json['next_best_action'] == null
+        ? null
+        : _text(json['next_best_action']),
+    contactPack: _map(json['contact_pack']).isEmpty
+        ? null
+        : NexusContactPack.fromJson(_map(json['contact_pack'])),
+    maskedContact: _map(json['masked_contact']),
+    timeline: _list(
+      json['timeline'],
+    ).map(_map).where((item) => item.isNotEmpty).toList(growable: false),
+  );
 }
 
 class LiveNexusService {
@@ -772,10 +811,7 @@ class LiveNexusService {
     String action, [
     Map<String, dynamic> payload = const {},
   ]) async {
-    const publicActions = <String>{
-      'nexus.global_discovery',
-      'nexus.sources',
-    };
+    const publicActions = <String>{'nexus.global_discovery', 'nexus.sources'};
     if (client.auth.currentUser == null && !publicActions.contains(action)) {
       throw const NexusApiException(
         'Connectez-vous pour continuer cette action.',
@@ -834,13 +870,12 @@ class LiveNexusService {
     required String goal,
     String? city,
     double? budgetMax,
-  }) =>
-      _invoke('nexus.autopilot.create', {
-        'mode': 'buyer',
-        'goal': goal.trim(),
-        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-        if (budgetMax != null) 'budget_max': budgetMax,
-      });
+  }) => _invoke('nexus.autopilot.create', {
+    'mode': 'buyer',
+    'goal': goal.trim(),
+    if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+    if (budgetMax != null) 'budget_max': budgetMax,
+  });
 
   Future<Map<String, dynamic>> createSellerAutopilot({
     required String articleId,
@@ -848,15 +883,14 @@ class LiveNexusService {
     double? minPrice,
     double maxDiscountPercent = 15,
     List<String> deliveryZones = const [],
-  }) =>
-      _invoke('nexus.autopilot.create', {
-        'mode': 'seller',
-        'article_id': articleId,
-        'goal': goal.trim(),
-        if (minPrice != null) 'min_price_amount': minPrice,
-        'max_discount_percent': maxDiscountPercent,
-        'delivery_zones': deliveryZones,
-      });
+  }) => _invoke('nexus.autopilot.create', {
+    'mode': 'seller',
+    'article_id': articleId,
+    'goal': goal.trim(),
+    if (minPrice != null) 'min_price_amount': minPrice,
+    'max_discount_percent': maxDiscountPercent,
+    'delivery_zones': deliveryZones,
+  });
 
   Future<Map<String, dynamic>> submitScout({
     required String title,
@@ -868,19 +902,18 @@ class LiveNexusService {
     String availability = 'available',
     String? note,
     List<String> photoUrls = const [],
-  }) =>
-      _invoke('nexus.scout.submit', {
-        'title': title.trim(),
-        if (observedPrice != null) 'observed_price': observedPrice,
-        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-        if (placeName != null && placeName.trim().isNotEmpty)
-          'place_name': placeName.trim(),
-        if (gtin != null && gtin.trim().isNotEmpty) 'gtin': gtin.trim(),
-        'source_type': sourceType,
-        'availability': availability,
-        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-        'photo_urls': photoUrls,
-      });
+  }) => _invoke('nexus.scout.submit', {
+    'title': title.trim(),
+    if (observedPrice != null) 'observed_price': observedPrice,
+    if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+    if (placeName != null && placeName.trim().isNotEmpty)
+      'place_name': placeName.trim(),
+    if (gtin != null && gtin.trim().isNotEmpty) 'gtin': gtin.trim(),
+    'source_type': sourceType,
+    'availability': availability,
+    if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+    'photo_urls': photoUrls,
+  });
 
   Future<NexusDiscoveryResponse> search({
     required String query,
@@ -889,6 +922,7 @@ class LiveNexusService {
     String? city,
     double? budgetMax,
     bool refreshExternal = true,
+    bool smart = true,
     int limit = 24,
   }) async {
     final data = await _invoke('nexus.global_discovery', {
@@ -896,7 +930,7 @@ class LiveNexusService {
       'mode': smartMode
           ? 'auto'
           : (findSellers ? 'find_sellers' : 'find_buyers'),
-      'smart': true,
+      'smart': smart,
       if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
       if (budgetMax != null && (smartMode || findSellers))
         'budget_max': budgetMax,
@@ -904,6 +938,35 @@ class LiveNexusService {
       'refresh_external': refreshExternal,
     });
     return NexusDiscoveryResponse.fromJson(data);
+  }
+
+  Future<NexusDiscoveryResponse> searchProgressive({
+    required String query,
+    required bool findSellers,
+    bool smartMode = false,
+    String? city,
+    double? budgetMax,
+    bool refreshExternal = true,
+    required void Function(NexusDiscoveryResponse) onIndexed,
+  }) async {
+    final indexed = await search(
+      query: query,
+      findSellers: findSellers,
+      smartMode: smartMode,
+      city: city,
+      budgetMax: budgetMax,
+      refreshExternal: false,
+      smart: false,
+    );
+    onIndexed(indexed);
+    if (!refreshExternal) return indexed;
+    return search(
+      query: query,
+      findSellers: findSellers,
+      smartMode: smartMode,
+      city: city,
+      budgetMax: budgetMax,
+    );
   }
 
   /// Catalogue WAOUH (articles publiés) — même action que le Web (`nexus.search`).
@@ -920,7 +983,9 @@ class LiveNexusService {
       'limit': limit,
       'persist_intent': true,
     });
-    return _list(data['results']).map(_map).where((row) => row.isNotEmpty).toList(growable: false);
+    return _list(
+      data['results'],
+    ).map(_map).where((row) => row.isNotEmpty).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> sourceHealth() => _invoke('nexus.sources');
@@ -1009,17 +1074,16 @@ class LiveNexusService {
     String? articleId,
     String? sourceUrl,
     double? targetAmount,
-  }) =>
-      _invoke('watch.create', {
-        'query': query.trim(),
-        if (articleId != null && articleId.trim().isNotEmpty)
-          'article_id': articleId.trim(),
-        if (sourceUrl != null && sourceUrl.trim().isNotEmpty)
-          'source_url': sourceUrl.trim(),
-        if (targetAmount != null) 'target_amount': targetAmount,
-        'currency': 'XOF',
-        'check_interval_minutes': 60,
-      });
+  }) => _invoke('watch.create', {
+    'query': query.trim(),
+    if (articleId != null && articleId.trim().isNotEmpty)
+      'article_id': articleId.trim(),
+    if (sourceUrl != null && sourceUrl.trim().isNotEmpty)
+      'source_url': sourceUrl.trim(),
+    if (targetAmount != null) 'target_amount': targetAmount,
+    'currency': 'XOF',
+    'check_interval_minutes': 60,
+  });
 
   Future<NexusPreparedContact> prepareContact(String fabricId) async {
     final data = await _invoke('nexus.contact.prepare', {
@@ -1032,18 +1096,24 @@ class LiveNexusService {
     required String fabricId,
     required String message,
     String? mandateId,
-  }) =>
-      _invoke('nexus.contact.send', {
-        'fabric_id': fabricId,
-        'message': message.trim(),
-        'confirmed': true,
-        if (mandateId != null && mandateId.trim().isNotEmpty)
-          'mandate_id': mandateId.trim(),
-      });
+  }) => _invoke('nexus.contact.send', {
+    'fabric_id': fabricId,
+    'message': message.trim(),
+    'confirmed': true,
+    if (mandateId != null && mandateId.trim().isNotEmpty)
+      'mandate_id': mandateId.trim(),
+  });
 
-  Future<Map<String, dynamic>> bindJourneyArticle(String journeyId, String articleId) => _invoke('nexus.opportunity.bind_article', {'journey_id': journeyId, 'article_id': articleId});
+  Future<Map<String, dynamic>> bindJourneyArticle(
+    String journeyId,
+    String articleId,
+  ) => _invoke('nexus.opportunity.bind_article', {
+    'journey_id': journeyId,
+    'article_id': articleId,
+  });
 
-  Future<Map<String, dynamic>> ownedArticles() => _invoke('nexus.owned_articles', {});
+  Future<Map<String, dynamic>> ownedArticles() =>
+      _invoke('nexus.owned_articles', {});
 
   Future<Map<String, dynamic>> createMandate({
     String? articleId,
@@ -1067,34 +1137,32 @@ class LiveNexusService {
     int scanIntervalMinutes = 60,
     List<String> photos = const <String>[],
     String articleNotes = '',
-  }) =>
-      _invoke('nexus.mandate.create', {
-        if (photos.isNotEmpty) 'photos': photos,
-        if (articleNotes.trim().isNotEmpty) 'article_notes': articleNotes.trim(),
-        if (articleId != null) 'article_id': articleId,
-        if (priceFloor != null) 'price_floor': priceFloor,
-        'mode': mode,
-        'goal': goal.trim(),
-        'autonomy_mode': autonomyMode,
-        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-        if (budgetMax != null) 'budget_max': budgetMax,
-        'max_contacts': maxContacts,
-        'max_followups': maxFollowups,
-        'allow_sms_rcs': allowSmsRcs,
-        'duration_hours': durationHours,
-        'completion_goal': completionGoal,
-        'allow_whatsapp': allowWhatsapp,
-        'allow_public_business': allowPublicBusiness,
-        'allow_blind_message': allowBlindMessage,
-        'quantity': quantity,
-        'delivery_terms': deliveryTerms,
-        'acceptance_terms': acceptanceTerms,
-        'scan_interval_minutes': scanIntervalMinutes,
-        'origin_surface': 'flutter_avatar',
-      });
+  }) => _invoke('nexus.mandate.create', {
+    if (photos.isNotEmpty) 'photos': photos,
+    if (articleNotes.trim().isNotEmpty) 'article_notes': articleNotes.trim(),
+    if (articleId != null) 'article_id': articleId,
+    if (priceFloor != null) 'price_floor': priceFloor,
+    'mode': mode,
+    'goal': goal.trim(),
+    'autonomy_mode': autonomyMode,
+    if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+    if (budgetMax != null) 'budget_max': budgetMax,
+    'max_contacts': maxContacts,
+    'max_followups': maxFollowups,
+    'allow_sms_rcs': allowSmsRcs,
+    'duration_hours': durationHours,
+    'completion_goal': completionGoal,
+    'allow_whatsapp': allowWhatsapp,
+    'allow_public_business': allowPublicBusiness,
+    'allow_blind_message': allowBlindMessage,
+    'quantity': quantity,
+    'delivery_terms': deliveryTerms,
+    'acceptance_terms': acceptanceTerms,
+    'scan_interval_minutes': scanIntervalMinutes,
+    'origin_surface': 'flutter_avatar',
+  });
 
-  Future<Map<String, dynamic>> listMandates() =>
-      _invoke('nexus.mandate.list');
+  Future<Map<String, dynamic>> listMandates() => _invoke('nexus.mandate.list');
 
   Future<Map<String, dynamic>> updateMandate(
     String mandateId, {
@@ -1105,17 +1173,17 @@ class LiveNexusService {
     bool? allowPublicBusiness,
     bool? allowBlindMessage,
     int? durationHours,
-  }) =>
-      _invoke('nexus.mandate.update', {
-        'mandate_id': mandateId,
-        if (status != null) 'status': status,
-        if (autonomyMode != null) 'autonomy_mode': autonomyMode,
-        if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
-        if (allowWhatsapp != null) 'allow_whatsapp': allowWhatsapp,
-        if (allowPublicBusiness != null) 'allow_public_business': allowPublicBusiness,
-        if (allowBlindMessage != null) 'allow_blind_message': allowBlindMessage,
-        if (durationHours != null) 'duration_hours': durationHours,
-      });
+  }) => _invoke('nexus.mandate.update', {
+    'mandate_id': mandateId,
+    if (status != null) 'status': status,
+    if (autonomyMode != null) 'autonomy_mode': autonomyMode,
+    if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
+    if (allowWhatsapp != null) 'allow_whatsapp': allowWhatsapp,
+    if (allowPublicBusiness != null)
+      'allow_public_business': allowPublicBusiness,
+    if (allowBlindMessage != null) 'allow_blind_message': allowBlindMessage,
+    if (durationHours != null) 'duration_hours': durationHours,
+  });
 
   Future<Map<String, dynamic>> runMandate(String mandateId) =>
       _invoke('nexus.mandate.run', {'mandate_id': mandateId});
@@ -1141,9 +1209,7 @@ class LiveNexusService {
   Future<String> uploadSharedImage(XFile file) async {
     final user = client.auth.currentUser;
     if (user == null) {
-      throw const NexusApiException(
-        'Connectez-vous pour analyser une image.',
-      );
+      throw const NexusApiException('Connectez-vous pour analyser une image.');
     }
     final Uint8List bytes = await file.readAsBytes();
     if (bytes.isEmpty) {
@@ -1154,7 +1220,9 @@ class LiveNexusService {
         : 'jpg';
     final path =
         'nexus/${user.id}/shared/${DateTime.now().microsecondsSinceEpoch}.$extension';
-    await client.storage.from('waouh-uploads').uploadBinary(
+    await client.storage
+        .from('waouh-uploads')
+        .uploadBinary(
           path,
           bytes,
           fileOptions: FileOptions(
