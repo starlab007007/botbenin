@@ -11,7 +11,7 @@ import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen, ArrowUp, Tag, Handshake, MessageCircle, ChevronRight, ShoppingCart, ArrowLeftRight, MessagesSquare } from "lucide-react";
+import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen, ArrowUp, Tag, Globe2, MessageSquareText, MessagesSquare } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
@@ -458,16 +458,18 @@ export default function ChatListScreen() {
             </span>
           </button>
 
-          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-3 gap-[clamp(6px,1.8vw,10px)]">
+          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-2 gap-[clamp(6px,1.8vw,10px)]">
             {[
-              { label: "Démarrer", sub: "avec Bot", Icon: MessageCircle, onClick: openNewWaouh, primary: true },
-              { label: "Trouver", sub: "une opportunité", Icon: Search, onClick: () => navigate("/app/nexus"), primary: false },
-              { label: "Négocier", sub: "avec Bot", Icon: Handshake, onClick: openNewWaouh, primary: false },
+              { label: "Acheter", sub: "Je trouve et compare", Icon: ShoppingBag, onClick: () => glideThen(() => askBot("Je veux acheter ")), primary: true },
+              { label: "Vendre", sub: "Je trouve des acheteurs", Icon: Tag, onClick: () => glideThen(() => askBot("Je veux vendre ")), primary: false },
+              { label: "Trouver", sub: "Partout avec NEXUS", Icon: Globe2, onClick: () => glideThen(() => navigate("/app/nexus")), primary: false },
+              { label: "Demander", sub: "Parlez naturellement", Icon: MessageSquareText, onClick: () => glideThen(openNewWaouh), primary: false },
             ].map(({ label, sub, Icon, onClick, primary }) => (
               <button
                 key={label}
                 type="button"
                 onClick={onClick}
+                data-waouh-action={label.toLowerCase()}
                 className={
                   "flex min-h-11 min-w-0 flex-row items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
                   (primary
@@ -485,42 +487,6 @@ export default function ChatListScreen() {
           </div>
 
           <BotWorkingStrip activeDeals={matchChats.matches?.length ?? 0} className="mt-[clamp(10px,2.6vw,14px)]" />
-        </section>
-
-        {/* WAOUH One — le moteur commerce, en accès direct sous Bot. */}
-        <section className="mx-auto mb-4 w-full max-w-[760px] rounded-[26px] border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-cyan-50/80 p-3 sm:p-4 shadow-sm">
-          <button type="button" onClick={openWaouh} className="flex w-full items-center gap-3 text-left">
-            <span className="grid h-[clamp(40px,11vw,48px)] w-[clamp(40px,11vw,48px)] shrink-0 place-items-center rounded-2xl bg-slate-950 text-white shadow-md">
-              <ShoppingBag className="h-[55%] w-[55%]" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5 text-[clamp(16px,4.4vw,20px)] font-black tracking-tight text-slate-950">
-                WAOUH One <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="block truncate text-[clamp(11.5px,3vw,13px)] font-semibold text-slate-500">Achetez, vendez, comparez et négociez en confiance.</span>
-            </span>
-            <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-          </button>
-          <div className="mt-3 grid grid-cols-4 gap-[clamp(6px,1.8vw,10px)]">
-            {[
-              { label: "Acheter", Icon: ShoppingCart, tint: "text-emerald-600 bg-emerald-50" },
-              { label: "Vendre", Icon: Tag, tint: "text-blue-600 bg-blue-50" },
-              { label: "Chercher", Icon: Search, tint: "text-violet-600 bg-violet-50" },
-              { label: "Comparer", Icon: ArrowLeftRight, tint: "text-amber-600 bg-amber-50" },
-            ].map(({ label, Icon, tint }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={openNewWaouh}
-                className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border border-white bg-white/90 px-1 py-[clamp(8px,2.4vw,12px)] shadow-sm transition hover:bg-white active:scale-[.97]"
-              >
-                <span className={"grid h-[clamp(30px,8vw,38px)] w-[clamp(30px,8vw,38px)] place-items-center rounded-xl " + tint}>
-                  <Icon className="h-[60%] w-[60%]" />
-                </span>
-                <span className="max-w-full truncate text-[clamp(11px,2.9vw,13px)] font-bold text-slate-800">{label}</span>
-              </button>
-            ))}
-          </div>
         </section>
 
         {!isGuest && (

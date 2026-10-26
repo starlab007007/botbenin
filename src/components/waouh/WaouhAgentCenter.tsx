@@ -43,11 +43,15 @@ const EMPTY: CenterData = { missions: [], watches: [], approvals: [], activity: 
 const errorMessage = (error: unknown) => userFacingErrorText(error, "generic");
 const amount = (value: string) => value.trim() ? Number(value.replace(/\s/g, "")) : undefined;
 
-export function WaouhAgentCenter({ compact = false, standalone = false, embedded = false }: { compact?: boolean; standalone?: boolean; embedded?: boolean }) {
+export function WaouhAgentCenter({ compact = false, standalone = false, embedded = false, initialTab }: { compact?: boolean; standalone?: boolean; embedded?: boolean; initialTab?: string }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState("missions");
+  const [tab, setTab] = useState(initialTab || "missions");
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [data, setData] = useState<CenterData>(EMPTY);
