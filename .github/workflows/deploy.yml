@@ -65,6 +65,7 @@ jobs:
           set -euo pipefail
           docker build --pull --label io.botbj.release=true --label org.opencontainers.image.revision="$GITHUB_SHA" -t "botbj-ci:$GITHUB_SHA" .
           docker run --rm --entrypoint nginx "botbj-ci:$GITHUB_SHA" -t
+          docker run --rm --entrypoint sh "botbj-ci:$GITHUB_SHA" -c "grep -R -q 'avatar-premium-home' /usr/share/nginx/html/assets/js"
           docker save "botbj-ci:$GITHUB_SHA" | gzip -1 > botbj-image.tar.gz
           sha256sum botbj-image.tar.gz > botbj-image.tar.gz.sha256
 
@@ -235,7 +236,7 @@ jobs:
             docker compose exec -T react-app sh -c "grep -R -q 'Le Web Chat est momentanément indisponible' /usr/share/nginx/html/assets/js"
             docker compose exec -T react-app test -f /usr/share/nginx/html/waouh-ui-version.txt
             docker compose exec -T react-app grep -Fxq "$(head -n 1 public/waouh-ui-version.txt)" /usr/share/nginx/html/waouh-ui-version.txt
-            docker compose exec -T react-app sh -c "grep -R -q 'bot-avatar-v3' /usr/share/nginx/html/assets/js"
+            docker compose exec -T react-app sh -c "grep -R -q 'avatar-premium-home' /usr/share/nginx/html/assets/js"
             docker compose exec -T react-app sh -c "grep -R -q 'bot-copilot-v2' /usr/share/nginx/html/assets/js"
 
             PUBLIC_AGENT_CHUNK=$(docker compose exec -T react-app sh -c "ls /usr/share/nginx/html/assets/js/PublicAgentWebChatPage-*.js /usr/share/nginx/html/assets/js/PublicBotChatPage-*.js 2>/dev/null | head -n1" | tr -d '\r')
