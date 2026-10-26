@@ -2618,9 +2618,9 @@ Retourne uniquement JSON:
         const goal = asString(payload.goal, "goal", 3, 2000);
         const city = optionalString(payload.city??autonomyRules?.city, "city", 120);
         const budgetMax = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
-        const maxContacts = integer(payload.max_contacts??autonomyRules?.max_contacts, "max_contacts", 3, 1, 20);
-        const maxFollowups = integer(payload.max_followups??autonomyRules?.max_followups, "max_followups", 1, 0, 5);
-        const durationHours = integer(autonomyRules?.duration_hours??payload.duration_hours, "duration_hours", 72, 1, 720);
+        const maxContacts = Math.min(integer(payload.max_contacts??autonomyRules?.max_contacts, "max_contacts", 3, 1, 20),autonomyRules?.max_contacts??20);
+        const maxFollowups = Math.min(integer(payload.max_followups??autonomyRules?.max_followups, "max_followups", 1, 0, 5),autonomyRules?.max_followups??5);
+        const durationHours = Math.min(integer(payload.duration_hours??autonomyRules?.duration_hours, "duration_hours", 72, 1, 720),autonomyRules?.duration_hours??720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
@@ -2743,7 +2743,7 @@ Retourne uniquement JSON:
             budget_max: budgetMax,
             min_match_score: minMatchScore,
             min_actionability_score: minActionabilityScore,
-            scan_interval_minutes: integer(payload.scan_interval_minutes??autonomyRules?.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
+            scan_interval_minutes: Math.max(integer(payload.scan_interval_minutes??autonomyRules?.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),autonomyRules?.scan_interval_minutes??15),
             status: "active",
             next_scan_at: new Date().toISOString(),
             expires_at: mandate.expires_at,

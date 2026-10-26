@@ -283,24 +283,23 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       final maxBudget = double.tryParse(
         budget.text.replaceAll(RegExp(r'\D'), ''),
       );
+      final rules = await loadLiveAvatarAutonomy();
       await service.createMandate(
         mode: findSellers ? 'buy' : 'sell',
         goal: goal,
-        autonomyMode: 'semi_autonomous',
+        autonomyMode: '${rules['mode']}',
         city: city.text.trim(),
         budgetMax: maxBudget,
-        maxContacts: 3,
-        maxFollowups: 1,
-        durationHours: 24,
-        scanIntervalMinutes: 60,
+        maxContacts: (rules['max_contacts'] as num).toInt(),
+        maxFollowups: (rules['max_followups'] as num).toInt(),
+        durationHours: (rules['duration_hours'] as num).toInt(),
+        scanIntervalMinutes: (rules['scan_interval_minutes'] as num).toInt(),
+        allowWhatsapp: rules['allow_whatsapp'] == true,
         photos: findSellers ? const <String>[] : sellPhotos,
         articleNotes: findSellers ? '' : sellNotes,
       );
       if (!mounted) return;
-      notice(
-        'Mandat semi-autonome créé pour 24 h · 3 contacts maximum.',
-        success: true,
-      );
+      notice('Votre mission est enregistrée selon vos règles.', success: true);
       context.read<LiveAvatarController>().showState(
         LiveAvatarPresenceState.watching,
         duration: const Duration(seconds: 4),

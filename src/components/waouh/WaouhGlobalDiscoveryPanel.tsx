@@ -1,3 +1,4 @@
+import {loadAvatarAutonomy} from '@/lib/waouh/avatarAutonomy';
 import { WaouhLiveMission,type MissionActivity } from './WaouhLiveMission';
 import { WaouhEssentialOffers } from './WaouhEssentialOffers';
 import { WaouhDelegateButton } from './WaouhDelegateButton';
@@ -236,26 +237,28 @@ export function WaouhGlobalDiscoveryPanel() {
     if (!requireAuth("/app/missions")) return;
     setMandateBusy(true);
     try {
+      const rules=await loadAvatarAutonomy();
       const response = await createNexusMandate({
         mode: resolvedMode === "find_buyers" ? "sell" : "buy",
         goal: query.trim(),
-        autonomy_mode: "semi_autonomous",
+        autonomy_mode: rules.mode,
         city: city.trim() || undefined,
         budget_max: resolvedMode === "find_sellers" && budget ? Number(budget) : undefined,
         photos: resolvedMode === "find_buyers" && sellPhotos.length ? sellPhotos : undefined,
         article_notes: resolvedMode === "find_buyers" && sellNotes.trim() ? sellNotes.trim() : undefined,
-        max_contacts: 3,
-        max_followups: 1,
-        duration_hours: 24,
-        scan_interval_minutes: 60,
+        max_contacts: rules.max_contacts,
+        max_followups: rules.max_followups,
+        duration_hours: rules.duration_hours,
+        scan_interval_minutes: rules.scan_interval_minutes,
+        allow_whatsapp:rules.allow_whatsapp,
         min_match_score: 70,
         min_actionability_score: 65,
         origin_surface: "global_discovery",
       });
       if (response.results?.length) setResults(response.results);
       toast({
-        title: "Recherche confiée à Bot pour 24 h",
-        description: `Maximum 3 prises de contact · ${response.actionable_count} opportunité(s) immédiatement actionnable(s).`,
+        title: "Votre recherche est confiée à Bot",
+        description: `Jusqu’à ${response.mandate.max_contacts} contacts, selon vos autorisations. Suivi disponible dans Missions.`,
       });
     } catch (error) {
       toast({ title: "Mission non créée", description: errorText(error), variant: "destructive" });
@@ -464,7 +467,7 @@ export function WaouhGlobalDiscoveryPanel() {
                     : user
                       ? <Sparkles className="mr-2 h-4 w-4" />
                       : <LockKeyhole className="mr-2 h-4 w-4" />}
-                  {user ? "Confier à Bot · 24 h" : "Connexion pour confier à Bot"}
+                  {user ? "Confier à Bot" : "Connexion pour confier à Bot"}
                 </Button>
               </div>
             </div></details>
