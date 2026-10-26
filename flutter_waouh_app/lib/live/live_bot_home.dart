@@ -392,19 +392,36 @@ class _BotHomeHeroState extends State<BotHomeHero> {
             ),
           ),
           SizedBox(height: 10 * k),
+          // UI V3 — un seul jeu d'actions, clair et sans doublon (parité avec
+          // le Web : Acheter/Vendre/Trouver/Demander), au lieu de trois
+          // boutons dont deux ouvraient la même conversation.
           Row(
             children: [
               Expanded(
                 child: _HeroAction(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Démarrer',
-                  caption: 'avec $name',
+                  icon: Icons.shopping_bag_outlined,
+                  label: 'Acheter',
+                  caption: 'Je trouve et compare',
                   primary: true,
                   scale: k,
-                  onTap: () => _glideThen(widget.onAsk),
+                  onTap: () => _prompt('Je veux acheter '),
                 ),
               ),
               SizedBox(width: 7 * k),
+              Expanded(
+                child: _HeroAction(
+                  icon: Icons.sell_outlined,
+                  label: 'Vendre',
+                  caption: "J'ai un acheteur",
+                  scale: k,
+                  onTap: () => _prompt('Je veux vendre '),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 7 * k),
+          Row(
+            children: [
               Expanded(
                 child: _HeroAction(
                   icon: Icons.travel_explore_rounded,
@@ -417,11 +434,11 @@ class _BotHomeHeroState extends State<BotHomeHero> {
               SizedBox(width: 7 * k),
               Expanded(
                 child: _HeroAction(
-                  icon: Icons.handshake_outlined,
-                  label: 'Négocier',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Demander',
                   caption: 'avec $name',
                   scale: k,
-                  onTap: widget.onNegotiate,
+                  onTap: () => _glideThen(widget.onAsk),
                 ),
               ),
             ],
