@@ -50,8 +50,11 @@ jobs:
 
           test -f public/waouh-ui-version.txt
           grep -q '^flutter=' public/waouh-ui-version.txt
-          grep -q 'bot-avatar-v3' src/app-mobile/screens/ChatListScreen.tsx
-          grep -q 'bot-home-v3' src/pages/waouh/WaouhAvatarHomePage.tsx
+          test -f src/components/waouh/WaouhPremiumAvatar.tsx
+          test -f src/components/waouh/WaouhAutonomySettings.tsx
+          grep -q '<WaouhPremiumAvatar' src/app-mobile/screens/ChatListScreen.tsx
+          grep -q '<WaouhPremiumAvatar' src/pages/waouh/WaouhAvatarHomePage.tsx
+          grep -q 'avatar-premium-home' src/components/waouh/WaouhPremiumAvatar.tsx
           grep -q 'data-expression' src/components/waouh/bot/BotCharacter.tsx
           grep -q 'bot-copilot-v2' src/components/waouh/WaouhMatchChatWindow.tsx
 
