@@ -369,28 +369,31 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                 color: const Color(0xFFEDF1FF),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: ListTile(
-                dense: true,
-                onTap: widget.onMissions,
-                leading: const Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: Color(0xFF008B87),
-                ),
-                title: Text(
-                  widget.approvalCount > 0
-                      ? '${widget.approvalCount} décision(s) à valider'
-                      : '$count mission${count > 1 ? 's' : ''} en cours',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+              child: Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  dense: true,
+                  onTap: widget.onMissions,
+                  leading: const Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: Color(0xFF008B87),
                   ),
+                  title: Text(
+                    widget.approvalCount > 0
+                        ? '${widget.approvalCount} décision(s) à valider'
+                        : '$count mission${count > 1 ? 's' : ''} en cours',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Voir l’activité et la prochaine action',
+                    style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                  ),
+                  trailing: const Icon(Icons.north_east, size: 18),
                 ),
-                subtitle: const Text(
-                  'Voir l’activité et la prochaine action',
-                  style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
-                ),
-                trailing: const Icon(Icons.north_east, size: 18),
               ),
             ),
           TextButton.icon(

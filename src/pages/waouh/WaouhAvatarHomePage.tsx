@@ -446,7 +446,7 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
       ? ["Où en sont mes missions ?", "Compare les meilleures options", "Que faut-il faire ensuite ?"]
       : ["Trouve-moi un bon téléphone à Cotonou", "Je veux vendre un produit", "Aide-moi à trouver un service"];
 
-  if (settingsOnly) return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhAutonomySettings appearance={<><AvatarSettingsFields draft={draft} setDraft={setDraft}/><Button className="mt-4 w-full" onClick={storeProfile}>Enregistrer ma présentation</Button></>}/></main>;
+  if (settingsOnly) return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhAutonomySettings key={user?.id??'guest'} appearance={<><AvatarSettingsFields draft={draft} setDraft={setDraft}/><Button className="mt-4 w-full" onClick={storeProfile}>Enregistrer ma présentation</Button></>}/></main>;
   return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhPremiumAvatar name={profile.name} firstName={mobileProfile?.full_name} missions={summary.missions} approvals={summary.approvals} onAction={kind=>actions.find(action=>action.title.toLowerCase()===kind)?.action()} onSettings={()=>navigate('/app/avatar')} onMissions={()=>navigate('/app/missions')} onAsk={value=>navigate(`/app/nexus?${new URLSearchParams({q:value,go:'1',kind:'trouver',mode:'auto'})}`)}/><WaouhQuickAsk kind={quickAsk} onClose={()=>setQuickAsk(null)} onSubmit={path=>{setQuickAsk(null);navigate(path);}}/></main>;
 /* Previous composition retained in git history. */
 }

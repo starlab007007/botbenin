@@ -3,7 +3,6 @@
    Unified bubble + typography for ALL chat surfaces.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
   --chat-out-bg-from: 142 65% 88%;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../main.dart' as legacy;
 
@@ -83,6 +84,8 @@ class LiveAvatarAutonomyScreen extends StatefulWidget {
 }
 
 class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
+  StreamSubscription<dynamic>? _authSub;
+  String? _accountId;
   Map<String, dynamic> rules = {...defaultAvatarAutonomy};
   bool loading = true, saving = false, saved = false, loadFailed = false;
   String? error;
@@ -90,29 +93,50 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
   @override
   void initState() {
     super.initState();
+    _accountId = legacy.supabase.auth.currentUser?.id;
+    _authSub = legacy.supabase.auth.onAuthStateChange.listen((state) {
+      final next = legacy.supabase.auth.currentUser?.id;
+      if (next != _accountId && mounted) {
+        _accountId = next;
+        setState(() {
+          rules = {...defaultAvatarAutonomy};
+          saved = false;
+          saving = false;
+        });
+        _load();
+      }
+    });
     _load();
   }
 
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final account = legacy.supabase.auth.currentUser?.id;
     setState(() {
       loading = true;
       error = null;
     });
     try {
       final value = await loadLiveAvatarAutonomy();
-      if (mounted)
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
         setState(() {
           rules = value;
           loadFailed = false;
         });
     } catch (_) {
-      if (mounted)
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
         setState(() {
           error = 'Chargement impossible. Réessayez.';
           loadFailed = true;
         });
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
+        setState(() => loading = false);
     }
   }
 
@@ -121,6 +145,7 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
     saved = false;
   });
   Future<void> _save() async {
+    final account = legacy.supabase.auth.currentUser?.id;
     final message = liveAvatarAutonomyError(rules);
     if (message != null) {
       setState(() => error = message);
@@ -132,16 +157,17 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
     });
     try {
       final next = await saveLiveAvatarAutonomy(rules);
-      if (mounted)
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
         setState(() {
           rules = next;
           saved = true;
         });
     } catch (_) {
-      if (mounted)
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
         setState(() => error = 'Enregistrement impossible. Réessayez.');
     } finally {
-      if (mounted) setState(() => saving = false);
+      if (mounted && account == legacy.supabase.auth.currentUser?.id)
+        setState(() => saving = false);
     }
   }
 
@@ -255,38 +281,41 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
       border: Border.all(color: avatarPremiumLine),
       borderRadius: BorderRadius.circular(19),
     ),
-    child: Column(
-      children: [
-        ListTile(
-          dense: true,
-          minVerticalPadding: 14,
-          leading: Icon(icon, color: avatarPremiumBlue, size: 20),
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: avatarPremiumMuted),
+    child: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          ListTile(
+            dense: true,
+            minVerticalPadding: 14,
+            leading: Icon(icon, color: avatarPremiumBlue, size: 20),
+            title: Text(
+              title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
-          ),
-          trailing: Icon(
-            section == id ? Icons.expand_less : Icons.expand_more,
-            size: 18,
-          ),
-          onTap: () => setState(() => section = section == id ? '' : id),
-        ),
-        if (section == id)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 15),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                subtitle,
+                style: const TextStyle(fontSize: 11, color: avatarPremiumMuted),
+              ),
             ),
+            trailing: Icon(
+              section == id ? Icons.expand_less : Icons.expand_more,
+              size: 18,
+            ),
+            onTap: () => setState(() => section = section == id ? '' : id),
           ),
-      ],
+          if (section == id)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+        ],
+      ),
     ),
   );
   @override

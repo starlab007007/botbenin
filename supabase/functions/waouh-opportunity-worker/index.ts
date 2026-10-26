@@ -1304,6 +1304,12 @@ Deno.serve(async (req) => {
       let ranked: any[] = nexusDiscovery.results;
       const rules=mandate.metadata?.autonomy_settings?normalizeAvatarAutonomy(mandate.metadata.autonomy_settings):null;
       if(rules?.radius_km&&mandate.city){const city=String(mandate.city).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();ranked=ranked.filter(row=>String(row.city??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()===city);}
+      if(!ranked.length&&rules?.no_match==='stop'){
+        await sb.from('waouh_avatar_mandates').update({status:'completed',metadata:{...mandate.metadata,outcome:'no_match'}}).eq('id',mandate.id).eq('status','active');
+        await sb.from('waouh_persistent_intents').update({status:'completed'}).eq('mandate_id',mandate.id);
+        await avatarNotice(sb,mandate.owner_id,`no-match:${mandate.id}`,'Aucune piste ne correspond à votre mandat. La recherche est arrêtée ; vous pouvez ajuster votre besoin.',{mandate_id:mandate.id});
+        result.skipped++;continue;
+      }
 
       if (!nexusDiscovery.ok) {
         const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];

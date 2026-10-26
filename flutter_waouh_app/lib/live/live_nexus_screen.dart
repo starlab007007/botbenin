@@ -465,24 +465,33 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       length: 4,
       child: Scaffold(
         backgroundColor: WaouhPalette.pearl,
-        appBar: const LiveHeader(
+        appBar: LiveHeader(
           title: 'Ma mission',
           subtitle: 'Un objectif. Bot s’en occupe.',
           back: true,
+          actions: [
+            IconButton(
+              tooltip: 'Régler mon avatar',
+              onPressed: () => context.push('/app/avatar'),
+              icon: const Icon(Icons.tune_rounded),
+            ),
+            Builder(
+              builder: (tabs) => PopupMenuButton<int>(
+                tooltip: 'Autres actions',
+                onSelected: (index) =>
+                    DefaultTabController.of(tabs).animateTo(index),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Ma recherche')),
+                  PopupMenuItem(value: 1, child: Text('Partager')),
+                  PopupMenuItem(value: 2, child: Text('Terrain')),
+                  PopupMenuItem(value: 3, child: Text('Sources')),
+                ],
+              ),
+            ),
+          ],
         ),
         body: Column(
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => context.push('/app/avatar'),
-                icon: const Icon(Icons.tune_rounded, size: 17),
-                label: const Text(
-                  'Mon Avatar, mes règles',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-            ),
             if (!auth.signedIn)
               Container(
                 width: double.infinity,
@@ -505,13 +514,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   ),
                 ),
               ),
-            ExpansionTile(
-              title: const Text(
-                'Autres actions',
-                style: TextStyle(fontSize: 12),
-              ),
-              children: [_Tabs(signedIn: auth.signedIn)],
-            ),
             Expanded(
               child: TabBarView(
                 children: [
