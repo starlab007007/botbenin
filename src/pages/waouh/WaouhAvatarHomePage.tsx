@@ -268,10 +268,6 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
     };
   }, [refreshSummary, settingsOnly]);
 
-  useEffect(() => {
-    if (settingsOnly && !user) navigate(buildWaouhAuthRedirect("/app/avatar"));
-  }, [settingsOnly, user, navigate]);
-
   const phase: WaouhMusePhase = useMemo(() => {
     if (voiceActive) return "listening";
     if (summary.approvals > 0) return "contacting";
