@@ -190,21 +190,21 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       return {
         title: "Une décision vous attend",
         detail: `${profile.name} a préparé ${summary.approvals} action(s) à valider.`,
-        action: () => navigate("/app/missions"),
+        action: () => navigate("/app/missions?view=suivi&focus=approvals"),
       };
     }
     if (summary.watches > 0) {
       return {
         title: "Le marché est surveillé",
         detail: `${profile.name} suit ${summary.watches} veille(s) pour vous.`,
-        action: () => navigate("/app/missions"),
+        action: () => navigate("/app/missions?view=suivi&focus=watches"),
       };
     }
     if (summary.missions > 0) {
       return {
         title: "Recherche en cours",
         detail: `${profile.name} poursuit ${summary.missions} mission(s).`,
-        action: () => navigate("/app/missions"),
+        action: () => navigate("/app/missions?view=suivi&focus=missions"),
       };
     }
     return {
@@ -488,11 +488,11 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
 
         <section
           className="cursor-pointer rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5"
-          onClick={() => navigate("/app/missions")}
+          onClick={() => navigate("/app/missions?view=suivi")}
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") navigate("/app/missions");
+            if (event.key === "Enter" || event.key === " ") navigate("/app/missions?view=suivi");
           }}
         >
           <div className="flex items-center gap-2">
@@ -503,15 +503,23 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
 
           <div className="mt-4 grid grid-cols-3 gap-2.5">
             {[
-              { label: "Missions", value: summary.missions, icon: Flag, alert: false },
-              { label: "Veilles", value: summary.watches, icon: BellRing, alert: false },
-              { label: "À valider", value: summary.approvals, icon: ShieldCheck, alert: summary.approvals > 0 },
-            ].map(({ label, value, icon: Icon, alert }) => (
-              <div key={label} className={`rounded-2xl p-4 text-center ${alert ? "bg-amber-50" : "bg-slate-50"}`}>
+              { label: "Missions", value: summary.missions, icon: Flag, alert: false, focus: "missions" },
+              { label: "Veilles", value: summary.watches, icon: BellRing, alert: false, focus: "watches" },
+              { label: "À valider", value: summary.approvals, icon: ShieldCheck, alert: summary.approvals > 0, focus: "approvals" },
+            ].map(({ label, value, icon: Icon, alert, focus }) => (
+              <button
+                type="button"
+                key={label}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigate(`/app/missions?view=suivi&focus=${focus}`);
+                }}
+                className={`rounded-2xl p-4 text-center transition hover:shadow-sm ${alert ? "bg-amber-50" : "bg-slate-50"}`}
+              >
                 <Icon className={`mx-auto h-5 w-5 ${alert ? "text-amber-600" : "text-blue-600"}`} />
                 <div className="mt-2 text-2xl font-black text-slate-950">{summaryLoading ? "…" : value}</div>
                 <div className="mt-0.5 text-xs font-bold text-slate-500">{label}</div>
-              </div>
+              </button>
             ))}
           </div>
         </section>

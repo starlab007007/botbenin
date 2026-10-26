@@ -585,11 +585,6 @@ class _ProductionDiscussionFeed extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(side, 8, side, 32),
               children: [
                 heroBuilder(currentMatches.length),
-                const SizedBox(height: 14),
-                WaouhOneQuickCard(
-                  onOpen: onNewChat,
-                  onIntent: onOpenWaouh,
-                ),
                 const SizedBox(height: 18),
                 if (hasItems) ...[
                   _SearchBar(

@@ -26,7 +26,8 @@ export default function WaouhMissionsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [convergenceOpen, setConvergenceOpen] = useState(() => params.has('convergence_invite'));
-  const view = params.get("view") === "suivi" ? "suivi" : "nexus";
+  const focus = params.get("focus");
+  const view = params.get("view") === "suivi" || !!focus ? "suivi" : "nexus";
   const [activity, setActivity] = useState<NexusActivity>({ state: "idle", line: "Dites-moi ce que vous cherchez." });
   const onActivity = useCallback((next: NexusActivity) => setActivity((prev) => (prev.state === next.state && prev.line === next.line ? prev : next)), []);
 
@@ -88,7 +89,7 @@ export default function WaouhMissionsPage() {
         ) : (
           <>
             <WaouhContactLedger />
-            <WaouhAgentCenter embedded />
+            <WaouhAgentCenter embedded initialTab={focus ?? undefined} />
           </>
         )}
       </div>
