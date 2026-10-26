@@ -24,7 +24,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Samsung S25', 'Moto d’occasion', 'Climatiseur 1,5 CV'],
     'Chercher pour moi',
     'Budget max (FCFA)',
-    '/app/avatar/acheter',
+    '/app/nexus',
   ),
   LiveQuickAskKind.vendre: _Copy(
     'Vendre',
@@ -33,7 +33,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Mon téléphone', '10 tonnes de soja', 'Ma moto'],
     'Trouver des acheteurs',
     'Prix souhaité (FCFA)',
-    '/app/avatar/vendre',
+    '/app/nexus',
   ),
   LiveQuickAskKind.trouver: _Copy(
     'Trouver',
@@ -51,8 +51,16 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Un livreur fiable', 'Traiteur pour 50 personnes', 'Un plombier'],
     'Demander à Bot',
     null,
-    '/app/avatar/demander',
+    '/app/nexus',
   ),
+};
+
+/// Les 4 actions pilotent toutes NEXUS, chacune dans le bon mode.
+const _modeFor = <LiveQuickAskKind, String>{
+  LiveQuickAskKind.acheter: 'find_sellers',
+  LiveQuickAskKind.vendre: 'find_buyers',
+  LiveQuickAskKind.trouver: 'auto',
+  LiveQuickAskKind.demander: 'auto',
 };
 
 /// Ouvre le formulaire et renvoie l'URL (avec ?q=…&go=1) ou null.
@@ -90,7 +98,11 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
   void _go() {
     final text = _q.text.trim();
     if (text.isEmpty) return;
-    final params = <String, String>{'q': text, 'go': '1'};
+    final params = <String, String>{
+      'q': text,
+      'go': '1',
+      'mode': _modeFor[widget.kind]!,
+    };
     if (_city.text.trim().isNotEmpty) params['city'] = _city.text.trim();
     final b = _budget.text.replaceAll(RegExp(r'\D'), '');
     if (b.isNotEmpty) params['budget'] = b;

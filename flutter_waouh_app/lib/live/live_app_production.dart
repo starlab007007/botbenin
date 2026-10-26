@@ -242,6 +242,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
                 initialQuery: state.uri.queryParameters['q'],
                 initialCity: state.uri.queryParameters['city'],
                 initialBudget: state.uri.queryParameters['budget'],
+                initialMode: state.uri.queryParameters['mode'],
                 autoLaunch: state.uri.queryParameters['go'] == '1',
               ),
             ),

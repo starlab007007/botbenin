@@ -23,6 +23,7 @@ class LiveNexusScreen extends StatefulWidget {
     this.initialQuery,
     this.initialCity,
     this.initialBudget,
+    this.initialMode,
     this.autoLaunch = false,
   });
 
@@ -30,6 +31,10 @@ class LiveNexusScreen extends StatefulWidget {
   final String? initialQuery;
   final String? initialCity;
   final String? initialBudget;
+
+  /// Parité Web `?mode=` : 'find_sellers' (Acheter), 'find_buyers' (Vendre)
+  /// ou 'auto' (Trouver/Demander). Ignoré si absent ou non reconnu.
+  final String? initialMode;
   final bool autoLaunch;
   @override
   State<LiveNexusScreen> createState() => _LiveNexusScreenState();
@@ -67,6 +72,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     query.text = widget.initialQuery ?? '';
     city.text = widget.initialCity ?? '';
     budget.text = widget.initialBudget ?? '';
+    if (widget.initialMode == 'find_sellers') {
+      smartMode = false;
+      findSellers = true;
+    } else if (widget.initialMode == 'find_buyers') {
+      smartMode = false;
+      findSellers = false;
+    } else if (widget.initialMode == 'auto') {
+      smartMode = true;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       loadSources();
       if (widget.autoLaunch && query.text.trim().isNotEmpty) runSearch();
