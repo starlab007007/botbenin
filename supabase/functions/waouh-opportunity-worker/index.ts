@@ -1,3 +1,4 @@
+import { autonomyWindowOpen,autonomyContactAllowed,normalizeAvatarAutonomy } from "../_shared/waouh-avatar-autonomy-settings.ts";
 import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { createExchangeInvite, handleExternalExchange } from '../_shared/waouh-external-exchange.ts';
 import { claimAvatarContact } from "../_shared/waouh-avatar-contact.ts";
@@ -606,6 +607,7 @@ async function contactInternal(
   journey: any,
   pack: any,
 ) {
+  if(!autonomyWindowOpen(mandate)||(!autonomyContactAllowed(mandate)&&!journey.metadata?.contact_approved))return {contacted:false,reason:'avatar_contact_not_authorized'};
   const permission = mandateAllowsContact(mandate, pack);
   if (!permission.allowed) {
     return { contacted: false, reason: permission.reason };
@@ -822,6 +824,7 @@ async function queueNativeOpportunityMessage(
 }
 
 async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, journey: any, resolved: any) {
+  if(!autonomyWindowOpen(mandate)||(!autonomyContactAllowed(mandate)&&!journey.metadata?.contact_approved))return {contacted:false,reason:'avatar_contact_not_authorized'};
   const { pack, contacts, externalSignal } = resolved;
   if (!externalSignal?.entity_id) return { contacted: false, reason: "external_entity_missing" };
   const route = routeOpportunityChannel({
@@ -1139,7 +1142,7 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
     try {
       const { data: mandate } = await sb.from("waouh_avatar_mandates")
         .select("*").eq("id", journey.mandate_id).maybeSingle();
-      if (!mandate || mandate.status !== "active" || mandate.autonomy_mode === "assisted") {
+      if (!mandate || mandate.status !== "active" || mandate.autonomy_mode === "assisted" || !autonomyContactAllowed(mandate)) {
         skipped++;
         continue;
       }
@@ -1279,6 +1282,7 @@ Deno.serve(async (req) => {
         result.skipped++;
         continue;
       }
+      if(!autonomyWindowOpen(mandate)){result.skipped++;continue;}
       const maxContacts = Math.max(1, Math.min(20, Number(mandate.max_contacts || 3)));
       const remainingContacts = remainingContactCapacity(maxContacts, mandate.contacted_count);
       if (remainingContacts <= 0) {
@@ -1298,6 +1302,9 @@ Deno.serve(async (req) => {
 
       const nexusDiscovery = await discoverPersistentIntentWithNexus(sb, intent, mandate);
       let ranked: any[] = nexusDiscovery.results;
+      const rules=mandate.metadata?.autonomy_settings?normalizeAvatarAutonomy(mandate.metadata.autonomy_settings):null;
+      if(rules?.radius_km&&mandate.city){const city=String(mandate.city).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();ranked=ranked.filter(row=>String(row.city??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()===city);}
+
       if (!nexusDiscovery.ok) {
         const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];
         const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
@@ -1368,7 +1375,7 @@ Deno.serve(async (req) => {
         result.actionable++;
         const journey = await ensureJourney(sb, mandate.owner_id, mandate, signal, pack, Number(signal.scores.total_score || 0));
         if (["waiting_reply", "negotiating", "agreed", "executing", "completed", "cancelled"].includes(journey.stage)) continue;
-        if ((mandate.autonomy_mode === "assisted" || pack.next_best_action === "REQUEST_APPROVAL") && !journey.metadata?.contact_approved) {
+        if ((!autonomyContactAllowed(mandate) || mandate.autonomy_mode === "assisted" || pack.next_best_action === "REQUEST_APPROVAL") && !journey.metadata?.contact_approved) {
           await requestAvatarApproval(sb, mandate, journey, "send_message", `contact:${journey.id}`, `Autoriser Avatar à contacter cette piste : ${signal.subject || mandate.goal} ?`);
           continue;
         }

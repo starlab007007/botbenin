@@ -37,22 +37,10 @@ export default function WaouhNexusPage() {
   return (
     <main className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,.08),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#ffffff_55%)]">
       <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-5 sm:px-6">
-        <header className="flex items-center gap-3 rounded-[28px] border border-blue-100 bg-gradient-to-br from-white via-blue-50/70 to-violet-50/80 p-3 shadow-[0_24px_60px_-40px_rgba(37,99,235,.55)] sm:p-4">
-          <button type="button" aria-label="Retour" onClick={() => navigate("/")} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-white text-slate-600 shadow-sm active:scale-95">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <BotLiveAvatar size="clamp(56px, 14vw, 84px)" state="idle" />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-[clamp(18px,4.6vw,26px)] font-black leading-none tracking-tight text-slate-950">WAOUH NEXUS</h1>
-            <p className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-sm border border-blue-100 bg-white/90 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-sm">Je trouve, je compare, je contacte.</p>
-          </div>
-          <Button type="button" variant="outline" className="h-10 shrink-0 rounded-2xl border-blue-100 bg-white px-3" onClick={() => navigate("/app/avatar")}>
-            <BrainCircuit className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Avatar</span>
-          </Button>
-        </header>
+        <header className="wap wap-header"><button type="button" className="wap-icon" aria-label="Retour à l’avatar" onClick={()=>navigate('/app/chat')}><ArrowLeft/></button><div className="wap-grow"><h1>Ma mission</h1><small>Un objectif. Bot s’en occupe.</small></div><button type="button" className="wap-icon" aria-label="Régler mon avatar" onClick={()=>navigate('/app/avatar')}><BrainCircuit/></button></header>
 
         <Tabs value={tab} onValueChange={changeTab} className="space-y-3">
-          <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl border border-blue-100 bg-white p-1 shadow-sm">
+          <details className="wap-mobile-editor"><summary>Mes outils</summary><TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl border border-blue-100 bg-white p-1 shadow-sm">
             <TabsTrigger value="discover" className="rounded-xl font-bold">
               <Globe2 className="mr-2 h-4 w-4" /> Découvrir
             </TabsTrigger>
@@ -64,7 +52,7 @@ export default function WaouhNexusPage() {
               {user ? <Workflow className="mr-2 h-4 w-4" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
               Missions
             </TabsTrigger>
-          </TabsList>
+          </TabsList></details>
 
           <TabsContent value="discover" className="mt-0">
             <WaouhGlobalDiscoveryPanel />

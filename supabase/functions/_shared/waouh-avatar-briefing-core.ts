@@ -1,3 +1,4 @@
+import { normalizeAvatarAutonomy,avatarAutonomyError,type AvatarAutonomySettings } from "./waouh-avatar-autonomy-settings.ts";
 // deno-lint-ignore-file no-explicit-any -- client Supabase non typé, comme le reste des edge functions.
 // WAOUH — Avatar guide : collecte de l'activité de l'utilisateur, livraison du point dans son chat, tick planifié.
 // L'avatar n'envoie JAMAIS rien à un tiers ici : il écrit dans le chat de l'utilisateur, avec des boutons.
@@ -12,7 +13,7 @@ import { externalContactState, loadExternalTimeline, NEXUS_ORIGIN } from "./waou
 import { resolveContactPath } from "./waouh-contact-path.ts";
 import { notifyInApp } from "./waouh-avatar-inapp.ts";
 
-export interface PrefsRow extends AvatarPrefs { lastBriefingAt: Date | null; lastDigest: string | null; exists: boolean }
+export interface PrefsRow extends AvatarPrefs { lastBriefingAt: Date | null; lastDigest: string | null; exists: boolean; autonomySettings?:AvatarAutonomySettings }
 
 export async function loadPrefs(sb: any, authUserId: string): Promise<PrefsRow> {
   const { data } = await sb.from("waouh_avatar_prefs").select("*").eq("auth_user_id", authUserId).maybeSingle();
@@ -22,6 +23,7 @@ export async function loadPrefs(sb: any, authUserId: string): Promise<PrefsRow> 
     lastBriefingAt: data?.last_briefing_at ? new Date(data.last_briefing_at) : null,
     lastDigest: data?.last_digest ?? null,
     exists: !!data,
+    ...(data?.autonomy_settings?{autonomySettings:normalizeAvatarAutonomy(data.autonomy_settings)}:{}),
   };
 }
 
@@ -30,10 +32,14 @@ export async function savePrefs(sb: any, authUserId: string, raw: unknown): Prom
   const current = await loadPrefs(sb, authUserId);
   // Seuls les champs valides remplacent l'existant ; le reste est ignoré (jamais d'erreur pour une valeur inconnue).
   const next: AvatarPrefs = mergePrefs(current, input);
-  await sb.from("waouh_avatar_prefs").upsert({
+  const autonomy=input.autonomy_settings!==undefined?normalizeAvatarAutonomy(input.autonomy_settings):undefined;
+  if(autonomy){const error=avatarAutonomyError(autonomy);if(error)throw new Error(error);}
+  const {error:saveError}=await sb.from("waouh_avatar_prefs").upsert({
+    ...(autonomy?{autonomy_settings:autonomy}:{}),
     auth_user_id: authUserId, welcome: next.welcome, cadence: next.cadence, quiet_start: next.quietStart, quiet_end: next.quietEnd,
-    notify_events: next.notifyEvents, notify_digest: next.notifyDigest, updated_at: new Date().toISOString(),
+    notify_events: autonomy?(autonomy.notify_reply||autonomy.notify_offer):next.notifyEvents, notify_digest: autonomy?autonomy.digest_only:next.notifyDigest, updated_at: new Date().toISOString(),
   }, { onConflict: "auth_user_id" });
+  if(saveError)throw saveError;
   return loadPrefs(sb, authUserId);
 }
 

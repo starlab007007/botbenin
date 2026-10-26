@@ -1,3 +1,4 @@
+import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
 import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { handleExternalExchange, ExchangeError, createExchangeInvite, isExternalExchangeAction } from '../_shared/waouh-external-exchange.ts';
 import { isPublicNexusRead, PUBLIC_NEXUS_SOURCES, publicNexusResult } from "../_shared/waouh-public-discovery.ts";
@@ -2602,19 +2603,24 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
       case "nexus.mandate.create": {
+        const {data:avatarPrefs}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
+        const storedRules=payload.autonomy_settings??avatarPrefs?.autonomy_settings;
+        const autonomyRules=storedRules?normalizeAvatarAutonomy(storedRules):null;
+        if(autonomyRules){const err=avatarAutonomyError(autonomyRules);if(err)throw new ApiError(422,'invalid_avatar_rules',err);}
+        const startsAt=autonomyRules?autonomyStartsAt(autonomyRules):new Date();
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
-          payload.autonomy_mode,
+          autonomyRules?.mode??payload.autonomy_mode,
           "autonomy_mode",
           ["assisted","semi_autonomous","autonomous"] as const,
           "semi_autonomous",
         );
         const goal = asString(payload.goal, "goal", 3, 2000);
-        const city = optionalString(payload.city, "city", 120);
-        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
-        const maxContacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
-        const maxFollowups = integer(payload.max_followups, "max_followups", 1, 0, 5);
-        const durationHours = integer(payload.duration_hours, "duration_hours", 72, 1, 720);
+        const city = optionalString(payload.city??autonomyRules?.city, "city", 120);
+        const budgetMax = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
+        const maxContacts = integer(payload.max_contacts??autonomyRules?.max_contacts, "max_contacts", 3, 1, 20);
+        const maxFollowups = integer(payload.max_followups??autonomyRules?.max_followups, "max_followups", 1, 0, 5);
+        const durationHours = integer(autonomyRules?.duration_hours??payload.duration_hours, "duration_hours", 72, 1, 720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
@@ -2663,7 +2669,7 @@ Retourne uniquement JSON:
             max_contacts: maxContacts,
             max_followups: maxFollowups,
             allow_waouh: payload.allow_waouh !== false,
-            allow_whatsapp: payload.allow_whatsapp !== false,
+            allow_whatsapp: autonomyRules?autonomyRules.allow_whatsapp&&payload.allow_whatsapp!==false:payload.allow_whatsapp !== false,
             allow_public_business: payload.allow_public_business !== false,
             allow_blind_message: payload.allow_blind_message !== false,
             allow_email: payload.allow_email === true,
@@ -2673,13 +2679,14 @@ Retourne uniquement JSON:
             min_actionability_score: minActionabilityScore,
             status: "active",
             next_run_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + durationHours * 3600_000).toISOString(),
+            expires_at: new Date(startsAt.getTime() + durationHours * 3600_000).toISOString(),
             metadata: {
+              ...(autonomyRules?{autonomy_settings:autonomyRules,starts_at:startsAt.toISOString()}:{}),
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
-              followup_hours: followupDelayHours(durationHours, maxFollowups),
+              followup_hours: autonomyRules?.followup_hours??followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
-              price_floor: positiveNumber(payload.price_floor, "price_floor", true),
+              price_floor: positiveNumber(payload.price_floor??autonomyRules?.price_floor, "price_floor", true),
               completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
@@ -2736,7 +2743,7 @@ Retourne uniquement JSON:
             budget_max: budgetMax,
             min_match_score: minMatchScore,
             min_actionability_score: minActionabilityScore,
-            scan_interval_minutes: integer(payload.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
+            scan_interval_minutes: integer(payload.scan_interval_minutes??autonomyRules?.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
             status: "active",
             next_scan_at: new Date().toISOString(),
             expires_at: mandate.expires_at,
@@ -2868,6 +2875,7 @@ Retourne uniquement JSON:
           "nexus_mandate_not_found",
         );
         if (mandate.status !== "active" || mandate.metadata?.agreement_reached_at) throw new ApiError(409, "mandate_not_searching");
+        if(!autonomyWindowOpen(mandate))throw new ApiError(409,'outside_avatar_hours','Votre mission reprendra à l’heure prévue.');
         const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
         const mandateArticleId = mandate.mode === "sell" &&
           mandate.metadata && typeof mandate.metadata === "object" &&
