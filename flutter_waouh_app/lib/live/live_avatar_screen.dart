@@ -88,7 +88,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
         back: true,
         actions: [
           IconButton(
-            tooltip: 'Personnaliser',
+            tooltip: 'Réglage avatar',
             onPressed: () => setState(() => _editing = true),
             icon: const Icon(Icons.tune_rounded),
           ),
@@ -702,6 +702,20 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
   ];
   static const proactivities = ['Discret', 'Équilibré', 'Proactif'];
 
+  static const _personalityIcon = <String, IconData>{
+    'Calme': Icons.nightlight_round,
+    'Dynamique': Icons.bolt_rounded,
+    'Business': Icons.work_outline_rounded,
+    'Chaleureux': Icons.favorite_rounded,
+    'Équilibré': Icons.balance_rounded,
+  };
+
+  static const _proactivityIcon = <String, IconData>{
+    'Discret': Icons.visibility_off_rounded,
+    'Équilibré': Icons.speed_rounded,
+    'Proactif': Icons.rocket_launch_rounded,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -735,9 +749,9 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: WaouhPalette.pearl,
         appBar: LiveHeader(
-          title: widget.editMode ? 'Personnaliser' : 'Créer mon Avatar',
+          title: widget.editMode ? 'Réglage avatar' : 'Créer mon Avatar',
           subtitle: widget.editMode
-              ? 'Votre présence WAOUH'
+              ? 'Ce que vous voulez de votre Avatar'
               : 'Son style',
           back: widget.editMode,
         ),
@@ -767,7 +781,7 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Choisissez son apparence',
+                'Apparence',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 9),
@@ -793,16 +807,22 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
+              Row(
                 children: [
-                  for (final item in personalities)
-                    ChoiceChip(
-                      label: Text(item),
-                      selected: _personality == item,
-                      onSelected: (_) => setState(() => _personality = item),
+                  for (var i = 0; i < personalities.length; i++) ...[
+                    Expanded(
+                      child: _IconChoice(
+                        icon: _personalityIcon[personalities[i]]!,
+                        label: personalities[i],
+                        selected: _personality == personalities[i],
+                        onTap: () => setState(
+                          () => _personality = personalities[i],
+                        ),
+                      ),
                     ),
+                    if (i != personalities.length - 1)
+                      const SizedBox(width: 6),
+                  ],
                 ],
               ),
               const SizedBox(height: 18),
@@ -815,16 +835,11 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
                 children: [
                   for (var i = 0; i < proactivities.length; i++) ...[
                     Expanded(
-                      child: ChoiceChip(
-                        label: SizedBox(
-                          width: double.infinity,
-                          child: Text(
-                            proactivities[i],
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+                      child: _IconChoice(
+                        icon: _proactivityIcon[proactivities[i]]!,
+                        label: proactivities[i],
                         selected: _proactivity == proactivities[i],
-                        onSelected: (_) => setState(
+                        onTap: () => setState(
                           () => _proactivity = proactivities[i],
                         ),
                       ),
@@ -916,6 +931,64 @@ class _PresetCard extends StatelessWidget {
       );
 }
 
+
+/// Réglage avatar — symbole d'abord, texte minimal : une icône avec une
+/// légende courte, pas un bouton-texte (parité avec le Web).
+class _IconChoice extends StatelessWidget {
+  const _IconChoice({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: selected ? const Color(0xFFEAF2FF) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? const Color(0xFFB8CCFF) : WaouhPalette.line,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: selected ? WaouhPalette.blue : WaouhPalette.muted,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: selected ? WaouhPalette.blue : WaouhPalette.muted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
 
 /// Barre de demande libre + suggestions (parité Web : toute nouvelle demande
 /// ouvre un NOUVEAU chat avec Bot).

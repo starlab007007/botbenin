@@ -402,7 +402,8 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                   icon: Icons.shopping_bag_outlined,
                   label: 'Acheter',
                   caption: 'Je trouve et compare',
-                  primary: true,
+                  accent: WaouhPalette.blue,
+                  background: const Color(0xFFEAF3FF),
                   scale: k,
                   onTap: () => _prompt('Je veux acheter '),
                 ),
@@ -413,6 +414,8 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                   icon: Icons.sell_outlined,
                   label: 'Vendre',
                   caption: "J'ai un acheteur",
+                  accent: const Color(0xFFE18A27),
+                  background: const Color(0xFFFFF2E2),
                   scale: k,
                   onTap: () => _prompt('Je veux vendre '),
                 ),
@@ -427,6 +430,8 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                   icon: Icons.travel_explore_rounded,
                   label: 'Trouver',
                   caption: 'une opportunité',
+                  accent: const Color(0xFF2A9CCB),
+                  background: const Color(0xFFEAF9FC),
                   scale: k,
                   onTap: widget.onFindOpportunity,
                 ),
@@ -437,6 +442,8 @@ class _BotHomeHeroState extends State<BotHomeHero> {
                   icon: Icons.chat_bubble_outline_rounded,
                   label: 'Demander',
                   caption: 'avec $name',
+                  accent: const Color(0xFF8B7CFF),
+                  background: const Color(0xFFF2EFFF),
                   scale: k,
                   onTap: () => _glideThen(widget.onAsk),
                 ),
@@ -646,6 +653,9 @@ class _TypingBubbleState extends State<_TypingBubble>
       );
 }
 
+// Les 4 grandes fonctionnalités (Acheter/Vendre/Trouver/Demander) sont mises
+// en avant à égalité — même traitement visuel, une teinte par action
+// (parité avec les cartes du Web et de l'écran Avatar).
 class _HeroAction extends StatelessWidget {
   const _HeroAction({
     required this.icon,
@@ -653,7 +663,8 @@ class _HeroAction extends StatelessWidget {
     required this.caption,
     required this.scale,
     required this.onTap,
-    this.primary = false,
+    required this.accent,
+    required this.background,
   });
 
   final IconData icon;
@@ -661,43 +672,33 @@ class _HeroAction extends StatelessWidget {
   final String caption;
   final double scale;
   final VoidCallback onTap;
-  final bool primary;
+  final Color accent;
+  final Color background;
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Ink(
-            height: 62 * scale,
+          child: Container(
+            height: 64 * scale,
             decoration: BoxDecoration(
-              gradient: primary
-                  ? const LinearGradient(
-                      colors: [Color(0xFF14B8A6), Color(0xFF0891B2)],
-                    )
-                  : null,
-              color: primary ? null : Colors.white.withValues(alpha: .92),
               borderRadius: BorderRadius.circular(18),
-              border: primary
-                  ? null
-                  : Border.all(color: const Color(0xFFE2EBF5)),
+              border: Border.all(color: Colors.white),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 19 * scale,
-                  color: primary ? Colors.white : WaouhPalette.blue,
-                ),
+                Icon(icon, size: 19 * scale, color: accent),
                 SizedBox(height: 3 * scale),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: primary ? Colors.white : WaouhPalette.ink,
+                    color: WaouhPalette.ink,
                     fontSize: 12 * scale,
                     height: 1.05,
                     fontWeight: FontWeight.w900,
@@ -708,9 +709,7 @@ class _HeroAction extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: primary
-                        ? Colors.white.withValues(alpha: .8)
-                        : WaouhPalette.muted,
+                    color: WaouhPalette.muted,
                     fontSize: 11 * scale,
                     height: 1.1,
                     fontWeight: FontWeight.w600,

@@ -1,9 +1,9 @@
 import { WaouhExternalExchangeDisclosure } from './WaouhExternalExchange';
 import { WaouhCityField } from "./WaouhCityField";
 import { userFacingErrorText } from "@/lib/userFacingError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, ArrowRight, BellRing, Bot, Loader2, MessageCircle, Plus, RefreshCw, ShieldCheck, Sparkles, Store } from "lucide-react";
+import { Activity, ArrowRight, BellRing, Bot, ChevronDown, Loader2, MessageCircle, Plus, RefreshCw, ShieldCheck, Sparkles, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,15 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
   const [policyDiscount, setPolicyDiscount] = useState("10");
   const [policyZones, setPolicyZones] = useState("");
 
+  // Formulaires repliés par défaut : moins de texte et de boutons visibles d'entrée.
+  // Un formulaire s'ouvre seul s'il n'y a encore rien dedans (1re mission, 1re veille, règles vendeur jamais réglées).
+  const [showMissionForm, setShowMissionForm] = useState(false);
+  const [showWatchForm, setShowWatchForm] = useState(false);
+  const [showSellerForm, setShowSellerForm] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const formsSeeded = useRef(false);
+  const tabAutoPicked = useRef(false);
+
   const refresh = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -79,6 +88,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
       listNexusConversationBus({ limit: 60 }),
     ]);
     setLoading(false);
+    setLoadedOnce(true);
     setData((previous) => ({
       missions: calls[0].status === "fulfilled" ? listFromAgenticData<AgentMission>(calls[0].value, "missions") : previous.missions,
       watches: calls[1].status === "fulfilled" ? listFromAgenticData<PriceWatch>(calls[1].value, "watches") : previous.watches,
@@ -91,6 +101,25 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
   }, [user]);
 
   useEffect(() => { if ((open || standalone || embedded) && user) void refresh(); }, [open, standalone, embedded, user, refresh]);
+
+  // Une seule fois après le premier chargement : ouvre les formulaires encore vides,
+  // et choisit l'onglet le plus utile quand aucun focus explicite n'a été demandé.
+  useEffect(() => {
+    if (!loadedOnce) return;
+    if (!formsSeeded.current) {
+      formsSeeded.current = true;
+      setShowMissionForm(data.missions.length === 0);
+      setShowWatchForm(data.watches.length === 0);
+      setShowSellerForm(!data.policy);
+    }
+    if (!initialTab && !tabAutoPicked.current) {
+      tabAutoPicked.current = true;
+      const pending = data.approvals.filter((item) => item.status === "pending").length;
+      const triggered = data.watches.filter((item) => item.status === "triggered").length;
+      if (pending > 0) setTab("approvals");
+      else if (triggered > 0) setTab("watches");
+    }
+  }, [loadedOnce, initialTab, data.missions.length, data.watches, data.approvals, data.policy]);
   useEffect(() => {
     if (!data.policy) return;
     const rawMode = data.policy.mode;
@@ -209,15 +238,11 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
             <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-300/15 blur-3xl" />
             <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(340px,.7fr)] lg:items-end">
               <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge className="border-white/15 bg-white/12 text-white hover:bg-white/12"><Bot className="mr-1 h-3.5 w-3.5" />WAOUH One</Badge>
-                  <Badge className="border-white/15 bg-white/10 text-white/90 hover:bg-white/10">Missions & veille</Badge>
-                </div>
+                <Badge className="mb-2 border-white/15 bg-white/12 text-white hover:bg-white/12"><Bot className="mr-1 h-3.5 w-3.5" />WAOUH One</Badge>
                 <h1 className="text-xl font-black leading-[1.1] tracking-[-0.03em] sm:text-3xl">Missions & veille</h1>
-                
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button asChild size="sm" className="min-h-[40px] rounded-xl bg-white text-blue-900 hover:bg-blue-50"><Link to="/app/muse"><Sparkles className="mr-2 h-4 w-4" />Ouvrir Muse</Link></Button>
-                  <Button asChild size="sm" variant="outline" className="min-h-[40px] rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"><Link to="/app/chat/waouh">Retour au chat</Link></Button>
                   {user && <Button size="sm" variant="ghost" disabled={loading} onClick={() => void refresh()} className="min-h-[40px] rounded-xl text-white hover:bg-white/10 hover:text-white"><RefreshCw className={loading ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />Actualiser</Button>}
                 </div>
               </div>
@@ -281,13 +306,32 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
           </TabsList>
 
           <TabsContent value="missions" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div id="mission-composer" className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-blue-600" />Nouvelle mission d’achat</h3><div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">{MISSION_TEMPLATES.map((template) => <button key={template.label} type="button" onClick={() => { setMissionGoal(template.goal); if (template.city) setMissionCity((current) => current || template.city); }} className="min-h-[36px] shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-bold text-blue-900 active:scale-95">{template.label}</button>)}</div><div className="space-y-2"><Textarea id="mission-goal" value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><WaouhCityField value={missionCity} onChange={setMissionCity} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-blue-600 text-white hover:bg-blue-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div></div>
+            <div id="mission-composer" className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14">
+              <button type="button" onClick={() => setShowMissionForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Plus className="h-4 w-4 text-blue-600" />Nouvelle mission
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showMissionForm ? "rotate-180" : ""}`} />
+              </button>
+              {showMissionForm && (
+                <>
+                  <div className="mb-3 mt-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">{MISSION_TEMPLATES.map((template) => <button key={template.label} type="button" onClick={() => { setMissionGoal(template.goal); if (template.city) setMissionCity((current) => current || template.city); }} className="min-h-[36px] shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 text-[11px] font-bold text-blue-900 active:scale-95">{template.label}</button>)}</div>
+                  <div className="space-y-2"><Textarea id="mission-goal" value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><WaouhCityField value={missionCity} onChange={setMissionCity} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-blue-600 text-white hover:bg-blue-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div>
+                </>
+              )}
+            </div>
             <div className="min-w-0 space-y-3">{!blocks.missions.length && !loading && <Empty text="Aucune mission. Choisissez un modèle." />}
             <WaouhAgentBlocks blocks={blocks.missions} onAction={action} busy={!!busyAction} /></div>
           </TabsContent>
 
           <TabsContent value="watches" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-blue-600" />Nouvelle veille</h3><div className="space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div></div>
+            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14">
+              <button type="button" onClick={() => setShowWatchForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Plus className="h-4 w-4 text-blue-600" />Nouvelle veille
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showWatchForm ? "rotate-180" : ""}`} />
+              </button>
+              {showWatchForm && (
+                <div className="mt-3 space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div>
+              )}
+            </div>
             <div className="min-w-0 space-y-3">{!blocks.watches.length && !loading && <Empty text="Aucune veille active." />}
             <WaouhAgentBlocks blocks={blocks.watches} onAction={action} busy={!!busyAction} /></div>
           </TabsContent>
@@ -299,7 +343,15 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
           </TabsContent>
 
           <TabsContent value="seller" className="mt-4 space-y-4 lg:grid lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
-            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4 text-blue-600" />Règles de l’agent vendeur</h3><div className="space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div></div>
+            <div className="rounded-2xl border bg-card p-3 shadow-sm lg:sticky lg:top-14">
+              <button type="button" onClick={() => setShowSellerForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Store className="h-4 w-4 text-blue-600" />Règles de l’agent vendeur
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showSellerForm ? "rotate-180" : ""}`} />
+              </button>
+              {showSellerForm && (
+                <div className="mt-3 space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div>
+              )}
+            </div>
             <div className="min-w-0 space-y-3"><h3 className="text-sm font-semibold">Offres structurées</h3>
             {!blocks.offers.length && !loading && <Empty text="Aucune offre en cours." />}
             <WaouhAgentBlocks blocks={blocks.offers} onAction={action} busy={!!busyAction} /></div>
@@ -356,7 +408,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
       <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-5 py-4 text-left">
           <div className="flex items-center justify-between gap-3 pr-7">
-            <div><SheetTitle className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-600" />WAOUH One · Missions & veille</SheetTitle><SheetDescription>Objectifs persistants, veilles, validations et règles vendeur — dans le même WAOUH. Aucune action de paiement.</SheetDescription></div>
+            <div><SheetTitle className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-600" />Missions & veille</SheetTitle><SheetDescription>Aucune action de paiement sans votre accord.</SheetDescription></div>
             {user && <Button size="icon" variant="outline" disabled={loading} onClick={() => void refresh()} aria-label="Actualiser"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /></Button>}
           </div>
         </SheetHeader>
@@ -372,13 +424,29 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
           </TabsList>
 
           <TabsContent value="missions" className="space-y-4">
-            <div className="rounded-xl border bg-card p-3 shadow-sm"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-cyan-600" />Nouvelle mission d’achat</h3><div className="space-y-2"><Textarea value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><WaouhCityField value={missionCity} onChange={setMissionCity} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div></div>
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
+              <button type="button" onClick={() => setShowMissionForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Plus className="h-4 w-4 text-cyan-600" />Nouvelle mission
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showMissionForm ? "rotate-180" : ""}`} />
+              </button>
+              {showMissionForm && (
+                <div className="mt-3 space-y-2"><Textarea value={missionGoal} onChange={(event) => setMissionGoal(event.target.value)} placeholder="Ex. Trouve une moto Bajaj d’occasion en bon état" className="min-h-20" /><div className="grid grid-cols-2 gap-2"><Input value={missionBudget} onChange={(event) => setMissionBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max. FCFA" /><WaouhCityField value={missionCity} onChange={setMissionCity} placeholder="Ville (optionnel)" /></div><Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" disabled={!missionGoal.trim() || !!busyAction} onClick={() => void createMission()}>{busyAction === "mission.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}Lancer la mission</Button></div>
+              )}
+            </div>
             {!blocks.missions.length && !loading && <Empty text="Aucune mission. Décrivez ce que WAOUH doit chercher et comparer." />}
             <WaouhAgentBlocks blocks={blocks.missions} onAction={action} busy={!!busyAction} />
           </TabsContent>
 
           <TabsContent value="watches" className="space-y-4">
-            <div className="rounded-xl border bg-card p-3 shadow-sm"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Plus className="h-4 w-4 text-cyan-600" />Nouvelle veille</h3><div className="space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div></div>
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
+              <button type="button" onClick={() => setShowWatchForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Plus className="h-4 w-4 text-cyan-600" />Nouvelle veille
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showWatchForm ? "rotate-180" : ""}`} />
+              </button>
+              {showWatchForm && (
+                <div className="mt-3 space-y-2"><Input value={watchQuery} onChange={(event) => setWatchQuery(event.target.value)} placeholder="Article ou recherche à surveiller" /><div className="grid grid-cols-2 gap-2"><Input value={watchTarget} onChange={(event) => setWatchTarget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Alerte sous… FCFA" /><select value={watchCadence} onChange={(event) => setWatchCadence(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="60">Chaque heure</option><option value="360">Toutes les 6 h</option><option value="1440">Chaque jour</option></select></div><Button className="w-full" disabled={!watchQuery.trim() || !!busyAction} onClick={() => void createWatch()}>{busyAction === "watch.create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}Activer la veille</Button></div>
+              )}
+            </div>
             {!blocks.watches.length && !loading && <Empty text="Aucune veille active." />}
             <WaouhAgentBlocks blocks={blocks.watches} onAction={action} busy={!!busyAction} />
           </TabsContent>
@@ -390,7 +458,15 @@ export function WaouhAgentCenter({ compact = false, standalone = false, embedded
           </TabsContent>
 
           <TabsContent value="seller" className="space-y-4">
-            <div className="rounded-xl border bg-card p-3 shadow-sm"><h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Store className="h-4 w-4 text-cyan-600" />Règles de l’agent vendeur</h3><div className="space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div></div>
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
+              <button type="button" onClick={() => setShowSellerForm((v) => !v)} className="flex w-full items-center gap-2 text-left text-sm font-semibold">
+                <Store className="h-4 w-4 text-cyan-600" />Règles de l’agent vendeur
+                <ChevronDown className={`ml-auto h-4 w-4 text-slate-400 transition ${showSellerForm ? "rotate-180" : ""}`} />
+              </button>
+              {showSellerForm && (
+                <div className="mt-3 space-y-3"><div className="space-y-1"><Label>Mode de réponse</Label><select value={policyMode} onChange={(event) => setPolicyMode(event.target.value as typeof policyMode)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="manual">Manuel — proposer seulement</option><option value="assisted">Assisté — suggérer dans mes limites</option><option value="automatic">Automatique — répondre dans mes limites</option></select></div><div className="grid grid-cols-2 gap-2"><div className="space-y-1"><Label>Prix plancher</Label><Input value={policyMin} onChange={(event) => setPolicyMin(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="FCFA" /></div><div className="space-y-1"><Label>Remise maximale</Label><Input value={policyDiscount} onChange={(event) => setPolicyDiscount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="%" /></div></div><div className="space-y-1"><Label>Zones de livraison</Label><Input value={policyZones} onChange={(event) => setPolicyZones(event.target.value)} placeholder="Cotonou, Calavi, Porto-Novo" /></div><Button className="w-full" disabled={!!busyAction} onClick={() => void savePolicy()}>{busyAction === "seller_policy.upsert" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles</Button></div>
+              )}
+            </div>
             <h3 className="text-sm font-semibold">Offres structurées</h3>
             {!blocks.offers.length && !loading && <Empty text="Aucune offre en cours." />}
             <WaouhAgentBlocks blocks={blocks.offers} onAction={action} busy={!!busyAction} />

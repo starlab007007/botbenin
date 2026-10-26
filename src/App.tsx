@@ -374,7 +374,7 @@ const AppContent = () => {
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<RequireMobileAuth><MobileWaouhChat /></RequireMobileAuth>} />
-                    <Route path="avatar" element={<WaouhAvatarHomePage />} />
+                    <Route path="avatar" element={<WaouhAvatarHomePage settingsOnly />} />
                     <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarCommercePage /></RequireMobileAuth>} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />

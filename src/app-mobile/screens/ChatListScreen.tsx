@@ -1,4 +1,3 @@
-import { newChatRoute } from "@/lib/waouh/newChat";
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -29,6 +28,7 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
+import { WaouhQuickAsk, type QuickAskKind } from "@/components/waouh/WaouhQuickAsk";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting";
 import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
@@ -126,10 +126,19 @@ export default function ChatListScreen() {
       window.setTimeout(() => setBotLeaving(false), 400);
     }, 420);
   };
-  const askBot = (prompt: string) => {
-    const target = newChatRoute(prompt);
-    if (!requireAuth(target)) return;
-    navigate(target);
+  const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
+  const askQuick = (kind: QuickAskKind) => {
+    if (isGuest) {
+      const fallback: Record<QuickAskKind, string> = {
+        acheter: "/app/avatar/acheter",
+        vendre: "/app/avatar/vendre",
+        trouver: "/app/nexus",
+        demander: "/app/avatar/demander",
+      };
+      goToAuth(fallback[kind]);
+      return;
+    }
+    setQuickAsk(kind);
   };
 
   const tabFromUrl = (): ChatTab => {
@@ -434,9 +443,9 @@ export default function ChatListScreen() {
                 thirdLine={botActivityLine(matchChats.matches?.length ?? 0, "Deal Room")}
                 onExpressionChange={setBotExpression}
                 choices={[
-                  { label: "Acheter", onSelect: () => glideThen(() => askBot("Je veux acheter ")) },
-                  { label: "Vendre", onSelect: () => glideThen(() => askBot("Je veux vendre ")) },
-                  { label: "Explorer", onSelect: () => glideThen(() => navigate("/app/nexus")) },
+                  { label: "Acheter", onSelect: () => glideThen(() => askQuick("acheter")) },
+                  { label: "Vendre", onSelect: () => glideThen(() => askQuick("vendre")) },
+                  { label: "Explorer", onSelect: () => glideThen(() => askQuick("trouver")) },
                 ]}
                 className="mt-2"
               />
@@ -458,29 +467,26 @@ export default function ChatListScreen() {
             </span>
           </button>
 
-          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-2 gap-[clamp(6px,1.8vw,10px)]">
+          <div className="mt-[clamp(14px,3.4vw,18px)] grid grid-cols-2 gap-[clamp(8px,2vw,12px)]">
             {[
-              { label: "Acheter", sub: "Je trouve et compare", Icon: ShoppingBag, onClick: () => glideThen(() => askBot("Je veux acheter ")), primary: true },
-              { label: "Vendre", sub: "Je trouve des acheteurs", Icon: Tag, onClick: () => glideThen(() => askBot("Je veux vendre ")), primary: false },
-              { label: "Trouver", sub: "Partout avec NEXUS", Icon: Globe2, onClick: () => glideThen(() => navigate("/app/nexus")), primary: false },
-              { label: "Demander", sub: "Parlez naturellement", Icon: MessageSquareText, onClick: () => glideThen(openNewWaouh), primary: false },
-            ].map(({ label, sub, Icon, onClick, primary }) => (
+              { kind: "acheter" as QuickAskKind, label: "Acheter", sub: "Je trouve et compare", Icon: ShoppingBag, card: "from-blue-50 to-blue-100/80 border-blue-100", iconTone: "text-blue-600" },
+              { kind: "vendre" as QuickAskKind, label: "Vendre", sub: "Je trouve des acheteurs", Icon: Tag, card: "from-amber-50 to-orange-100/75 border-amber-100", iconTone: "text-amber-600" },
+              { kind: "trouver" as QuickAskKind, label: "Trouver", sub: "Partout avec NEXUS", Icon: Globe2, card: "from-cyan-50 to-sky-100/80 border-cyan-100", iconTone: "text-cyan-600" },
+              { kind: "demander" as QuickAskKind, label: "Demander", sub: "Parlez naturellement", Icon: MessageSquareText, card: "from-violet-50 to-purple-100/80 border-violet-100", iconTone: "text-violet-600" },
+            ].map(({ kind, label, sub, Icon, card, iconTone }) => (
               <button
                 key={label}
                 type="button"
-                onClick={onClick}
+                onClick={() => glideThen(() => askQuick(kind))}
                 data-waouh-action={label.toLowerCase()}
-                className={
-                  "flex min-h-11 min-w-0 flex-row items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
-                  (primary
-                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white"
-                    : "border border-slate-200/80 bg-white/90 text-slate-800 hover:bg-white")
-                }
+                className={`group flex min-h-[clamp(64px,16vw,80px)] min-w-0 flex-col items-start justify-center gap-1 rounded-[18px] border bg-gradient-to-br ${card} px-3 py-2.5 text-left shadow-sm transition hover:shadow-md active:scale-[.97]`}
               >
-                <Icon className={"h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] shrink-0 " + (primary ? "text-white" : "text-blue-600")} />
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/80 shadow-sm">
+                  <Icon className={`h-[clamp(16px,4.2vw,18px)] w-[clamp(16px,4.2vw,18px)] ${iconTone}`} />
+                </span>
                 <span className="min-w-0 leading-tight">
-                  <span className="block truncate text-[clamp(12px,3.2vw,14px)] font-black">{label}</span>
-                  <span className={"hidden sm:block truncate text-[clamp(11.5px,2.9vw,12.5px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
+                  <span className="block truncate text-[clamp(13px,3.4vw,15px)] font-black text-slate-950">{label}</span>
+                  <span className="block truncate text-[clamp(10.5px,2.8vw,12px)] font-semibold text-slate-500">{sub}</span>
                 </span>
               </button>
             ))}
@@ -636,6 +642,7 @@ export default function ChatListScreen() {
             </SheetContent>
           </Sheet>
         )}
+        <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
       </div>
     );
   }
@@ -643,6 +650,7 @@ export default function ChatListScreen() {
   return (
     <div className="min-h-[100dvh] waouh-chat-list-bg">
       {listContent}
+      <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
     </div>
   );
 }

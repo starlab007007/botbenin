@@ -114,7 +114,7 @@ class _Counter extends StatelessWidget {
       );
 }
 
-class LiveAgenticWorkspace extends StatelessWidget {
+class LiveAgenticWorkspace extends StatefulWidget {
   const LiveAgenticWorkspace({
     super.key,
     required this.controller,
@@ -127,8 +127,24 @@ class LiveAgenticWorkspace extends StatelessWidget {
   final bool standalone;
 
   @override
+  State<LiveAgenticWorkspace> createState() => _LiveAgenticWorkspaceState();
+}
+
+class _LiveAgenticWorkspaceState extends State<LiveAgenticWorkspace> {
+  // Onglet le plus utile en entrant : une décision en attente passe avant
+  // une veille déclenchée, qui passe avant les missions (moins de clics,
+  // plus intelligent — même logique que le Web).
+  int get _smartInitialIndex {
+    final c = widget.controller;
+    if (c.pendingApprovalCount > 0) return 2;
+    if (c.watches.any((item) => item.enabled && item.targetReached)) return 1;
+    return 0;
+  }
+
+  @override
   Widget build(BuildContext context) => DefaultTabController(
         length: 4,
+        initialIndex: _smartInitialIndex,
         child: Column(
           children: [
             Padding(
@@ -145,7 +161,7 @@ class LiveAgenticWorkspace extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!standalone)
+                  if (!widget.standalone)
                     IconButton.filledTonal(
                       tooltip: 'Fermer',
                       style: IconButton.styleFrom(
@@ -201,19 +217,19 @@ class LiveAgenticWorkspace extends StatelessWidget {
             ),
             Expanded(
               child: ListenableBuilder(
-                listenable: controller,
+                listenable: widget.controller,
                 builder: (_, __) => TabBarView(
                   children: [
                     _MissionsTab(
-                      controller: controller,
+                      controller: widget.controller,
                       onResumeMission: (mission) {
-                        if (!standalone) Navigator.pop(context);
-                        onResumeMission(mission);
+                        if (!widget.standalone) Navigator.pop(context);
+                        widget.onResumeMission(mission);
                       },
                     ),
-                    _WatchesTab(controller: controller),
-                    _ApprovalsTab(controller: controller),
-                    _ActivityTab(controller: controller),
+                    _WatchesTab(controller: widget.controller),
+                    _ApprovalsTab(controller: widget.controller),
+                    _ActivityTab(controller: widget.controller),
                   ],
                 ),
               ),
