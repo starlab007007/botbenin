@@ -85,16 +85,17 @@ void main() {
       );
       await tester.pump();
       expect(find.byType(Checkbox), findsNothing);
-      expect(find.text('Voir 1 alternative'), findsOneWidget);
+      expect(find.text('Les offres retenues'), findsOneWidget);
+      expect(find.text('Mon comparatif'), findsOneWidget);
       expect(find.text('Prix et disponibilité confirmés'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.text('Suivre Bot'));
       await tester.tap(find.text('Suivre Bot'));
       expect(follow, isTrue);
-      await tester.ensureVisible(find.text('Pourquoi ce choix ?'));
-      await tester.tap(find.text('Pourquoi ce choix ?'));
+      await tester.ensureVisible(find.text('Mon comparatif'));
+      await tester.tap(find.text('Mon comparatif'));
       await tester.pumpAndSettle();
-      expect(find.text('Ma priorité'), findsOneWidget);
+      expect(find.text('Mon comparatif automatique'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
