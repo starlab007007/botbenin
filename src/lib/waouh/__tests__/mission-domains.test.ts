@@ -3,12 +3,21 @@ import {webcrypto} from 'node:crypto';
 import {normalizeMissionKind,normalizeMissionContext,missionFacts,missionDeadline,opportunityWatchPlan,missionContactMessage} from '../../../../supabase/functions/_shared/waouh-mission-domain';
 import {publicNexusResult} from '../../../../supabase/functions/_shared/waouh-public-discovery';
 import {autonomyContactAllowed} from '../../../../supabase/functions/_shared/waouh-avatar-autonomy-settings';
-import {automaticMissionKey} from '../../../../supabase/functions/_shared/waouh-automatic-mission';
+import {automaticMissionKey,automaticFollowBlock} from '../../../../supabase/functions/_shared/waouh-automatic-mission';
 import {missionOfferView,domainOfferDecision} from '../guidedDiscovery';
 import type {NexusDiscoveryResult} from '../nexus';
 const row=(e:Record<string,unknown>={},price=5000)=>({fabric_id:'a',subject:'Plombier',price_min:price,evidence:e} as NexusDiscoveryResult);
 describe('Business-specific guided missions',()=>{
  it.each([['Appel à projets','opportunity'],['Réparer une fuite','service'],['Créer un site vitrine','project'],['Je vends mon téléphone','sale'],['Samsung S25','purchase']])('infers %s', (q,k)=>expect(normalizeMissionKind('trouver',q)).toBe(k));
+ it('makes the owned-article picker reachable before assisted sale approval without permitting a contact',()=>{
+  const assisted={paused:false,mode:'assisted'};
+  expect(automaticFollowBlock(assisted,{mode:'sell'})).toBe('article_required');
+  expect(automaticFollowBlock(assisted,{mode:'sell',article_id:'owned'})).toBe('approval_required');
+  expect(automaticFollowBlock({...assisted,paused:true},{mode:'sell'})).toBe('paused');
+  expect(automaticFollowBlock({paused:false,mode:'autonomous'},{mode:'sell'})).toBe('article_required');
+  expect(automaticFollowBlock({paused:false,mode:'autonomous'},{mode:'sell',article_id:'owned'})).toBeNull();
+  expect(automaticFollowBlock(assisted,{mode:'ask',discovery_kind:'opportunity',confirmed_watch:true})).toBeNull();
+ });
  it('normalizes context and cannot lower the recorded sale floor',()=>{expect(normalizeMissionContext({price_floor:100,quantity:.5,max_days:.5},'sale','',200)).toMatchObject({price_floor:200,quantity:1,max_days:1});expect(normalizeMissionContext({},'project','site de 5 pages en 2 semaines')).toMatchObject({required_pages:5,max_days:14});});
  it('never turns an unknown diagnostic into a zero-cost diagnostic',()=>{expect(missionFacts(row({visit_fee:5000})).visitTotal).toBeNull();expect(missionFacts(row({visit_fee:5000,diagnostic_included:true})).visitTotal).toBe(5000);expect(missionOfferView(row({visit_fee:5000}),{missionKind:'service'}).line).toContain('intervention à confirmer');});
  it('compares project scope before claiming a monetary advantage',()=>{const a=row({scope:'5 pages',pages:5,delivery_days:14},100000),b={...row({scope:'1 page'},1000),fabric_id:'b'};expect(domainOfferDecision(b,[a,b],{missionKind:'project'}).reason).toContain('périmètres annoncés sont différents');});

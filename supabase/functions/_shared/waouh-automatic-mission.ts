@@ -16,3 +16,12 @@ export async function ensureAutomaticIntent(sb:any,values:Record<string,unknown>
  }
  throw new Error('automatic_intent_prepare_failed');
 }
+
+/** Resolve the next screen without creating a mandate or granting any contact permission. */
+export function automaticFollowBlock(rules:{paused:boolean;mode:string}|null,payload:{mode?:unknown;article_id?:unknown;discovery_kind?:unknown;confirmed_watch?:unknown}):'paused'|'article_required'|'approval_required'|null{
+ if(rules?.paused)return 'paused';
+ // Both clients already have an owned-article picker for this state.
+ if(payload.mode==='sell'&&!payload.article_id)return 'article_required';
+ if(rules?.mode!=='autonomous'&&!(payload.discovery_kind==='opportunity'&&payload.confirmed_watch===true))return 'approval_required';
+ return null;
+}
