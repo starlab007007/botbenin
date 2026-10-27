@@ -25,7 +25,7 @@ export function knownPeopleCount(results: NexusDiscoveryResult[]) {
 }
 export function offerPrice(r: NexusDiscoveryResult) {
   const money = (n: number) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} ${!r.currency || r.currency === 'XOF' ? 'F CFA' : r.currency}`;
-  const min = r.price_min, max = r.price_max;
+  const min = r.price_min != null && r.price_min > 0 ? r.price_min : null, max = r.price_max != null && r.price_max > 0 ? r.price_max : null;
   if (min == null && max == null) return 'Prix à demander';
   return min != null && max != null && min !== max ? `${money(min)} – ${money(max)}` : money((min ?? max)!);
 }

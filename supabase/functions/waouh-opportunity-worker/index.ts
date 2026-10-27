@@ -1,3 +1,5 @@
+import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
+import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { autonomyWindowOpen,autonomyContactAllowed,normalizeAvatarAutonomy } from "../_shared/waouh-avatar-autonomy-settings.ts";
 import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { createExchangeInvite, handleExternalExchange } from '../_shared/waouh-external-exchange.ts';
@@ -1142,7 +1144,7 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
     try {
       const { data: mandate } = await sb.from("waouh_avatar_mandates")
         .select("*").eq("id", journey.mandate_id).maybeSingle();
-      if (!mandate || mandate.status !== "active" || mandate.autonomy_mode === "assisted" || !autonomyContactAllowed(mandate)) {
+      if (!mandate || mandate.status !== "active" || mandate.autonomy_mode === "assisted" || !autonomyContactAllowed(mandate) || await avatarAccountPaused(sb,mandate.owner_id)) {
         skipped++;
         continue;
       }
@@ -1282,7 +1284,7 @@ Deno.serve(async (req) => {
         result.skipped++;
         continue;
       }
-      if(!autonomyWindowOpen(mandate)){result.skipped++;continue;}
+      if(!autonomyWindowOpen(mandate)||await avatarAccountPaused(sb,mandate.owner_id)){result.skipped++;continue;}
       const maxContacts = Math.max(1, Math.min(20, Number(mandate.max_contacts || 3)));
       const remainingContacts = remainingContactCapacity(maxContacts, mandate.contacted_count);
       if (remainingContacts <= 0) {
@@ -1334,6 +1336,7 @@ Deno.serve(async (req) => {
           .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
       }
       ranked = ranked.filter((signal: any) => withinMandateBudget(mandate, signal));
+      if(mandate.metadata?.automatic_follow)ranked=rankOfferChoices(ranked.map(row=>({...row,fabric_id:row.fabric_id??row.id})),{query:mandate.goal,city:mandate.city,budget:mandate.budget_max,mode:mandate.mode,priority:mandate.metadata?.comparison_priority}).slice(0,3);
       result.matches += ranked.length;
       await finishLegacySearch(sb, mandate, ranked);
       if (mandate.metadata?.completion_goal === "recommendations") continue;
@@ -1342,6 +1345,7 @@ Deno.serve(async (req) => {
       let actionableThisRun = 0;
       const visited = new Set<string>();
       for (let signal of ranked) {
+        if(await avatarAccountPaused(sb,mandate.owner_id)){result.skipped++;break;}
         if (Date.now() - started > 65000) break;
         if (/^(radar|legacy_external):/.test(signal.fabric_id)) {
           const response = await fetch(`${SUPABASE_URL}/functions/v1/${AGENTIC_FUNCTION}`, {

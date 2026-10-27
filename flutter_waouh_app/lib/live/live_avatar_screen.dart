@@ -52,6 +52,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
         onDone: () => setState(() => _editing = false),
       );
     return LiveAvatarAutonomyScreen(
+      name: context.watch<LiveAvatarController>().name,
       onAppearance: () => setState(() => _editing = true),
     );
   }

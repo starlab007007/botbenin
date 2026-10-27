@@ -1115,6 +1115,24 @@ class LiveNexusService {
   Future<Map<String, dynamic>> ownedArticles() =>
       _invoke('nexus.owned_articles', {});
 
+  Future<Map<String, dynamic>> followSearch({
+    required String goal,
+    required String mode,
+    String? city,
+    double? budgetMax,
+    String? articleId,
+    String priority = 'price',
+  }) => _invoke('nexus.mandate.create', {
+    'automatic_follow': true,
+    'goal': goal,
+    'mode': mode,
+    if (city != null && city.trim().isNotEmpty) 'city': city,
+    if (budgetMax != null) 'budget_max': budgetMax,
+    if (articleId != null) 'article_id': articleId,
+    'comparison_priority': priority,
+    'origin_surface': 'flutter_minimal_search',
+  });
+
   Future<Map<String, dynamic>> createMandate({
     String? articleId,
     double? priceFloor,
