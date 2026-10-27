@@ -386,7 +386,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           _lastContext = Map<String, dynamic>.from(
             meta['mission_context'] as Map,
           );
-        final m = data['mandate'];
         if (m is Map) {
           if (m['budget_max'] is num)
             _lastBudget = (m['budget_max'] as num).toDouble();
