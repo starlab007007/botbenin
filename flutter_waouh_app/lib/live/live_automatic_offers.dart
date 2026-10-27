@@ -397,7 +397,8 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
                     ),
                     const SizedBox(height: 15),
-                    primary(onTap: () => Navigator.pop(ctx, 'follow')),
+                    if (!widget.manualChoice)
+                      primary(onTap: () => Navigator.pop(ctx, 'follow')),
                     ExpansionTile(
                       tilePadding: EdgeInsets.zero,
                       title: const Text(
@@ -575,7 +576,9 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  essentialPrice(o),
+                  o.currency == 'XOF'
+                      ? essentialPrice(o).replaceAll('F CFA', 'F')
+                      : essentialPrice(o),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w500,

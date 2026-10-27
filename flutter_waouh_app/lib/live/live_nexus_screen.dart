@@ -1132,19 +1132,20 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               onPressed: () => setState(() => _peekResults = true),
               child: const Text('Voir les premières pistes'),
             ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _activity,
-              icon: const Icon(Icons.checklist, size: 15),
-              label: Text(
-                busy
-                    ? 'Le détail de ma recherche'
-                    : 'Voir le déroulé de ma recherche',
-                style: const TextStyle(fontSize: 12),
+          if (!['understanding', 'collecting'].contains(_phase) && !_paused)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _activity,
+                icon: const Icon(Icons.checklist, size: 15),
+                label: Text(
+                  busy
+                      ? 'Le détail de ma recherche'
+                      : 'Voir le déroulé de ma recherche',
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
             ),
-          ),
         ],
         if (_liveError != null)
           Text(
