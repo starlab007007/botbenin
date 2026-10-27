@@ -366,6 +366,8 @@ class NexusDiscoveryItem {
         'offer_kind',
         'kind',
         'condition',
+        'expires_at',
+        'remote',
         'market_references',
         'price_references',
       ])
@@ -934,11 +936,15 @@ class LiveNexusService {
     String? city,
     double? budgetMax,
     bool refreshExternal = true,
+    String? discoveryKind,
+    Map<String, dynamic>? missionContext,
     bool smart = true,
     int limit = 24,
   }) async {
     final data = await _invoke('nexus.global_discovery', {
       'query': query.trim(),
+      if (discoveryKind != null) 'discovery_kind': discoveryKind,
+      if (missionContext != null) 'mission_context': missionContext,
       'mode': smartMode
           ? 'auto'
           : (findSellers ? 'find_sellers' : 'find_buyers'),
@@ -959,10 +965,14 @@ class LiveNexusService {
     String? city,
     double? budgetMax,
     bool refreshExternal = true,
+    String? discoveryKind,
+    Map<String, dynamic>? missionContext,
     required void Function(NexusDiscoveryResponse) onIndexed,
   }) async {
     final indexed = await search(
       query: query,
+      discoveryKind: discoveryKind,
+      missionContext: missionContext,
       findSellers: findSellers,
       smartMode: smartMode,
       city: city,
@@ -974,6 +984,8 @@ class LiveNexusService {
     if (!refreshExternal) return indexed;
     return search(
       query: query,
+      discoveryKind: discoveryKind,
+      missionContext: missionContext,
       findSellers: findSellers,
       smartMode: smartMode,
       city: city,
@@ -1033,13 +1045,14 @@ class LiveNexusService {
     required String fabricId,
     String mode = 'buy',
     String? mandateId,
+    String? expectedOwner,
   }) async {
     final data = await _invoke('nexus.opportunity.start', {
       'fabric_id': fabricId,
       'mode': mode,
       if (mandateId != null && mandateId.trim().isNotEmpty)
         'mandate_id': mandateId.trim(),
-    });
+    }, expectedOwner);
     return NexusOpportunityJourney.fromJson(_map(data['journey']));
   }
 
@@ -1134,9 +1147,15 @@ class LiveNexusService {
     double? budgetMax,
     String? articleId,
     String priority = 'price',
+    String? discoveryKind,
+    Map<String, dynamic>? missionContext,
+    bool confirmedWatch = false,
     required String expectedOwner,
   }) => _invoke('nexus.mandate.create', {
     'automatic_follow': true,
+    if (discoveryKind != null) 'discovery_kind': discoveryKind,
+    if (missionContext != null) 'mission_context': missionContext,
+    if (confirmedWatch) 'confirmed_watch': true,
     'goal': goal,
     'mode': mode,
     if (city != null && city.trim().isNotEmpty) 'city': city,
@@ -1147,7 +1166,10 @@ class LiveNexusService {
   }, expectedOwner);
 
   Future<Map<String, dynamic>> createMandate({
+    String? expectedOwner,
     String? articleId,
+    String? discoveryKind,
+    Map<String, dynamic>? missionContext,
     double? priceFloor,
     required String mode,
     required String goal,
@@ -1169,6 +1191,8 @@ class LiveNexusService {
     List<String> photos = const <String>[],
     String articleNotes = '',
   }) => _invoke('nexus.mandate.create', {
+    if (discoveryKind != null) 'discovery_kind': discoveryKind,
+    if (missionContext != null) 'mission_context': missionContext,
     if (photos.isNotEmpty) 'photos': photos,
     if (articleNotes.trim().isNotEmpty) 'article_notes': articleNotes.trim(),
     if (articleId != null) 'article_id': articleId,
@@ -1191,7 +1215,7 @@ class LiveNexusService {
     'acceptance_terms': acceptanceTerms,
     'scan_interval_minutes': scanIntervalMinutes,
     'origin_surface': 'flutter_avatar',
-  });
+  }, expectedOwner);
 
   Future<Map<String, dynamic>> listMandates() => _invoke('nexus.mandate.list');
 

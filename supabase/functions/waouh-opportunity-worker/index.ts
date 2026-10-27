@@ -1,3 +1,4 @@
+import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { autonomyWindowOpen,autonomyContactAllowed,normalizeAvatarAutonomy } from "../_shared/waouh-avatar-autonomy-settings.ts";
@@ -69,6 +70,7 @@ async function discoverPersistentIntentWithNexus(
           limit,
           refresh_external: refreshExternal,
           smart: false,
+          ...(mandate.metadata?.discovery_kind?{discovery_kind:mandate.metadata.discovery_kind,mission_context:mandate.metadata.mission_context}:{}),
         },
       }),
     });
@@ -644,9 +646,9 @@ async function contactInternal(
   if (already) return { contacted: false, reason: "already_contacted" };
 
   if (!await claimAvatarContact(sb, mandate, journey, await internalContactEndpoint(recipient))) return { contacted: false, reason: "person_contact_cooldown" };
-  const message = mandate.mode === "sell"
+  const message = missionContactMessage(mandate,signal.subject||mandate.goal)??(mandate.mode === "sell"
     ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`
-    : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`;
+    : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`);
 
   const { data: approval, error: approvalError } = await sb.from("waouh_agent_approvals").insert({
     owner_id: recipient.auth_user_id,
@@ -849,9 +851,9 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   if (!route.can_dispatch) return { contacted: false, reason: route.reason };
   const permission = mandateAllowsContact(mandate, { ...pack, best_channel: route.primary_channel, next_best_action: journey.metadata?.contact_approved ? "CONTACT_NOW" : pack.next_best_action });
   if (!permission.allowed) return { contacted: false, reason: permission.reason };
-  const message = mandate.mode === "sell"
+  const message = missionContactMessage(mandate,signal.subject||mandate.goal)??(mandate.mode === "sell"
     ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
-    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
+    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`);
 
   if (route.primary_channel === "email") {
     const target = contacts.find((c:any)=>c.channel === "email" && c.consent_state !== "revoked");
@@ -1287,7 +1289,7 @@ Deno.serve(async (req) => {
       if(!autonomyWindowOpen(mandate)||await avatarAccountPaused(sb,mandate.owner_id)){result.skipped++;continue;}
       const maxContacts = Math.max(1, Math.min(20, Number(mandate.max_contacts || 3)));
       const remainingContacts = remainingContactCapacity(maxContacts, mandate.contacted_count);
-      if (remainingContacts <= 0) {
+      if (remainingContacts <= 0&&!opportunityWatchOnly(mandate.metadata)) {
         const nextAt = new Date(Date.now() + 24 * 3600_000).toISOString();
         await sb.from("waouh_persistent_intents").update({
           last_scan_at: new Date().toISOString(),
@@ -1305,7 +1307,7 @@ Deno.serve(async (req) => {
       const nexusDiscovery = await discoverPersistentIntentWithNexus(sb, intent, mandate);
       let ranked: any[] = nexusDiscovery.results;
       const rules=mandate.metadata?.autonomy_settings?normalizeAvatarAutonomy(mandate.metadata.autonomy_settings):null;
-      if(rules?.radius_km&&mandate.city){const city=String(mandate.city).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();ranked=ranked.filter(row=>String(row.city??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()===city);}
+      if(rules?.radius_km&&mandate.city){const city=String(mandate.city).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();ranked=ranked.filter(row=>{const zone=String(row.city??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();return zone===city||(opportunityWatchOnly(mandate.metadata)&&['benin','national','en ligne'].includes(zone))||(mandate.metadata?.discovery_kind==='project'&&row.evidence?.remote===true);});}
       if(!ranked.length&&rules?.no_match==='stop'){
         await sb.from('waouh_avatar_mandates').update({status:'completed',metadata:{...mandate.metadata,outcome:'no_match'}}).eq('id',mandate.id).eq('status','active');
         await sb.from('waouh_persistent_intents').update({status:'completed'}).eq('mandate_id',mandate.id);
@@ -1318,7 +1320,7 @@ Deno.serve(async (req) => {
         const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
           .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1500);
         if (signalError) throw signalError;
-        ranked = (signals ?? []).map((signal: FabricSignal) => ({
+        ranked = (signals ?? []).filter((signal:any)=>!mandate.metadata?.mission_context||missionMatches(signal,missionCriteria(mandate.metadata.mission_context))).map((signal: FabricSignal) => ({
           ...signal,
           scores: scoreFabricSignal({
             query: intent.query_text,
@@ -1327,17 +1329,28 @@ Deno.serve(async (req) => {
             budgetMax: intent.budget_max,
             signal,
           }),
-        })).filter((row: any) => Number(row.scores.total_score || 0) >= Number(intent.min_match_score || 75))
+        })).filter((row: any) => (opportunityWatchOnly(mandate.metadata)?Number(row.scores.relevance_score||0)>=18:Number(row.scores.total_score || 0) >= Number(intent.min_match_score || 75)))
           .sort((a: any,b: any) => Number(b.scores.total_score) - Number(a.scores.total_score))
           .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
       } else {
         ranked = ranked
-          .filter((row: any) => Number(row.scores?.total_score || 0) >= Number(intent.min_match_score || 75))
+          .filter((row: any) => (opportunityWatchOnly(mandate.metadata)?Number(row.scores?.relevance_score||0)>=18:Number(row.scores?.total_score || 0) >= Number(intent.min_match_score || 75)))
           .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
       }
-      ranked = ranked.filter((signal: any) => withinMandateBudget(mandate, signal));
-      if(mandate.metadata?.automatic_follow)ranked=rankOfferChoices(ranked.map(row=>({...row,fabric_id:row.fabric_id??row.id})),{query:mandate.goal,city:mandate.city,budget:mandate.budget_max,mode:mandate.mode,priority:mandate.metadata?.comparison_priority}).slice(0,3);
+      ranked = ranked.filter((signal: any) => opportunityWatchOnly(mandate.metadata)||withinMandateBudget(mandate, signal));
+      if(mandate.metadata?.automatic_follow||mandate.metadata?.mission_context)ranked=rankOfferChoices(ranked.map(row=>({...row,fabric_id:row.fabric_id??row.id})),{query:mandate.goal,city:mandate.city,budget:mandate.budget_max,mode:mandate.mode,priority:mandate.metadata?.comparison_priority,...(mandate.metadata?.mission_context?missionCriteria(mandate.metadata.mission_context):{})}).slice(0,4);
       result.matches += ranked.length;
+      if(opportunityWatchOnly(mandate.metadata)){
+        const plan=opportunityWatchPlan(mandate.metadata,ranked,Number(intent.scan_interval_minutes||60));
+        const metadata={...mandate.metadata,latest_selection:plan.selection,selection_updated_at:new Date().toISOString()};
+        const {error:watchError}=await sb.from('waouh_avatar_mandates').update({metadata,last_run_at:new Date().toISOString(),next_run_at:plan.nextAt}).eq('id',mandate.id).eq('owner_id',mandate.owner_id).eq('status','active');if(watchError)throw watchError;
+        const {error:scanError}=await sb.from('waouh_persistent_intents').update({last_scan_at:new Date().toISOString(),next_scan_at:plan.nextAt,last_result_count:ranked.length,last_actionable_count:0}).eq('id',intent.id).eq('owner_id',mandate.owner_id);if(scanError)throw scanError;
+        if(rules?.notify_offer&&!rules.digest_only){
+          if(plan.changed)await avatarNotice(sb,mandate.owner_id,`opportunity-selection:${mandate.id}:${await sha256Hex(JSON.stringify(plan.selection))}`,`${ranked.length} opportunité${ranked.length>1?'s':''} à examiner. Consultez les conditions et les échéances avant toute candidature.`,{mandate_id:mandate.id});
+          if(plan.imminent)await avatarNotice(sb,mandate.owner_id,`opportunity-deadline:${mandate.id}:${await sha256Hex(JSON.stringify(plan.imminent))}`,`Une échéance annoncée approche pour « ${plan.imminent.subject} ». Vérifiez la publication d’origine avant de répondre.`,{mandate_id:mandate.id});
+        }
+        continue;
+      }
       await finishLegacySearch(sb, mandate, ranked);
       if (mandate.metadata?.completion_goal === "recommendations") continue;
 

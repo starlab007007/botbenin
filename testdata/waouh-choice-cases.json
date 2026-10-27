@@ -369,5 +369,291 @@
   "expected": [
    "new"
   ]
+ },
+ {
+  "name": "opportunities ignore funding currency, keep national scope and exclude expiry or ineligibility",
+  "criteria": {
+   "missionKind": "opportunity",
+   "query": "formation",
+   "city": "Cotonou",
+   "budget": 100,
+   "now": 1793098800000
+  },
+  "offers": [
+   {
+    "fabric_id": "late",
+    "subject": "Formation",
+    "city": "Bénin",
+    "currency": "EUR",
+    "price_min": 50000,
+    "evidence": {
+     "offer_kind": "announcement",
+     "conditions": "PME",
+     "deadline": "2026-12-01"
+    }
+   },
+   {
+    "fabric_id": "urgent",
+    "subject": "Formation",
+    "city": "Bénin",
+    "evidence": {
+     "conditions": "PME",
+     "deadline": "2026-10-29"
+    }
+   },
+   {
+    "fabric_id": "expired",
+    "subject": "Formation",
+    "evidence": {
+     "deadline": "2026-10-20"
+    }
+   },
+   {
+    "fabric_id": "excluded",
+    "subject": "Formation",
+    "evidence": {
+     "eligible": false
+    }
+   },
+   {
+    "fabric_id": "article",
+    "subject": "Formation",
+    "evidence": {
+     "offer_kind": "product"
+    }
+   }
+  ],
+  "expected": [
+   "urgent",
+   "late"
+  ]
+ },
+ {
+  "name": "opportunity date-only expires at end of Benin day",
+  "criteria": {
+   "missionKind": "opportunity",
+   "query": "formation",
+   "now": 1793140200000
+  },
+  "offers": [
+   {
+    "fabric_id": "today",
+    "subject": "Formation",
+    "evidence": {
+     "deadline": "2026-10-27"
+    }
+   }
+  ],
+  "expected": [
+   "today"
+  ]
+ },
+ {
+  "name": "service scopes and bases prevent misleading nominal price sorting",
+  "criteria": {
+   "missionKind": "service",
+   "query": "plombier"
+  },
+  "offers": [
+   {
+    "fabric_id": "b",
+    "subject": "Plombier",
+    "price_min": 1000,
+    "evidence": {
+     "scope": "Diagnostic",
+     "price_basis": "heure",
+     "availability": "available",
+     "visit_fee": 1000,
+     "diagnostic_included": true
+    }
+   },
+   {
+    "fabric_id": "a",
+    "subject": "Plombier",
+    "price_min": 8000,
+    "evidence": {
+     "scope": "Diagnostic",
+     "price_basis": "visite",
+     "availability": "available",
+     "visit_fee": 8000,
+     "diagnostic_included": true
+    }
+   },
+   {
+    "fabric_id": "c",
+    "subject": "Plombier",
+    "price_min": 500,
+    "evidence": {}
+   }
+  ],
+  "expected": [
+   "a",
+   "b",
+   "c"
+  ]
+ },
+ {
+  "name": "service identical declared scope and basis allows price comparison",
+  "criteria": {
+   "missionKind": "service",
+   "query": "plombier"
+  },
+  "offers": [
+   {
+    "fabric_id": "a",
+    "subject": "Plombier",
+    "price_min": 9000,
+    "evidence": {
+     "scope": "Diagnostic fuite",
+     "price_basis": "visite"
+    }
+   },
+   {
+    "fabric_id": "b",
+    "subject": "Plombier",
+    "price_min": 5000,
+    "evidence": {
+     "scope": "Diagnostic fuite",
+     "price_basis": "visite"
+    }
+   }
+  ],
+  "expected": [
+   "b",
+   "a"
+  ]
+ },
+ {
+  "name": "project excludes explicit page and delay conflicts and accepts remote provider",
+  "criteria": {
+   "missionKind": "project",
+   "query": "site vitrine",
+   "city": "Cotonou",
+   "maxDays": 14,
+   "requiredPages": 5
+  },
+  "offers": [
+   {
+    "fabric_id": "slow",
+    "subject": "Site vitrine",
+    "evidence": {
+     "pages": 5,
+     "delivery_days": 21
+    }
+   },
+   {
+    "fabric_id": "small",
+    "subject": "Site vitrine",
+    "evidence": {
+     "pages": 3,
+     "delivery_days": 10
+    }
+   },
+   {
+    "fabric_id": "complete",
+    "subject": "Site vitrine",
+    "city": "Porto-Novo",
+    "price_min": 180000,
+    "evidence": {
+     "remote": true,
+     "scope": "Site vitrine 5 pages",
+     "price_basis": "projet",
+     "pages": 5,
+     "delivery_days": 12
+    }
+   },
+   {
+    "fabric_id": "unknown",
+    "subject": "Site vitrine",
+    "price_min": 10000,
+    "evidence": {}
+   }
+  ],
+  "expected": [
+   "complete",
+   "unknown"
+  ]
+ },
+ {
+  "name": "sale ignores seller budget ceiling, excludes seller and respects price floor",
+  "criteria": {
+   "missionKind": "sale",
+   "mode": "sell",
+   "query": "Samsung S25",
+   "priceFloor": 200000,
+   "budget": 100
+  },
+  "offers": [
+   {
+    "fabric_id": "seller",
+    "subject": "Samsung S25",
+    "intent": "SELL",
+    "price_min": 400000
+   },
+   {
+    "fabric_id": "low",
+    "subject": "Samsung S25",
+    "intent": "BUY",
+    "price_max": 150000
+   },
+   {
+    "fabric_id": "buyer",
+    "subject": "Samsung S25",
+    "intent": "BUY",
+    "price_max": 250000
+   },
+   {
+    "fabric_id": "unknown",
+    "subject": "Samsung S25",
+    "intent": "RFQ"
+   }
+  ],
+  "expected": [
+   "buyer",
+   "unknown"
+  ]
+ },
+ {
+  "name": "sale quantity comparison requires matching unit",
+  "criteria": {
+   "missionKind": "sale",
+   "mode": "sell",
+   "query": "Riz",
+   "quantity": 5,
+   "unit": "sac"
+  },
+  "offers": [
+   {
+    "fabric_id": "too-many",
+    "subject": "Riz",
+    "intent": "BUY",
+    "evidence": {
+     "minimum_quantity": 10,
+     "unit": "sac"
+    }
+   },
+   {
+    "fabric_id": "different",
+    "subject": "Riz",
+    "intent": "BUY",
+    "evidence": {
+     "minimum_quantity": 100,
+     "unit": "kg"
+    }
+   },
+   {
+    "fabric_id": "enough",
+    "subject": "Riz",
+    "intent": "BUY",
+    "evidence": {
+     "minimum_quantity": 5,
+     "unit": "sac"
+    }
+   }
+  ],
+  "expected": [
+   "different",
+   "enough"
+  ]
  }
 ]

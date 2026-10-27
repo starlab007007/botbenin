@@ -1,3 +1,4 @@
+import 'live_mission_domain.dart';
 import 'live_guided_progress.dart';
 import 'dart:async';
 import 'live_automatic_offers.dart';
@@ -51,6 +52,11 @@ class LiveNexusScreen extends StatefulWidget {
 class _LiveNexusScreenState extends State<LiveNexusScreen> {
   final query = TextEditingController();
   final city = TextEditingController();
+  final brief = TextEditingController(),
+      maxDays = TextEditingController(),
+      priceFloor = TextEditingController(),
+      quantity = TextEditingController(),
+      unit = TextEditingController();
   final budget = TextEditingController();
   final shareText = TextEditingController();
   final shareUrl = TextEditingController();
@@ -71,7 +77,36 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   bool _peekResults = false;
   int _searchVersion = 0;
   String? _liveError;
-  String _kind = 'trouver';
+  String _kind = 'trouver', _lastKind = 'purchase';
+  bool _confirmedWatch = false;
+  Map<String, dynamic> _lastContext = {};
+  Map<String, dynamic>? _selectedArticle;
+  String get _selectedKind => normalizeMissionKind(
+    _kind,
+    query: query.text,
+    mode: findSellers ? '' : 'sell',
+  );
+  String get _activeKind => _started ? _lastKind : _selectedKind;
+  Map<String, dynamic> get _draftContext => normalizeMissionContext(
+    {
+      'brief': brief.text,
+      'max_days': double.tryParse(maxDays.text),
+      'price_floor': double.tryParse(priceFloor.text),
+      'quantity': double.tryParse(quantity.text),
+      'unit': unit.text,
+    },
+    _selectedKind,
+    query: query.text,
+  );
+  Map<String, dynamic>? get _ownedArticle {
+    final m = _automatic?['mandate'];
+    final meta = m is Map ? m['metadata'] : null;
+    final article = meta is Map ? meta['article_snapshot'] : null;
+    return article is Map
+        ? Map<String, dynamic>.from(article)
+        : _selectedArticle;
+  }
+
   Map<String, dynamic>? _automatic;
   bool _automaticBusy = false;
   String? _automaticError;
@@ -109,6 +144,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           _automaticError = null;
           busy = false;
           _started = false;
+          _lastContext = {};
+          _selectedArticle = null;
+          _articleId = null;
+          _confirmedWatch = false;
+          brief.clear();
+          maxDays.clear();
+          priceFloor.clear();
+          quantity.clear();
+          unit.clear();
         });
       }
     });
@@ -143,6 +187,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     _accountSubscription?.cancel();
     for (final item in <TextEditingController>[
       query,
+      brief,
+      maxDays,
+      priceFloor,
+      quantity,
+      unit,
       city,
       budget,
       shareText,
@@ -187,6 +236,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       _articleId = null;
       _phase = 'understanding';
       _peekResults = false;
+      _lastKind = _selectedKind;
+      _confirmedWatch = false;
+      _selectedArticle = null;
+      _lastContext = _draftContext;
+      findSellers = _lastKind != 'sale';
       _lastGoal = text;
       _lastCity = city.text.trim();
       _lastBudget = double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
@@ -211,9 +265,20 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             ? cap.toDouble()
             : (_lastBudget! < cap ? _lastBudget : cap.toDouble());
       if (_lastCity.isEmpty) _lastCity = '${rules?['city'] ?? ''}';
+      _lastContext = normalizeMissionContext(
+        _lastContext,
+        _lastKind,
+        query: _lastGoal,
+        floor: _lastKind == 'sale'
+            ? (rules?['price_floor'] as num?)?.toDouble()
+            : null,
+      );
+      if (['opportunity', 'sale'].contains(_lastKind)) _lastBudget = null;
       setState(() => _phase = 'collecting');
       final value = await service.searchProgressive(
         query: text,
+        discoveryKind: _lastKind,
+        missionContext: _lastContext,
         findSellers: findSellers,
         smartMode: smartMode,
         city: _lastCity,
@@ -251,7 +316,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         _lastCity = _lastCity.isNotEmpty
             ? _lastCity
             : value.intelligence?.city ?? '';
-        _lastBudget = _lastBudget ?? value.intelligence?.budgetMax;
+        _lastBudget = ['opportunity', 'sale'].contains(_lastKind)
+            ? null
+            : _lastBudget ?? value.intelligence?.budgetMax;
         if (cap is num && _lastBudget != null && _lastBudget! > cap)
           _lastBudget = cap.toDouble();
         if (!findSellers) _lastBudget = null;
@@ -294,7 +361,14 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     try {
       final data = await service.followSearch(
         goal: _lastGoal,
-        mode: findSellers ? (_kind == 'demander' ? 'ask' : 'buy') : 'sell',
+        mode: _lastKind == 'sale'
+            ? 'sell'
+            : _lastKind == 'purchase'
+            ? 'buy'
+            : 'ask',
+        discoveryKind: _lastKind,
+        missionContext: _lastContext,
+        confirmedWatch: _confirmedWatch,
         city: _lastCity,
         budgetMax: _lastBudget,
         priority: _priority,
@@ -307,7 +381,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         return;
       setState(() {
         _automatic = data;
-        final m = data['mandate'];
+        final m = data['mandate'], meta = m is Map ? m['metadata'] : null;
+        if (meta is Map && meta['mission_context'] is Map)
+          _lastContext = Map<String, dynamic>.from(
+            meta['mission_context'] as Map,
+          );
         if (m is Map) {
           if (m['budget_max'] is num)
             _lastBudget = (m['budget_max'] as num).toDouble();
@@ -341,13 +419,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       : _automaticBusy
       ? 'Préparation du suivi…'
       : _automatic?['mandate'] is Map
-      ? 'Suivre Bot'
+      ? '${missionCopy[_activeKind]!['cta']}'
       : _automaticError != null
       ? 'Réessayer le suivi'
       : _automatic?['skipped'] == 'paused'
       ? 'Réactiver Bot'
       : _automatic?['skipped'] == 'approval_required'
-      ? 'Choisir cette piste'
+      ? (_activeKind == 'opportunity'
+            ? 'Activer la veille'
+            : 'Choisir cette piste')
       : _automatic?['skipped'] == 'article_required'
       ? 'Choisir mon article'
       : legacy.supabase.auth.currentUser == null
@@ -391,6 +471,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       return;
     }
     if (_automatic?['skipped'] == 'approval_required') {
+      if (_activeKind == 'opportunity') {
+        _confirmedWatch = true;
+        await _follow(_searchVersion);
+        return;
+      }
       context.push('/app/missions?view=suivi');
       return;
     }
@@ -398,9 +483,14 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> _chooseArticle() async {
+    final account = legacy.supabase.auth.currentUser?.id,
+        version = _searchVersion;
     try {
       final data = await service.ownedArticles();
-      if (!mounted) return;
+      if (!mounted ||
+          account != legacy.supabase.auth.currentUser?.id ||
+          version != _searchVersion)
+        return;
       final raw = data['articles'];
       final rows = raw is List ? raw.whereType<Map>().toList() : <Map>[];
       final id = await showModalBottomSheet<String>(
@@ -439,8 +529,16 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           ),
         ),
       );
-      if (id != null && mounted) {
-        setState(() => _articleId = id);
+      if (id != null &&
+          mounted &&
+          account == legacy.supabase.auth.currentUser?.id &&
+          version == _searchVersion) {
+        setState(() {
+          _articleId = id;
+          _selectedArticle = Map<String, dynamic>.from(
+            rows.firstWhere((r) => r['id'] == id),
+          );
+        });
         await _follow(_searchVersion);
       }
     } catch (_) {
@@ -543,55 +641,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         query.text = recognized;
       });
       await runSearch();
-    } catch (error) {
-      if (mounted) notice(errorText(error));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> startBuyerAutopilot() async {
-    if (!await requireLiveAuthentication(
-      context,
-      next: '/app/missions',
-      actionLabel: 'confier la recherche à votre Avatar',
-    ))
-      return;
-    final goal = query.text.trim();
-    if (goal.isEmpty) {
-      notice('Lancez d’abord une recherche.');
-      return;
-    }
-    setState(() => busy = true);
-    try {
-      final maxBudget = double.tryParse(
-        budget.text.replaceAll(RegExp(r'\D'), ''),
-      );
-      final rules = await loadLiveAvatarAutonomy();
-      await service.createMandate(
-        mode: findSellers ? 'buy' : 'sell',
-        goal: goal,
-        autonomyMode: '${rules['mode']}',
-        city: city.text.trim(),
-        budgetMax: maxBudget,
-        maxContacts: (rules['max_contacts'] as num).toInt(),
-        maxFollowups: (rules['max_followups'] as num).toInt(),
-        durationHours: (rules['duration_hours'] as num).toInt(),
-        scanIntervalMinutes: (rules['scan_interval_minutes'] as num).toInt(),
-        allowWhatsapp: rules['allow_whatsapp'] == true,
-        photos: findSellers ? const <String>[] : sellPhotos,
-        articleNotes: findSellers ? '' : sellNotes,
-      );
-      if (!mounted) return;
-      notice('Votre mission est enregistrée selon vos règles.', success: true);
-      context.read<LiveAvatarController>().showState(
-        LiveAvatarPresenceState.watching,
-        duration: const Duration(seconds: 4),
-      );
-      final userId = legacy.supabase.auth.currentUser?.id;
-      if (userId != null && mounted) {
-        await context.read<LiveWaouhController>().agentic.initialize(userId);
-      }
     } catch (error) {
       if (mounted) notice(errorText(error));
     } finally {
@@ -760,7 +809,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _started ? _lastGoal : 'Ma recherche',
+                _started
+                    ? (_phase == 'ready'
+                          ? '${missionCopy[_activeKind]!['title']}'
+                          : _lastGoal)
+                    : '${missionCopy[_selectedKind]!['title']}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -836,45 +889,30 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   Widget _searchEditor() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Wrap(
-        spacing: 8,
-        children: [
-          ChoiceChip(
-            avatar: const Icon(Icons.auto_awesome_rounded, size: 16),
-            label: const Text('IA'),
-            selected: smartMode,
-            onSelected: busy
-                ? null
-                : (_) => setState(() {
-                    smartMode = true;
-                    discovery = null;
-                  }),
-          ),
-          ChoiceChip(
-            avatar: const Icon(Icons.storefront_outlined, size: 16),
-            label: const Text('Acheter'),
-            selected: !smartMode && findSellers,
-            onSelected: busy
-                ? null
-                : (_) => setState(() {
-                    smartMode = false;
-                    findSellers = true;
-                    discovery = null;
-                  }),
-          ),
-          ChoiceChip(
-            avatar: const Icon(Icons.groups_2_outlined, size: 16),
-            label: const Text('Vendre'),
-            selected: !smartMode && !findSellers,
-            onSelected: busy
-                ? null
-                : (_) => setState(() {
-                    smartMode = false;
-                    findSellers = false;
-                    discovery = null;
-                  }),
-          ),
+      DropdownButtonFormField<String>(
+        key: ValueKey('mission-$_selectedKind'),
+        initialValue: _selectedKind,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Type de mission'),
+        items: const [
+          DropdownMenuItem(value: 'purchase', child: Text('Acheter')),
+          DropdownMenuItem(value: 'opportunity', child: Text('Opportunités')),
+          DropdownMenuItem(value: 'service', child: Text('Services')),
+          DropdownMenuItem(value: 'project', child: Text('Prestations')),
+          DropdownMenuItem(value: 'sale', child: Text('Vendre')),
         ],
+        onChanged: busy
+            ? null
+            : (v) {
+                if (v == null) return;
+                setState(() {
+                  _kind = v;
+                  findSellers = v != 'sale';
+                  smartMode = false;
+                  discovery = null;
+                  _started = false;
+                });
+              },
       ),
       const SizedBox(height: 10),
       TextField(
@@ -883,12 +921,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         minLines: 1,
         textInputAction: TextInputAction.search,
         onSubmitted: (_) => runSearch(),
+        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
-          hintText: smartMode
-              ? 'Décrivez simplement votre besoin'
-              : findSellers
-              ? 'Que voulez-vous acheter ?'
-              : 'Que voulez-vous vendre ?',
+          hintText: '${missionCopy[_selectedKind]!['placeholder']}',
           prefixIcon: const Icon(Icons.auto_awesome_rounded),
         ),
       ),
@@ -904,7 +939,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               ),
             ),
           ),
-          if (findSellers || smartMode) ...[
+          if (!['sale', 'opportunity'].contains(_selectedKind)) ...[
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
@@ -919,6 +954,71 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           ],
         ],
       ),
+      if (_selectedKind != 'purchase')
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text(
+            'Préciser mes critères',
+            style: TextStyle(fontSize: 13),
+          ),
+          children: [
+            TextField(
+              controller: brief,
+              maxLines: 3,
+              maxLength: 1500,
+              decoration: InputDecoration(
+                labelText: _selectedKind == 'opportunity'
+                    ? 'Mon activité ou profil'
+                    : _selectedKind == 'sale'
+                    ? 'Détails de mon article'
+                    : 'Mon besoin en détail',
+              ),
+            ),
+            if (_selectedKind == 'project')
+              TextField(
+                controller: maxDays,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Délai souhaité · jours',
+                ),
+              ),
+            if (_selectedKind == 'sale') ...[
+              TextField(
+                controller: priceFloor,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Prix plancher · F CFA',
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: quantity,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Quantité'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: unit,
+                      maxLength: 40,
+                      decoration: const InputDecoration(
+                        labelText: 'Unité',
+                        hintText: 'pièce, sac…',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Votre prix plancher enregistré reste respecté.',
+                style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+              ),
+            ],
+          ],
+        ),
       if (!smartMode && !findSellers) ...[
         LiveSellPhotos(
           service: service,
@@ -991,6 +1091,13 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     ))
       return;
     if (!mounted) return;
+    final owner = legacy.supabase.auth.currentUser?.id;
+    if (owner == null || _activeKind == 'opportunity') return;
+    final mode = _activeKind == 'sale'
+        ? 'sell'
+        : _activeKind == 'purchase'
+        ? 'buy'
+        : 'ask';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1010,10 +1117,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         ],
       ),
     );
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted || legacy.supabase.auth.currentUser?.id != owner)
+      return;
     try {
-      String? article;
-      if (!findSellers) {
+      String? article = _articleId;
+      if (mode == 'sell' && article == null) {
         final data = await service.ownedArticles();
         final raw = data['articles'];
         final rows = raw is List ? raw.whereType<Map>().toList() : <Map>[];
@@ -1028,16 +1136,21 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         article = '${rows.first['id']}';
       }
       final data = await service.createMandate(
-        mode: findSellers ? 'buy' : 'sell',
+        mode: mode,
+        expectedOwner: owner,
+        discoveryKind: _activeKind,
+        missionContext: _lastContext,
         goal: item.title,
         articleId: article,
         maxContacts: 1,
         allowWhatsapp: item.bestChannel == 'whatsapp',
       );
+      if (!mounted || legacy.supabase.auth.currentUser?.id != owner) return;
       final mandate = data['mandate'];
       await service.startOpportunity(
         fabricId: item.fabricId,
-        mode: findSellers ? 'buy' : 'sell',
+        mode: mode,
+        expectedOwner: owner,
         mandateId: mandate is Map ? '${mandate['id']}' : null,
       );
       if (mounted) {
@@ -1077,37 +1190,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 32),
       children: [
         if (!_started) ...[
-          Row(
-            children: [
-              for (final k in [
-                ('acheter', 'Acheter'),
-                ('vendre', 'Vendre'),
-                ('trouver', 'Trouver'),
-                ('demander', 'Demander'),
-              ])
-                Expanded(
-                  child: TextButton(
-                    onPressed: busy
-                        ? null
-                        : () => setState(() {
-                            _kind = k.$1;
-                            smartMode = ['trouver', 'demander'].contains(_kind);
-                            findSellers = _kind != 'vendre';
-                            discovery = null;
-                          }),
-                    child: Text(
-                      k.$2,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _kind == k.$1
-                            ? avatarPremiumBlue
-                            : avatarPremiumMuted,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
           _searchEditor(),
         ] else ...[
           ExpansionTile(
@@ -1120,6 +1202,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           ),
           if (['understanding', 'collecting'].contains(_phase) || _paused)
             LiveGuidedProgress(
+              missionKind: _activeKind,
               phase: _phase,
               count: results.length,
               refreshing: _refreshing,
@@ -1189,6 +1272,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             (!['understanding', 'collecting'].contains(_phase) || _peekResults))
           LiveAutomaticOffers(
             items: results,
+            missionKind: _activeKind,
+            missionContext: _lastContext,
+            ownArticle: _ownedArticle,
             query: _lastGoal,
             city: _lastCity,
             budget: _lastBudget,
@@ -1196,7 +1282,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             actionLabel: _automaticLabel,
             tracking: _tracking,
             actionBusy: busy || _automaticBusy,
-            manualChoice: _automatic?['skipped'] == 'approval_required',
+            manualChoice:
+                _activeKind != 'opportunity' &&
+                _automatic?['skipped'] == 'approval_required',
             onAction: _automaticAction,
             onContact: prepareContact,
             onDelegate: _delegateOne,

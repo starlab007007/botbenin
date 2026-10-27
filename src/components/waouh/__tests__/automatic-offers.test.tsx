@@ -37,4 +37,16 @@ describe('Guided automatic result presentation',()=>{
   await act(async()=>root.render(<WaouhGuidedProgress phase="collecting" count={0} onActivity={()=>{}}/>));
   expect(host.querySelectorAll('.wgd-timeline .current')).toHaveLength(1);expect(host.querySelectorAll('.wgd-timeline .waiting')).toHaveLength(3);expect(host.textContent).toContain('Je recueille les premières pistes');expect(host.textContent).not.toContain('Sélection prête');
  });
+ it.each([
+  ['opportunity','Appel à projets',{offer_kind:'announcement',conditions:'PME',deadline:'2099-12-01'},'Les pistes à explorer','Admissibilité de votre profil'],
+  ['service','Plombier',{scope:'Diagnostic fuite',visit_fee:5000,diagnostic_included:true},'Les professionnels retenus','prix total de l’intervention'],
+  ['project','Site vitrine',{scope:'5 pages',pages:5,delivery_days:14},'Les propositions comparées','frais récurrents'],
+  ['sale','Samsung S25',{quantity:1,unit:'pièce'},'Les acheteurs potentiels','ne constitue pas une offre ferme'],
+ ] as const)('uses %s cards and a factual decision without sending',async(kind,title,evidence,heading,detail)=>{
+  const action=vi.fn(),contact=vi.fn();const item={...row('business',250000,title),intent:kind==='sale'?'BUY':'SELL',evidence} as NexusDiscoveryResult;
+  await act(async()=>root.render(<WaouhAutomaticOffers results={[item]} criteria={{query:title,missionKind:kind,mode:kind==='sale'?'sell':'ask'}} actionLabel="Suivre Bot" onAction={action} renderActions={()=> <button onClick={contact}>Contacter</button>}/>));
+  expect(host.textContent).toContain(heading);expect(host.querySelectorAll('.wgd-tile')).toHaveLength(1);
+  await act(async()=>host.querySelector<HTMLButtonElement>('.wgd-tile')!.click());expect(document.querySelector('[role=dialog]')?.textContent).toContain(detail);expect(action).not.toHaveBeenCalled();expect(contact).not.toHaveBeenCalled();if(kind==='opportunity')expect(document.querySelector('[role=dialog]')?.textContent).not.toContain('Contacter');
+ });
+
 });

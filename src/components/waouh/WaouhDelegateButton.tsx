@@ -1,3 +1,5 @@
+import type {MissionKind,MissionContext} from '@/lib/waouh/guidedDiscovery';
+import {supabase} from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Handshake, Loader2 } from "lucide-react";
@@ -6,10 +8,11 @@ import { resultContact } from "@/lib/waouh/resultCardData";
 import { userFacingErrorText } from "@/lib/userFacingError";
 
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation. */
-export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled }: {
+export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled,discoveryKind,missionContext }: {
   result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
+  discoveryKind?:MissionKind;missionContext?:MissionContext;
   className?: string;
   onHandled?: () => void;
 }) {
@@ -25,6 +28,9 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
     if (!confirm) { setConfirm(true); return; }
     setBusy(true);
     try {
+      const {data}=await supabase.auth.getSession();
+      const expectedOwner=data.session?.user.id;
+      if(!expectedOwner)throw new Error("Connectez-vous pour confier cette piste.");
       let article = articleId;
       if (mode === "sell" && !article) {
         const list = (await listNexusOwnedArticles()).articles ?? [];
@@ -36,7 +42,7 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
         }
       }
       const response = await createNexusMandate({
-        mode,
+        mode,discovery_kind:discoveryKind,mission_context:missionContext,
         goal: result.subject ?? result.title ?? result.category ?? "Opportunité",
         article_id: mode === "sell" ? article : undefined,
         autonomy_mode: "semi_autonomous",
@@ -49,8 +55,8 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
         allow_blind_message: true,
         allow_whatsapp: resultContact(result).channel === "whatsapp",
         origin_surface: "web_result_card",
-      });
-      await startNexusOpportunity(result.fabric_id, mode, response.mandate.id);
+      },{expectedOwner});
+      await startNexusOpportunity(result.fabric_id, mode, response.mandate.id,{expectedOwner});
       setDone(true);
       onHandled?.();
     } catch (err) {

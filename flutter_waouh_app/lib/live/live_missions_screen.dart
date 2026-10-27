@@ -10,6 +10,7 @@ import 'convergence/live_convergence_screen.dart';
 import 'live_avatar_autonomy.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
+import 'live_mission_domain.dart';
 
 class LiveMinimalMissionTile extends StatelessWidget {
   const LiveMinimalMissionTile({
@@ -398,6 +399,13 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
             (m) => m['id'] == mission['id'],
             orElse: () => mission,
           );
+          final meta = row['metadata'] is Map
+              ? row['metadata'] as Map
+              : const {};
+          final watch = meta['discovery_kind'] == 'opportunity';
+          final selection = meta['latest_selection'] is List
+              ? (meta['latest_selection'] as List).whereType<Map>().toList()
+              : <Map>[];
           final related = _journeys
               .where((j) => j.mandateId == row['id'])
               .toList();
@@ -426,7 +434,43 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (related.isEmpty)
+                  if (watch) ...[
+                    Text(
+                      liveAutomaticMissionMessage(row),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: avatarPremiumMuted,
+                      ),
+                    ),
+                    for (final selected in selection)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          '${selected['subject'] ?? 'Piste repérée'}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(_watchDeadline(selected['deadline'])),
+                      ),
+                  ],
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      context.push(
+                        '/app/nexus?${Uri(
+                          queryParameters: {
+                            'q': '${row['goal'] ?? ''}',
+                            'city': '${row['city'] ?? ''}',
+                            'kind': normalizeMissionKind(meta['discovery_kind'], query: '${row['goal'] ?? ''}', mode: '${row['mode'] ?? ''}'),
+                          },
+                        ).query}',
+                      );
+                    },
+                    child: const Text('Nouvelle recherche'),
+                  ),
+                  if (related.isEmpty && !watch)
                     const Text(
                       'Bot cherche les bonnes pistes dans vos limites.',
                       style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
@@ -856,4 +900,13 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
       ),
     );
   }
+}
+
+String _watchDeadline(dynamic raw) {
+  final d = raw is num
+      ? DateTime.fromMillisecondsSinceEpoch(raw.toInt(), isUtc: true)
+      : DateTime.tryParse('$raw');
+  if (d == null) return 'Échéance à préciser';
+  final day = d.toUtc().add(const Duration(hours: 1));
+  return 'Échéance annoncée · ${day.day}/${day.month}/${day.year}';
 }
