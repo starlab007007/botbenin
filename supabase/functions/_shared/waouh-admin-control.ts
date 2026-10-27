@@ -23,7 +23,7 @@ export async function getWaouhModuleControl(
         automation_enabled: false,
       };
     }
-    const linked:Record<string,string>={chat_web:'chat',chat_whatsapp:'whatsapp',avatar_commerce:'avatar',nexus:'nexus',muse_agents:'ia',deals:'ventes',negotiation:'ventes'};
+    const linked:Record<string,string>={chat_web:'chat',chat_whatsapp:'whatsapp',avatar_commerce:'avatar',nexus:'nexus',muse_agents:'ia',deals:'ventes',negotiation:'ventes',outbound:'whatsapp'};
     const key=linked[moduleKey];
     const {data:global,error:policyError}=key?await sb.from('waouh_frontend_modules').select('access_enabled,automation_enabled').eq('module_key',key).maybeSingle():{data:null,error:null};
     return {

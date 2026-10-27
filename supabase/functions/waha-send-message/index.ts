@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -17,6 +18,7 @@ interface SendMessageRequest {
 }
 
 serve(async (req) => {
+  const moduleGate = await moduleRequestGate(req, ['whatsapp'], false); if (moduleGate) return moduleGate;
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

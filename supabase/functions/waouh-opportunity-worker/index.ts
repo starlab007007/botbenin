@@ -871,6 +871,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     return { contacted: false, reason: "provider_not_bound" };
   }
 
+  if (!await modulePolicyAllowed(sb, ['whatsapp'], mandate.owner_id, true)) return { contacted: false, reason: 'module_unavailable' };
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
     if (row.consent_state === "revoked" || row.is_whatsapp_reachable !== true || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;

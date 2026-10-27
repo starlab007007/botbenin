@@ -292,7 +292,7 @@ export async function runAgentTurn(supabase: any, agent_id: string, message: str
 }) {
   const HANDOFF = /\b(humain|human|patron|urgent|réel|reel|manager|responsable|parler à quelqu)/i;
   const { data: agent } = await supabase.from("waouh_ai_agents").select("*").eq("id", agent_id).maybeSingle();
-  if(agent){const key=({bi:'bi',stock:'stock',presence:'presence',conversational:'conversationnel'} as Record<string,string>)[agent.agent_type]||'bots';if(!await modulePolicyAllowed(supabase,[key],agent.user_id,opts.automatic===true))throw new Error('Ce module est actuellement indisponible.');}
+  if(agent){const key=({bi:'bi',stock:'stock',presence:'presence',conversational:'conversationnel'} as Record<string,string>)[agent.agent_type]||'bots';if(!await modulePolicyAllowed(supabase,opts.automatic===true?[key,'whatsapp']:[key],agent.user_id,opts.automatic===true))throw new Error('Ce module est actuellement indisponible.');}
   if (!agent) throw new Error("agent introuvable");
 
   if (opts.persist && opts.contact_phone) {

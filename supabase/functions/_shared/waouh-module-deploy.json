@@ -218,5 +218,15 @@
     "name": "waouh-studio-agent-webhook-v2146",
     "source": "waouh-agent-webhook",
     "verify_jwt": false
+  },
+  {
+    "name": "waha-session-mobile",
+    "source": "waha-session-mobile",
+    "verify_jwt": true
+  },
+  {
+    "name": "waha-send-message",
+    "source": "waha-send-message",
+    "verify_jwt": false
   }
 ]

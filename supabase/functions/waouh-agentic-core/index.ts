@@ -3593,6 +3593,7 @@ Retourne uniquement JSON:
             contact.consent_state === "public_business")
         );
         if (!target) throw new ApiError(404, "contact_not_found");
+        if(!await modulePolicyAllowed(sb,['whatsapp'],ownerId,false))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
         const originalContactMessage = message;
         const contactJourney = requestedJourney ?? (await findContactJourney()).data;
         if (contactJourney) {
