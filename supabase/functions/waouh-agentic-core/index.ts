@@ -1,5 +1,5 @@
 import {MISSION_KINDS,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
-import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
+import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused,automaticFollowBlock} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
 import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
@@ -2618,7 +2618,8 @@ Retourne uniquement JSON:
         const storedRules=automatic?(avatarPrefs?.autonomy_settings??{}):(payload.autonomy_settings??avatarPrefs?.autonomy_settings);
         const autonomyRules=storedRules?normalizeAvatarAutonomy(storedRules):null;
         if(autonomyRules){const err=avatarAutonomyError(autonomyRules);if(err)throw new ApiError(422,'invalid_avatar_rules',err);}
-        if(automatic&&(autonomyRules?.paused||(autonomyRules?.mode!=='autonomous'&&!(payload.discovery_kind==='opportunity'&&payload.confirmed_watch===true))))return jsonResponse({ok:true,data:{mandate:null,skipped:autonomyRules?.paused?'paused':'approval_required'}});
+        const followBlock=automatic?automaticFollowBlock(autonomyRules,payload):null;
+        if(followBlock)return jsonResponse({ok:true,data:{mandate:null,skipped:followBlock}});
         const startsAt=autonomyRules?autonomyStartsAt(autonomyRules):new Date();
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
