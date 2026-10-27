@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import {
   clients,
   corsHeaders,
@@ -7,6 +8,8 @@ import {
 } from "../_shared/presence.ts";
 
 Deno.serve(async (request) => {
+  const __moduleGate=await moduleRequestGate(request,['presence'],false);if(__moduleGate)return __moduleGate;
+
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

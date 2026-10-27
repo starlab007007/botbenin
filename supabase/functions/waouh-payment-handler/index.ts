@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -5,6 +6,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['paiements'],false);if(__moduleGate)return __moduleGate;
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const { article_id, buyer_phone, amount, payment_method = 'momo', action = 'initiate' } = await req.json();

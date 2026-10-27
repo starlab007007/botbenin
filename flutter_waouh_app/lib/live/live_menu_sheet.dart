@@ -10,12 +10,18 @@ import 'live_theme.dart';
 /// Menu « tous les modules » — parité Web `WorkspaceMenuSheet` /
 /// `erp/navigation.ts` (mêmes sections, mêmes libellés, même ordre).
 class LiveMenuItem {
-  const LiveMenuItem(this.label, this.route, this.icon,
-      {this.external = false, this.moduleKey});
+  const LiveMenuItem(
+    this.label,
+    this.route,
+    this.icon, {
+    this.external = false,
+    this.moduleKey,
+  });
   final String label;
   final String route;
   final IconData icon;
   final bool external;
+
   /// Clé public.waouh_frontend_modules (parité src/erp/navigation.ts) :
   /// quand elle est renseignée, l'administrateur peut masquer ce module
   /// (voir /admin/modules). `null` = élément propre à Flutter ou en
@@ -35,50 +41,140 @@ class LiveMenuSection {
 // côté Web) : non gérés par l'admin tant que cet écart n'est pas résolu.
 const liveMenuSections = <LiveMenuSection>[
   LiveMenuSection('Communication', [
-    LiveMenuItem('Chat Command Center', '/app/chat', Icons.forum_outlined,
-        moduleKey: 'chat'),
-    LiveMenuItem('Radar', '/app/radar-map', Icons.radar_rounded,
-        moduleKey: 'radar'),
-    LiveMenuItem('WhatsApp IA', '/app/whatsapp', Icons.groups_2_outlined,
-        moduleKey: 'whatsapp'),
-    LiveMenuItem('Diffusion', '/app/diffusion', Icons.campaign_outlined,
-        moduleKey: 'diffusion'),
+    LiveMenuItem(
+      'Chat Command Center',
+      '/app/chat',
+      Icons.forum_outlined,
+      moduleKey: 'chat',
+    ),
+    LiveMenuItem(
+      'Radar',
+      '/app/radar-map',
+      Icons.radar_rounded,
+      moduleKey: 'radar',
+    ),
+    LiveMenuItem(
+      'WhatsApp IA',
+      '/app/whatsapp',
+      Icons.groups_2_outlined,
+      moduleKey: 'whatsapp',
+    ),
+    LiveMenuItem(
+      'Diffusion',
+      '/app/diffusion',
+      Icons.campaign_outlined,
+      moduleKey: 'diffusion',
+    ),
   ]),
   LiveMenuSection('Agents IA', [
-    LiveMenuItem('Avatar', '/app/avatar', Icons.auto_awesome_rounded,
-        moduleKey: 'avatar'),
     LiveMenuItem(
-        'Missions & veille', '/app/missions', Icons.account_tree_outlined,
-        moduleKey: 'missions'),
-    LiveMenuItem('Bots', '/app/bots', Icons.smart_toy_outlined,
-        moduleKey: 'bots'),
-    LiveMenuItem('Agents IA', '/app/agents/new', Icons.auto_awesome_outlined),
-    LiveMenuItem('Conversationnel', '/app/whatsapp/conversationnel',
-        Icons.chat_outlined, moduleKey: 'conversationnel'),
-    LiveMenuItem('BI WAOUH IA', '/app/whatsapp/bi', Icons.bar_chart_rounded,
-        moduleKey: 'bi'),
-    LiveMenuItem('Stock WAOUH IA', '/app/stock', Icons.inventory_2_outlined,
-        moduleKey: 'stock'),
-    LiveMenuItem('Présence QR', '/app/presence', Icons.qr_code_2_rounded,
-        moduleKey: 'presence'),
-    LiveMenuItem('PrivatAI (IA locale)', 'https://bot.bj/privatia', Icons.shield_outlined,
-        external: true, moduleKey: 'privatia'),
+      'Recherche guidée',
+      '/app/nexus',
+      Icons.search,
+      moduleKey: 'nexus',
+    ),
+    LiveMenuItem('IA', '/app/ia', Icons.auto_awesome, moduleKey: 'ia'),
+    LiveMenuItem(
+      'Avatar',
+      '/app/avatar',
+      Icons.auto_awesome_rounded,
+      moduleKey: 'avatar',
+    ),
+    LiveMenuItem(
+      'Missions & veille',
+      '/app/missions',
+      Icons.account_tree_outlined,
+      moduleKey: 'missions',
+    ),
+    LiveMenuItem(
+      'Bots',
+      '/app/bots',
+      Icons.smart_toy_outlined,
+      moduleKey: 'bots',
+    ),
+    LiveMenuItem(
+      'Agents IA',
+      '/app/agents/new',
+      Icons.auto_awesome_outlined,
+      moduleKey: 'agents_ia',
+    ),
+    LiveMenuItem(
+      'Conversationnel',
+      '/app/whatsapp/conversationnel',
+      Icons.chat_outlined,
+      moduleKey: 'conversationnel',
+    ),
+    LiveMenuItem(
+      'BI WAOUH IA',
+      '/app/whatsapp/bi',
+      Icons.bar_chart_rounded,
+      moduleKey: 'bi',
+    ),
+    LiveMenuItem(
+      'Stock WAOUH IA',
+      '/app/stock',
+      Icons.inventory_2_outlined,
+      moduleKey: 'stock',
+    ),
+    LiveMenuItem(
+      'Présence QR',
+      '/app/presence',
+      Icons.qr_code_2_rounded,
+      moduleKey: 'presence',
+    ),
+    LiveMenuItem(
+      'PrivatAI (IA locale)',
+      'https://bot.bj/privatia',
+      Icons.shield_outlined,
+      external: true,
+      moduleKey: 'privatia',
+    ),
   ]),
   LiveMenuSection('Commerce', [
-    LiveMenuItem('Boutiques & magasins', '/app/partner/businesses',
-        Icons.storefront_outlined, moduleKey: 'boutiques'),
-    LiveMenuItem('Ventes', '/app/partner/sales', Icons.shopping_cart_outlined,
-        moduleKey: 'ventes'),
-    LiveMenuItem('Versements', '/app/partner/payouts', Icons.account_balance_wallet_outlined),
-    LiveMenuItem('Paiements', '/app/partner/payments', Icons.receipt_long_outlined),
-    LiveMenuItem('Partenaires', '/app/partner', Icons.handshake_outlined,
-        moduleKey: 'partenaires'),
+    LiveMenuItem(
+      'Boutiques & magasins',
+      '/app/partner/businesses',
+      Icons.storefront_outlined,
+      moduleKey: 'boutiques',
+    ),
+    LiveMenuItem(
+      'Ventes',
+      '/app/partner/sales',
+      Icons.shopping_cart_outlined,
+      moduleKey: 'ventes',
+    ),
+    LiveMenuItem(
+      'Versements',
+      '/app/partner/payouts',
+      Icons.account_balance_wallet_outlined,
+      moduleKey: 'versements',
+    ),
+    LiveMenuItem(
+      'Paiements',
+      '/app/partner/payments',
+      Icons.receipt_long_outlined,
+      moduleKey: 'paiements',
+    ),
+    LiveMenuItem(
+      'Partenaires',
+      '/app/partner',
+      Icons.handshake_outlined,
+      moduleKey: 'partenaires',
+    ),
   ]),
   LiveMenuSection('Services IA', [
-    LiveMenuItem('AprèsBac IA', '/app/apresbac', Icons.school_outlined,
-        moduleKey: 'apresbac'),
-    LiveMenuItem('FA IA', '/app/fa-ia', Icons.menu_book_outlined,
-        moduleKey: 'fa_ia'),
+    LiveMenuItem(
+      'AprèsBac IA',
+      '/app/apresbac',
+      Icons.school_outlined,
+      moduleKey: 'apresbac',
+    ),
+    LiveMenuItem(
+      'FA IA',
+      '/app/fa-ia',
+      Icons.menu_book_outlined,
+      moduleKey: 'fa_ia',
+    ),
   ]),
 ];
 
@@ -96,18 +192,17 @@ Future<void> showLiveMenuSheet(
   required bool signedIn,
   required String currentPath,
   int unreadChat = 0,
-}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _MenuSheet(
-        signedIn: signedIn,
-        currentPath: currentPath,
-        unreadChat: unreadChat,
-      ),
-    );
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  backgroundColor: Colors.transparent,
+  builder: (_) => _MenuSheet(
+    signedIn: signedIn,
+    currentPath: currentPath,
+    unreadChat: unreadChat,
+  ),
+);
 
 class _MenuSheet extends StatefulWidget {
   const _MenuSheet({
@@ -126,7 +221,7 @@ class _MenuSheetState extends State<_MenuSheet> {
   String _q = '';
 
   List<LiveMenuSection> _visibleBy(Set<String>? visibleKeys) {
-    if (visibleKeys == null) return liveMenuSections;
+    if (visibleKeys == null) return [];
     return [
       for (final s in liveMenuSections)
         LiveMenuSection(s.title, [
@@ -156,8 +251,10 @@ class _MenuSheetState extends State<_MenuSheet> {
     final router = GoRouter.of(context);
     nav.pop();
     if (item.external) {
-      await launchUrl(Uri.parse(item.route),
-          mode: LaunchMode.externalApplication);
+      await launchUrl(
+        Uri.parse(item.route),
+        mode: LaunchMode.externalApplication,
+      );
       return;
     }
     router.go(item.route);
@@ -185,17 +282,19 @@ class _MenuSheetState extends State<_MenuSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                  color: const Color(0xFFD1D9E6),
-                  borderRadius: BorderRadius.circular(2)),
+                color: const Color(0xFFD1D9E6),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Espace de travail',
-                      style: TextStyle(
-                          fontSize: 19, fontWeight: FontWeight.w900)),
+                  const Text(
+                    'Espace de travail',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                  ),
                   const SizedBox(height: 10),
                   TextField(
                     onChanged: (v) => setState(() => _q = v),
@@ -205,8 +304,9 @@ class _MenuSheetState extends State<_MenuSheet> {
                       filled: true,
                       fillColor: const Color(0xFFF4F7FC),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none),
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ],
@@ -221,18 +321,24 @@ class _MenuSheetState extends State<_MenuSheet> {
                     const Padding(
                       padding: EdgeInsets.all(24),
                       child: Center(
-                          child: Text('Aucun module trouvé.',
-                              style: TextStyle(color: WaouhPalette.muted))),
+                        child: Text(
+                          'Aucun module trouvé.',
+                          style: TextStyle(color: WaouhPalette.muted),
+                        ),
+                      ),
                     ),
                   for (final s in sections) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 12, 0, 6),
-                      child: Text(s.title.toUpperCase(),
-                          style: const TextStyle(
-                              fontSize: 11,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.w900,
-                              color: WaouhPalette.muted)),
+                      child: Text(
+                        s.title.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w900,
+                          color: WaouhPalette.muted,
+                        ),
+                      ),
                     ),
                     for (final i in s.items) _row(i, here),
                   ],
@@ -247,8 +353,11 @@ class _MenuSheetState extends State<_MenuSheet> {
 
   Widget _row(LiveMenuItem item, String here) {
     final locked =
-        !widget.signedIn && !item.external && requiresWaouhAuthentication(item.route);
-    final active = !item.external &&
+        !widget.signedIn &&
+        !item.external &&
+        requiresWaouhAuthentication(item.route);
+    final active =
+        !item.external &&
         (here == item.route || here.startsWith('${item.route}/'));
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -263,26 +372,37 @@ class _MenuSheetState extends State<_MenuSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                Icon(item.icon,
-                    size: 20,
-                    color: active ? WaouhPalette.blue : const Color(0xFF475569)),
+                Icon(
+                  item.icon,
+                  size: 20,
+                  color: active ? WaouhPalette.blue : const Color(0xFF475569),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(item.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: active ? WaouhPalette.blue : null)),
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: active ? WaouhPalette.blue : null,
+                    ),
+                  ),
                 ),
                 if (item.route == '/app/chat' && widget.unreadChat > 0)
                   _Badge(widget.unreadChat),
                 if (locked)
-                  const Icon(Icons.lock_outline_rounded,
-                      size: 16, color: WaouhPalette.muted),
+                  const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 16,
+                    color: WaouhPalette.muted,
+                  ),
                 if (item.external)
-                  const Icon(Icons.open_in_new_rounded,
-                      size: 16, color: WaouhPalette.muted),
+                  const Icon(
+                    Icons.open_in_new_rounded,
+                    size: 16,
+                    color: WaouhPalette.muted,
+                  ),
               ],
             ),
           ),
@@ -297,12 +417,19 @@ class _Badge extends StatelessWidget {
   final int count;
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-            color: Colors.red, borderRadius: BorderRadius.circular(99)),
-        child: Text(count > 99 ? '99+' : '$count',
-            style: const TextStyle(
-                color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
-      );
+    margin: const EdgeInsets.only(right: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: Colors.red,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      count > 99 ? '99+' : '$count',
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+  );
 }

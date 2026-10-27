@@ -1,3 +1,4 @@
+import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
 import { autonomyWindowOpen,autonomyNextWindow } from "../_shared/waouh-avatar-autonomy-settings.ts";
@@ -837,6 +838,7 @@ Deno.serve(async (req) => {
         const {data:pauseMandate,error:pauseReadError}=await sb.from('waouh_avatar_mandates').select('owner_id').eq('id',it.payload.mandate_id).maybeSingle();
         let paused=true;
         if(!pauseReadError&&pauseMandate?.owner_id){try{paused=await avatarAccountPaused(sb,pauseMandate.owner_id);}catch{/* Retry without sending. */}}
+        if(pauseMandate?.owner_id&&!await modulePolicyAllowed(sb,['missions','avatar','nexus'],pauseMandate.owner_id,true))paused=true;
         if(paused){await sb.from('waouh_outbound_queue').update({status:'pending',attempts:it.attempts,next_attempt_at:new Date(Date.now()+60_000).toISOString(),last_error:'avatar_paused'}).eq('id',it.id).eq('status','sending');skipped++;continue;}
       }
 

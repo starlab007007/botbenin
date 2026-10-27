@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // WAOUH Radar — moissonne Facebook Marketplace + groupes publics via Apify
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +78,8 @@ async function aiExtract(text: string): Promise<any> {
 }
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['nexus'],true);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
   const guard = await requireRuntimeOrAdmin(req, sb);

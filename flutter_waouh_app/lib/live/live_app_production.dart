@@ -135,8 +135,16 @@ class LiveWaouhProductionApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: legacy.buildWaouhTheme(),
           routerConfig: router,
-          builder: (context, child) =>
-              LiveOnboardingGate(child: child ?? const SizedBox.shrink()),
+          builder: (context, child) => ListenableBuilder(
+            listenable: router.routeInformationProvider,
+            builder: (_, __) => LiveModuleAccessGate(
+              path: router.routeInformationProvider.value.uri.path,
+              onProfile: () => router.go('/app/profile'),
+              child: LiveOnboardingGate(
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+          ),
         );
       },
     ),
@@ -498,72 +506,87 @@ class LiveProductionShell extends StatelessWidget {
                                 child: icon,
                               )
                             : icon;
+                        final keys = context
+                            .watch<FrontendModulesController>()
+                            .visibleKeys;
+                        final entries =
+                            <
+                                  ({
+                                    String key,
+                                    String route,
+                                    String label,
+                                    IconData icon,
+                                  })
+                                >[
+                                  (
+                                    key: 'chat',
+                                    route: '/app/chat',
+                                    label: 'Chat',
+                                    icon: Icons.chat_bubble_outline_rounded,
+                                  ),
+                                  (
+                                    key: 'missions',
+                                    route: '/app/missions',
+                                    label: 'Missions',
+                                    icon: Icons.account_tree_outlined,
+                                  ),
+                                  (
+                                    key: 'ia',
+                                    route: '/app/ia',
+                                    label: 'IA',
+                                    icon: Icons.auto_awesome_outlined,
+                                  ),
+                                  (
+                                    key: 'avatar',
+                                    route: '/app/avatar',
+                                    label: 'Avatar',
+                                    icon: Icons.account_circle_outlined,
+                                  ),
+                                ]
+                                .where((e) => keys.contains(e.key))
+                                .toList();
+                        void menu() => showLiveMenuSheet(
+                          context,
+                          signedIn: signedIn,
+                          currentPath: path,
+                          unreadChat: unread,
+                        );
+                        if (entries.isEmpty)
+                          return TextButton.icon(
+                            onPressed: menu,
+                            icon: const Icon(Icons.menu_rounded),
+                            label: const Text('Menu'),
+                          );
+                        final selected = entries.indexWhere(
+                          (e) => e.key == moduleForPath(path),
+                        );
                         return NavigationBar(
-                          selectedIndex: _index,
-                          onDestinationSelected: (index) {
-                            if (index == 4) {
-                              showLiveMenuSheet(
-                                context,
-                                signedIn: signedIn,
-                                currentPath: path,
-                                unreadChat: unread,
-                              );
+                          selectedIndex: selected < 0 ? entries.length : selected,
+                          onDestinationSelected: (i) {
+                            if (i == entries.length) {
+                              menu();
                               return;
                             }
-                            context.go(switch (index) {
-                              1 => '/app/missions',
-                              2 => '/app/ia',
-                              3 => '/app/avatar',
-                              _ => '/app/chat',
-                            });
+                            context.go(entries[i].route);
                           },
                           destinations: [
-                            NavigationDestination(
-                              icon: unread > 0
-                                  ? Badge(
-                                      label: Text(
-                                        unread > 99 ? '99+' : '$unread',
-                                      ),
-                                      child: const Icon(
-                                        Icons.chat_bubble_outline_rounded,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                    ),
-                              selectedIcon: const Icon(
-                                Icons.chat_bubble_rounded,
+                            for (final e in entries)
+                              NavigationDestination(
+                                icon: lockable(
+                                  e.key == 'chat' && unread > 0
+                                      ? Badge(
+                                          label: Text(
+                                            unread > 99 ? '99+' : '$unread',
+                                          ),
+                                          child: Icon(e.icon),
+                                        )
+                                      : Icon(e.icon),
+                                  e.route,
+                                ),
+                                label: e.label,
                               ),
-                              label: 'Chat',
-                            ),
-                            NavigationDestination(
-                              icon: lockable(
-                                const Icon(Icons.account_tree_outlined),
-                                '/app/missions',
-                              ),
-                              selectedIcon: const Icon(
-                                Icons.account_tree_rounded,
-                              ),
-                              label: 'Missions',
-                            ),
-                            NavigationDestination(
-                              icon: lockable(
-                                const Icon(Icons.auto_awesome_outlined),
-                                '/app/ia',
-                              ),
-                              selectedIcon: const Icon(
-                                Icons.auto_awesome_rounded,
-                              ),
-                              label: 'IA',
-                            ),
-                            const NavigationDestination(
-                              icon: Icon(Icons.account_circle_outlined),
-                              selectedIcon: Icon(Icons.account_circle_rounded),
-                              label: 'Avatar',
-                            ),
                             const NavigationDestination(
                               icon: Icon(Icons.menu_rounded),
-                              selectedIcon: Icon(Icons.menu_rounded),
                               label: 'Menu',
                             ),
                           ],

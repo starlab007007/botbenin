@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Agent insights: KPIs, timeline, top keywords, top products, optional Google Sheet snapshot,
 // and free-form natural-language questions about the agent's data.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -13,6 +14,8 @@ const cors = {
 const STOP = new Set("le la les de des du et un une à en pour par avec sur ou est c'est je tu il elle nous vous ils elles bonjour bonsoir merci ok oui non ça sa ce cette ces mes ton ta si mais que qui quoi comment quand où combien wa waouh whatsapp".split(/\s+/));
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bots'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {

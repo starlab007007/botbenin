@@ -1,3 +1,4 @@
+import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
@@ -1143,6 +1144,7 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
   let skipped = 0;
   let errors = 0;
   for (const journey of journeys ?? []) {
+    if(!await modulePolicyAllowed(sb,['missions','avatar','nexus'],journey.owner_id,true))continue;
     try {
       const { data: mandate } = await sb.from("waouh_avatar_mandates")
         .select("*").eq("id", journey.mandate_id).maybeSingle();
@@ -1282,6 +1284,7 @@ Deno.serve(async (req) => {
     result.scanned_intents++;
     try {
       const mandate = intent.waouh_avatar_mandates;
+      if(mandate&&!await modulePolicyAllowed(sb,['missions','avatar','nexus'],mandate.owner_id,true)){result.skipped++;continue;}
       if (!mandate || mandate.status !== "active" || mandate.metadata?.agreement_reached_at) {
         result.skipped++;
         continue;

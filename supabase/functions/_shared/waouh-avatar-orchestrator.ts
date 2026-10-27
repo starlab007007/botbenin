@@ -1,3 +1,4 @@
+import {modulePolicyAllowed} from './waouh-module-policy.ts';
 import {avatarAccountPaused} from "./waouh-automatic-mission.ts";
 import { autonomyWindowOpen } from "./waouh-avatar-autonomy-settings.ts";
 // deno-lint-ignore-file no-explicit-any
@@ -216,6 +217,7 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20, journeyId?: st
   const { data: journeys } = await query.order('last_activity_at').limit(limit);
   let advanced = 0;
   for (const j of journeys ?? []) {
+    if(!await modulePolicyAllowed(sb,['avatar','missions','nexus'],j.owner_id,true))continue;
     const m = j.waouh_avatar_mandates;
     if (!m || m.status !== 'active' || !autonomyWindowOpen(m)) continue;
     try{if(await avatarAccountPaused(sb,m.owner_id))continue;}catch{continue;}

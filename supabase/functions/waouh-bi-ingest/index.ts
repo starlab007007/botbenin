@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Ingère une source de données pour l'agent BI : Google Sheet CSV export, CSV public, ou JSON URL.
 // Extrait schéma + 100 lignes d'échantillon et met à jour waouh_bi_datasources.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -39,6 +40,8 @@ function inferSchema(rows: any[], headers: string[]) {
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bi'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const auth = req.headers.get("Authorization") || "";

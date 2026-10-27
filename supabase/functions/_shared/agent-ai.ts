@@ -1,3 +1,4 @@
+import {modulePolicyAllowed} from './waouh-module-policy.ts';
 // Shared helpers for the WAOUH AI Agent module.
 // Appels directs à Google Gemini pour le chat et les embeddings.
 
@@ -283,6 +284,7 @@ async function loadAgentProducts(supabase: any, agent_id: string): Promise<any[]
 }
 
 export async function runAgentTurn(supabase: any, agent_id: string, message: string, opts: {
+  automatic?: boolean;
   history?: Array<{ role: string; content: string }>;
   contact_phone?: string;
   contact_name?: string;
@@ -290,6 +292,7 @@ export async function runAgentTurn(supabase: any, agent_id: string, message: str
 }) {
   const HANDOFF = /\b(humain|human|patron|urgent|réel|reel|manager|responsable|parler à quelqu)/i;
   const { data: agent } = await supabase.from("waouh_ai_agents").select("*").eq("id", agent_id).maybeSingle();
+  if(agent){const key=({bi:'bi',stock:'stock',presence:'presence',conversational:'conversationnel'} as Record<string,string>)[agent.agent_type]||'bots';if(!await modulePolicyAllowed(supabase,[key],agent.user_id,opts.automatic===true))throw new Error('Ce module est actuellement indisponible.');}
   if (!agent) throw new Error("agent introuvable");
 
   if (opts.persist && opts.contact_phone) {

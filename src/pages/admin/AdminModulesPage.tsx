@@ -1,199 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { LayoutGrid } from 'lucide-react';
-
-interface ModuleState {
-  module_key: string;
-  label: string;
-  section: string;
-  enabled: boolean;
-  role_names: string[];
-  updated_at: string;
+import {useEffect,useRef,useState} from 'react';
+import {supabase} from '@/integrations/supabase/client';
+import {useAuth} from '@/contexts/AuthContext';
+import {Switch} from '@/components/ui/switch';
+import {Checkbox} from '@/components/ui/checkbox';
+import {Link} from 'react-router-dom';
+type Row={module_key:string;label:string;enabled:boolean;access_enabled:boolean;automation_enabled:boolean;role_names:string[]};
+type Role={name:string;display_name:string};
+export function AdminModulesPage(){
+ const {user}=useAuth(),owner=user?.id;const generation=useRef(0);
+ const [rows,setRows]=useState<Row[]>([]),[roles,setRoles]=useState<Role[]>([]),[audit,setAudit]=useState<Array<{id:string;module_key:string;created_at:string;after_state?:{enabled?:boolean;access_enabled?:boolean;automation_enabled?:boolean}}>>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(''),[error,setError]=useState('');
+ const load=async(version=generation.current)=>{try{const [a,b,c]=await Promise.all([supabase.rpc('waouh_admin_frontend_modules_state' as never),supabase.from('roles').select('name,display_name'),supabase.from('waouh_frontend_module_audit' as never).select('id,module_key,created_at,after_state').order('created_at',{ascending:false}).limit(15)]);if(version!==generation.current)return;if(a.error||b.error||c.error)throw Error();setRows(a.data as unknown as Row[]);setRoles(b.data as Role[]);setAudit(c.data as unknown as typeof audit);setError('');}catch{if(version===generation.current)setError('Chargement impossible. Réessayez.');}finally{if(version===generation.current)setLoading(false);}};
+ useEffect(()=>{const version=++generation.current;setRows([]);setAudit([]);setLoading(true);void load(version);return()=>{generation.current++;};},[owner]);
+ const save=async(row:Row,patch:{p_visible?:boolean;p_access?:boolean;p_automation?:boolean;p_role_names?:string[]})=>{
+  if(!owner||busy)return;const version=generation.current;
+  if(patch.p_access===false&&!window.confirm(`Couper l’accès à « ${row.label} » ? Les données seront conservées.`))return;
+  setBusy(row.module_key);setError('');try{const {data}=await supabase.auth.getSession();if(data.session?.user.id!==owner)throw Error();
+   const {error}=await supabase.rpc('waouh_admin_update_module' as never,{p_module_key:row.module_key,...patch} as never).setHeader('Authorization',`Bearer ${data.session.access_token}`);if(error)throw Error();await load(version);
+  }catch{if(version===generation.current)setError('Modification impossible. Réessayez.');}finally{if(version===generation.current)setBusy('');}
+ };
+ return <main className="mx-auto max-w-6xl p-4 sm:p-8"><h1 className="text-2xl font-semibold">Modules utilisateurs</h1><p className="mt-2 text-sm text-muted-foreground">Les mêmes règles s’appliquent sur Web et dans l’application. Les données sont conservées.</p><Link className="my-4 inline-block text-sm text-blue-600" to="/admin/waouh?tab=control">Contrôles d’exploitation</Link>
+ {error&&<div role="alert" className="mb-4 text-sm text-rose-600">{error}<button className="ml-3 underline" onClick={()=>void load()}>Réessayer</button></div>}
+ {loading?<p role="status">Chargement…</p>:<div className="grid gap-4 md:grid-cols-2">{rows.map(row=><section className="rounded-2xl border bg-white p-5" key={row.module_key}><h2 className="font-semibold">{row.label}</h2><p className="mt-1 text-xs text-muted-foreground">{!row.access_enabled?'Accès coupé':!row.enabled?'Masqué · accès autorisé':row.role_names.length?'Réservé aux profils sélectionnés':'Disponible pour tous les profils'}</p>
+ <div className="my-4 space-y-3">{([{label:'Afficher',hint:'Menus, onglets et raccourcis',value:row.enabled,field:'p_visible'},{label:'Autoriser l’accès',hint:'Pages et actions du module',value:row.access_enabled,field:'p_access'},{label:'Autoriser les automatisations',hint:'Les actions manuelles restent disponibles',value:row.automation_enabled,field:'p_automation'}] as const).map(x=><label className="flex items-center justify-between gap-4" key={x.field}><span><span className="block text-sm">{x.label}</span><small className="text-muted-foreground">{x.hint}</small></span><Switch aria-label={`${x.label} ${row.label}`} checked={x.value} disabled={!!busy} onCheckedChange={v=>void save(row,{[x.field]:v})}/></label>)}</div>
+ <details><summary className="cursor-pointer text-sm">Profils autorisés</summary><p className="my-2 text-xs text-muted-foreground">Aucun profil coché : ouvert à tous, y compris aux visiteurs pour les pages publiques. Pour fermer le module, coupez son accès.</p><div className="flex flex-wrap gap-3">{roles.map(role=><label className="flex items-center gap-2 text-sm" key={role.name}><Checkbox disabled={!!busy} checked={row.role_names.includes(role.name)} onCheckedChange={v=>void save(row,{p_role_names:v===true?[...row.role_names,role.name]:row.role_names.filter(n=>n!==role.name)})}/>{role.display_name||role.name}</label>)}</div></details>
+ </section>)}</div>}
+ <section className="mt-8"><h2 className="font-semibold">Derniers changements</h2><p className="text-xs text-muted-foreground">Chaque modification conserve un historique réservé à l’administration.</p>{audit.map(a=><p className="border-b py-3 text-sm" key={a.id}>{rows.find(r=>r.module_key===a.module_key)?.label||'Module'} · {new Date(a.created_at).toLocaleString('fr-FR')}<small className="block text-muted-foreground">{a.after_state?.enabled?'Affiché':'Masqué'} · {a.after_state?.access_enabled?'Accès autorisé':'Accès coupé'} · {a.after_state?.automation_enabled?'Automatisations autorisées':'Automatisations suspendues'}</small></p>)}</section></main>;
 }
-
-interface RoleOption {
-  id: string;
-  name: string;
-  display_name: string | null;
-}
-
-/**
- * Permet à l'administrateur d'activer/désactiver chaque module affiché dans
- * la navigation (barre latérale PC, rail tablette, menu mobile, Flutter) et
- * de le restreindre à certains rôles. Aucun rôle sélectionné = visible par
- * tous les utilisateurs connectés. Les changements sont diffusés en direct
- * (Supabase Realtime) sans rechargement côté utilisateurs.
- */
-export const AdminModulesPage: React.FC = () => {
-  const [modules, setModules] = useState<ModuleState[]>([]);
-  const [roles, setRoles] = useState<RoleOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  const fetchData = async () => {
-    try {
-      const [modulesRes, rolesRes] = await Promise.all([
-        supabase.rpc('waouh_admin_frontend_modules_state' as any),
-        supabase.from('roles').select('id, name, display_name').order('name'),
-      ]);
-      if (modulesRes.error) throw modulesRes.error;
-      if (rolesRes.error) throw rolesRes.error;
-      setModules((modulesRes.data ?? []) as ModuleState[]);
-      setRoles((rolesRes.data ?? []) as RoleOption[]);
-    } catch (error) {
-      console.error('Error fetching frontend modules:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les modules',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const channel = supabase
-      .channel('admin-waouh-frontend-modules')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_frontend_modules' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_frontend_module_roles' }, fetchData)
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const sections = useMemo(() => {
-    const bySection = new Map<string, ModuleState[]>();
-    modules.forEach((m) => {
-      const list = bySection.get(m.section) ?? [];
-      list.push(m);
-      bySection.set(m.section, list);
-    });
-    return Array.from(bySection.entries());
-  }, [modules]);
-
-  const setModule = async (moduleKey: string, patch: { enabled?: boolean; role_names?: string[] }) => {
-    setSavingKey(moduleKey);
-    // Mise à jour optimiste : l'écran reste réactif, le Realtime confirmera.
-    setModules((prev) =>
-      prev.map((m) => (m.module_key === moduleKey ? { ...m, ...patch } : m)),
-    );
-    try {
-      const { error } = await supabase.rpc('waouh_admin_set_frontend_module' as any, {
-        p_module_key: moduleKey,
-        p_enabled: patch.enabled ?? null,
-        p_role_names: patch.role_names ?? null,
-      });
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating frontend module:', error);
-      toast({
-        title: 'Erreur',
-        description: "Impossible d'enregistrer ce changement",
-        variant: 'destructive',
-      });
-      fetchData();
-    } finally {
-      setSavingKey(null);
-    }
-  };
-
-  const toggleRole = (mod: ModuleState, roleName: string, checked: boolean) => {
-    const next = checked
-      ? [...mod.role_names, roleName]
-      : mod.role_names.filter((r) => r !== roleName);
-    setModule(mod.module_key, { role_names: next });
-  };
-
-  if (loading) {
-    return (
-      <div className="container mx-auto py-8">
-        <div className="text-center">Chargement...</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="flex items-center gap-2 text-4xl font-bold mb-2">
-          <LayoutGrid className="h-8 w-8 text-primary" />
-          Modules de navigation
-        </h1>
-        <p className="text-muted-foreground">
-          Activez ou désactivez chaque module affiché aux utilisateurs (barre latérale, rail
-          tablette, menu mobile, application WAOUH), et restreignez-le à certains rôles.
-          Les changements s'appliquent immédiatement, sans rechargement.
-        </p>
-      </div>
-
-      <div className="space-y-8">
-        {sections.map(([sectionTitle, sectionModules]) => (
-          <div key={sectionTitle}>
-            <h2 className="mb-3 text-lg font-semibold text-muted-foreground">{sectionTitle}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sectionModules.map((mod) => (
-                <Card key={mod.module_key} className={!mod.enabled ? 'opacity-60' : undefined}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">{mod.label}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {mod.role_names.length === 0
-                            ? 'Visible par tous les utilisateurs'
-                            : `Limité à : ${mod.role_names.join(', ')}`}
-                        </CardDescription>
-                      </div>
-                      <Switch
-                        checked={mod.enabled}
-                        disabled={savingKey === mod.module_key}
-                        onCheckedChange={(checked) => setModule(mod.module_key, { enabled: checked })}
-                        aria-label={`Activer ${mod.label}`}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-3">
-                      {roles.map((role) => {
-                        const checked = mod.role_names.includes(role.name);
-                        return (
-                          <label
-                            key={role.id}
-                            className="flex items-center gap-1.5 text-sm text-foreground"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              disabled={savingKey === mod.module_key}
-                              onCheckedChange={(value) => toggleRole(mod, role.name, value === true)}
-                            />
-                            {role.display_name || role.name}
-                          </label>
-                        );
-                      })}
-                    </div>
-                    {!mod.enabled && (
-                      <Badge variant="secondary" className="mt-3">
-                        Masqué pour tous
-                      </Badge>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 export default AdminModulesPage;

@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const VERSION = "2.14.0";
@@ -1778,6 +1779,8 @@ async function resetUserData(
 }
 
 Deno.serve(async (request) => {
+  const __moduleGate=await moduleRequestGate(request,['apresbac'],false);if(__moduleGate)return __moduleGate;
+
   const startedAt = Date.now();
   const requestId =
     request.headers.get("x-request-id") ?? crypto.randomUUID();

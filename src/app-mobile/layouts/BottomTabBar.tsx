@@ -1,3 +1,5 @@
+import {useFrontendModules} from '@/hooks/useFrontendModules';
+import {moduleForPath} from '../../../supabase/functions/_shared/waouh-module-policy';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MessageCircle, Workflow, Sparkles, UserCircle, Menu as MenuIcon, LockKeyhole } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +21,8 @@ interface Props {
 
 export const BottomTabBar = ({ unreadChat = 0, onOpenMenu }: Props) => {
   const { pathname } = useLocation();
+  const {visibleKeys}=useFrontendModules();
+  const shown=tabs.filter(t=>visibleKeys.has(moduleForPath(t.to)||''));
   const { user } = useMobileAuth();
 
   return (
@@ -27,8 +31,8 @@ export const BottomTabBar = ({ unreadChat = 0, onOpenMenu }: Props) => {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Navigation principale WaouhApp"
     >
-      <ul className="grid grid-cols-5">
-        {tabs.map(({ to, icon: Icon, label }) => {
+      <ul className="grid" style={{gridTemplateColumns:`repeat(${shown.length+1},minmax(0,1fr))`}}>
+        {shown.map(({ to, icon: Icon, label }) => {
           const badge = to === '/app/chat' ? unreadChat : 0;
           const avatarHome = to === '/app/avatar' && pathname === '/';
           const locked = !user && requiresWaouhAuthentication(to);

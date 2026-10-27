@@ -1,3 +1,4 @@
+import {modulePolicyAllowed,modulesForAction} from '../_shared/waouh-module-policy.ts';
 import {MISSION_KINDS,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
 import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused,automaticFollowBlock} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
@@ -1521,6 +1522,8 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const ownerId = authUser?.id ?? (publicRead || guestAction ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
+
+    if(!await modulePolicyAllowed(sb,modulesForAction(action),ownerId||null,serviceCall||payload.automatic_follow===true))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
 
     if (exchangeAction) return jsonResponse({ ok:true, data:await handleExternalExchange(sb, action, payload, ownerId) });
 

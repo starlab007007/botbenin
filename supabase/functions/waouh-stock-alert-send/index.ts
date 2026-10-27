@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // WAOUH Stock IA — automatic threshold alert after an atomic stock movement.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -20,6 +21,8 @@ const asChatId = (value: string) => {
 };
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['stock'],true);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return reply(405, { error: "Méthode non autorisée." });
 

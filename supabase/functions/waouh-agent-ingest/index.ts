@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Ingest agent knowledge: text, url, doc, voice transcript.
 // Chunks + embeds and stores into waouh_ai_agent_chunks.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -11,6 +12,8 @@ const cors = {
 };
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bots'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const authHeader = req.headers.get("Authorization") || "";

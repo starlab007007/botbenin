@@ -1,0 +1,222 @@
+[
+  {
+    "name": "apresbac-chat",
+    "source": "apresbac-chat",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-agent-chat",
+    "source": "waouh-agent-chat",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-agent-ingest",
+    "source": "waouh-agent-ingest",
+    "verify_jwt": true
+  },
+  {
+    "name": "waouh-agent-insights",
+    "source": "waouh-agent-insights",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-agent-manual-reply",
+    "source": "waouh-agent-manual-reply",
+    "verify_jwt": true
+  },
+  {
+    "name": "waouh-agent-parse-catalog",
+    "source": "waouh-agent-parse-catalog",
+    "verify_jwt": true
+  },
+  {
+    "name": "waouh-agent-webhook",
+    "source": "waouh-agent-webhook",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-agentic-core",
+    "source": "waouh-agentic-core",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-apresbac-chat",
+    "source": "waouh-apresbac-chat",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-bi-ingest",
+    "source": "waouh-bi-ingest",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-bi-query",
+    "source": "waouh-bi-query",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-channel-in",
+    "source": "waouh-channel-in",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-channel-in-secure",
+    "source": "waouh-channel-in-secure",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-commerce-action",
+    "source": "waouh-commerce-action",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-deal-ops",
+    "source": "waouh-deal-ops",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-diffusion-approve",
+    "source": "waouh-diffusion-approve",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-diffusion-audience",
+    "source": "waouh-diffusion-audience",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-diffusion-relaunch",
+    "source": "waouh-diffusion-relaunch",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-diffusion-submit",
+    "source": "waouh-diffusion-submit",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-diffusion-suggest",
+    "source": "waouh-diffusion-suggest",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-fa-chat",
+    "source": "waouh-fa-chat",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-negotiation-router",
+    "source": "waouh-negotiation-router",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-opportunity-worker",
+    "source": "waouh-opportunity-worker",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-outbound-dispatch",
+    "source": "waouh-outbound-dispatch",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-payment",
+    "source": "waouh-payment",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-payment-handler",
+    "source": "waouh-payment-handler",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-presence-checkin",
+    "source": "waouh-presence-checkin",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-presence-event-notify",
+    "source": "waouh-presence-event-notify",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-presence-public-page",
+    "source": "waouh-presence-public-page",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-presence-qr-create",
+    "source": "waouh-presence-qr-create",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-presence-qr-preview",
+    "source": "waouh-presence-qr-preview",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-radar-apify",
+    "source": "waouh-radar-apify",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-radar-site-scraper",
+    "source": "waouh-radar-site-scraper",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-serpapi-scout",
+    "source": "waouh-serpapi-scout",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-stock-alert-send",
+    "source": "waouh-stock-alert-send",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-stock-analyze",
+    "source": "waouh-stock-analyze",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-stock-ingest",
+    "source": "waouh-stock-ingest",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-stock-query",
+    "source": "waouh-stock-query",
+    "verify_jwt": false
+  },
+  {
+    "name": "whatsapp-diffusion-ai-variants",
+    "source": "whatsapp-diffusion-ai-variants",
+    "verify_jwt": false
+  },
+  {
+    "name": "whatsapp-diffusion-enqueue",
+    "source": "whatsapp-diffusion-enqueue",
+    "verify_jwt": false
+  },
+  {
+    "name": "whatsapp-diffusion-worker",
+    "source": "whatsapp-diffusion-worker",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-studio-e2e-v21465",
+    "source": "waouh-agentic-core",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-e2e-v3-relay",
+    "source": "waouh-opportunity-worker",
+    "verify_jwt": false
+  },
+  {
+    "name": "waouh-studio-agent-webhook-v2146",
+    "source": "waouh-agent-webhook",
+    "verify_jwt": false
+  }
+]

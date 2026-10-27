@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // WAOUH Payment - Qosic Mobile Money escrow flow
 // Actions: init (request from buyer), status (poll), release (deposit to seller)
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -52,6 +53,8 @@ const depositEndpoint = (op: string) =>
     : `${QOSIC_BASE}/QosicBridge/user/depositpaymentmv`;
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['paiements'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 

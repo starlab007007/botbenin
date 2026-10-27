@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Répond à une question en langage naturel sur une datasource BI.
 // Renvoie une spec de visualisation + calcul côté serveur sur les échantillons.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -85,6 +86,8 @@ function computeResult(rows: any[], spec: any) {
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bi'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const auth = req.headers.get("Authorization") || "";

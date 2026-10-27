@@ -19,22 +19,25 @@ export async function getWaouhModuleControl(
     if (error || !data) {
       return {
         module_key: moduleKey,
-        enabled: true,
-        automation_enabled: true,
+        enabled: false,
+        automation_enabled: false,
       };
     }
+    const linked:Record<string,string>={chat_web:'chat',chat_whatsapp:'whatsapp',avatar_commerce:'avatar',nexus:'nexus',muse_agents:'ia',deals:'ventes',negotiation:'ventes'};
+    const key=linked[moduleKey];
+    const {data:global,error:policyError}=key?await sb.from('waouh_frontend_modules').select('access_enabled,automation_enabled').eq('module_key',key).maybeSingle():{data:null,error:null};
     return {
       module_key: moduleKey,
-      enabled: data.enabled !== false,
-      automation_enabled: data.automation_enabled !== false,
+      enabled: data.enabled !== false&&(!key||(!policyError&&global?.access_enabled===true)),
+      automation_enabled: data.automation_enabled !== false&&(!key||(!policyError&&global?.automation_enabled===true)),
       maintenance_message: data.maintenance_message ?? null,
       updated_at: data.updated_at ?? null,
     };
   } catch {
     return {
       module_key: moduleKey,
-      enabled: true,
-      automation_enabled: true,
+      enabled: false,
+      automation_enabled: false,
     };
   }
 }

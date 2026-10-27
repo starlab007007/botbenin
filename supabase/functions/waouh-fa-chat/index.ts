@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // FA IA chat — quota + codes d’accès + journalisation.
 // Appel direct à l’API officielle Google Gemini, sans passerelle Lovable.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -55,6 +56,8 @@ function extractGeminiText(data: any): string {
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['fa_ia'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 

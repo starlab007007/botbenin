@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Diffusion audience builder — query v_diffusion_audience with filters.
 // Admin mode (admin_full=true) returns unmasked phones + contact_id (has_role(admin) check).
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -62,6 +63,8 @@ function maskPhone(p: string | null): string {
 }
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['diffusion'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
