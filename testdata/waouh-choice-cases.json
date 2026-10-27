@@ -1,10 +1,373 @@
 [
- {"name":"matching model and strict budget","criteria":{"query":"iPhone 13 Cotonou","city":"Cotonou","budget":220000},"offers":[{"fabric_id":"expensive","subject":"iPhone 13","city":"Cotonou","price_min":250000},{"fabric_id":"wrong","subject":"iPhone 18","city":"Cotonou","price_min":150000},{"fabric_id":"best","subject":"iPhone 13","city":"Cotonou","price_min":180000},{"fabric_id":"unknown","subject":"iPhone 13","city":"Cotonou","price_min":0},{"fabric_id":"range","subject":"iPhone 13","city":"Cotonou","price_min":100000,"price_max":260000}],"expected":["best","unknown"]},
- {"name":"stable ties independent of response order","criteria":{"query":"iPhone 13"},"offers":[{"fabric_id":"z","subject":"iPhone 13","price_min":180000},{"fabric_id":"a","subject":"iPhone 13","price_min":180000}],"expected":["a","z"]},
- {"name":"confirmed information precedes uncertain price","criteria":{"query":"iPhone 13"},"offers":[{"fabric_id":"cheap","subject":"iPhone 13","price_min":100000},{"fabric_id":"confirmed","subject":"iPhone 13","price_min":180000,"evidence":{"price_confirmed":true,"availability_confirmed":true,"unit":"pièce"}}],"expected":["confirmed","cheap"]},
- {"name":"availability priority is explicit","criteria":{"query":"iPhone 13","priority":"availability"},"offers":[{"fabric_id":"cheap","subject":"iPhone 13","price_min":100000},{"fabric_id":"ready","subject":"iPhone 13","price_min":180000,"evidence":{"in_stock":true}}],"expected":["ready","cheap"]},
- {"name":"currency stock and zone are not guessed","criteria":{"query":"iPhone 13","city":"Cotonou"},"offers":[{"fabric_id":"euro","subject":"iPhone 13","price_min":100,"currency":"EUR"},{"fabric_id":"sold","subject":"iPhone 13","price_min":50000,"evidence":{"in_stock":false}},{"fabric_id":"calavi","subject":"iPhone 13","city":"Calavi","price_min":100000},{"fabric_id":"eligible","subject":"iPhone 13","city":"Cotonou","price_min":180000}],"expected":["eligible"]},
- {"name":"an article identity is never contacted twice","criteria":{"query":"iPhone 13"},"offers":[{"fabric_id":"first","subject":"iPhone 13","price_min":180000,"evidence":{"article_id":"same"}},{"fabric_id":"alias","subject":"iPhone 13","price_min":180000,"evidence":{"article_id":"same"}}],"expected":["first"]},
- {"name":"a service has a useful shortlist without a product price","criteria":{"query":"Plombier Cotonou","city":"Cotonou"},"offers":[{"fabric_id":"doctor","subject":"Médecin","category":"Santé","city":"Cotonou"},{"fabric_id":"plumber","subject":"Plombier disponible","category":"Service","city":"Cotonou"}],"expected":["plumber"]},
- {"name":"capacity conflicts are excluded","criteria":{"query":"iPhone 13 128 Go"},"offers":[{"fabric_id":"other","subject":"iPhone 13 256 Go","price_min":100000},{"fabric_id":"same","subject":"iPhone 13 128 Go","price_min":180000}],"expected":["same"]}
+ {
+  "name": "matching model and strict budget",
+  "criteria": {
+   "query": "iPhone 13 Cotonou",
+   "city": "Cotonou",
+   "budget": 220000
+  },
+  "offers": [
+   {
+    "fabric_id": "expensive",
+    "subject": "iPhone 13",
+    "city": "Cotonou",
+    "price_min": 250000
+   },
+   {
+    "fabric_id": "wrong",
+    "subject": "iPhone 18",
+    "city": "Cotonou",
+    "price_min": 150000
+   },
+   {
+    "fabric_id": "best",
+    "subject": "iPhone 13",
+    "city": "Cotonou",
+    "price_min": 180000
+   },
+   {
+    "fabric_id": "unknown",
+    "subject": "iPhone 13",
+    "city": "Cotonou",
+    "price_min": 0
+   },
+   {
+    "fabric_id": "range",
+    "subject": "iPhone 13",
+    "city": "Cotonou",
+    "price_min": 100000,
+    "price_max": 260000
+   }
+  ],
+  "expected": [
+   "best",
+   "unknown"
+  ]
+ },
+ {
+  "name": "stable ties independent of response order",
+  "criteria": {
+   "query": "iPhone 13"
+  },
+  "offers": [
+   {
+    "fabric_id": "z",
+    "subject": "iPhone 13",
+    "price_min": 180000
+   },
+   {
+    "fabric_id": "a",
+    "subject": "iPhone 13",
+    "price_min": 180000
+   }
+  ],
+  "expected": [
+   "a",
+   "z"
+  ]
+ },
+ {
+  "name": "confirmed information precedes uncertain price",
+  "criteria": {
+   "query": "iPhone 13"
+  },
+  "offers": [
+   {
+    "fabric_id": "cheap",
+    "subject": "iPhone 13",
+    "price_min": 100000
+   },
+   {
+    "fabric_id": "confirmed",
+    "subject": "iPhone 13",
+    "price_min": 180000,
+    "evidence": {
+     "price_confirmed": true,
+     "availability_confirmed": true,
+     "unit": "pièce"
+    }
+   }
+  ],
+  "expected": [
+   "confirmed",
+   "cheap"
+  ]
+ },
+ {
+  "name": "availability priority is explicit",
+  "criteria": {
+   "query": "iPhone 13",
+   "priority": "availability"
+  },
+  "offers": [
+   {
+    "fabric_id": "cheap",
+    "subject": "iPhone 13",
+    "price_min": 100000
+   },
+   {
+    "fabric_id": "ready",
+    "subject": "iPhone 13",
+    "price_min": 180000,
+    "evidence": {
+     "in_stock": true
+    }
+   }
+  ],
+  "expected": [
+   "ready",
+   "cheap"
+  ]
+ },
+ {
+  "name": "currency stock and zone are not guessed",
+  "criteria": {
+   "query": "iPhone 13",
+   "city": "Cotonou"
+  },
+  "offers": [
+   {
+    "fabric_id": "euro",
+    "subject": "iPhone 13",
+    "price_min": 100,
+    "currency": "EUR"
+   },
+   {
+    "fabric_id": "sold",
+    "subject": "iPhone 13",
+    "price_min": 50000,
+    "evidence": {
+     "in_stock": false
+    }
+   },
+   {
+    "fabric_id": "calavi",
+    "subject": "iPhone 13",
+    "city": "Calavi",
+    "price_min": 100000
+   },
+   {
+    "fabric_id": "eligible",
+    "subject": "iPhone 13",
+    "city": "Cotonou",
+    "price_min": 180000
+   }
+  ],
+  "expected": [
+   "eligible"
+  ]
+ },
+ {
+  "name": "an article identity is never contacted twice",
+  "criteria": {
+   "query": "iPhone 13"
+  },
+  "offers": [
+   {
+    "fabric_id": "first",
+    "subject": "iPhone 13",
+    "price_min": 180000,
+    "evidence": {
+     "article_id": "same"
+    }
+   },
+   {
+    "fabric_id": "alias",
+    "subject": "iPhone 13",
+    "price_min": 180000,
+    "evidence": {
+     "article_id": "same"
+    }
+   }
+  ],
+  "expected": [
+   "first"
+  ]
+ },
+ {
+  "name": "a service has a useful shortlist without a product price",
+  "criteria": {
+   "query": "Plombier Cotonou",
+   "city": "Cotonou"
+  },
+  "offers": [
+   {
+    "fabric_id": "doctor",
+    "subject": "Médecin",
+    "category": "Santé",
+    "city": "Cotonou"
+   },
+   {
+    "fabric_id": "plumber",
+    "subject": "Plombier disponible",
+    "category": "Service",
+    "city": "Cotonou"
+   }
+  ],
+  "expected": [
+   "plumber"
+  ]
+ },
+ {
+  "name": "capacity conflicts are excluded",
+  "criteria": {
+   "query": "iPhone 13 128 Go"
+  },
+  "offers": [
+   {
+    "fabric_id": "other",
+    "subject": "iPhone 13 256 Go",
+    "price_min": 100000
+   },
+   {
+    "fabric_id": "same",
+    "subject": "iPhone 13 128 Go",
+    "price_min": 180000
+   }
+  ],
+  "expected": [
+   "same"
+  ]
+ },
+ {
+  "name": "unexplained extreme price held outside the autonomous shortlist",
+  "criteria": {
+   "query": "Samsung S25"
+  },
+  "offers": [
+   {
+    "fabric_id": "tiny",
+    "subject": "Samsung S25",
+    "price_min": 100
+   },
+   {
+    "fabric_id": "a",
+    "subject": "Samsung S25",
+    "price_min": 329000
+   },
+   {
+    "fabric_id": "b",
+    "subject": "Samsung S25",
+    "price_min": 337000
+   },
+   {
+    "fabric_id": "c",
+    "subject": "Samsung S25",
+    "price_min": 344000
+   }
+  ],
+  "expected": [
+   "a",
+   "b",
+   "c"
+  ]
+ },
+ {
+  "name": "known delivered costs precede incomplete prices",
+  "criteria": {
+   "query": "Galaxy S25",
+   "budget": 350000
+  },
+  "offers": [
+   {
+    "fabric_id": "incomplete",
+    "subject": "Galaxy S25",
+    "price_min": 320000
+   },
+   {
+    "fabric_id": "clear",
+    "subject": "Galaxy S25",
+    "price_min": 329000,
+    "evidence": {
+     "delivery_fee": 2000
+    }
+   },
+   {
+    "fabric_id": "over-delivered",
+    "subject": "Galaxy S25",
+    "price_min": 340000,
+    "evidence": {
+     "delivery_fee": 20000
+    }
+   }
+  ],
+  "expected": [
+   "clear",
+   "incomplete"
+  ]
+ },
+ {
+  "name": "Samsung Galaxy model aliases identify the same device",
+  "criteria": {
+   "query": "Samsung S25"
+  },
+  "offers": [
+   {
+    "fabric_id": "same",
+    "subject": "Samsung Galaxy S25",
+    "price_min": 329000
+   },
+   {
+    "fabric_id": "other",
+    "subject": "Samsung Galaxy S24",
+    "price_min": 200000
+   }
+  ],
+  "expected": [
+   "same"
+  ]
+ },
+ {
+  "name": "confirmed small price is not statistically overruled",
+  "criteria": {
+   "query": "iPhone 13"
+  },
+  "offers": [
+   {
+    "fabric_id": "confirmed",
+    "subject": "iPhone 13",
+    "price_min": 100,
+    "evidence": {
+     "price_confirmed": true,
+     "unit": "pièce"
+    }
+   },
+   {
+    "fabric_id": "a",
+    "subject": "iPhone 13",
+    "price_min": 200000
+   },
+   {
+    "fabric_id": "b",
+    "subject": "iPhone 13",
+    "price_min": 220000
+   }
+  ],
+  "expected": [
+   "confirmed",
+   "a",
+   "b"
+  ]
+ },
+ {
+  "name": "explicit used condition cannot satisfy a new device request",
+  "criteria": {
+   "query": "Samsung S25 neuf"
+  },
+  "offers": [
+   {
+    "fabric_id": "used",
+    "subject": "Samsung S25 occasion",
+    "price_min": 150000
+   },
+   {
+    "fabric_id": "new",
+    "subject": "Samsung S25 neuf",
+    "price_min": 329000
+   }
+  ],
+  "expected": [
+   "new"
+  ]
+ }
 ]

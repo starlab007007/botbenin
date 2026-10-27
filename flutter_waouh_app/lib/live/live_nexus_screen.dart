@@ -1,3 +1,4 @@
+import 'live_guided_progress.dart';
 import 'dart:async';
 import 'live_automatic_offers.dart';
 import 'live_premium_mission.dart';
@@ -66,6 +67,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   bool smartMode = true;
   bool busy = false;
   bool _started = false, _paused = false, _refreshing = false;
+  String _phase = 'ready';
+  bool _peekResults = false;
   int _searchVersion = 0;
   String? _liveError;
   String _kind = 'trouver';
@@ -182,6 +185,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       _automaticError = null;
       _automaticBusy = false;
       _articleId = null;
+      _phase = 'understanding';
+      _peekResults = false;
       _lastGoal = text;
       _lastCity = city.text.trim();
       _lastBudget = double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
@@ -206,6 +211,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             ? cap.toDouble()
             : (_lastBudget! < cap ? _lastBudget : cap.toDouble());
       if (_lastCity.isEmpty) _lastCity = '${rules?['city'] ?? ''}';
+      setState(() => _phase = 'collecting');
       final value = await service.searchProgressive(
         query: text,
         findSellers: findSellers,
@@ -239,6 +245,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         return;
       setState(() {
         discovery = value;
+        _phase = 'ready';
+        _refreshing = false;
         findSellers = value.findSellers;
         _lastCity = _lastCity.isNotEmpty
             ? _lastCity
@@ -260,6 +268,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     } catch (_) {
       if (mounted && version == _searchVersion)
         setState(() {
+          _phase = discovery?.results.isNotEmpty == true ? 'partial' : 'error';
+          _refreshing = false;
           _liveError = 'Recherche interrompue. Réessayez.';
           _events.add(
             LiveMissionActivity(
@@ -462,6 +472,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                 setState(() {
                   busy = false;
                   _paused = true;
+                  _phase = 'paused';
                   _events.add(LiveMissionActivity('Recherche mise en pause.'));
                 });
                 Navigator.pop(ctx);
@@ -1107,13 +1118,29 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             ),
             children: [_searchEditor()],
           ),
+          if (['understanding', 'collecting'].contains(_phase) || _paused)
+            LiveGuidedProgress(
+              phase: _phase,
+              count: results.length,
+              refreshing: _refreshing,
+              onActivity: _activity,
+            ),
+          if (['understanding', 'collecting'].contains(_phase) &&
+              results.isNotEmpty &&
+              !_peekResults)
+            OutlinedButton(
+              onPressed: () => setState(() => _peekResults = true),
+              child: const Text('Voir les premières pistes'),
+            ),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: _activity,
               icon: const Icon(Icons.checklist, size: 15),
               label: Text(
-                busy ? 'Recherche en cours…' : 'Activité de Bot',
+                busy
+                    ? 'Le détail de ma recherche'
+                    : 'Voir le déroulé de ma recherche',
                 style: const TextStyle(fontSize: 12),
               ),
             ),
@@ -1157,7 +1184,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               ],
             ),
           ),
-        if (results.isNotEmpty)
+        if (results.isNotEmpty &&
+            (!['understanding', 'collecting'].contains(_phase) || _peekResults))
           LiveAutomaticOffers(
             items: results,
             query: _lastGoal,

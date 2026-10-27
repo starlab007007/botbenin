@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'avatar/bot_character.dart';
 import 'live_avatar_autonomy.dart';
 import 'live_nexus_service.dart';
@@ -29,8 +30,7 @@ class LiveAutomaticOffers extends StatefulWidget {
   final String query, city, mode, actionLabel;
   final double? budget;
   final String? tracking;
-  final bool actionBusy;
-  final bool manualChoice;
+  final bool actionBusy, manualChoice;
   final VoidCallback onAction;
   final ValueChanged<NexusDiscoveryItem> onContact, onDelegate, onFollow;
   @override
@@ -39,25 +39,76 @@ class LiveAutomaticOffers extends StatefulWidget {
 
 class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
   String _priority = 'price';
-  bool _alternatives = false;
   List<NexusDiscoveryItem> get ranked => rankLiveOfferChoices(
-    essentialUnique(widget.items),
+    widget.items,
     query: widget.query,
     city: widget.city,
     budget: widget.budget,
     mode: widget.mode,
     priority: _priority,
   );
-  @override
-  void didUpdateWidget(covariant LiveAutomaticOffers oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.query != widget.query ||
-        oldWidget.city != widget.city ||
-        oldWidget.budget != widget.budget ||
-        oldWidget.mode != widget.mode)
-      _alternatives = false;
+  String money(double n) =>
+      '${n.round().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]} ')} F CFA';
+  String text(NexusDiscoveryItem o, String key) =>
+      o.evidence[key] is String ? (o.evidence[key] as String).trim() : '';
+  String totalLine(NexusDiscoveryItem o) {
+    if (widget.mode == 'sell') return 'Budget annoncé · quantité à préciser';
+    final c = choiceCost(o);
+    return c.total != null
+        ? '${money(c.total!)} livré estimés'
+        : essentialKind(o) == 'service'
+        ? 'Périmètre et frais à préciser'
+        : 'Frais et prix final à préciser';
   }
 
+  String tag(NexusDiscoveryItem o) => widget.mode == 'sell'
+      ? 'Demande à qualifier'
+      : choicePriceConfirmed(o) && choiceAvailabilityConfirmed(o)
+      ? 'Prix et disponibilité confirmés'
+      : choiceCost(o).total != null
+      ? 'Coût livré renseigné'
+      : choicePrice(o) != null
+      ? 'Prix annoncé · conditions à vérifier'
+      : 'Conditions à préciser';
+  Widget guide(String line, {double size = 44}) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      BotCharacter(size: size, animated: false),
+      const SizedBox(width: 11),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Votre avatar · IA',
+              style: TextStyle(
+                fontSize: 12,
+                color: avatarPremiumBlue,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(line, style: const TextStyle(fontSize: 14, height: 1.45)),
+          ],
+        ),
+      ),
+    ],
+  );
+  Widget primary({VoidCallback? onTap}) => SizedBox(
+    width: double.infinity,
+    child: FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: avatarPremiumBlue,
+        minimumSize: const Size.fromHeight(49),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      onPressed: widget.actionBusy ? null : onTap ?? widget.onAction,
+      child: Text(
+        widget.actionLabel,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
   Future<void> _compare() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -66,220 +117,93 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
       showDragHandle: true,
       backgroundColor: Colors.white,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) {
-          final rows = ranked.take(3).toList();
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 25),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Pourquoi ce choix ?',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -.5,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  initialValue: _priority,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Ma priorité'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'price',
-                      child: Text('Le meilleur prix'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'availability',
-                      child: Text('La disponibilité'),
-                    ),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _priority = v);
-                    widget.onPriorityChanged?.call(v);
-                    update(() {});
-                  },
-                ),
-                const SizedBox(height: 20),
-                const Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        'Offre',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: avatarPremiumMuted,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Prix',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: avatarPremiumMuted,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Disponible',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: avatarPremiumMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                for (var i = 0; i < rows.length; i++)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 15,
-                      horizontal: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: i == 0 ? const Color(0xFFEDF1FF) : Colors.white,
-                      border: const Border(
-                        bottom: BorderSide(color: avatarPremiumLine),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            rows[i].title,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            essentialPrice(rows[i]),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            choiceAvailable(rows[i])
-                                ? 'Selon l’offre'
-                                : 'À vérifier',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const Padding(
-                  padding: EdgeInsets.only(top: 17),
-                  child: Text(
-                    'Les prix inconnus, unités et disponibilités manquantes restent à vérifier avant tout accord.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: avatarPremiumMuted,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _detail(NexusDiscoveryItem item) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (ctx) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(ctx).height * .82,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 0, 22, 25),
+        builder: (ctx, update) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                item.title,
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
+              const Text(
+                'Mon comparatif automatique',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 14),
+              for (final o in ranked.take(4))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        o.title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: o.fabricId == ranked.first.fabricId
+                              ? avatarPremiumBlue
+                              : avatarPremiumInk,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${essentialPrice(o)} · ${o.city ?? 'Zone à confirmer'}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        totalLine(o),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: avatarPremiumMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${choicePriceConfirmed(o) ? 'Prix confirmé' : 'Prix annoncé'} · ${choiceAvailabilityConfirmed(o) ? 'Disponibilité confirmée' : 'Stock à confirmer'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: avatarPremiumMuted,
+                        ),
+                      ),
+                      const Divider(color: avatarPremiumLine),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                essentialPrice(item),
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                item.city ?? 'Zone à confirmer',
-                style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                choiceAvailable(item)
-                    ? 'Disponible selon l’offre. Prix et conditions à confirmer.'
-                    : 'Disponibilité, prix et conditions à confirmer.',
-                style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
+              const Text(
+                'Le classement utilise les informations reçues. Un prix, une unité ou des frais manquants restent à confirmer.',
+                style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
               ),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 title: const Text(
-                  'Conditions de l’offre',
-                  style: TextStyle(fontSize: 12),
+                  'Adapter ma priorité',
+                  style: TextStyle(fontSize: 13),
                 ),
                 children: [
-                  Text(
-                    item.detailsSummary,
-                    style: const TextStyle(fontSize: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _priority,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Ma priorité'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'price',
+                        child: Text('Le coût et les conditions'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'availability',
+                        child: Text('La disponibilité'),
+                      ),
+                    ],
+                    onChanged: widget.actionBusy
+                        ? null
+                        : (v) {
+                            if (v == null || !mounted) return;
+                            setState(() => _priority = v);
+                            widget.onPriorityChanged?.call(v);
+                            update(() {});
+                          },
                   ),
                 ],
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  widget.onDelegate(item);
-                },
-                child: const Text('Choisir cette piste'),
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  widget.onContact(item);
-                },
-                child: const Text('Contacter'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  widget.onFollow(item);
-                },
-                child: const Text('Suivre cette offre'),
               ),
             ],
           ),
@@ -288,217 +212,258 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     );
   }
 
-  Widget _alternative(NexusDiscoveryItem item) => Material(
-    type: MaterialType.transparency,
-    child: ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(
-        Icons.shopping_bag_outlined,
-        size: 24,
-        color: avatarPremiumMuted,
-      ),
-      title: Text(
-        item.title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        item.city ?? 'Zone à confirmer',
-        style: const TextStyle(fontSize: 11, color: avatarPremiumMuted),
-      ),
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 112),
-        child: Text(
-          essentialPrice(item),
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        ),
-      ),
-      onTap: () => _detail(item),
-    ),
-  );
-  @override
-  Widget build(BuildContext context) {
-    final rows = ranked;
-    if (rows.isEmpty)
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          children: [
-            const BotCharacter(size: 48, animated: false),
-            const SizedBox(height: 18),
-            const Text(
-              'Aucune offre compatible',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.tracking ?? 'Ajustez vos critères ou poursuivez avec Bot.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: widget.actionBusy ? null : widget.onAction,
-                child: Text(widget.actionLabel),
-              ),
-            ),
-          ],
-        ),
-      );
-    final item = rows.first,
-        confirmed =
-            choicePriceConfirmed(item) && choiceAvailabilityConfirmed(item),
-        others = rows.skip(1).take(2).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 15),
-          child: Text(
-            '${widget.items.length} offre${widget.items.length > 1 ? 's' : ''} reçue${widget.items.length > 1 ? 's' : ''} · ${rows.take(3).length} retenue${rows.length > 1 ? 's' : ''}',
-            style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: avatarPremiumLine),
-          ),
-          clipBehavior: Clip.antiAlias,
+  Future<void> _detail(NexusDiscoveryItem o) async {
+    final rows = ranked,
+        first = rows.isNotEmpty && rows.first.fabricId == o.fabricId,
+        cost = choiceCost(o),
+        kind = essentialKind(o);
+    final known = choicePriceConfirmed(o) && choiceAvailabilityConfirmed(o);
+    var verdict = first
+        ? 'Mon premier choix, sous réserve de vérification.'
+        : 'Une alternative à examiner.';
+    var reason = kind == 'service'
+        ? 'Je rapproche cette piste de votre besoin. Le périmètre et le créneau restent à confirmer.'
+        : kind == 'announcement'
+        ? 'Je rapproche cette opportunité de votre besoin. Les conditions et la validité restent à confirmer.'
+        : 'Cette piste correspond aux critères renseignés. Je vérifie les conditions avant tout accord.';
+    if (known) {
+      verdict = first
+          ? 'Mon premier choix parmi les offres comparées.'
+          : 'Une alternative aux informations confirmées.';
+      reason =
+          'Le prix et la disponibilité sont confirmés dans les informations reçues. Les autres conditions restent à vérifier.';
+    } else if (cost.total != null && widget.mode != 'sell') {
+      reason =
+          'Le coût livré est renseigné. Je vérifie le stock, l’état réel et les conditions annoncées.';
+    }
+    if (!first && rows.isNotEmpty) {
+      final base = choiceCost(rows.first);
+      if (base.total != null &&
+          cost.total != null &&
+          cost.total! > base.total!) {
+        reason =
+            'Le coût livré annoncé est supérieur de ${money(cost.total! - base.total!)} à mon premier choix. Je vérifie ce qui peut justifier cet écart.';
+      } else if (base.price != null &&
+          cost.price != null &&
+          cost.price! < base.price! &&
+          cost.delivery == null) {
+        reason =
+            'Le prix affiché est inférieur à mon premier choix, mais les frais manquants empêchent de conclure sur le coût final.';
+      }
+    }
+    if (widget.mode == 'sell') {
+      verdict = first
+          ? 'Une demande à qualifier en priorité.'
+          : 'Une autre demande à qualifier.';
+      reason =
+          'Cette demande se rapproche de votre article. Le budget annoncé ne constitue pas encore une offre ferme.';
+    }
+    final advantages = <String>[
+      if (widget.city.isNotEmpty && o.city != null)
+        'Localisation annoncée : ${o.city}.',
+      if (cost.total != null &&
+          widget.budget != null &&
+          cost.total! <= widget.budget!)
+        '${money(widget.budget! - cost.total!)} sous votre plafond, selon les montants annoncés.',
+      if (text(o, 'warranty').isNotEmpty)
+        'Garantie annoncée : ${text(o, 'warranty')}.',
+    ];
+    final pending = widget.mode == 'sell'
+        ? <String>[
+            'Quantité, budget et modalités à confirmer.',
+            'Intérêt pour votre article à vérifier avant tout accord.',
+          ]
+        : <String>[
+            if (!choiceAvailabilityConfirmed(o))
+              choiceAvailable(o)
+                  ? 'Disponibilité annoncée, à confirmer.'
+                  : 'Disponibilité à confirmer.',
+            if (!choicePriceConfirmed(o)) 'Prix final et unité à confirmer.',
+            kind == 'service'
+                ? 'Périmètre, créneau et conditions à préciser.'
+                : kind == 'announcement'
+                ? 'Validité et conditions de participation à vérifier.'
+                : 'État réel et garantie écrite à vérifier.',
+          ];
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: avatarPremiumBg,
+      showDragHandle: true,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: .92,
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Material(
-                color: const Color(0xFFF0F3FA),
-                child: InkWell(
-                  onTap: () => _detail(item),
-                  child: LayoutBuilder(
-                    builder: (ctx, constraints) => Stack(
-                      children: [
-                        if (item.photoUrls.isNotEmpty)
-                          LiveEssentialPhoto(
-                            item: item,
-                            width: constraints.maxWidth,
-                            height: 205,
-                            large: true,
-                          )
-                        else
-                          Container(
-                            height: 125,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFE9EAF8), Color(0xFFF0F3FA)],
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              essentialKind(item) == 'service'
-                                  ? Icons.work_outline
-                                  : Icons.shopping_bag_outlined,
-                              size: 50,
-                              color: const Color(0xFF8F9BB6),
-                            ),
-                          ),
-                        Positioned(
-                          top: 15,
-                          left: 15,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.auto_awesome_outlined,
-                                  size: 13,
-                                  color: avatarPremiumBlue,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  confirmed
-                                      ? 'Le choix de Bot'
-                                      : 'Piste retenue par Bot',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: avatarPremiumBlue,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(18, 0, 42, 15),
+                child: Text(
+                  'Mon analyse de cette offre',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+                ),
+              ),
+              LayoutBuilder(
+                builder: (ctx, c) => LiveEssentialPhoto(
+                  item: o,
+                  width: c.maxWidth,
+                  height: 300,
+                  large: true,
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.all(18),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      item.title,
+                      o.title,
                       style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -.5,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -.6,
                       ),
                     ),
-                    const SizedBox(height: 11),
+                    const SizedBox(height: 8),
                     Text(
-                      essentialPrice(item),
+                      [
+                        text(o, 'condition'),
+                        o.city ?? 'Zone à confirmer',
+                      ].where((s) => s.isNotEmpty).join(' · '),
                       style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.city ?? 'Zone à confirmer',
-                      style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 13,
                         color: avatarPremiumMuted,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      essentialPrice(o),
+                      style: const TextStyle(
+                        fontSize: 31,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      totalLine(o),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: avatarPremiumMuted,
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          guide(verdict, size: 40),
+                          const SizedBox(height: 12),
+                          Text(
+                            reason,
+                            style: const TextStyle(fontSize: 13, height: 1.5),
+                          ),
+                          const SizedBox(height: 5),
+                          for (final line in advantages) _fact(line, false),
+                          for (final line in pending) _fact(line, true),
+                        ],
+                      ),
+                    ),
+                    const Text(
+                      'Le suivi de mon avatar',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      widget.tracking ??
+                          'Je propose de vérifier les informations manquantes, selon vos autorisations.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: avatarPremiumMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Votre accord reste nécessaire pour tout engagement.',
+                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                    ),
                     const SizedBox(height: 15),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    primary(onTap: () => Navigator.pop(ctx, 'follow')),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Annonce et éléments utilisés',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       children: [
-                        Icon(
-                          Icons.verified_outlined,
-                          size: 14,
-                          color: confirmed
-                              ? const Color(0xFF087C68)
-                              : avatarPremiumMuted,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            confirmed
-                                ? 'Prix et disponibilité confirmés'
-                                : choiceAvailable(item)
-                                ? 'Disponible selon l’offre · prix à confirmer'
-                                : 'Prix observé · disponibilité à vérifier',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: confirmed
-                                  ? const Color(0xFF087C68)
-                                  : avatarPremiumMuted,
+                        if (o.detailsSummary.isNotEmpty)
+                          Text(
+                            o.detailsSummary,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: avatarPremiumMuted,
                             ),
                           ),
+                        Text(
+                          essentialUnit(o).isEmpty
+                              ? 'Unité à confirmer.'
+                              : 'Unité annoncée : ${essentialUnit(o)}.',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: avatarPremiumMuted,
+                          ),
+                        ),
+                        if (o.sourceUrl != null &&
+                            [
+                              'http',
+                              'https',
+                            ].contains(Uri.tryParse(o.sourceUrl!)?.scheme))
+                          TextButton.icon(
+                            onPressed: () => launchUrl(
+                              Uri.parse(o.sourceUrl!),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                            icon: const Icon(Icons.open_in_new, size: 14),
+                            label: const Text('Voir l’annonce d’origine'),
+                          ),
+                      ],
+                    ),
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(ctx, 'compare'),
+                      icon: const Icon(Icons.view_column_outlined, size: 15),
+                      label: const Text(
+                        'Voir le comparatif des offres',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      initiallyExpanded: widget.manualChoice,
+                      title: const Text(
+                        'Agir sur cette piste',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, 'delegate'),
+                          child: const Text('Confier cette piste à mon avatar'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, 'contact'),
+                          child: const Text('Préparer un contact'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, 'watch'),
+                          child: const Text('Surveiller cette piste'),
                         ),
                       ],
                     ),
@@ -508,69 +473,283 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
             ],
           ),
         ),
-        Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: _compare,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              child: Row(
-                children: [
-                  const BotCharacter(size: 30, animated: false),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          confirmed
-                              ? (_priority == 'price'
-                                    ? 'Le meilleur prix confirmé.'
-                                    : 'Une offre disponible.')
-                              : 'La piste à vérifier en priorité.',
-                          style: const TextStyle(
-                            fontSize: 12,
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'compare') await _compare();
+    if (action == 'follow') widget.onAction();
+    if (action == 'delegate') widget.onDelegate(o);
+    if (action == 'contact') widget.onContact(o);
+    if (action == 'watch') widget.onFollow(o);
+  }
+
+  Widget _fact(String line, bool pending) => Padding(
+    padding: const EdgeInsets.only(top: 9),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          pending ? Icons.shield_outlined : Icons.check,
+          size: 15,
+          color: pending ? const Color(0xFF9A6419) : const Color(0xFF117B68),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            line,
+            style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
+          ),
+        ),
+      ],
+    ),
+  );
+  Widget _tile(NexusDiscoveryItem o, bool first, bool tall) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(17),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: () => _detail(o),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (ctx, c) => Stack(
+              children: [
+                LiveEssentialPhoto(
+                  item: o,
+                  width: c.maxWidth,
+                  height: tall ? 205 : 180,
+                  large: true,
+                ),
+                if (first)
+                  Positioned(
+                    top: 10,
+                    left: 8,
+                    right: 8,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 5,
+                          horizontal: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: avatarPremiumBlue,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: const Text(
+                          '✦ Choix de mon avatar',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Pourquoi ce choix ?',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: avatarPremiumMuted,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                  const Icon(
-                    Icons.chevron_right,
-                    size: 16,
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 11, 11, 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  o.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  o.city ?? 'Zone à confirmer',
+                  style: const TextStyle(
+                    fontSize: 11,
                     color: avatarPremiumMuted,
                   ),
-                ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  essentialPrice(o),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -.7,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  totalLine(o),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: avatarPremiumMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tag(o),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: avatarPremiumBlue,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  @override
+  Widget build(BuildContext context) {
+    final rows = ranked,
+        eligible = essentialUnique(widget.items)
+            .where(
+              (o) => choiceMatches(
+                o,
+                query: widget.query,
+                city: widget.city,
+                budget: widget.budget,
+                mode: widget.mode,
               ),
-            ),
-          ),
+            )
+            .toList(),
+        review = (widget.mode == 'sell' ? <NexusDiscoveryItem>[] : eligible)
+            .where((o) => choicePriceNeedsReview(o, eligible))
+            .toList(),
+        shown = rows.take(4).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        guide(
+          rows.isNotEmpty
+              ? 'J’ai comparé les pistes reçues. J’en retiens ${shown.length} et vous explique mon premier choix.'
+              : review.isNotEmpty
+              ? 'Les prix de ces pistes demandent une clarification. Je les garde à part.'
+              : 'Aucune piste ne répond aux critères renseignés pour le moment.',
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: avatarPremiumBlue,
-            minimumSize: const Size.fromHeight(49),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+        const SizedBox(height: 20),
+        if (rows.isNotEmpty) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Les offres retenues',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '${rows.length} compatibles sur ${essentialUnique(widget.items).length} reçues · classement provisoire',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: avatarPremiumMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _compare,
+                child: const Text(
+                  'Mon comparatif',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < shown.length; i += 2)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _tile(shown[i], i == 0, false),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 17),
+                  child: Column(
+                    children: [
+                      for (var i = 1; i < shown.length; i += 2)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _tile(shown[i], false, true),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (rows.length > 4)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                '${rows.length - 4} autres pistes compatibles',
+                style: const TextStyle(fontSize: 13),
+              ),
+              children: [
+                for (final o in rows.skip(4))
+                  ListTile(
+                    title: Text(o.title, style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(essentialPrice(o)),
+                    onTap: () => _detail(o),
+                  ),
+              ],
+            ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Text(
+              review.isEmpty ? 'Aucune offre compatible' : 'Prix à clarifier',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
           ),
-          onPressed: widget.actionBusy
-              ? null
-              : widget.manualChoice
-              ? () => _detail(item)
-              : widget.onAction,
-          child: Text(
-            widget.actionLabel,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        if (review.isNotEmpty)
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              '${review.length} prix à clarifier',
+              style: const TextStyle(fontSize: 13),
+            ),
+            children: [
+              for (final o in review)
+                ListTile(
+                  title: Text(
+                    '${o.title} · ${essentialPrice(o)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: const Text(
+                    'Un écart important demande une précision. Cette piste reste hors du classement jusqu’à clarification.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
           ),
+        const SizedBox(height: 16),
+        primary(
+          onTap: widget.manualChoice && rows.isNotEmpty
+              ? () => _detail(rows.first)
+              : widget.onAction,
         ),
         if (widget.tracking != null)
           Padding(
@@ -579,42 +758,6 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
               widget.tracking!,
               style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
             ),
-          ),
-        if (others.isNotEmpty) ...[
-          TextButton(
-            onPressed: () => setState(() => _alternatives = !_alternatives),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _alternatives
-                      ? 'Masquer les alternatives'
-                      : 'Voir ${others.length} alternative${others.length > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: avatarPremiumMuted,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Icon(
-                  _alternatives ? Icons.expand_less : Icons.expand_more,
-                  size: 15,
-                  color: avatarPremiumMuted,
-                ),
-              ],
-            ),
-          ),
-          if (_alternatives)
-            for (final o in others) _alternative(o),
-        ],
-        if (rows.length > 3)
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            title: Text(
-              '${rows.length - 3} autres pistes',
-              style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-            ),
-            children: rows.skip(3).map(_alternative).toList(),
           ),
       ],
     );

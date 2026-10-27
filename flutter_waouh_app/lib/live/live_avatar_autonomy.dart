@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException;
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart';
@@ -33,15 +35,43 @@ const defaultAvatarAutonomy = <String, dynamic>{
   'no_match': 'ask',
   'agreement': 'confirm',
 };
+Future<dynamic> _invokeAvatarPrefs(
+  Map<String, dynamic> body, {
+  String? expectedOwner,
+}) async {
+  var session = legacy.supabase.auth.currentSession;
+  final owner = expectedOwner ?? session?.user.id;
+  if (session == null || owner == null || session.user.id != owner)
+    throw StateError('account_changed');
+  try {
+    return await legacy.supabase.functions.invoke(
+      'waouh-avatar-briefing',
+      headers: {'Authorization': 'Bearer ${session.accessToken}'},
+      body: body,
+    );
+  } on FunctionException catch (e) {
+    if (e.status != 401 || legacy.supabase.auth.currentUser?.id != owner)
+      rethrow;
+    final refreshed = await legacy.supabase.auth.refreshSession();
+    session = refreshed.session;
+    if (session == null ||
+        session.user.id != owner ||
+        legacy.supabase.auth.currentUser?.id != owner)
+      throw StateError('account_changed');
+    return legacy.supabase.functions.invoke(
+      'waouh-avatar-briefing',
+      headers: {'Authorization': 'Bearer ${session.accessToken}'},
+      body: body,
+    );
+  }
+}
+
 Future<Map<String, dynamic>> loadLiveAvatarAutonomy() async {
-  final response = await legacy.supabase.functions.invoke(
-    'waouh-avatar-briefing',
-    body: {'action': 'get_prefs'},
-  );
+  final response = await _invokeAvatarPrefs({'action': 'get_prefs'});
   final data = response.data;
   if (data is! Map || data['ok'] != true) throw StateError('rules_unavailable');
-  final prefs = data['prefs'];
-  final raw = prefs is Map ? prefs['autonomy_settings'] : null;
+  final prefs = data['prefs'],
+      raw = prefs is Map ? prefs['autonomy_settings'] : null;
   return {
     ...defaultAvatarAutonomy,
     if (raw is Map) ...Map<String, dynamic>.from(raw),
@@ -56,14 +86,10 @@ Future<Map<String, dynamic>> saveLiveAvatarAutonomy(
   if (session == null ||
       (expectedOwner != null && session.user.id != expectedOwner))
     throw StateError('account_changed');
-  final response = await legacy.supabase.functions.invoke(
-    'waouh-avatar-briefing',
-    headers: {'Authorization': 'Bearer ${session.accessToken}'},
-    body: {
-      'action': 'set_prefs',
-      'prefs': {'autonomy_settings': rules},
-    },
-  );
+  final response = await _invokeAvatarPrefs({
+    'action': 'set_prefs',
+    'prefs': {'autonomy_settings': rules},
+  }, expectedOwner: session.user.id);
   final data = response.data;
   if (data is! Map ||
       data['ok'] != true ||
@@ -158,6 +184,14 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
 
   Future<void> _load() async {
     final account = legacy.supabase.auth.currentUser?.id;
+    if (account == null) {
+      setState(() {
+        loading = false;
+        loadFailed = false;
+        error = null;
+      });
+      return;
+    }
     setState(() {
       loading = true;
       error = null;
@@ -631,7 +665,39 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
         ),
         automaticallyImplyLeading: false,
       ),
-      body: loading
+      body: _accountId == null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const BotCharacter(size: 64, animated: false),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Votre avatar vous accompagne.',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    const Text(
+                      'Connectez-vous pour enregistrer vos règles et suivre vos missions.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: avatarPremiumMuted),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: () =>
+                          context.push('/app/auth?next=%2Fapp%2Favatar'),
+                      child: const Text('Configurer mon avatar'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : loading
           ? const Center(child: CircularProgressIndicator())
           : loadFailed
           ? Center(
