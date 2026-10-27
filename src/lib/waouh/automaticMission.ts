@@ -7,7 +7,7 @@ const pending=new Map<string,Promise<AutomaticMission>>();
 /** Coalesce concurrent mounts; the server additionally deduplicates across devices. */
 export function followAutomaticSearch(owner:string,input:AutomaticSearch):Promise<AutomaticMission>{
  const key=JSON.stringify([owner,input]);const previous=pending.get(key);if(previous)return previous;
- const operation=invokeWaouhAgentic<AutomaticMission>('nexus.mandate.create',{...input,automatic_follow:true,origin_surface:'web_minimal_search'});
+ const operation=invokeWaouhAgentic<AutomaticMission>('nexus.mandate.create',{...input,automatic_follow:true,origin_surface:'web_minimal_search'},{expectedOwner:owner});
  pending.set(key,operation);void operation.finally(()=>{if(pending.get(key)===operation)pending.delete(key);}).catch(()=>{});return operation;
 }
 

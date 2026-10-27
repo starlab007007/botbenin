@@ -810,7 +810,15 @@ class LiveNexusService {
   Future<Map<String, dynamic>> _invoke(
     String action, [
     Map<String, dynamic> payload = const {},
+    String? expectedOwner,
   ]) async {
+    final boundSession = expectedOwner != null
+        ? client.auth.currentSession
+        : null;
+    if (expectedOwner != null && boundSession?.user.id != expectedOwner)
+      throw const NexusApiException(
+        'Votre compte a changé. Relancez l’action.',
+      );
     const publicActions = <String>{'nexus.global_discovery', 'nexus.sources'};
     if (client.auth.currentUser == null && !publicActions.contains(action)) {
       throw const NexusApiException(
@@ -820,6 +828,10 @@ class LiveNexusService {
     final response = await client.functions.invoke(
       _agenticFunction,
       body: <String, dynamic>{'action': action, 'payload': payload},
+      headers: {
+        if (boundSession != null)
+          'Authorization': 'Bearer ${boundSession.accessToken}',
+      },
     );
     final envelope = _map(response.data);
     if (envelope['ok'] != true) {
@@ -1122,6 +1134,7 @@ class LiveNexusService {
     double? budgetMax,
     String? articleId,
     String priority = 'price',
+    required String expectedOwner,
   }) => _invoke('nexus.mandate.create', {
     'automatic_follow': true,
     'goal': goal,
@@ -1131,7 +1144,7 @@ class LiveNexusService {
     if (articleId != null) 'article_id': articleId,
     'comparison_priority': priority,
     'origin_surface': 'flutter_minimal_search',
-  });
+  }, expectedOwner);
 
   Future<Map<String, dynamic>> createMandate({
     String? articleId,

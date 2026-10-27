@@ -49,10 +49,16 @@ Future<Map<String, dynamic>> loadLiveAvatarAutonomy() async {
 }
 
 Future<Map<String, dynamic>> saveLiveAvatarAutonomy(
-  Map<String, dynamic> rules,
-) async {
+  Map<String, dynamic> rules, {
+  String? expectedOwner,
+}) async {
+  final session = legacy.supabase.auth.currentSession;
+  if (session == null ||
+      (expectedOwner != null && session.user.id != expectedOwner))
+    throw StateError('account_changed');
   final response = await legacy.supabase.functions.invoke(
     'waouh-avatar-briefing',
+    headers: {'Authorization': 'Bearer ${session.accessToken}'},
     body: {
       'action': 'set_prefs',
       'prefs': {'autonomy_settings': rules},
@@ -196,7 +202,7 @@ class _LiveAvatarAutonomyScreenState extends State<LiveAvatarAutonomyScreen> {
     });
     _sheetState?.call(() {});
     try {
-      final next = await saveLiveAvatarAutonomy(value);
+      final next = await saveLiveAvatarAutonomy(value, expectedOwner: account);
       if (!mounted || account != legacy.supabase.auth.currentUser?.id)
         return false;
       setState(() {

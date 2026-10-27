@@ -289,6 +289,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         budgetMax: _lastBudget,
         priority: _priority,
         articleId: _articleId,
+        expectedOwner: account,
       );
       if (!mounted ||
           version != _searchVersion ||
