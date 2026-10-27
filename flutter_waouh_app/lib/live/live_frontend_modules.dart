@@ -10,7 +10,9 @@ export 'live_module_catalog.dart';
 String? moduleForPath(String value) {
   final path =
       Uri.tryParse(value)?.path.replaceFirst(RegExp(r'/$'), '') ?? value;
-  final normalized = path.isEmpty ? '/' : path;
+  final normalized = path.isEmpty
+      ? '/'
+      : Uri.decodeComponent(path).toLowerCase();
   final candidates = <Map<String, String>>[
     for (final row in moduleCatalog)
       for (final p in row['paths'] as List)

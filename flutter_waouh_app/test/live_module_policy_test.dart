@@ -17,6 +17,7 @@ void main() {
       }
     }
     expect(moduleForPath('/app/agents/bi/123'), 'bi');
+    expect(moduleForPath('/APP/AGENTS%2FBI/123'), 'bi');
     expect(moduleForPath('/admin/modules'), isNull);
     expect(moduleForPath('/app/profile'), isNull);
     expect(moduleForPath('/app/partner/payments/1'), 'paiements');

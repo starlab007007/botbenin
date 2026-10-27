@@ -2,7 +2,7 @@ import catalog from './waouh-module-catalog.json' with {type:'json'};
 export {catalog as moduleCatalog};
 export type ModulePermission={module_key:string;visible:boolean;access_enabled:boolean;automation_enabled:boolean};
 export function moduleForPath(value:string):string|null{
- let path:string;try{path=new URL(value,'https://waouh.local').pathname.replace(/\/$/,'')||'/';}catch{return null;}
+ let path:string;try{path=decodeURIComponent(new URL(value,'https://waouh.local').pathname).toLowerCase().replace(/\/$/,'')||'/';}catch{return null;}
  const candidates=catalog.flatMap(m=>m.paths.map(p=>({key:m.key,path:p}))).sort((a,b)=>b.path.length-a.path.length);
  return candidates.find(m=>path===m.path||(m.path!=='/'&&path.startsWith(m.path+'/')))?.key??null;
 }
