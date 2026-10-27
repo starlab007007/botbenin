@@ -22,6 +22,7 @@ class LiveAutomaticOffers extends StatefulWidget {
     this.tracking,
     this.actionBusy = false,
     this.onPriorityChanged,
+    this.manualChoice = false,
   });
   final ValueChanged<String>? onPriorityChanged;
   final List<NexusDiscoveryItem> items;
@@ -29,6 +30,7 @@ class LiveAutomaticOffers extends StatefulWidget {
   final double? budget;
   final String? tracking;
   final bool actionBusy;
+  final bool manualChoice;
   final VoidCallback onAction;
   final ValueChanged<NexusDiscoveryItem> onContact, onDelegate, onFollow;
   @override
@@ -560,7 +562,11 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
               borderRadius: BorderRadius.circular(15),
             ),
           ),
-          onPressed: widget.actionBusy ? null : widget.onAction,
+          onPressed: widget.actionBusy
+              ? null
+              : widget.manualChoice
+              ? () => _detail(item)
+              : widget.onAction,
           child: Text(
             widget.actionLabel,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),

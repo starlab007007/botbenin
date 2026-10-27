@@ -24,4 +24,10 @@ describe('Minimal automatic result presentation',()=>{
   await act(async()=>root.render(<WaouhAutomaticOffers results={[row('wrong',120000,'iPhone 18')]} criteria={{query:'iPhone 13'}} actionLabel="Suivre Bot" onAction={()=>{}} renderActions={()=>null}/>));
   expect(host.querySelector('.wmn-offer')).toBeNull();expect(host.textContent).toContain('Aucune offre compatible');
  });
+ it('opens the chosen offer for an assisted decision without starting automatic actions',async()=>{
+  const action=vi.fn();await act(async()=>root.render(<WaouhAutomaticOffers results={[row('chosen',180000)]} criteria={{query:'iPhone 13'}} manualChoice actionLabel="Choisir cette piste" onAction={action} renderActions={()=> <span>Actions à confirmer</span>}/>));
+  await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Choisir cette piste')!.click());
+  expect(action).not.toHaveBeenCalled();expect(document.querySelector('[role=dialog]')?.textContent).toContain('Actions à confirmer');
+ });
+
 });

@@ -366,7 +366,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       await requireLiveAuthentication(
         context,
         next:
-            '/app/nexus?${Uri(queryParameters: {'q': _lastGoal, 'go': '1', 'mode': findSellers ? 'find_sellers' : 'find_buyers'}).query}',
+            '/app/nexus?${Uri(queryParameters: {'q': _lastGoal, 'go': '1', 'mode': findSellers ? 'find_sellers' : 'find_buyers', 'kind': _kind, if (_lastCity.isNotEmpty) 'city': _lastCity, if (_lastBudget != null) 'budget': '${_lastBudget!.round()}'}).query}',
         actionLabel: 'suivre cette recherche',
       );
       return;
@@ -1166,6 +1166,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             actionLabel: _automaticLabel,
             tracking: _tracking,
             actionBusy: busy || _automaticBusy,
+            manualChoice: _automatic?['skipped'] == 'approval_required',
             onAction: _automaticAction,
             onContact: prepareContact,
             onDelegate: _delegateOne,
