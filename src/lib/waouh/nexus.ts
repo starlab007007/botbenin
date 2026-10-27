@@ -1,3 +1,4 @@
+import type {MissionKind,MissionContext} from '../../../supabase/functions/_shared/waouh-mission-domain';
 import { supabase } from "@/integrations/supabase/client";
 import { invokeWaouhAgentic } from "./agenticClient";
 
@@ -454,6 +455,7 @@ export async function globalNexusDiscovery(input: {
   refresh_external?: boolean;
   all_sources?: boolean;
   smart?: boolean;
+  discovery_kind?:MissionKind;mission_context?:MissionContext;
 }) {
   return invokeWaouhAgentic<{
     requested_mode?: NexusDiscoveryMode;
@@ -575,6 +577,7 @@ export async function startNexusOpportunity(
   fabricId: string,
   mode: "buy" | "sell" | "ask" = "buy",
   mandateId?: string,
+  options: {expectedOwner?:string} = {},
 ) {
   return invokeWaouhAgentic<{
     journey: NexusOpportunityJourney;
@@ -585,7 +588,7 @@ export async function startNexusOpportunity(
     readiness_level?: NexusReadinessLevel;
     actionability_score?: number;
     next_best_action?: NexusNextBestAction;
-  }>("nexus.opportunity.start", { fabric_id: fabricId, mode, ...(mandateId ? { mandate_id: mandateId } : {}) });
+  }>("nexus.opportunity.start", { fabric_id: fabricId, mode, ...(mandateId ? { mandate_id: mandateId } : {}) }, options);
 }
 
 export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy", journeyId?: string) {
@@ -685,6 +688,7 @@ export async function listNexusOwnedArticles() {
 }
 
 export async function createNexusMandate(payload: {
+  discovery_kind?:MissionKind;mission_context?:MissionContext;
   article_id?: string;
   price_floor?: number;
   photos?: string[]; article_notes?: string;
@@ -708,13 +712,13 @@ export async function createNexusMandate(payload: {
   allow_email?: boolean;
   allow_sms_rcs?: boolean;
   origin_surface?: string;
-}) {
+}, options: {expectedOwner?:string} = {}) {
   return invokeWaouhAgentic<{
     mandate: NexusAvatarMandate;
     intent: NexusPersistentIntent;
     results: NexusDiscoveryResult[];
     actionable_count: number;
-  }>("nexus.mandate.create", payload);
+  }>("nexus.mandate.create", payload, options);
 }
 
 export async function listNexusMandates() {

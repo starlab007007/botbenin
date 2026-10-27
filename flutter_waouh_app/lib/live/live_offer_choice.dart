@@ -1,3 +1,4 @@
+import 'live_mission_domain.dart';
 import 'live_nexus_service.dart';
 import 'live_essential_offer_data.dart';
 
@@ -71,7 +72,25 @@ bool choiceMatches(
   String city = '',
   double? budget,
   String mode = 'buy',
+  String missionKind = '',
+  double? maxDays,
+  double? requiredPages,
+  double? quantity,
+  String unit = '',
+  double? priceFloor,
+  DateTime? now,
 }) {
+  if (!missionMatches(
+    o,
+    kind: missionKind,
+    maxDays: maxDays,
+    requiredPages: requiredPages,
+    quantity: quantity,
+    unit: unit,
+    priceFloor: priceFloor,
+    now: now,
+  ))
+    return false;
   final q = choiceNormalize(query),
       zone = choiceNormalize(city),
       e = o.evidence;
@@ -116,15 +135,28 @@ bool choiceMatches(
       ).hasMatch(choiceNormalize([o.title, e['condition']].join(' '))))
     return false;
   if (e['availability'] == 'unavailable' ||
-      e['in_stock'] == false ||
-      e['status'] == 'sold')
+      ((missionKind.isEmpty || ['purchase', 'sale'].contains(missionKind)) &&
+          (e['in_stock'] == false || e['status'] == 'sold')))
     return false;
   if (zone.isNotEmpty &&
       choiceNormalize(o.city).isNotEmpty &&
-      choiceNormalize(o.city) != zone)
+      choiceNormalize(o.city) != zone &&
+      !(missionKind == 'opportunity' &&
+          [
+            'benin',
+            'national',
+            'en ligne',
+          ].contains(choiceNormalize(o.city))) &&
+      !(missionKind == 'project' && o.evidence['remote'] == true))
     return false;
-  if (o.currency.isNotEmpty && o.currency != 'XOF') return false;
-  if (mode != 'sell' && budget != null && budget > 0) {
+  if (missionKind != 'opportunity' &&
+      o.currency.isNotEmpty &&
+      o.currency != 'XOF')
+    return false;
+  if (missionKind != 'opportunity' &&
+      mode != 'sell' &&
+      budget != null &&
+      budget > 0) {
     if (o.priceMin != null && o.priceMin! > budget ||
         o.priceMax != null && o.priceMax! > budget)
       return false;
@@ -141,6 +173,13 @@ List<NexusDiscoveryItem> rankLiveOfferChoices(
   double? budget,
   String mode = 'buy',
   String priority = 'price',
+  String missionKind = '',
+  double? maxDays,
+  double? requiredPages,
+  double? quantity,
+  String unit = '',
+  double? priceFloor,
+  DateTime? now,
 }) {
   final seen = <String>{};
   final rows = offers
@@ -154,13 +193,22 @@ List<NexusDiscoveryItem> rankLiveOfferChoices(
               city: city,
               budget: budget,
               mode: mode,
+              missionKind: missionKind,
+              maxDays: maxDays,
+              requiredPages: requiredPages,
+              quantity: quantity,
+              unit: unit,
+              priceFloor: priceFloor,
+              now: now,
             ),
       )
       .toList();
   final eligible = List<NexusDiscoveryItem>.of(rows);
-  if (mode != 'sell')
+  if (mode != 'sell' && (missionKind.isEmpty || missionKind == 'purchase'))
     rows.removeWhere((o) => choicePriceNeedsReview(o, eligible));
   rows.sort((a, b) {
+    final domainOrder = compareMissionOffers(a, b, kind: missionKind);
+    if (domainOrder != null) return domainOrder;
     final ap = choicePrice(a), bp = choicePrice(b);
     final available =
         (choiceAvailable(b) ? 1 : 0) - (choiceAvailable(a) ? 1 : 0);

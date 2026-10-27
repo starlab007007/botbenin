@@ -128,6 +128,8 @@ String liveAutomaticMissionMessage(Map<String, dynamic> mandate) {
     return 'Le suivi de cette mission est en pause.';
   if (!liveAutonomyWindowOpen(mandate)) return 'Bot reprendra à l’ouverture.';
   final meta = mandate['metadata'];
+  if (meta is Map && meta['discovery_kind'] == 'opportunity')
+    return 'Votre avatar surveille les publications et les échéances. Toute candidature reste à valider.';
   if (meta is Map &&
       meta['autonomy_settings'] is Map &&
       (meta['autonomy_settings'] as Map)['allow_contact'] != true)

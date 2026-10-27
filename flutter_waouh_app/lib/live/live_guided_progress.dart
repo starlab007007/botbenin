@@ -1,3 +1,4 @@
+import 'live_mission_copy.dart';
 import 'package:flutter/material.dart';
 import 'avatar/bot_character.dart';
 import 'live_avatar_autonomy.dart';
@@ -9,18 +10,20 @@ class LiveGuidedProgress extends StatelessWidget {
     required this.count,
     required this.onActivity,
     this.refreshing = false,
+    this.missionKind = 'purchase',
   });
-  final String phase;
+  final String phase, missionKind;
   final int count;
   final bool refreshing;
   final VoidCallback onActivity;
   @override
   Widget build(BuildContext context) {
+    final copy = missionCopy[missionKind] ?? missionCopy['purchase']!;
     final interrupted = ['partial', 'paused', 'error'].contains(phase),
         ready = phase == 'ready',
         current = phase == 'understanding' ? 0 : 1;
     final message = phase == 'understanding'
-        ? 'Je précise votre besoin et vos limites.'
+        ? '${copy['intro']}'
         : phase == 'collecting'
         ? refreshing
               ? 'J’ai reçu les premières pistes. Je poursuis la recherche.'
@@ -32,18 +35,13 @@ class LiveGuidedProgress extends StatelessWidget {
         : phase == 'error'
         ? 'Je n’ai pas pu terminer. Vous pouvez relancer la recherche.'
         : 'Ma sélection est prête. Je vous explique mes choix.';
-    final labels = [
-      ('Votre besoin est compris', 'Vos critères guident ma recherche.'),
-      (
-        'J’explore les offres',
-        count > 0
-            ? '$count pistes reçues.'
-            : 'Je recueille les premières pistes.',
-      ),
-      ('J’écarte les écarts', 'Doublons et critères incompatibles.'),
-      ('Je compare les offres', 'Prix, conditions et informations manquantes.'),
-      ('Je prépare ma sélection', 'Un choix expliqué et ses alternatives.'),
-    ];
+    final labels = (copy['steps'] as List).asMap().entries.map((entry) {
+      final row = entry.value as List;
+      return (
+        '${row[0]}',
+        entry.key == 1 && count > 0 ? '$count pistes reçues.' : '${row[1]}',
+      );
+    }).toList();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(

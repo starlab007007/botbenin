@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'live_mission_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'avatar/bot_character.dart';
@@ -24,11 +26,16 @@ class LiveAutomaticOffers extends StatefulWidget {
     this.actionBusy = false,
     this.onPriorityChanged,
     this.manualChoice = false,
+    this.missionKind = 'purchase',
+    this.missionContext,
+    this.ownArticle,
   });
   final ValueChanged<String>? onPriorityChanged;
   final List<NexusDiscoveryItem> items;
   final String query, city, mode, actionLabel;
   final double? budget;
+  final String missionKind;
+  final Map<String, dynamic>? missionContext, ownArticle;
   final String? tracking;
   final bool actionBusy, manualChoice;
   final VoidCallback onAction;
@@ -39,6 +46,35 @@ class LiveAutomaticOffers extends StatefulWidget {
 
 class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
   String _priority = 'price';
+  Timer? _clockTimer;
+  DateTime _clock = DateTime.now();
+  Map<String, dynamic> get contextRules => normalizeMissionContext(
+    widget.missionContext,
+    widget.missionKind,
+    query: widget.query,
+  );
+  double? contextNumber(String key) => (contextRules[key] as num?)?.toDouble();
+  @override
+  void initState() {
+    super.initState();
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted && widget.missionKind == 'opportunity')
+        setState(() => _clock = DateTime.now());
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveAutomaticOffers oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.missionKind != widget.missionKind) _clock = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
   List<NexusDiscoveryItem> get ranked => rankLiveOfferChoices(
     widget.items,
     query: widget.query,
@@ -46,12 +82,21 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     budget: widget.budget,
     mode: widget.mode,
     priority: _priority,
+    missionKind: widget.missionKind,
+    maxDays: contextNumber('max_days'),
+    requiredPages: contextNumber('required_pages'),
+    quantity: contextNumber('quantity'),
+    unit: '${contextRules['unit'] ?? ''}',
+    priceFloor: contextNumber('price_floor'),
+    now: _clock,
   );
   String money(double n) =>
       '${n.round().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]} ')} F CFA';
   String text(NexusDiscoveryItem o, String key) =>
       o.evidence[key] is String ? (o.evidence[key] as String).trim() : '';
   String totalLine(NexusDiscoveryItem o) {
+    if (widget.missionKind != 'purchase')
+      return missionOfferView(o, widget.missionKind)['line']!;
     if (widget.mode == 'sell') return 'Budget annoncé · quantité à préciser';
     final c = choiceCost(o);
     return c.total != null
@@ -61,7 +106,9 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
         : 'Frais et prix final à préciser';
   }
 
-  String tag(NexusDiscoveryItem o) => widget.mode == 'sell'
+  String tag(NexusDiscoveryItem o) => widget.missionKind != 'purchase'
+      ? missionOfferView(o, widget.missionKind)['tag']!
+      : widget.mode == 'sell'
       ? 'Demande à qualifier'
       : choicePriceConfirmed(o) && choiceAvailabilityConfirmed(o)
       ? 'Prix et disponibilité confirmés'
@@ -146,7 +193,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '${essentialPrice(o)} · ${o.city ?? 'Zone à confirmer'}',
+                        '${missionOfferView(o, widget.missionKind)['value']} · ${o.city ?? 'Zone à confirmer'}',
                         style: const TextStyle(fontSize: 13),
                       ),
                       const SizedBox(height: 5),
@@ -159,7 +206,9 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '${choicePriceConfirmed(o) ? 'Prix confirmé' : 'Prix annoncé'} · ${choiceAvailabilityConfirmed(o) ? 'Disponibilité confirmée' : 'Stock à confirmer'}',
+                        widget.missionKind == 'purchase'
+                            ? '${choicePriceConfirmed(o) ? 'Prix confirmé' : 'Prix annoncé'} · ${choiceAvailabilityConfirmed(o) ? 'Disponibilité confirmée' : 'Stock à confirmer'}'
+                            : missionOfferView(o, widget.missionKind)['meta']!,
                         style: const TextStyle(
                           fontSize: 12,
                           color: avatarPremiumMuted,
@@ -173,38 +222,41 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 'Le classement utilise les informations reçues. Un prix, une unité ou des frais manquants restent à confirmer.',
                 style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
               ),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text(
-                  'Adapter ma priorité',
-                  style: TextStyle(fontSize: 13),
-                ),
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: _priority,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Ma priorité'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'price',
-                        child: Text('Le coût et les conditions'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'availability',
-                        child: Text('La disponibilité'),
-                      ),
-                    ],
-                    onChanged: widget.actionBusy
-                        ? null
-                        : (v) {
-                            if (v == null || !mounted) return;
-                            setState(() => _priority = v);
-                            widget.onPriorityChanged?.call(v);
-                            update(() {});
-                          },
+              if (widget.missionKind == 'purchase')
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Adapter ma priorité',
+                    style: TextStyle(fontSize: 13),
                   ),
-                ],
-              ),
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _priority,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Ma priorité',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'price',
+                          child: Text('Le coût et les conditions'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'availability',
+                          child: Text('La disponibilité'),
+                        ),
+                      ],
+                      onChanged: widget.actionBusy
+                          ? null
+                          : (v) {
+                              if (v == null || !mounted) return;
+                              setState(() => _priority = v);
+                              widget.onPriorityChanged?.call(v);
+                              update(() {});
+                            },
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -258,7 +310,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
       reason =
           'Cette demande se rapproche de votre article. Le budget annoncé ne constitue pas encore une offre ferme.';
     }
-    final advantages = <String>[
+    var advantages = <String>[
       if (widget.city.isNotEmpty && o.city != null)
         'Localisation annoncée : ${o.city}.',
       if (cost.total != null &&
@@ -268,7 +320,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
       if (text(o, 'warranty').isNotEmpty)
         'Garantie annoncée : ${text(o, 'warranty')}.',
     ];
-    final pending = widget.mode == 'sell'
+    var pending = widget.mode == 'sell'
         ? <String>[
             'Quantité, budget et modalités à confirmer.',
             'Intérêt pour votre article à vérifier avant tout accord.',
@@ -285,6 +337,18 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 ? 'Validité et conditions de participation à vérifier.'
                 : 'État réel et garantie écrite à vérifier.',
           ];
+    if (widget.missionKind != 'purchase') {
+      final d = domainOfferDecision(
+        o,
+        rows,
+        widget.missionKind,
+        priceFloor: contextNumber('price_floor'),
+      );
+      verdict = d.verdict;
+      reason = d.reason;
+      advantages = d.advantages;
+      pending = d.pending;
+    }
     final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -305,12 +369,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 ),
               ),
               LayoutBuilder(
-                builder: (ctx, c) => LiveEssentialPhoto(
-                  item: o,
-                  width: c.maxWidth,
-                  height: 300,
-                  large: true,
-                ),
+                builder: (ctx, c) => _media(o, c.maxWidth, 300, detail: true),
               ),
               Padding(
                 padding: const EdgeInsets.all(18),
@@ -327,10 +386,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      [
-                        text(o, 'condition'),
-                        o.city ?? 'Zone à confirmer',
-                      ].where((s) => s.isNotEmpty).join(' · '),
+                      missionOfferView(o, widget.missionKind)['meta']!,
                       style: const TextStyle(
                         fontSize: 13,
                         color: avatarPremiumMuted,
@@ -338,7 +394,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      essentialPrice(o),
+                      missionOfferView(o, widget.missionKind)['value']!,
                       style: const TextStyle(
                         fontSize: 31,
                         fontWeight: FontWeight.w500,
@@ -385,7 +441,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                     const SizedBox(height: 5),
                     Text(
                       widget.tracking ??
-                          'Je propose de vérifier les informations manquantes, selon vos autorisations.',
+                          '${missionCopy[widget.missionKind]!['next']}',
                       style: const TextStyle(
                         fontSize: 13,
                         color: avatarPremiumMuted,
@@ -397,7 +453,8 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
                     ),
                     const SizedBox(height: 15),
-                    if (!widget.manualChoice)
+                    if (!widget.manualChoice ||
+                        widget.missionKind == 'opportunity')
                       primary(onTap: () => Navigator.pop(ctx, 'follow')),
                     ExpansionTile(
                       tilePadding: EdgeInsets.zero,
@@ -446,28 +503,31 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      initiallyExpanded: widget.manualChoice,
-                      title: const Text(
-                        'Agir sur cette piste',
-                        style: TextStyle(fontSize: 13),
+                    if (widget.missionKind != 'opportunity')
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        initiallyExpanded: widget.manualChoice,
+                        title: const Text(
+                          'Agir sur cette piste',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, 'delegate'),
+                            child: const Text(
+                              'Confier cette piste à mon avatar',
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, 'contact'),
+                            child: const Text('Préparer un contact'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, 'watch'),
+                            child: const Text('Surveiller cette piste'),
+                          ),
+                        ],
                       ),
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, 'delegate'),
-                          child: const Text('Confier cette piste à mon avatar'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, 'contact'),
-                          child: const Text('Préparer un contact'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, 'watch'),
-                          child: const Text('Surveiller cette piste'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -504,6 +564,69 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
       ],
     ),
   );
+  Widget _media(
+    NexusDiscoveryItem o,
+    double width,
+    double height, {
+    bool detail = false,
+  }) {
+    if (widget.missionKind == 'purchase' ||
+        (o.photoUrls.isNotEmpty && widget.missionKind != 'sale'))
+      return LiveEssentialPhoto(
+        item: o,
+        width: width,
+        height: height,
+        large: true,
+      );
+    final view = missionOfferView(o, widget.missionKind),
+        icon = widget.missionKind == 'opportunity'
+            ? Icons.folder_open_outlined
+            : widget.missionKind == 'service'
+            ? Icons.build_outlined
+            : widget.missionKind == 'project'
+            ? Icons.web_outlined
+            : Icons.person_search_outlined;
+    return Container(
+      width: width,
+      height: detail ? 235 : height,
+      padding: EdgeInsets.all(detail ? 24 : 13),
+      color: const Color(0xFFEDF1FF),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            view['coverType']!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: avatarPremiumMuted),
+          ),
+          const SizedBox(height: 15),
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 23, color: avatarPremiumBlue),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            view['cover']!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: detail ? 27 : 17,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _tile(NexusDiscoveryItem o, bool first, bool tall) => Material(
     color: Colors.white,
     borderRadius: BorderRadius.circular(17),
@@ -516,12 +639,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
           LayoutBuilder(
             builder: (ctx, c) => Stack(
               children: [
-                LiveEssentialPhoto(
-                  item: o,
-                  width: c.maxWidth,
-                  height: tall ? 205 : 180,
-                  large: true,
-                ),
+                _media(o, c.maxWidth, tall ? 205 : 180),
                 if (first)
                   Positioned(
                     top: 10,
@@ -576,9 +694,10 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  o.currency == 'XOF'
-                      ? essentialPrice(o).replaceAll('F CFA', 'F')
-                      : essentialPrice(o),
+                  (missionOfferView(
+                    o,
+                    widget.missionKind,
+                  )['value']!).replaceAll('F CFA', 'F'),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w500,
@@ -619,24 +738,78 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 city: widget.city,
                 budget: widget.budget,
                 mode: widget.mode,
+                missionKind: widget.missionKind,
+                maxDays: contextNumber('max_days'),
+                requiredPages: contextNumber('required_pages'),
+                quantity: contextNumber('quantity'),
+                unit: '${contextRules['unit'] ?? ''}',
+                priceFloor: contextNumber('price_floor'),
+                now: _clock,
               ),
             )
             .toList(),
-        review = (widget.mode == 'sell' ? <NexusDiscoveryItem>[] : eligible)
-            .where((o) => choicePriceNeedsReview(o, eligible))
-            .toList(),
+        review =
+            (widget.mode == 'sell' || widget.missionKind != 'purchase'
+                    ? <NexusDiscoveryItem>[]
+                    : eligible)
+                .where((o) => choicePriceNeedsReview(o, eligible))
+                .toList(),
         shown = rows.take(4).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         guide(
           rows.isNotEmpty
-              ? 'J’ai comparé les pistes reçues. J’en retiens ${shown.length} et vous explique mon premier choix.'
+              ? '${missionCopy[widget.missionKind]!['summary']}'.replaceAll(
+                  '{count}',
+                  '${shown.length}',
+                )
               : review.isNotEmpty
               ? 'Les prix de ces pistes demandent une clarification. Je les garde à part.'
               : 'Aucune piste ne répond aux critères renseignés pour le moment.',
         ),
         const SizedBox(height: 20),
+        if (widget.missionKind == 'sale' && widget.ownArticle != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: avatarPremiumBlue,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${widget.ownArticle!['title'] ?? 'Mon article'}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        contextNumber('price_floor') != null
+                            ? 'Plancher : ${money(contextNumber('price_floor')!)}'
+                            : 'Prix plancher à définir',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: avatarPremiumMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (rows.isNotEmpty) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,15 +818,15 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Les offres retenues',
-                      style: TextStyle(
+                    Text(
+                      '${missionCopy[widget.missionKind]!['heading']}',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
-                      '${rows.length} compatibles sur ${essentialUnique(widget.items).length} reçues · classement provisoire',
+                      '${rows.length} pistes retenues sur ${essentialUnique(widget.items).length} reçues · classement provisoire',
                       style: const TextStyle(
                         fontSize: 11,
                         color: avatarPremiumMuted,

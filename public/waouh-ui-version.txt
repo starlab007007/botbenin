@@ -1,8 +1,8 @@
-2026.10.27.2
+2026.10.27.3
 ui=essentiel-v1+convergence-v1+fiches-eclairees-v1+opportunity-os-v1+signal-fabric-admin+responsive-premium+avatar-mission-e2e+bot-onboarding+quick-ask
 chat=bot-copilot-v2+focus-premium+compact-header+scrollable-context
-flutter=18.36.0+1793083809
+flutter=18.37.0+1793097261
 backend=convergence-v1+opportunity-os-v1+contact-pack+channel-router+conversation-bus
 
 avatar=premium-live-autonomy-18.34.0
-discovery=avatar-guided-comparison-18.36.0
+discovery=avatar-guided-business-missions-18.37.0

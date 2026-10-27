@@ -30,6 +30,18 @@ void main() {
           budget: (criteria['budget'] as num?)?.toDouble(),
           mode: '${criteria['mode'] ?? 'buy'}',
           priority: '${criteria['priority'] ?? 'price'}',
+          missionKind: '${criteria['missionKind'] ?? ''}',
+          maxDays: (criteria['maxDays'] as num?)?.toDouble(),
+          requiredPages: (criteria['requiredPages'] as num?)?.toDouble(),
+          quantity: (criteria['quantity'] as num?)?.toDouble(),
+          unit: '${criteria['unit'] ?? ''}',
+          priceFloor: (criteria['priceFloor'] as num?)?.toDouble(),
+          now: criteria['now'] is num
+              ? DateTime.fromMillisecondsSinceEpoch(
+                  (criteria['now'] as num).toInt(),
+                  isUtc: true,
+                )
+              : null,
         ).map((r) => r.fabricId).toList(),
         c['expected'],
       );

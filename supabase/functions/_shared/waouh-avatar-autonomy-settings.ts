@@ -40,6 +40,7 @@ export function autonomyWindowOpen(mandate:{metadata?:Record<string,unknown>},no
   return clock>=r.active_start&&clock<r.active_end;
 }
 export function autonomyContactAllowed(mandate:{autonomy_mode?:string;metadata?:Record<string,unknown>},now=new Date()):boolean {
+  if(mandate.metadata?.discovery_kind==='opportunity')return false;
   if(!mandate.metadata?.autonomy_settings)return true;
   const r=normalizeAvatarAutonomy(mandate.metadata.autonomy_settings);
   return r.allow_contact&&r.mode!=='assisted'&&autonomyWindowOpen(mandate,now);

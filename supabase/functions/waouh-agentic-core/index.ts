@@ -1,3 +1,4 @@
+import {MISSION_KINDS,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
 import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
@@ -1296,6 +1297,8 @@ async function globalDiscoverySearch(
     budgetMax?: number | null;
     limit: number;
     publicRead?: boolean;
+    missionKind?: MissionKind;
+    missionContext?: ReturnType<typeof normalizeMissionContext>;
   },
 ) {
   const desired = input.mode === "find_sellers" ? ["SELL","ANNOUNCE"] : ["BUY","RFQ"];
@@ -1307,7 +1310,7 @@ async function globalDiscoverySearch(
   const [recentRows, targetRows] = await Promise.all([recent, targeted]);
   if (recentRows.error || targetRows.error) throw new ApiError(500, "nexus_global_discovery_failed", (recentRows.error || targetRows.error)!.message);
   const data = [...new Map([...(targetRows.data || []), ...(recentRows.data || [])].map(row => [row.fabric_id, row])).values()];
-  const preRanked = (data ?? []).filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
+  const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind})).filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,
@@ -2466,7 +2469,9 @@ Retourne uniquement JSON:
         const allSources = bool(payload.all_sources, false);
         const smart = !publicRead && bool(payload.smart, true);
 
-        const forcedMode: DiscoveryMode | null = requestedMode === "auto" ? null : requestedMode;
+        const discoveryKind=payload.discovery_kind===undefined?undefined:pickEnum(payload.discovery_kind,'discovery_kind',MISSION_KINDS,'purchase');
+        const missionContext=discoveryKind?normalizeMissionContext(payload.mission_context,discoveryKind,queryText):undefined;
+        const forcedMode: DiscoveryMode | null = discoveryKind?(discoveryKind==='sale'?'find_buyers':'find_sellers'):requestedMode === "auto" ? null : requestedMode;
         const intelligence = (!publicRead && (smart || requestedMode === "auto"))
           ? await planNexusGoal(queryText, {
               mode: forcedMode,
@@ -2489,7 +2494,7 @@ Retourne uniquement JSON:
         const mode: DiscoveryMode = forcedMode ?? intelligence.mode;
         const semanticQuery = intelligence.normalized_query || queryText;
         const city = suppliedCity ?? intelligence.city ?? null;
-        const budgetMax = mode === "find_sellers"
+        const budgetMax = discoveryKind!=='opportunity'&&mode === "find_sellers"
           ? (suppliedBudgetMax ?? intelligence.budget_max ?? null)
           : null;
 
@@ -2521,6 +2526,7 @@ Retourne uniquement JSON:
           budgetMax,
           limit,
           publicRead,
+          missionKind:discoveryKind,missionContext,
         });
         const sourceMix = results.reduce((acc: Record<string, number>, row: any) => {
           const key = String(row.source_key ?? "unknown");
@@ -2612,7 +2618,7 @@ Retourne uniquement JSON:
         const storedRules=automatic?(avatarPrefs?.autonomy_settings??{}):(payload.autonomy_settings??avatarPrefs?.autonomy_settings);
         const autonomyRules=storedRules?normalizeAvatarAutonomy(storedRules):null;
         if(autonomyRules){const err=avatarAutonomyError(autonomyRules);if(err)throw new ApiError(422,'invalid_avatar_rules',err);}
-        if(automatic&&(autonomyRules?.paused||autonomyRules?.mode!=='autonomous'))return jsonResponse({ok:true,data:{mandate:null,skipped:autonomyRules?.paused?'paused':'approval_required'}});
+        if(automatic&&(autonomyRules?.paused||(autonomyRules?.mode!=='autonomous'&&!(payload.discovery_kind==='opportunity'&&payload.confirmed_watch===true))))return jsonResponse({ok:true,data:{mandate:null,skipped:autonomyRules?.paused?'paused':'approval_required'}});
         const startsAt=autonomyRules?autonomyStartsAt(autonomyRules):new Date();
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
@@ -2622,9 +2628,13 @@ Retourne uniquement JSON:
           "semi_autonomous",
         );
         const goal = asString(payload.goal, "goal", 3, 2000);
+        const discoveryKind=payload.discovery_kind===undefined?undefined:pickEnum(payload.discovery_kind,'discovery_kind',MISSION_KINDS,mode==='sell'?'sale':'purchase');
+        if(discoveryKind&&((discoveryKind==='sale')!==(mode==='sell')))throw new ApiError(422,'mission_mode_mismatch');
+        const context=discoveryKind?normalizeMissionContext(payload.mission_context,discoveryKind,goal,discoveryKind==='sale'?autonomyRules?.price_floor:undefined):null;
+        const watchOnly=discoveryKind==='opportunity';
         const city = optionalString(payload.city??autonomyRules?.city, "city", 120);
         const requestedBudget = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
-        const budgetMax=automatic&&requestedBudget&&autonomyRules?.budget_max?Math.min(requestedBudget,autonomyRules.budget_max):requestedBudget;
+        const budgetMax=watchOnly?null:automatic&&requestedBudget&&autonomyRules?.budget_max?Math.min(requestedBudget,autonomyRules.budget_max):requestedBudget;
         const maxContacts = Math.min(integer(payload.max_contacts??autonomyRules?.max_contacts, "max_contacts", 3, 1, 20),autonomyRules?.max_contacts??20);
         const maxFollowups = Math.min(integer(payload.max_followups??autonomyRules?.max_followups, "max_followups", 1, 0, 5),autonomyRules?.max_followups??5);
         const durationHours = Math.min(integer(payload.duration_hours??autonomyRules?.duration_hours, "duration_hours", 72, 1, 720),autonomyRules?.duration_hours??720);
@@ -2635,13 +2645,15 @@ Retourne uniquement JSON:
         const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
         if(automatic&&mode==="sell"&&!mandateArticleId)return jsonResponse({ok:true,data:{mandate:null,skipped:"article_required"}});
         if (mode === "sell" && !mandateArticleId) throw new ApiError(422, "sell_article_required", "Sélectionnez l’article à vendre avant de confier la mission.");
+        let saleArticle:any=null;
         if (mandateArticleId) {
           if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
-          await ownedArticle(sb, ownerId, mandateArticleId);
+          saleArticle=await ownedArticle(sb, ownerId, mandateArticleId);
+          if(saleArticle.status!=='active')throw new ApiError(422,'sell_article_inactive');
         }
 
-        const automaticIntentValues=(m:any)=>({owner_id:ownerId,mandate_id:m.id,mode:mode==='sell'?'find_buyers':'find_sellers',query_text:goal,city,budget_max:budgetMax,min_match_score:minMatchScore,min_actionability_score:minActionabilityScore,scan_interval_minutes:autonomyRules?.scan_interval_minutes??60,status:'active',next_scan_at:new Date().toISOString(),expires_at:m.expires_at,metadata:{autonomy_mode:autonomyMode,article_id:mandateArticleId}});
-        if(automatic)requestKey=await automaticMissionKey(ownerId,{goal,mode,city,budget:budgetMax,article:mandateArticleId});
+        const automaticIntentValues=(m:any)=>({owner_id:ownerId,mandate_id:m.id,mode:mode==='sell'?'find_buyers':'find_sellers',query_text:goal,city,budget_max:budgetMax,min_match_score:minMatchScore,min_actionability_score:minActionabilityScore,scan_interval_minutes:autonomyRules?.scan_interval_minutes??60,status:'active',next_scan_at:new Date().toISOString(),expires_at:m.expires_at,metadata:{autonomy_mode:autonomyMode,article_id:mandateArticleId,...(context?{discovery_kind:discoveryKind,mission_context:context}:{})}});
+        if(automatic)requestKey=await automaticMissionKey(ownerId,{goal,mode,city,budget:budgetMax,article:mandateArticleId,...(context?{mission:context}:{})});
         if (requestKey) {
           const { data: existingMandate, error: existingMandateError } = await sb
             .from("waouh_avatar_mandates")
@@ -2689,12 +2701,12 @@ Retourne uniquement JSON:
             budget_max: budgetMax,
             max_contacts: maxContacts,
             max_followups: maxFollowups,
-            allow_waouh: payload.allow_waouh !== false,
-            allow_whatsapp: autonomyRules?autonomyRules.allow_whatsapp&&payload.allow_whatsapp!==false:payload.allow_whatsapp !== false,
-            allow_public_business: payload.allow_public_business !== false,
-            allow_blind_message: automatic?false:payload.allow_blind_message !== false,
-            allow_email: payload.allow_email === true,
-            allow_sms_rcs: payload.allow_sms_rcs === true,
+            allow_waouh: !watchOnly&&payload.allow_waouh !== false,
+            allow_whatsapp: !watchOnly&&(autonomyRules?autonomyRules.allow_whatsapp&&payload.allow_whatsapp!==false:payload.allow_whatsapp !== false),
+            allow_public_business: !watchOnly&&payload.allow_public_business !== false,
+            allow_blind_message: watchOnly||automatic?false:payload.allow_blind_message !== false,
+            allow_email: !watchOnly&&payload.allow_email === true,
+            allow_sms_rcs: !watchOnly&&payload.allow_sms_rcs === true,
             require_approval_for_c1: autonomyMode === "assisted",
             min_match_score: minMatchScore,
             min_actionability_score: minActionabilityScore,
@@ -2706,14 +2718,16 @@ Retourne uniquement JSON:
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               automatic_follow: automatic,
               comparison_priority: comparisonPriority,
+              ...(context?{discovery_kind:discoveryKind,mission_context:context}:{}),
+              ...(saleArticle?{article_snapshot:{id:saleArticle.id,title:saleArticle.title,price:saleArticle.price,currency:saleArticle.currency}}:{}),
               user_confirmed_mandate: true,
               followup_hours: autonomyRules?.followup_hours??followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
-              price_floor: positiveNumber(payload.price_floor??autonomyRules?.price_floor, "price_floor", true),
-              completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
+              price_floor: context?.price_floor??(automatic?autonomyRules?.price_floor:positiveNumber(payload.price_floor??autonomyRules?.price_floor, "price_floor", true)),
+              completion_goal: watchOnly?"recommendations":pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
-              terms: { quantity: integer(payload.quantity, "quantity", 1, 1, 100000), delivery: optionalString(payload.delivery_terms, "delivery_terms", 1000), acceptance: optionalString(payload.acceptance_terms, "acceptance_terms", 1000) },
+              terms: { quantity: context?.quantity??integer(payload.quantity, "quantity", 1, 1, 100000), delivery: optionalString(payload.delivery_terms, "delivery_terms", 1000), acceptance: optionalString(payload.acceptance_terms, "acceptance_terms", 1000) },
             },
           }).select("*").single();
         if(insertMandateError?.code==='23505'&&automaticId){
@@ -2782,6 +2796,7 @@ Retourne uniquement JSON:
               last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
               initial_refresh: initialRefresh,
               article_id: mandateArticleId,
+              ...(context?{discovery_kind:discoveryKind,mission_context:context}:{}),
             },
           }).select("*").single(),
           "nexus_persistent_intent_create_failed",
@@ -2793,13 +2808,14 @@ Retourne uniquement JSON:
           city,
           budgetMax: mode !== "sell" ? budgetMax : null,
           limit: Math.min(20, Math.max(maxContacts * 3, 8)),
+          missionKind:discoveryKind,missionContext:context??undefined,
         });
-        const compared=automatic?rankOfferChoices(results,{query:goal,city,budget:budgetMax,mode,priority:comparisonPriority}).slice(0,3):results;
+        const compared=automatic||context?rankOfferChoices(results,{query:goal,city,budget:budgetMax,mode,priority:comparisonPriority,...(context?missionCriteria(context):{})}).slice(0,4):results;
         const actionable = compared.filter((row: any) =>
           Number(row.scores?.total_score ?? 0) >= minMatchScore &&
           Number(row.actionability_score ?? 0) >= minActionabilityScore
         );
-        for (const row of actionable.slice(0, maxContacts)) {
+        for (const row of (watchOnly?[]:actionable.slice(0, maxContacts))) {
           await ensureOpportunityJourney(sb, ownerId, {
             fabricId: row.fabric_id,
             mode,
@@ -2818,6 +2834,7 @@ Retourne uniquement JSON:
             },
           });
         }
+        if(watchOnly){const metadata={...mandate.metadata,latest_selection:opportunityWatchPlan(mandate.metadata,compared,60).selection,selection_updated_at:new Date().toISOString()};const {error:watchError}=await sb.from('waouh_avatar_mandates').update({metadata}).eq('id',mandate.id).eq('owner_id',ownerId);if(watchError)throw watchError;mandate.metadata=metadata;}
         await sb.from("waouh_persistent_intents").update({
           last_scan_at: new Date().toISOString(),
           next_scan_at: new Date(Date.now() + Number(intent.scan_interval_minutes ?? 60) * 60_000).toISOString(),
@@ -2913,14 +2930,19 @@ Retourne uniquement JSON:
           typeof mandate.metadata.article_id === "string"
           ? mandate.metadata.article_id
           : null;
-        const results = await globalDiscoverySearch(sb, {
+        const kind=mandate.metadata?.discovery_kind as MissionKind|undefined;
+        const context=kind?normalizeMissionContext(mandate.metadata?.mission_context,kind,mandate.goal,kind==='sale'?mandate.metadata?.price_floor:undefined):undefined;
+        const found = await globalDiscoverySearch(sb, {
           query: mandate.normalized_query || mandate.goal,
+          missionKind:kind,missionContext:context,
           mode: discoveryMode,
           city: mandate.city,
           budgetMax: mandate.mode !== "sell" ? mandate.budget_max : null,
           limit: Math.min(30, Math.max(Number(mandate.max_contacts ?? 3) * 4, 10)),
         });
-        const actionable = results.filter((row: any) =>
+        const results=context?rankOfferChoices(found,{query:mandate.goal,city:mandate.city,budget:mandate.budget_max,mode:mandate.mode,...missionCriteria(context)}).slice(0,4):found;
+        const watchOnly=opportunityWatchOnly(mandate.metadata);
+        const actionable = (watchOnly?[]:results).filter((row: any) =>
           Number(row.scores?.total_score ?? 0) >= Number(mandate.min_match_score ?? 70) &&
           Number(row.actionability_score ?? 0) >= Number(mandate.min_actionability_score ?? 65)
         );
@@ -2943,10 +2965,12 @@ Retourne uniquement JSON:
             },
           });
         }
+        if(watchOnly)mandate.metadata={...mandate.metadata,latest_selection:opportunityWatchPlan(mandate.metadata,results,60).selection,selection_updated_at:new Date().toISOString()};
         await sb.from("waouh_avatar_mandates").update({
+          ...(watchOnly?{metadata:mandate.metadata}:{}),
           last_run_at: new Date().toISOString(),
           next_run_at: new Date(Date.now() + 60 * 60_000).toISOString(),
-        }).eq("id", mandate.id);
+        }).eq("id", mandate.id).eq("owner_id",ownerId);
         wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
         return jsonResponse({ ok: true, data: { mandate, results, actionable_count: actionable.length }});
       }

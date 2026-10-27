@@ -1,13 +1,15 @@
 import {Check,Loader2,Clock3} from 'lucide-react';
 import {BotLiveAvatar} from './bot/BotLiveAvatar';
+import {missionCopy,type MissionKind} from '@/lib/waouh/guidedDiscovery';
 import type {GuidedPhase} from '@/lib/waouh/guidedDiscovery';
 import './guided-discovery.css';
 
-export function WaouhGuidedProgress({phase,count,refreshing=false,onActivity}:{phase:GuidedPhase;count:number;refreshing?:boolean;onActivity:()=>void}){
+export function WaouhGuidedProgress({phase,count,refreshing=false,onActivity,missionKind='purchase'}:{phase:GuidedPhase;count:number;refreshing?:boolean;onActivity:()=>void;missionKind?:MissionKind}){
+ const copy=missionCopy[missionKind];
  const interrupted=['partial','paused','error'].includes(phase),ready=phase==='ready';
  const current=phase==='understanding'?0:1;
- const message=phase==='understanding'?'Je précise votre besoin et vos limites.':phase==='collecting'?refreshing?'J’ai reçu les premières pistes. Je poursuis la recherche.':'J’explore les offres correspondant à votre demande.':phase==='paused'?'La recherche est en pause.':phase==='partial'?'Une partie de la recherche n’a pas abouti. Les premières pistes restent accessibles.':phase==='error'?'Je n’ai pas pu terminer. Vous pouvez relancer la recherche.':'Ma sélection est prête. Je vous explique mes choix.';
- const labels=[['Votre besoin est compris','Vos critères guident ma recherche.'],['J’explore les offres',count?`${count} piste${count>1?'s':''} reçue${count>1?'s':''}.`:'Je recueille les premières pistes.'],['J’écarte les écarts','Doublons et critères incompatibles.'],['Je compare les offres','Prix, conditions et informations manquantes.'],['Je prépare ma sélection','Un choix expliqué et ses alternatives.']];
+ const message=phase==='understanding'?copy.intro:phase==='collecting'?refreshing?'J’ai reçu les premières pistes. Je poursuis la recherche.':'J’explore les offres correspondant à votre demande.':phase==='paused'?'La recherche est en pause.':phase==='partial'?'Une partie de la recherche n’a pas abouti. Les premières pistes restent accessibles.':phase==='error'?'Je n’ai pas pu terminer. Vous pouvez relancer la recherche.':'Ma sélection est prête. Je vous explique mes choix.';
+ const labels=copy.steps.map(([name,note],i)=>[name,i===1&&count?`${count} piste${count>1?'s':''} reçue${count>1?'s':''}.`:note]);
  return <section className="wgd wgd-progress" aria-label="Étapes de ma recherche">
   <span className="wgd-live">{ready?'Sélection prête':interrupted?'Recherche à reprendre':'Recherche en cours'}</span>
   <h2>{interrupted?'Je garde le fil.':'Je m’en occupe.'}</h2>

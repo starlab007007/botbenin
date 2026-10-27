@@ -1,6 +1,6 @@
 const normalized=(v:unknown)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 async function digest(text:string){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),v=>v.toString(16).padStart(2,'0')).join('');}
-export async function automaticMissionKey(owner:string,c:{goal:string;mode:string;city?:string|null;budget?:number|null;article?:string|null}){return 'minimal-auto:'+await digest(JSON.stringify([owner,normalized(c.goal),c.mode,normalized(c.city),c.budget??null,c.article??null]));}
+export async function automaticMissionKey(owner:string,c:{goal:string;mode:string;city?:string|null;budget?:number|null;article?:string|null;mission?:unknown}){return 'minimal-auto:'+await digest(JSON.stringify([owner,normalized(c.goal),c.mode,normalized(c.city),c.budget??null,c.article??null,...(c.mission?[c.mission]:[])]));}
 /** A unique UUID insert arbitrates concurrent requests without a check-then-insert race. */
 export async function automaticMandateId(owner:string,key:string,previousId:string|null){const h=await digest(JSON.stringify([owner,key,previousId??'initial']));return `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;}
 /** Fail closed if account preferences cannot be checked. No private data leaves this helper. */
