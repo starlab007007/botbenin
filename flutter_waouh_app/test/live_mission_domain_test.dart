@@ -154,7 +154,8 @@ void main() {
       final title = find.text(entry.value.title).last;
       await tester.ensureVisible(title);
       await tester.tap(title);
-      await tester.pumpAndSettle();
+      // The visible live-progress indicator deliberately keeps animating.
+      await tester.pump(const Duration(milliseconds: 500));
       expect(sent, isFalse);
       expect(find.text('Mon analyse de cette offre'), findsOneWidget);
       expect(tester.takeException(), isNull);
