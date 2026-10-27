@@ -245,7 +245,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(
           path: '/app/missions',
-          builder: (_, __) => const LiveMissionsScreen(),
+          builder: (_, state) => LiveMissionsScreen(
+            initialMandate: state.uri.queryParameters['mandate'],
+            showAdvanced:
+                state.uri.queryParameters['view'] == 'suivi' ||
+                state.uri.queryParameters.containsKey('focus'),
+          ),
         ),
         GoRoute(
           path: '/app/nexus',

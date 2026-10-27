@@ -2,18 +2,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { type AgenticAction, unwrapAgenticEnvelope } from "./agenticContracts";
 import { WAOUH_RUNTIME_ENDPOINTS } from "./runtimeEndpoints";
 
-export async function invokeWaouhAgentic<T>(action: AgenticAction, payload: Record<string, unknown> = {}): Promise<T> {
+export async function invokeWaouhAgentic<T>(action: AgenticAction, payload: Record<string, unknown> = {}, options: {expectedOwner?:string} = {}): Promise<T> {
+  let boundToken:string|undefined;
+  if(options.expectedOwner){const {data}=await supabase.auth.getSession();if(data.session?.user?.id!==options.expectedOwner)throw new Error("Votre compte a changé. Relancez l’action.");boundToken=data.session.access_token;}
   const request = () => supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.agenticCore, {
     body: { action, payload },
+    ...(boundToken?{headers:{Authorization:`Bearer ${boundToken}`}}:{}),
   });
   let { data, error } = await request();
   if (error?.context instanceof Response && error.context.status === 401) {
     // A 401 is rejected before any action executes. Refresh an existing session
     // once; never retry timeouts, server errors or an anonymous request.
     const { data: current } = await supabase.auth.getSession();
-    if (current.session) {
+    if (current.session && (!options.expectedOwner||current.session.user.id===options.expectedOwner)) {
       const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-      if (!refreshError && refreshed.session) ({ data, error } = await request());
+      if (!refreshError && refreshed.session && (!options.expectedOwner||refreshed.session.user.id===options.expectedOwner)) {if(options.expectedOwner)boundToken=refreshed.session.access_token;({ data, error } = await request());}
     }
   }
   if (error) {

@@ -1,3 +1,4 @@
+import {avatarAccountPaused} from "./waouh-automatic-mission.ts";
 import { autonomyWindowOpen } from "./waouh-avatar-autonomy-settings.ts";
 // deno-lint-ignore-file no-explicit-any
 import { openBuyerDeal } from './waouh-deal-open.ts';
@@ -217,6 +218,7 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20, journeyId?: st
   for (const j of journeys ?? []) {
     const m = j.waouh_avatar_mandates;
     if (!m || m.status !== 'active' || !autonomyWindowOpen(m)) continue;
+    try{if(await avatarAccountPaused(sb,m.owner_id))continue;}catch{continue;}
     try {
       if (j.metadata?.external_agreement_id) continue; // The external participants confirm their exact terms and execution milestones.
       if (j.stage === 'negotiating' && await (await import('./waouh-external-exchange.ts')).advanceExternalNegotiation(sb,j,m)) continue;

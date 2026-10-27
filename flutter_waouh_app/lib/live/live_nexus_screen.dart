@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'live_automatic_offers.dart';
 import 'live_premium_mission.dart';
 import 'live_avatar_autonomy.dart';
 import 'live_essential_offers.dart';
@@ -67,6 +69,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   int _searchVersion = 0;
   String? _liveError;
   String _kind = 'trouver';
+  Map<String, dynamic>? _automatic;
+  bool _automaticBusy = false;
+  String? _automaticError;
+  String _lastGoal = '', _lastCity = '', _priority = 'price';
+  double? _lastBudget;
+  StreamSubscription<dynamic>? _accountSubscription;
+  String? _owner;
+  String? _articleId;
+  StateSetter? _activityUpdate;
   final List<LiveMissionActivity> _events = [];
   final Set<String> _selectedOffers = {};
   String shareOrigin = 'whatsapp';
@@ -80,6 +91,24 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   void initState() {
     super.initState();
     service = LiveNexusService(legacy.supabase);
+    _owner = legacy.supabase.auth.currentUser?.id;
+    _accountSubscription = legacy.supabase.auth.onAuthStateChange.listen((
+      event,
+    ) {
+      final next = legacy.supabase.auth.currentUser?.id;
+      if (next != _owner && mounted) {
+        _owner = next;
+        _searchVersion++;
+        setState(() {
+          discovery = null;
+          _automatic = null;
+          _automaticBusy = false;
+          _automaticError = null;
+          busy = false;
+          _started = false;
+        });
+      }
+    });
     _kind =
         widget.initialKind ??
         (widget.initialMode == 'find_buyers'
@@ -108,6 +137,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   @override
   void dispose() {
     _searchVersion++;
+    _accountSubscription?.cancel();
     for (final item in <TextEditingController>[
       query,
       city,
@@ -135,11 +165,12 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Future<void> runSearch() async {
     final text = query.text.trim();
-    if (text.isEmpty) {
-      notice('Décrivez votre besoin.');
+    if (text.isEmpty || busy) {
+      if (text.isEmpty) notice('Décrivez votre besoin.');
       return;
     }
     final version = ++_searchVersion;
+    final account = legacy.supabase.auth.currentUser?.id;
     setState(() {
       busy = true;
       _started = true;
@@ -147,65 +178,304 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       _refreshing = false;
       _liveError = null;
       discovery = null;
-      _selectedOffers.clear();
+      _automatic = null;
+      _automaticError = null;
+      _automaticBusy = false;
+      _articleId = null;
+      _lastGoal = text;
+      _lastCity = city.text.trim();
+      _lastBudget = double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
       _events
         ..clear()
         ..add(LiveMissionActivity('Recherche lancée selon votre besoin.'));
     });
+    Map<String, dynamic>? rules;
     try {
+      if (account != null) {
+        try {
+          rules = await loadLiveAvatarAutonomy();
+        } catch (_) {}
+      }
+      if (!mounted ||
+          version != _searchVersion ||
+          account != legacy.supabase.auth.currentUser?.id)
+        return;
+      final cap = rules?['budget_max'];
+      if (cap is num)
+        _lastBudget = _lastBudget == null
+            ? cap.toDouble()
+            : (_lastBudget! < cap ? _lastBudget : cap.toDouble());
+      if (_lastCity.isEmpty) _lastCity = '${rules?['city'] ?? ''}';
       final value = await service.searchProgressive(
         query: text,
         findSellers: findSellers,
         smartMode: smartMode,
-        city: city.text.trim(),
-        budgetMax: findSellers
-            ? double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''))
-            : null,
-        refreshExternal: legacy.supabase.auth.currentSession != null,
+        city: _lastCity,
+        budgetMax: findSellers ? _lastBudget : null,
+        refreshExternal: account != null,
         onIndexed: (indexed) {
-          if (!mounted || version != _searchVersion) return;
+          if (!mounted ||
+              version != _searchVersion ||
+              account != legacy.supabase.auth.currentUser?.id)
+            return;
           setState(() {
             discovery = indexed;
             findSellers = indexed.findSellers;
-            _refreshing = true;
+            _refreshing = account != null;
             _events.add(
               LiveMissionActivity(
                 indexed.results.isEmpty
-                    ? 'Première recherche terminée. Recherche de nouvelles pistes.'
+                    ? 'Recherche de nouvelles pistes.'
                     : '${indexed.results.length} premières offres reçues.',
               ),
             );
           });
+          _activityUpdate?.call(() {});
         },
       );
-      if (!mounted || version != _searchVersion) return;
+      if (!mounted ||
+          version != _searchVersion ||
+          account != legacy.supabase.auth.currentUser?.id)
+        return;
       setState(() {
         discovery = value;
-        _selectedOffers.removeWhere(
-          (id) => !value.results.any((r) => r.fabricId == id),
-        );
         findSellers = value.findSellers;
+        _lastCity = _lastCity.isNotEmpty
+            ? _lastCity
+            : value.intelligence?.city ?? '';
+        _lastBudget = _lastBudget ?? value.intelligence?.budgetMax;
+        if (cap is num && _lastBudget != null && _lastBudget! > cap)
+          _lastBudget = cap.toDouble();
+        if (!findSellers) _lastBudget = null;
         _events.add(
           LiveMissionActivity(
             value.results.isEmpty
-                ? 'Recherche terminée. Aucune piste pour le moment.'
-                : '${value.results.length} offres reçues. Vous pouvez les comparer.',
+                ? 'Aucune piste compatible pour le moment.'
+                : '${value.results.length} offres reçues. Comparaison mise à jour.',
           ),
         );
       });
+      _activityUpdate?.call(() {});
+      if (account != null) unawaited(_follow(version));
     } catch (_) {
       if (mounted && version == _searchVersion)
         setState(() {
           _liveError = 'Recherche interrompue. Réessayez.';
           _events.add(
             LiveMissionActivity(
-              'Recherche interrompue. Vos premières pistes restent accessibles.',
+              'Recherche interrompue. Les premières pistes restent accessibles.',
             ),
           );
         });
     } finally {
       if (mounted && version == _searchVersion) setState(() => busy = false);
+      _activityUpdate?.call(() {});
     }
+  }
+
+  Future<void> _follow(int version) async {
+    final account = legacy.supabase.auth.currentUser?.id;
+    if (account == null || _automaticBusy || _lastGoal.isEmpty) return;
+    final sentPriority = _priority;
+    setState(() {
+      _automaticBusy = true;
+      _automaticError = null;
+    });
+    try {
+      final data = await service.followSearch(
+        goal: _lastGoal,
+        mode: findSellers ? (_kind == 'demander' ? 'ask' : 'buy') : 'sell',
+        city: _lastCity,
+        budgetMax: _lastBudget,
+        priority: _priority,
+        articleId: _articleId,
+        expectedOwner: account,
+      );
+      if (!mounted ||
+          version != _searchVersion ||
+          account != legacy.supabase.auth.currentUser?.id)
+        return;
+      setState(() {
+        _automatic = data;
+        final m = data['mandate'];
+        if (m is Map) {
+          if (m['budget_max'] is num)
+            _lastBudget = (m['budget_max'] as num).toDouble();
+          _events.add(
+            LiveMissionActivity(
+              m['status'] == 'paused'
+                  ? 'Le suivi de cette mission est en pause.'
+                  : 'Le suivi de Bot est enregistré.',
+            ),
+          );
+        }
+      });
+    } catch (_) {
+      if (mounted &&
+          version == _searchVersion &&
+          account == legacy.supabase.auth.currentUser?.id)
+        setState(() => _automaticError = 'Suivi indisponible. Réessayez.');
+    } finally {
+      if (mounted &&
+          version == _searchVersion &&
+          account == legacy.supabase.auth.currentUser?.id)
+        setState(() => _automaticBusy = false);
+      _activityUpdate?.call(() {});
+      if (mounted && version == _searchVersion && sentPriority != _priority)
+        unawaited(_follow(version));
+    }
+  }
+
+  String get _automaticLabel => busy
+      ? 'Recherche en cours…'
+      : _automaticBusy
+      ? 'Préparation du suivi…'
+      : _automatic?['mandate'] is Map
+      ? 'Suivre Bot'
+      : _automaticError != null
+      ? 'Réessayer le suivi'
+      : _automatic?['skipped'] == 'paused'
+      ? 'Réactiver Bot'
+      : _automatic?['skipped'] == 'approval_required'
+      ? 'Choisir cette piste'
+      : _automatic?['skipped'] == 'article_required'
+      ? 'Choisir mon article'
+      : legacy.supabase.auth.currentUser == null
+      ? 'Connexion pour le suivi'
+      : 'Confier cette recherche';
+  String? get _tracking =>
+      _automaticError ??
+      (_automatic?['skipped'] == 'paused'
+          ? 'Bot est en pause.'
+          : _automatic?['skipped'] == 'article_required'
+          ? 'Sélectionnez l’article à vendre pour activer le suivi.'
+          : _automatic?['skipped'] == 'approval_required'
+          ? 'Votre mode actuel demande une validation des actions.'
+          : _automatic?['mandate'] is Map
+          ? liveAutomaticMissionMessage(
+              Map<String, dynamic>.from(_automatic!['mandate'] as Map),
+            )
+          : null);
+  Future<void> _automaticAction() async {
+    if (busy || _automaticBusy) return;
+    final m = _automatic?['mandate'];
+    if (m is Map) {
+      context.push('/app/missions?mandate=${m['id']}');
+      return;
+    }
+    if (legacy.supabase.auth.currentUser == null) {
+      await requireLiveAuthentication(
+        context,
+        next:
+            '/app/nexus?${Uri(queryParameters: {'q': _lastGoal, 'go': '1', 'mode': findSellers ? 'find_sellers' : 'find_buyers', 'kind': _kind, if (_lastCity.isNotEmpty) 'city': _lastCity, if (_lastBudget != null) 'budget': '${_lastBudget!.round()}'}).query}',
+        actionLabel: 'suivre cette recherche',
+      );
+      return;
+    }
+    if (_automatic?['skipped'] == 'paused') {
+      context.push('/app/avatar');
+      return;
+    }
+    if (_automatic?['skipped'] == 'article_required') {
+      await _chooseArticle();
+      return;
+    }
+    if (_automatic?['skipped'] == 'approval_required') {
+      context.push('/app/missions?view=suivi');
+      return;
+    }
+    await _follow(_searchVersion);
+  }
+
+  Future<void> _chooseArticle() async {
+    try {
+      final data = await service.ownedArticles();
+      if (!mounted) return;
+      final raw = data['articles'];
+      final rows = raw is List ? raw.whereType<Map>().toList() : <Map>[];
+      final id = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: Colors.white,
+        builder: (ctx) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Mon article à vendre',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              if (rows.isEmpty)
+                const Text(
+                  'Publiez d’abord votre article dans votre espace de vente.',
+                  style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                ),
+              for (final a in rows)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    '${a['title'] ?? 'Article'}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, size: 17),
+                  onTap: () => Navigator.pop(ctx, '${a['id']}'),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (id != null && mounted) {
+        setState(() => _articleId = id);
+        await _follow(_searchVersion);
+      }
+    } catch (_) {
+      if (mounted) notice('Chargement impossible. Réessayez.');
+    }
+  }
+
+  Future<void> _activity() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) {
+          _activityUpdate = update;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+            child: LivePremiumMission(
+              busy: busy,
+              paused: _paused,
+              refreshing: _refreshing,
+              error: _liveError,
+              count: discovery?.results.length ?? 0,
+              events: List.of(_events),
+              onPause: () {
+                _searchVersion++;
+                setState(() {
+                  busy = false;
+                  _paused = true;
+                  _events.add(LiveMissionActivity('Recherche mise en pause.'));
+                });
+                Navigator.pop(ctx);
+              },
+              onResume: () {
+                Navigator.pop(ctx);
+                runSearch();
+              },
+            ),
+          );
+        },
+      ),
+    );
+    _activityUpdate = null;
   }
 
   Future<void> recognizeProduct() async {
@@ -467,26 +737,56 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       length: 4,
       child: Scaffold(
         backgroundColor: WaouhPalette.pearl,
-        appBar: LiveHeader(
-          title: 'Ma mission',
-          subtitle: 'Un objectif. Bot s’en occupe.',
-          back: true,
+        appBar: AppBar(
+          backgroundColor: avatarPremiumBg,
+          leading: IconButton(
+            tooltip: 'Retour aux missions',
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/app/missions'),
+            icon: const Icon(Icons.arrow_back, size: 20),
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _started ? _lastGoal : 'Ma recherche',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.5,
+                ),
+              ),
+              if (_started)
+                Text(
+                  '${_lastCity.isEmpty ? 'Zone à préciser' : _lastCity}${_lastBudget != null ? ' · ${_lastBudget!.round()} F max' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: avatarPremiumMuted,
+                  ),
+                ),
+            ],
+          ),
           actions: [
-            IconButton(
-              tooltip: 'Régler mon avatar',
-              onPressed: () => context.push('/app/avatar'),
-              icon: const Icon(Icons.tune_rounded),
-            ),
             Builder(
               builder: (tabs) => PopupMenuButton<int>(
-                tooltip: 'Autres actions',
-                onSelected: (index) =>
-                    DefaultTabController.of(tabs).animateTo(index),
+                tooltip: 'Mes outils de recherche',
+                onSelected: (index) {
+                  if (index == 4) {
+                    context.push('/app/avatar');
+                    return;
+                  }
+                  DefaultTabController.of(tabs).animateTo(index);
+                },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 0, child: Text('Ma recherche')),
                   PopupMenuItem(value: 1, child: Text('Partager')),
                   PopupMenuItem(value: 2, child: Text('Terrain')),
                   PopupMenuItem(value: 3, child: Text('Sources')),
+                  PopupMenuItem(value: 4, child: Text('Mon avatar')),
                 ],
               ),
             ),
@@ -494,28 +794,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         ),
         body: Column(
           children: [
-            if (!auth.signedIn)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F5FF),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFD6E3FF)),
-                ),
-                child: const Text(
-                  'Mode invité · Connectez-vous pour contacter ou confier à Bot.',
-                  style: TextStyle(
-                    color: Color(0xFF315BD8),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             Expanded(
               child: TabBarView(
                 children: [
@@ -525,7 +803,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                       : const _GuestLockedNexusPane(
                           title: 'Partager à WAOUH',
                           description:
-                              'Connectez-vous pour analyser et ajouter un signal personnel au Signal Fabric.',
+                              'Connectez-vous pour analyser et ajouter un signal personnel à votre réseau.',
                         ),
                   auth.signedIn
                       ? buildScout()
@@ -646,22 +924,31 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           ),
       ],
       const SizedBox(height: 8),
-      Row(
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text(
+          'Photo ou code-barres',
+          style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+        ),
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: busy ? null : recognizeProduct,
-              icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('Photo'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: busy ? null : scanBarcode,
-              icon: const Icon(Icons.qr_code_scanner_rounded),
-              label: const Text('Code-barres'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : recognizeProduct,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Photo'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : scanBarcode,
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: const Text('Code-barres'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -677,10 +964,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         ),
         label: Text(
           smartMode
-              ? 'Comprendre et chercher partout'
+              ? 'Confier à Bot'
               : findSellers
-              ? 'Trouver les vendeurs partout'
-              : 'Trouver les acheteurs partout',
+              ? 'Confier à Bot'
+              : 'Confier à Bot',
         ),
       ),
     ],
@@ -776,139 +1063,120 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   Widget buildSearch() {
     final results = discovery?.results ?? const <NexusDiscoveryItem>[];
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 32),
       children: [
-        Row(
-          children: [
-            for (final k in [
-              ('acheter', 'Acheter'),
-              ('vendre', 'Vendre'),
-              ('trouver', 'Trouver'),
-              ('demander', 'Demander'),
-            ])
-              Expanded(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: _kind == k.$1
-                        ? Colors.white
-                        : avatarPremiumBg,
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                  ),
-                  onPressed: busy
-                      ? null
-                      : () => setState(() {
-                          _kind = k.$1;
-                          smartMode = ['trouver', 'demander'].contains(_kind);
-                          findSellers = _kind != 'vendre';
-                          discovery = null;
-                          _started = false;
-                          _selectedOffers.clear();
-                        }),
-                  child: Text(
-                    k.$2,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _kind == k.$1
-                          ? avatarPremiumInk
-                          : avatarPremiumMuted,
+        if (!_started) ...[
+          Row(
+            children: [
+              for (final k in [
+                ('acheter', 'Acheter'),
+                ('vendre', 'Vendre'),
+                ('trouver', 'Trouver'),
+                ('demander', 'Demander'),
+              ])
+                Expanded(
+                  child: TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => setState(() {
+                            _kind = k.$1;
+                            smartMode = ['trouver', 'demander'].contains(_kind);
+                            findSellers = _kind != 'vendre';
+                            discovery = null;
+                          }),
+                    child: Text(
+                      k.$2,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _kind == k.$1
+                            ? avatarPremiumBlue
+                            : avatarPremiumMuted,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        if (_started) ...[
-          const SizedBox(height: 18),
-          Text(
-            query.text,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: avatarPremiumInk,
-            ),
+            ],
           ),
-          const SizedBox(height: 7),
-          Text(
-            '${city.text.isEmpty ? 'Zone à préciser' : city.text}${budget.text.isEmpty ? '' : ' · ${budget.text} FCFA ${findSellers ? 'max' : 'souhaités'}'}',
-            style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-          ),
-          const SizedBox(height: 12),
+          _searchEditor(),
+        ] else ...[
           ExpansionTile(
             tilePadding: EdgeInsets.zero,
             title: const Text(
               'Modifier mon besoin',
-              style: TextStyle(fontSize: 12, color: avatarPremiumBlue),
+              style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
             ),
             children: [_searchEditor()],
           ),
-          const SizedBox(height: 10),
-          LivePremiumMission(
-            busy: busy,
-            paused: _paused,
-            refreshing: _refreshing,
-            error: _liveError,
-            count: results.length,
-            events: _events,
-            onPause: () {
-              _searchVersion++;
-              setState(() {
-                busy = false;
-                _paused = true;
-                _events.add(LiveMissionActivity('Recherche mise en pause.'));
-              });
-            },
-            onResume: runSearch,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _activity,
+              icon: const Icon(Icons.checklist, size: 15),
+              label: Text(
+                busy ? 'Recherche en cours…' : 'Activité de Bot',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
           ),
-        ] else
-          _searchEditor(),
+        ],
+        if (_liveError != null)
+          Text(
+            _liveError!,
+            style: const TextStyle(fontSize: 12, color: Colors.red),
+          ),
         if (_started && results.isEmpty && !busy)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.symmetric(vertical: 25),
             child: Column(
               children: [
                 Text(
                   _paused
-                      ? 'Reprenez votre recherche quand vous le souhaitez.'
-                      : 'Aucune piste à afficher. Ajustez votre besoin.',
+                      ? 'Recherche en pause'
+                      : 'Aucune piste pour le moment',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _tracking ?? 'Ajustez votre besoin ou relancez la recherche.',
+                  style: const TextStyle(
+                    fontSize: 12,
                     color: avatarPremiumMuted,
                   ),
                 ),
                 TextButton(
-                  onPressed: runSearch,
-                  child: const Text('Réessayer'),
+                  onPressed: _automatic?['mandate'] is Map
+                      ? _automaticAction
+                      : runSearch,
+                  child: Text(
+                    _automatic?['mandate'] is Map ? 'Suivre Bot' : 'Réessayer',
+                  ),
                 ),
               ],
             ),
           ),
-        if (results.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          LiveEssentialOffers(
-            premium: true,
+        if (results.isNotEmpty)
+          LiveAutomaticOffers(
             items: results,
-            city: city.text,
+            query: _lastGoal,
+            city: _lastCity,
+            budget: _lastBudget,
             mode: findSellers ? 'buy' : 'sell',
-            selected: _selectedOffers,
-            onToggle: (id) => setState(() {
-              if (_selectedOffers.contains(id)) {
-                _selectedOffers.remove(id);
-              } else if (_selectedOffers.length < 5) {
-                _selectedOffers.add(id);
-              }
-            }),
-            onContinue: prepareContact,
+            actionLabel: _automaticLabel,
+            tracking: _tracking,
+            actionBusy: busy || _automaticBusy,
+            manualChoice: _automatic?['skipped'] == 'approval_required',
+            onAction: _automaticAction,
+            onContact: prepareContact,
             onDelegate: _delegateOne,
             onFollow: _watchOne,
+            onPriorityChanged: (v) {
+              setState(() => _priority = v);
+              if (!busy) unawaited(_follow(_searchVersion));
+            },
           ),
-          if (_selectedOffers.isNotEmpty)
-            LiveEssentialCompareTray(
-              items: results
-                  .where((r) => _selectedOffers.contains(r.fabricId))
-                  .toList(),
-              onClear: () => setState(() => _selectedOffers.clear()),
-            ),
-        ],
       ],
     );
   }

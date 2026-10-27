@@ -1,3 +1,5 @@
+import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
+import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
 import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { handleExternalExchange, ExchangeError, createExchangeInvite, isExternalExchangeAction } from '../_shared/waouh-external-exchange.ts';
@@ -2603,10 +2605,14 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
       case "nexus.mandate.create": {
-        const {data:avatarPrefs}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
-        const storedRules=payload.autonomy_settings??avatarPrefs?.autonomy_settings;
+        const {data:avatarPrefs,error:avatarPrefsError}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
+        if(avatarPrefsError)throw new ApiError(503,'avatar_rules_unavailable');
+        const automatic=payload.automatic_follow===true;
+        const comparisonPriority=pickEnum(payload.comparison_priority,'comparison_priority',['price','availability'] as const,'price');
+        const storedRules=automatic?(avatarPrefs?.autonomy_settings??{}):(payload.autonomy_settings??avatarPrefs?.autonomy_settings);
         const autonomyRules=storedRules?normalizeAvatarAutonomy(storedRules):null;
         if(autonomyRules){const err=avatarAutonomyError(autonomyRules);if(err)throw new ApiError(422,'invalid_avatar_rules',err);}
+        if(automatic&&(autonomyRules?.paused||autonomyRules?.mode!=='autonomous'))return jsonResponse({ok:true,data:{mandate:null,skipped:autonomyRules?.paused?'paused':'approval_required'}});
         const startsAt=autonomyRules?autonomyStartsAt(autonomyRules):new Date();
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
@@ -2617,20 +2623,25 @@ Retourne uniquement JSON:
         );
         const goal = asString(payload.goal, "goal", 3, 2000);
         const city = optionalString(payload.city??autonomyRules?.city, "city", 120);
-        const budgetMax = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
+        const requestedBudget = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
+        const budgetMax=automatic&&requestedBudget&&autonomyRules?.budget_max?Math.min(requestedBudget,autonomyRules.budget_max):requestedBudget;
         const maxContacts = Math.min(integer(payload.max_contacts??autonomyRules?.max_contacts, "max_contacts", 3, 1, 20),autonomyRules?.max_contacts??20);
         const maxFollowups = Math.min(integer(payload.max_followups??autonomyRules?.max_followups, "max_followups", 1, 0, 5),autonomyRules?.max_followups??5);
         const durationHours = Math.min(integer(payload.duration_hours??autonomyRules?.duration_hours, "duration_hours", 72, 1, 720),autonomyRules?.duration_hours??720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
-        const requestKey = optionalString(payload.request_key, "request_key", 240);
+        let requestKey = optionalString(payload.request_key, "request_key", 240);
+        let previousRequestId:string|null=null;
         const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if(automatic&&mode==="sell"&&!mandateArticleId)return jsonResponse({ok:true,data:{mandate:null,skipped:"article_required"}});
         if (mode === "sell" && !mandateArticleId) throw new ApiError(422, "sell_article_required", "Sélectionnez l’article à vendre avant de confier la mission.");
         if (mandateArticleId) {
           if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
           await ownedArticle(sb, ownerId, mandateArticleId);
         }
 
+        const automaticIntentValues=(m:any)=>({owner_id:ownerId,mandate_id:m.id,mode:mode==='sell'?'find_buyers':'find_sellers',query_text:goal,city,budget_max:budgetMax,min_match_score:minMatchScore,min_actionability_score:minActionabilityScore,scan_interval_minutes:autonomyRules?.scan_interval_minutes??60,status:'active',next_scan_at:new Date().toISOString(),expires_at:m.expires_at,metadata:{autonomy_mode:autonomyMode,article_id:mandateArticleId}});
+        if(automatic)requestKey=await automaticMissionKey(ownerId,{goal,mode,city,budget:budgetMax,article:mandateArticleId});
         if (requestKey) {
           const { data: existingMandate, error: existingMandateError } = await sb
             .from("waouh_avatar_mandates")
@@ -2643,10 +2654,19 @@ Retourne uniquement JSON:
           if (existingMandateError) {
             throw new ApiError(500, "nexus_mandate_dedupe_failed", existingMandateError.message);
           }
-          if (existingMandate?.id) {
-            const { data: existingIntent } = await sb.from("waouh_persistent_intents")
+          previousRequestId=existingMandate?.id??null;
+          if (existingMandate?.id&&(!automatic||(["active","paused","draft"].includes(existingMandate.status)&&Date.parse(existingMandate.expires_at)>Date.now()))) {
+            if(automatic&&existingMandate.metadata?.comparison_priority!==comparisonPriority){
+              const meta={...existingMandate.metadata,comparison_priority:comparisonPriority};
+              const {error:priorityError}=await sb.from('waouh_avatar_mandates').update({metadata:meta}).eq('id',existingMandate.id).eq('owner_id',ownerId);
+              if(priorityError)throw new ApiError(500,'comparison_update_failed');
+              existingMandate.metadata=meta;
+              if(existingMandate.status==='active')wakeOpportunityWorker(supabaseUrl,serviceKey,existingMandate.id);
+            }
+            let { data: existingIntent } = await sb.from("waouh_persistent_intents")
               .select("*").eq("mandate_id", existingMandate.id)
               .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if(automatic&&!existingIntent){existingIntent=await ensureAutomaticIntent(sb,automaticIntentValues(existingMandate));if(existingMandate.status==='active')wakeOpportunityWorker(supabaseUrl,serviceKey,existingMandate.id);}
             return jsonResponse({ ok: true, data: {
               mandate: existingMandate,
               intent: existingIntent ?? null,
@@ -2657,8 +2677,9 @@ Retourne uniquement JSON:
           }
         }
 
-        const mandate = await queryOne<any>(
-          sb.from("waouh_avatar_mandates").insert({
+        const automaticId=automatic&&requestKey?await automaticMandateId(ownerId,requestKey,previousRequestId):null;
+        const {data:createdMandate,error:insertMandateError}=await sb.from("waouh_avatar_mandates").insert({
+            ...(automaticId?{id:automaticId}:{}),
             owner_id: ownerId,
             mode,
             autonomy_mode: autonomyMode,
@@ -2671,7 +2692,7 @@ Retourne uniquement JSON:
             allow_waouh: payload.allow_waouh !== false,
             allow_whatsapp: autonomyRules?autonomyRules.allow_whatsapp&&payload.allow_whatsapp!==false:payload.allow_whatsapp !== false,
             allow_public_business: payload.allow_public_business !== false,
-            allow_blind_message: payload.allow_blind_message !== false,
+            allow_blind_message: automatic?false:payload.allow_blind_message !== false,
             allow_email: payload.allow_email === true,
             allow_sms_rcs: payload.allow_sms_rcs === true,
             require_approval_for_c1: autonomyMode === "assisted",
@@ -2683,6 +2704,8 @@ Retourne uniquement JSON:
             metadata: {
               ...(autonomyRules?{autonomy_settings:autonomyRules,starts_at:startsAt.toISOString()}:{}),
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+              automatic_follow: automatic,
+              comparison_priority: comparisonPriority,
               user_confirmed_mandate: true,
               followup_hours: autonomyRules?.followup_hours??followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
@@ -2692,11 +2715,16 @@ Retourne uniquement JSON:
               article_id: mandateArticleId,
               terms: { quantity: integer(payload.quantity, "quantity", 1, 1, 100000), delivery: optionalString(payload.delivery_terms, "delivery_terms", 1000), acceptance: optionalString(payload.acceptance_terms, "acceptance_terms", 1000) },
             },
-          }).select("*").single(),
-          "nexus_mandate_create_failed",
-        );
+          }).select("*").single();
+        if(insertMandateError?.code==='23505'&&automaticId){
+          const {data:concurrent}=await sb.from('waouh_avatar_mandates').select('*').eq('id',automaticId).eq('owner_id',ownerId).single();
+          if(concurrent){const recoveredIntent=await ensureAutomaticIntent(sb,automaticIntentValues(concurrent));if(concurrent.status==='active')wakeOpportunityWorker(supabaseUrl,serviceKey,concurrent.id);return jsonResponse({ok:true,data:{mandate:concurrent,intent:recoveredIntent,results:[],actionable_count:0,duplicate:true}});}
+        }
+        if(insertMandateError||!createdMandate)throw new ApiError(500,'nexus_mandate_create_failed');
+        const mandate=createdMandate;
         const discoveryMode: DiscoveryMode = mode === "sell" ? "find_buyers" : "find_sellers";
         const initialRefresh: Record<string, unknown> = {};
+        if(!automatic){
         try {
           if (discoveryMode === "find_sellers") {
             const places = await refreshGooglePlaces(
@@ -2733,7 +2761,8 @@ Retourne uniquement JSON:
           console.warn("[Opportunity OS] initial mandate refresh", refreshError);
         }
 
-        const intent = await queryOne<any>(
+        }
+        const intent = automatic?await ensureAutomaticIntent(sb,automaticIntentValues(mandate)):await queryOne<any>(
           sb.from("waouh_persistent_intents").insert({
             owner_id: ownerId,
             mandate_id: mandate.id,
@@ -2765,7 +2794,8 @@ Retourne uniquement JSON:
           budgetMax: mode !== "sell" ? budgetMax : null,
           limit: Math.min(20, Math.max(maxContacts * 3, 8)),
         });
-        const actionable = results.filter((row: any) =>
+        const compared=automatic?rankOfferChoices(results,{query:goal,city,budget:budgetMax,mode,priority:comparisonPriority}).slice(0,3):results;
+        const actionable = compared.filter((row: any) =>
           Number(row.scores?.total_score ?? 0) >= minMatchScore &&
           Number(row.actionability_score ?? 0) >= minActionabilityScore
         );
@@ -2869,6 +2899,7 @@ Retourne uniquement JSON:
       }
 
       case "nexus.mandate.run": {
+        if(await avatarAccountPaused(sb,ownerId))throw new ApiError(409,"avatar_paused","Réactivez Bot avant de reprendre la mission.");
         const mandateId = uuid(payload.mandate_id, "mandate_id");
         const mandate = await queryOne<any>(
           sb.from("waouh_avatar_mandates").select("*").eq("id", mandateId).eq("owner_id", ownerId).maybeSingle(),

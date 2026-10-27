@@ -1,3 +1,4 @@
+import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
 import { autonomyWindowOpen,autonomyNextWindow } from "../_shared/waouh-avatar-autonomy-settings.ts";
 // WAOUH Outbound Dispatch — envoie les messages WhatsApp en attente via WAHA
@@ -831,6 +832,14 @@ Deno.serve(async (req) => {
       };
 
 
+      // A pause applies to every automatically queued mandate message, including non-WhatsApp channels.
+      if(it.payload?.mandate_id&&!it.payload?.request_id){
+        const {data:pauseMandate,error:pauseReadError}=await sb.from('waouh_avatar_mandates').select('owner_id').eq('id',it.payload.mandate_id).maybeSingle();
+        let paused=true;
+        if(!pauseReadError&&pauseMandate?.owner_id){try{paused=await avatarAccountPaused(sb,pauseMandate.owner_id);}catch{/* Retry without sending. */}}
+        if(paused){await sb.from('waouh_outbound_queue').update({status:'pending',attempts:it.attempts,next_attempt_at:new Date(Date.now()+60_000).toISOString(),last_error:'avatar_paused'}).eq('id',it.id).eq('status','sending');skipped++;continue;}
+      }
+
       // A queued message is not an irrevocable permission: recheck immediately before dispatch.
       if (it.template === "nexus_discovery_outreach") {
         let blocked: string | null = null;
@@ -839,7 +848,7 @@ Deno.serve(async (req) => {
           if (error || !contact || contact.consent_state === "revoked") blocked = "contact_permission_unavailable";
         }
         if (it.payload?.mandate_id && !it.payload?.request_id) {
-          const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata").eq("id", it.payload.mandate_id).maybeSingle();
+          const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata,owner_id").eq("id", it.payload.mandate_id).maybeSingle();
           if (error || !mandate || mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) blocked = "mandate_inactive";
           if(!blocked&&mandate&&!autonomyWindowOpen(mandate)){
             await sb.from('waouh_outbound_queue').update({status:'pending',attempts:it.attempts,next_attempt_at:autonomyNextWindow(mandate).toISOString(),last_error:'avatar_outside_intervention_hours'}).eq('id',it.id).eq('status','sending');

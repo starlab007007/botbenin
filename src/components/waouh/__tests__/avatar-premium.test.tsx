@@ -32,9 +32,12 @@ describe('Approved Avatar screens',()=>{
   it('awaits server persistence and does not claim a failed save succeeded',async()=>{
     mocks.save.mockRejectedValueOnce(new Error('failure'));
     await act(async()=>root.render(<WaouhAutonomySettings/>));
-    await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent?.includes('Enregistrer mes règles'))!.click());
-    expect(mocks.save).toHaveBeenCalledWith(DEFAULT_AVATAR_AUTONOMY);
-    expect(host.querySelector('[role=alert]')?.textContent).toContain('Enregistrement impossible');
+    expect(host.querySelectorAll('.wmn-setting')).toHaveLength(3);
+    expect(host.textContent).not.toContain('Il agit. Vous gardez la main.');
+    await act(async()=>(host.querySelector('.wmn-mode') as HTMLButtonElement).click());
+    await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Enregistrer')!.click());
+    expect(mocks.save).toHaveBeenCalledWith(DEFAULT_AVATAR_AUTONOMY,'owner');
+    expect(document.querySelector('[role=alert]')?.textContent).toContain('Enregistrement impossible');
     expect(host.textContent).not.toContain('Vos règles sont enregistrées sur votre compte.');
   });
 });

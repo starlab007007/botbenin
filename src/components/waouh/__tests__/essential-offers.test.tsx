@@ -20,7 +20,7 @@ describe('Essential offers', () => {
   it('requests services and announcement conditions without imposing a numeric price',()=>{expect(offerPrimaryNeedsPrice(offer('p'))).toBe(true);expect(offerPrimaryNeedsPrice(offer('s',{category:'service'}))).toBe(false);expect(offerPrimaryNeedsPrice(offer('a',{category:'annonce'}))).toBe(false);});
   it('keeps unknown units, currencies and price ranges explicit', () => {
     expect(offerHint(offer('a'))).toBe('Unité à confirmer'); expect(offerPrice(offer('b',{price_min:null}))).toBe('Prix à demander');
-    expect(offerPrice(offer('c',{price_min:100,price_max:200,currency:'EUR'}))).toContain('100 EUR'); expect(offerPrice(offer('d',{price_min:0}))).toContain('0');
+    expect(offerPrice(offer('c',{price_min:100,price_max:200,currency:'EUR'}))).toContain('100 EUR'); expect(offerPrice(offer('d',{price_min:0}))).toBe('Prix à demander');
   });
   it('requires a known matching unit and two comparable documented sources', () => {
     const refs=Array.from({length:8},(_,i)=>({url:`https://example.com/${i}`,price:100+i*10,model:'Bic',unit:'pièce',comparable:true}));
