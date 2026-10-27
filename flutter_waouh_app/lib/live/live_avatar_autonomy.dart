@@ -77,6 +77,32 @@ String? liveAvatarAutonomyError(Map<String, dynamic> rules) {
   return null;
 }
 
+bool liveAutonomyWindowOpen(Map<String, dynamic> mandate, {DateTime? now}) {
+  final metadata = mandate['metadata'];
+  if (metadata is! Map || metadata['autonomy_settings'] is! Map) return true;
+  final at = (now ?? DateTime.now()).toUtc(),
+      rules = metadata['autonomy_settings'] as Map;
+  final starts = DateTime.tryParse('${metadata['starts_at'] ?? ''}');
+  if (starts != null && starts.isAfter(at)) return false;
+  final local = at.add(const Duration(hours: 1));
+  final clock =
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  return clock.compareTo('${rules['active_start'] ?? '08:00'}') >= 0 &&
+      clock.compareTo('${rules['active_end'] ?? '20:00'}') < 0;
+}
+
+String liveAutomaticMissionMessage(Map<String, dynamic> mandate) {
+  if (mandate['status'] == 'paused')
+    return 'Le suivi de cette mission est en pause.';
+  if (!liveAutonomyWindowOpen(mandate)) return 'Bot reprendra à l’ouverture.';
+  final meta = mandate['metadata'];
+  if (meta is Map &&
+      meta['autonomy_settings'] is Map &&
+      (meta['autonomy_settings'] as Map)['allow_contact'] != true)
+    return 'Bot compare. Les contacts attendent votre accord.';
+  return 'Bot poursuit la mission selon vos règles.';
+}
+
 class LiveAvatarAutonomyScreen extends StatefulWidget {
   const LiveAvatarAutonomyScreen({
     super.key,

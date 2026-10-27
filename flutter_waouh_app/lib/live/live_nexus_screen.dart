@@ -351,7 +351,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           : _automatic?['skipped'] == 'approval_required'
           ? 'Votre mode actuel demande une validation des actions.'
           : _automatic?['mandate'] is Map
-          ? 'Bot poursuit la mission selon vos règles.'
+          ? liveAutomaticMissionMessage(
+              Map<String, dynamic>.from(_automatic!['mandate'] as Map),
+            )
           : null);
   Future<void> _automaticAction() async {
     if (busy || _automaticBusy) return;

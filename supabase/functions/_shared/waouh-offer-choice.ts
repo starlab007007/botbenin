@@ -1,6 +1,6 @@
 /** Deterministic shortlist shared by the browser and the autonomous worker. */
 export type ChoiceOffer = {fabric_id:string;subject?:string|null;category?:string|null;city?:string|null;price_min?:number|null;price_max?:number|null;currency?:string|null;article_id?:string|null;catalog_id?:string|null;evidence?:Record<string,unknown>|null;scores?:{relevance_score?:number}};
-export type ChoiceCriteria = {query?:string;city?:string;budget?:number|null;mode?:string;priority?:'price'|'availability'};
+export type ChoiceCriteria = {query?:string;city?:string|null;budget?:number|null;mode?:string;priority?:'price'|'availability'};
 export const choiceText=(v:unknown)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const positive=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)&&v>0?v:null;
 export function choicePrice(o:ChoiceOffer){return positive(o.price_max)??positive(o.price_min);}

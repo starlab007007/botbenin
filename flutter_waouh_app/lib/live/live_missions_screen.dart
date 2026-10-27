@@ -37,62 +37,120 @@ class LiveMinimalMissionTile extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: decision
-                      ? const Color(0xFFFFF5E5)
-                      : const Color(0xFFE9F7F1),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: decision
-                        ? const Color(0xFF956016)
-                        : const Color(0xFF087C68),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 17),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -.3,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                line,
-                style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      decision ? 'Voir la décision' : 'Voir le suivi',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: avatarPremiumBlue,
+          child: !decision
+              ? Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F3FA),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.route_outlined,
+                        size: 19,
+                        color: avatarPremiumMuted,
                       ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.north_east,
-                    size: 15,
-                    color: avatarPremiumBlue,
-                  ),
-                ],
-              ),
-            ],
-          ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            line,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: avatarPremiumMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: avatarPremiumMuted,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: decision
+                            ? const Color(0xFFFFF5E5)
+                            : const Color(0xFFE9F7F1),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: decision
+                              ? const Color(0xFF956016)
+                              : const Color(0xFF087C68),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 17),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      line,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: avatarPremiumMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            decision ? 'Voir la décision' : 'Voir le suivi',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: avatarPremiumBlue,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.north_east,
+                          size: 15,
+                          color: avatarPremiumBlue,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
         ),
       ),
     ),
@@ -695,7 +753,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                     ? '${m['replied_count']} réponses reçues'
                     : ((m['contacted_count'] as num?) ?? 0) > 0
                     ? '${m['contacted_count']} contacts sollicités'
-                    : 'Bot cherche les bonnes pistes.',
+                    : liveAutomaticMissionMessage(m),
                 status: _paused || m['status'] == 'paused'
                     ? 'En pause'
                     : _decision(m)

@@ -2,7 +2,7 @@ import {describe,it,expect,vi} from 'vitest';
 import {webcrypto} from 'node:crypto';
 import cases from '../../../../testdata/waouh-choice-cases.json';
 import {rankOfferChoices,choicePriceConfirmed,choiceAvailabilityConfirmed,type ChoiceCriteria,type ChoiceOffer} from '../../../../supabase/functions/_shared/waouh-offer-choice';
-import {automaticMissionKey,automaticMandateId,avatarAccountPaused} from '../../../../supabase/functions/_shared/waouh-automatic-mission';
+import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused} from '../../../../supabase/functions/_shared/waouh-automatic-mission';
 
 describe('Deterministic automatic choices shared with Flutter',()=>{
  for(const c of cases)it(c.name,()=>expect(rankOfferChoices(c.offers as ChoiceOffer[],c.criteria as ChoiceCriteria).map(o=>o.fabric_id)).toEqual(c.expected));
@@ -21,4 +21,12 @@ describe('Deterministic automatic choices shared with Flutter',()=>{
   const chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({error:new Error('unavailable')})};
   await expect(avatarAccountPaused({from:()=>chain},'owner')).rejects.toThrow('avatar_pause_check_failed');
  });
+ it('recovers the same persistent intent after a concurrent insert',async()=>{
+  vi.stubGlobal('crypto',webcrypto);let inserted:Record<string,unknown>|undefined;const filters:Array<[string,unknown]>=[];
+  const query={eq:(k:string,v:unknown)=>{filters.push([k,v]);return query;},single:async()=>({data:{id:'existing-intent'},error:null})};
+  const db={from:()=>({insert:(row:Record<string,unknown>)=>{inserted=row;return {select:()=>({single:async()=>({error:{code:'23505'},data:null})})};},select:()=>query})};
+  expect(await ensureAutomaticIntent(db,{owner_id:'owner',mandate_id:'mandate',status:'active'})).toEqual({id:'existing-intent'});
+  expect(inserted?.id).toMatch(/^[a-f0-9-]{36}$/);expect(filters).toContainEqual(['owner_id','owner']);expect(filters).toContainEqual(['mandate_id','mandate']);vi.unstubAllGlobals();
+ });
+
 });
