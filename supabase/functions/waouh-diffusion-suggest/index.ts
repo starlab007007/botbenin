@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -64,6 +65,8 @@ function parseSuggestion(text: string, fallbackValue: string) {
 }
 
 Deno.serve(async (request) => {
+  const __moduleGate=await moduleRequestGate(request,['diffusion'],false);if(__moduleGate)return __moduleGate;
+
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ ok: false, error: "Méthode non autorisée." }, 405);
 

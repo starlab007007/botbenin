@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
   jsonError,
@@ -10,6 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['chat'],false);if(__moduleGate)return __moduleGate;
   if (req.method === "OPTIONS") return new Response(null, { headers: waouhCorsHeaders });
   if (req.method !== "POST") return jsonError(405, "method_not_allowed");
 

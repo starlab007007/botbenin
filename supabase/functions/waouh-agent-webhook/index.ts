@@ -11,6 +11,8 @@ const cors = {
 };
 
 serve(async (req) => {
+
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (!isServiceRoleRequest(req)) return jsonError(401, "trusted_relay_required");
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -44,7 +46,7 @@ serve(async (req) => {
     }));
 
     const { reply, needs_handoff } = await runAgentTurn(supabase, agent_id, message, {
-      history, contact_phone: from, contact_name: contactName, persist: true,
+      automatic:true,history, contact_phone: from, contact_name: contactName, persist: true,
     });
 
     // send reply via waha-send-message

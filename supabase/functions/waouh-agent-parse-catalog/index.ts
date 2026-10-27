@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Parse a catalog from audio (voice dictation), image (menu photo), or PDF into a list of products.
 // Returns { products: [{name, price_fcfa?, description?}, ...] }
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -49,6 +50,8 @@ async function transcribe(audioBase64: string, format: string): Promise<string> 
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bots'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const { mode, audio_base64, audio_format, image_base64, image_mime, text } = await req.json();

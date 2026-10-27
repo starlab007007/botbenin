@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -131,6 +132,8 @@ function messageIdFromWaha(parsed: any) {
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['diffusion'],true);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

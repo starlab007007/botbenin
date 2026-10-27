@@ -1,3 +1,5 @@
+import {FrontendModulesProvider} from '@/hooks/useFrontendModules';
+import {WaouhModuleAccessGate} from '@/components/waouh/WaouhModuleAccessGate';
 
 import { Suspense, lazy, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
@@ -242,7 +244,7 @@ const AppContent = () => {
     <Suspense fallback={<DeferredRouteFallback />}>
       <OfflineBanner />
       <WaouhQuickReplyBridge />
-      <Routes>
+      <FrontendModulesProvider><WaouhModuleAccessGate><Routes>
         <Route path="/exchange" element={<WaouhGuestExchangePage />} />
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
@@ -457,7 +459,7 @@ const AppContent = () => {
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
 
-                </Routes>
+                </Routes></WaouhModuleAccessGate></FrontendModulesProvider>
               </Suspense>
   );
 };

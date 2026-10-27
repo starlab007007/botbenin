@@ -63,6 +63,8 @@ export const navigationSections: NavigationSection[] = [
   {
     title: 'Agents IA',
     items: [
+      { key:'nexus',label:'Recherche guidée',to:'/app/nexus',icon:Sparkles },
+      { key:'ia',label:'IA',to:'/app/ia',icon:Sparkles },
       { key: 'avatar', label: 'Avatar', to: '/app/avatar', icon: Sparkles, accent: 'ai' },
       { key: 'missions', label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },
       { key: 'bots', label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
@@ -79,6 +81,8 @@ export const navigationSections: NavigationSection[] = [
     items: [
       { key: 'boutiques', label: 'Boutiques & magasins', to: '/app/partner/businesses', icon: Store, brick: 'store', accent: 'store' },
       { key: 'ventes', label: 'Ventes', to: '/app/partner/sales', icon: ShoppingCart, brick: 'sales' },
+      { key:'versements',label:'Versements',to:'/app/partner/payouts',icon:ShoppingCart },
+      { key:'paiements',label:'Paiements',to:'/app/partner/payments',icon:ShoppingCart },
       { key: 'partenaires', label: 'Partenaires', to: '/app/partner', icon: Handshake, brick: 'partner' },
     ],
   },
@@ -121,7 +125,7 @@ export const filterNavigationSectionsByVisibility = (
   sections: NavigationSection[],
   visibleKeys: ReadonlySet<string> | null,
 ): NavigationSection[] => {
-  if (!visibleKeys) return sections;
+  if (!visibleKeys) return [];
   return sections
     .map((section) => ({
       ...section,

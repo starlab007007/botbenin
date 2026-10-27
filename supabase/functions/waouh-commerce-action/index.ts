@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // deno-lint-ignore-file no-explicit-any -- client Supabase non typé, comme le reste des edge functions.
 // WAOUH — Point d'entrée unique des actions commerce (parcours v3, Lot 2).
 //
@@ -585,6 +586,8 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
 
 // ---------------------------------------------------------------------------
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['ventes'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: waouhCorsHeaders });
   if (req.method !== "POST") return jsonResponse({ ok: false, code: "method_not_allowed" }, 405);
 

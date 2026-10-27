@@ -373,7 +373,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             <button
               type="button"
               className="waouh-erp-search-trigger"
-              onClick={openWaouh}
+              onClick={openWaouh} style={{display:visibleKeys?.has('chat')?undefined:'none'}}
             >
 
               <Search size={17} />
@@ -385,7 +385,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               type="button"
               variant="outline"
               className="waouh-erp-missions-action"
-              onClick={openMissions}
+              onClick={openMissions} style={{display:visibleKeys?.has('missions')?undefined:'none'}}
             >
               <Workflow size={17} />
               <span>Missions & veille</span>
@@ -394,7 +394,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             <Button
               type="button"
               className="waouh-erp-primary-action"
-              onClick={openMuse}
+              onClick={openMuse} style={{display:visibleKeys?.has('avatar')?undefined:'none'}}
             >
               <BrainCircuit size={17} />
               <span>Ouvrir Avatar</span>

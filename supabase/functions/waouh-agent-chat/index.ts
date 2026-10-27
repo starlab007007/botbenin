@@ -11,6 +11,8 @@ const cors = {
 };
 
 serve(async (req) => {
+
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const requestUser = await getRequestUser(req);

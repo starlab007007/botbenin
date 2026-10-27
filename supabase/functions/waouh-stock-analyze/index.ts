@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Analyse le stock d'un agent : ruptures, valeur, rotation, recommandations IA.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -8,6 +9,8 @@ const cors = {
 };
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['stock'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const auth = req.headers.get("Authorization") || "";

@@ -11,11 +11,11 @@ export const TABLET_RAIL_WIDTH = 76;
 // comme dans BottomTabBar). Seuls Radar et Bots correspondent à un module
 // de public.waouh_frontend_modules et peuvent être masqués par l'admin.
 const railItems = [
-  { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
+  { to: '/app/chat', icon: MessageCircle, label: 'Chat', key:'chat' },
   { to: '/app/radar-map', icon: Radar, label: 'Radar', key: 'radar' },
-  { to: '/app/avatar', icon: UserCircle, label: 'Avatar' },
-  { to: '/app/missions', icon: Workflow, label: 'Missions' },
-  { to: '/app/ia', icon: Sparkles, label: 'IA' },
+  { to: '/app/avatar', icon: UserCircle, label: 'Avatar', key:'avatar' },
+  { to: '/app/missions', icon: Workflow, label: 'Missions', key:'missions' },
+  { to: '/app/ia', icon: Sparkles, label: 'IA', key:'ia' },
   { to: '/app/bots', icon: Bot, label: 'Bots', key: 'bots' },
 ];
 
@@ -30,7 +30,7 @@ export const TabletRail = ({ unreadChat = 0, onOpenMenu }: Props) => {
   const { pathname } = useLocation();
   const avatarHome = pathname === '/' || pathname === '';
   const { visibleKeys } = useFrontendModules();
-  const items = railItems.filter((item) => !item.key || !visibleKeys || visibleKeys.has(item.key));
+  const items = railItems.filter((item) => !item.key || visibleKeys.has(item.key));
   const itemClass = (active: boolean) =>
     cn(
       'relative flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-[10px] font-medium transition-colors',

@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Diffusion IA — Relance J+3 des contacts non-répondants
 // POST { campaign_id?: string, min_age_days?: number (default 3), max?: number (default 200) }
 const corsHeaders = {
@@ -17,6 +18,8 @@ const FOLLOWUP_TEMPLATES = [
 ];
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['diffusion'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "POST only" }), { status: 405, headers: corsHeaders });

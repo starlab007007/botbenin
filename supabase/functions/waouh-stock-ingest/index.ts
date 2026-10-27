@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { assertPostgresTarget, assertResolvesPublic, assertSupabaseApiUrl } from "../_shared/waouh-egress-guard.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import postgres from "npm:postgres@3.4.5";
@@ -598,6 +599,8 @@ function normalizeRows(
 }
 
 Deno.serve(async (request) => {
+  const __moduleGate=await moduleRequestGate(request,['stock'],false);if(__moduleGate)return __moduleGate;
+
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

@@ -1,0 +1,113 @@
+// Shared catalogue: waouh-module-catalog.json
+const moduleCatalog = <Map<String, dynamic>>[
+  {
+    "key": "chat",
+    "label": "Chat Command Center",
+    "paths": ["/app/chat", "/app/conversations"],
+  },
+  {
+    "key": "radar",
+    "label": "Radar",
+    "paths": ["/app/radar-map", "/app/radar"],
+  },
+  {
+    "key": "whatsapp",
+    "label": "WhatsApp IA",
+    "paths": ["/app/whatsapp"],
+  },
+  {
+    "key": "diffusion",
+    "label": "Diffusion",
+    "paths": ["/app/diffusion"],
+  },
+  {
+    "key": "avatar",
+    "label": "Avatar",
+    "paths": ["/app/avatar", "/", "/app/muse", "/app/command"],
+  },
+  {
+    "key": "missions",
+    "label": "Missions & veille",
+    "paths": ["/app/missions"],
+  },
+  {
+    "key": "bots",
+    "label": "Bots",
+    "paths": ["/app/bots"],
+  },
+  {
+    "key": "agents_ia",
+    "label": "Agents IA",
+    "paths": ["/app/whatsapp/select-agent", "/app/agents"],
+  },
+  {
+    "key": "conversationnel",
+    "label": "Conversationnel",
+    "paths": ["/app/whatsapp/conversationnel", "/app/agents/conversational"],
+  },
+  {
+    "key": "bi",
+    "label": "BI WAOUH IA",
+    "paths": ["/app/whatsapp/bi", "/app/agents/bi"],
+  },
+  {
+    "key": "stock",
+    "label": "Stock WAOUH IA",
+    "paths": ["/app/stock", "/app/agents/stock"],
+  },
+  {
+    "key": "presence",
+    "label": "Présence QR",
+    "paths": ["/app/presence", "/presence", "/app/agents/presence"],
+  },
+  {
+    "key": "privatia",
+    "label": "PrivatAI (IA locale)",
+    "paths": ["/privatia"],
+  },
+  {
+    "key": "boutiques",
+    "label": "Boutiques & magasins",
+    "paths": ["/app/partner/businesses"],
+  },
+  {
+    "key": "ventes",
+    "label": "Ventes",
+    "paths": ["/app/partner/sales"],
+  },
+  {
+    "key": "partenaires",
+    "label": "Partenaires",
+    "paths": ["/app/partner"],
+  },
+  {
+    "key": "apresbac",
+    "label": "AprèsBac IA",
+    "paths": ["/app/apresbac", "/app/apres-bac", "/apresbac", "/apresbacia"],
+  },
+  {
+    "key": "fa_ia",
+    "label": "FA IA",
+    "paths": ["/app/fa-ia", "/app/fa", "/fa"],
+  },
+  {
+    "key": "nexus",
+    "label": "Recherche guidée",
+    "paths": ["/app/nexus"],
+  },
+  {
+    "key": "ia",
+    "label": "IA",
+    "paths": ["/app/ia"],
+  },
+  {
+    "key": "versements",
+    "label": "Versements",
+    "paths": ["/app/partner/payouts"],
+  },
+  {
+    "key": "paiements",
+    "label": "Paiements",
+    "paths": ["/app/partner/payments"],
+  },
+];

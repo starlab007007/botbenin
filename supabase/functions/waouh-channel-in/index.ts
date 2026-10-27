@@ -1,3 +1,4 @@
+import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
 import { CENTRAL_WAHA_SESSION, isWahaInbound, isCentralWhatsAppPhone, whatsAppPhoneCandidates, wahaMessageId, centralWhatsAppHealth } from "../_shared/waouh-central-whatsapp.ts";
 import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
@@ -848,6 +849,7 @@ Deno.serve(async (req) => {
       ? "chat_whatsapp"
       : "chat_web";
     const chatControl = await getWaouhModuleControl(sb, inboundModule);
+
     if (!chatControl.enabled) {
       return new Response(JSON.stringify({
         ok: false,
@@ -1022,6 +1024,8 @@ Deno.serve(async (req) => {
         user = created;
       }
     }
+    if(!await modulePolicyAllowed(sb,[channel==='whatsapp'?'whatsapp':'chat'],user?.auth_user_id??authUserId,false))return new Response(JSON.stringify({ok:false,message:'Ce module est actuellement indisponible.'}),{status:403,headers:corsHeaders});
+    if(!await modulePolicyAllowed(sb,[channel==='whatsapp'?'whatsapp':'chat'],user?.auth_user_id??authUserId,true))chatControl.automation_enabled=false;
     log("user", { id: user?.id });
 
     // Upsert conversation so the operator-side app can subscribe by conversation_id.
@@ -2329,6 +2333,7 @@ Deno.serve(async (req) => {
 
     }
 
+    if(!chatControl.automation_enabled)return new Response(JSON.stringify({ok:true,reply:null,actions:[],inbound_message_id:inboundMessageId,conversation_id:convId,user_id:user.id,automation_paused:true}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
     // Call core engine
     const coreRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
       method: "POST",

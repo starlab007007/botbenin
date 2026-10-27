@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match,
 // puis ouvre le workflow paiement/livraison sans partager les coordonnées.
@@ -74,6 +75,8 @@ async function aiIntent(text: string, buttonPayload?: string | null): Promise<Ne
 }
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['ventes'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (bearer !== SERVICE_ROLE) {

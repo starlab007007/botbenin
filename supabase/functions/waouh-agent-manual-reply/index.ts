@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Send a manual (human operator) reply to a WhatsApp contact via WAHA and log it
 // on the corresponding agent conversation. Also toggles/pauses agent auto-reply
 // for this specific contact when `mode` is `pause` | `resume` | `takeover`.
@@ -11,6 +12,8 @@ const cors = {
 };
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['bots'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {

@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
@@ -60,6 +61,8 @@ function integerValue(value: unknown, fallback: number) {
 }
 
 serve(async (request) => {
+  const __moduleGate=await moduleRequestGate(request,['presence'],false);if(__moduleGate)return __moduleGate;
+
   if (request.method === "OPTIONS") {
     return new Response(null, { headers: cors });
   }

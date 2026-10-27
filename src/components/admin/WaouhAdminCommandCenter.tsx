@@ -455,7 +455,8 @@ export default function WaouhAdminCommandCenter() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Contrôle des modules</CardTitle>
+          <CardTitle className="text-base">Contrôles d’exploitation</CardTitle>
+          <Button variant="outline" onClick={()=>navigate('/admin/modules')}>Gérer les modules utilisateurs</Button>
           <CardDescription>
             « Actif » coupe/réactive l’entrée métier. « Automatisation » autorise les actions autonomes du module. Chaque changement est audité.
           </CardDescription>

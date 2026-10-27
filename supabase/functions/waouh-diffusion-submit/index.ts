@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Submit a diffusion campaign for admin approval
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -11,6 +12,8 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['diffusion'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization") ?? "";

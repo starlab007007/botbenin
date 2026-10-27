@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 import { confirmDeliveredDeal } from "../_shared/waouh-payment-confirmation.ts";
 // waouh-deal-ops
 // Single router for WAOUH deal operations.
@@ -1174,6 +1175,8 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
 }
 
 Deno.serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['ventes'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {

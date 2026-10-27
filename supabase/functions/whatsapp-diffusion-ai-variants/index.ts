@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Génère N variantes naturelles d'un message WhatsApp via Lovable AI Gateway.
 // Anti-spam : on évite que tous les destinataires reçoivent le même texte.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -10,6 +11,8 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['diffusion'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {

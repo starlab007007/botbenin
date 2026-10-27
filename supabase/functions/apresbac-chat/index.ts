@@ -1,3 +1,4 @@
+import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // Après BAC IA — chat orientation with RAG over apresbac_program_records.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -30,6 +31,8 @@ function extractKeywords(text: string): string[] {
 }
 
 serve(async (req) => {
+  const __moduleGate=await moduleRequestGate(req,['apresbac'],false);if(__moduleGate)return __moduleGate;
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const authHeader = req.headers.get("Authorization") || "";
