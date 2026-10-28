@@ -517,11 +517,15 @@ class LiveProductPresentation extends StatelessWidget {
                       const SizedBox(height: 7),
                       const Row(
                         children: [
-                          Text(
-                            'Voir le produit',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF4965D8),
+                          Flexible(
+                            child: Text(
+                              'Voir le produit',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF4965D8),
+                              ),
                             ),
                           ),
                           Icon(
