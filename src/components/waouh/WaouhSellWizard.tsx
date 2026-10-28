@@ -11,7 +11,7 @@ import { compressImage, uploadOptions } from "@/lib/imageOptimize";
 export type Att = { url: string; type: string };
 export type SellLocation = { lat: number | null; lng: number | null; city: string };
 
-const MAX_PHOTOS = 2;
+const MAX_PHOTOS = 4;
 
 export const WaouhSellWizard: React.FC<{
   open: boolean;

@@ -1,3 +1,7 @@
+import {WaouhSmartSale} from './WaouhSmartSale';
+import {useAuth} from '@/contexts/AuthContext';
+import {saleSearchPath} from '@/lib/waouh/smartSale';
+import {buildWaouhAuthRedirect} from '@/lib/waouhAccessPolicy';
 import { useEffect, useState } from "react";
 import { WaouhCityField } from "./WaouhCityField";
 import { MapPin, Search, Sparkles, X } from "lucide-react";
@@ -65,6 +69,7 @@ export function WaouhQuickAsk({
   onClose: () => void;
   onSubmit: (path: string) => void;
 }) {
+  const {user}=useAuth();
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
   const [budget, setBudget] = useState("");
@@ -83,8 +88,8 @@ export function WaouhQuickAsk({
 
   return (
     <Sheet open={!!kind} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="bottom" className="rounded-t-[28px] border-blue-100 bg-gradient-to-b from-white to-blue-50/60 px-4 pb-6 pt-4 [&>button]:hidden">
-        {c && (
+      <SheetContent side="bottom" className={kind==='vendre'?'wss-sheet [&>button]:hidden':"rounded-t-[28px] border-blue-100 bg-gradient-to-b from-white to-blue-50/60 px-4 pb-6 pt-4 [&>button]:hidden"}>
+        {kind==='vendre'?<><div className="wss-sheet-heading"><BotLiveAvatar size={40}/><div><SheetTitle>Vendre</SheetTitle><SheetDescription>Bot prépare votre fiche.</SheetDescription></div><button type="button" aria-label="Fermer" onClick={onClose}><X size={19}/></button></div><WaouhSmartSale key={user?.id??'guest'} onPublished={sale=>{if(user)onSubmit(saleSearchPath(user.id,sale));}} onConnect={()=>onSubmit(buildWaouhAuthRedirect('/app/nexus?kind=vendre'))}/></>:c && (
           <div className="mx-auto w-full max-w-lg space-y-3">
             <div className="flex items-center gap-3">
               <BotLiveAvatar size={56} state={q.trim() ? "talking" : "idle"} />

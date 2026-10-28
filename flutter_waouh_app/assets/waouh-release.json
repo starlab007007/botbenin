@@ -1,12 +1,12 @@
 {
   "schema": "waouh.release.v1",
-  "version": "18.39.0",
-  "build": 1793168531,
-  "release_id": "18.39.0+1793168531",
+  "version": "18.40.0",
+  "build": 1793173326,
+  "release_id": "18.40.0+1793173326",
   "branch": "prod",
   "project_ref": "mvynepqulhflxtyymtzs",
-  "prepared_at": "2026-10-28T06:22:11.766Z",
-  "base_commit": "a0464e1bb7e7eaf2ca06091536a43fc809ac5d6d",
+  "prepared_at": "2026-10-28T07:42:06.590703Z",
+  "base_commit": "73bb836b79c2c1d16dbad275e08fd41c2a4c13ca",
   "runtime_aliases": {
     "waouh-studio-e2e-v21465": "waouh-agentic-core",
     "waouh-e2e-test": "waouh-tel-dispatch",

@@ -83,7 +83,7 @@ class LiveProductData {
     for (final pair in {
       'Marque': raw['brand'] ?? e['brand'],
       'Modèle': raw['model'] ?? e['model'],
-      'État': raw['condition'] ?? e['condition'],
+      'État': const {'new':'Neuf','like_new':'Comme neuf','good':'Bon état','fair':'Utilisé','poor':'À réparer'}[raw['condition'] ?? e['condition']] ?? raw['condition'] ?? e['condition'],
       'Capacité': raw['storage'] ?? e['storage'] ?? e['capacity'],
       'Couleur': raw['color'] ?? e['color'],
       'Unité': raw['unit'] ?? raw['unite'] ?? e['unit'] ?? e['price_unit'],

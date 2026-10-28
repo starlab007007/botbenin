@@ -55,12 +55,14 @@ class LiveCityField extends StatefulWidget {
     this.hint = 'Ville ou quartier',
     this.autoLocate = true,
     this.onChanged,
+    this.onCoordinatesChanged,
   });
 
   final TextEditingController controller;
   final String hint;
   final bool autoLocate;
   final VoidCallback? onChanged;
+  final void Function(double? latitude,double? longitude)? onCoordinatesChanged;
 
   @override
   State<LiveCityField> createState() => _LiveCityFieldState();
@@ -70,6 +72,8 @@ class _LiveCityFieldState extends State<LiveCityField> {
   final FocusNode _focus = FocusNode();
   bool _locating = false;
   String _notice = '';
+  int _revision=0;
+  void _manual(){_revision++;widget.onCoordinatesChanged?.call(null,null);widget.onChanged?.call();}
 
   @override
   void initState() {
@@ -94,7 +98,9 @@ class _LiveCityFieldState extends State<LiveCityField> {
   }
 
   Future<void> _locate({bool silent = false}) async {
-    if (_locating) return;
+    if (_locating || !mounted) return;
+    final revision=_revision;
+    final initialText=widget.controller.text;
     setState(() {
       _locating = true;
       _notice = '';
@@ -118,10 +124,12 @@ class _LiveCityFieldState extends State<LiveCityField> {
         if (!silent && mounted) setState(() => _notice = 'Position trouvée, ville inconnue. Saisissez-la.');
         return;
       }
+      if(!mounted||revision!=_revision||widget.controller.text!=initialText)return;
       if (silent && widget.controller.text.trim().isNotEmpty) return;
       widget.controller.text =
           district.isNotEmpty && district != city ? '$district, $city' : city;
       widget.onChanged?.call();
+      widget.onCoordinatesChanged?.call(position.latitude,position.longitude);
     } catch (_) {
       if (!silent && mounted) setState(() => _notice = 'Position introuvable. Saisissez la ville.');
     } finally {
@@ -144,11 +152,11 @@ class _LiveCityFieldState extends State<LiveCityField> {
             }
             return options;
           },
-          onSelected: (_) => widget.onChanged?.call(),
+          onSelected: (_) => _manual(),
           fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextField(
             controller: controller,
             focusNode: focusNode,
-            onChanged: (_) => widget.onChanged?.call(),
+            onChanged: (_) => _manual(),
             decoration: InputDecoration(
               hintText: widget.hint,
               prefixIcon: const Icon(Icons.place_outlined, size: 18),

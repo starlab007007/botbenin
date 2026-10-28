@@ -52,8 +52,8 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
   bool get _ready => _item.text.trim().length > 1 && _digits.isNotEmpty && !_sending;
 
   Future<void> _pickImage(ImageSource source) async {
-    if (_photos.length >= 2) {
-      _notice('Maximum 2 photos par annonce.');
+    if (_photos.length >= 4) {
+      _notice('Maximum 4 photos par annonce.');
       return;
     }
     final file = await ImagePicker().pickImage(source: source, imageQuality: 82, maxWidth: 1600);
@@ -242,7 +242,7 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
             ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(entry.value.url, width: 94, height: 94, fit: BoxFit.cover)),
             Positioned(right: 0, top: 0, child: IconButton(onPressed: () => setState(() => _photos.removeAt(entry.key)), icon: const CircleAvatar(radius: 12, child: Icon(Icons.close_rounded, size: 15)))),
           ])),
-          if (_photos.length < 2) InkWell(onTap: _chooseImage, child: Container(width: 94, height: 94, decoration: BoxDecoration(border: Border.all(color: WaouhPalette.line), borderRadius: BorderRadius.circular(12)), child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo_outlined), SizedBox(height: 4), Text('Photo')]))),
+          if (_photos.length < 4) InkWell(onTap: _chooseImage, child: Container(width: 94, height: 94, decoration: BoxDecoration(border: Border.all(color: WaouhPalette.line), borderRadius: BorderRadius.circular(12)), child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_a_photo_outlined), SizedBox(height: 4), Text('Photo')]))),
         ]),
         const SizedBox(height: 22),
         Container(

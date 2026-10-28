@@ -826,6 +826,7 @@ class LiveNexusService {
                 [
                   'nexus.global_discovery',
                   'nexus.mandate.create',
+                  'nexus.sale.analyze',
                 ].contains(action)
                 ? 120
                 : 18,
@@ -867,6 +868,13 @@ class LiveNexusService {
       );
     }
     return _map(envelope['data']);
+  }
+
+  Future<Map<String,dynamic>> analyzeSale(String owner,Map<String,dynamic> draft,bool visual) async {
+    final data=await _invoke('nexus.sale.analyze',{...draft,'visual':visual},owner);return _map(data['suggestions']);
+  }
+  Future<Map<String,dynamic>> publishSale(String owner,Map<String,dynamic> draft) async {
+    final data=await _invoke('nexus.sale.publish',{...draft,'confirmed':true},owner);return _map(data['article']);
   }
 
   Future<String> identifyVisual({
