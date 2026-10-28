@@ -22,7 +22,7 @@ void main() {
                 'condition': 'good',
                 'city': 'Cotonou',
               },
-              analyze: (_, _) async => {},
+              analyze: (draft, visual) async => {},
               publish: (draft) async {
                 publications++;
                 return {...draft, 'article_id': 'article-a'};
@@ -70,7 +70,7 @@ void main() {
                 'condition': 'good',
                 'city': 'Cotonou',
               },
-              analyze: (_, _) async => {},
+              analyze: (draft, visual) async => {},
               publish: (_) => response.future,
               onPublished: (_) => navigations++,
             ),

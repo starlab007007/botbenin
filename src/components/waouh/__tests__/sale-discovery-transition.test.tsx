@@ -1,6 +1,6 @@
 import React, {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter,useLocation} from 'react-router-dom';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {WaouhGlobalDiscoveryPanel} from '../WaouhGlobalDiscoveryPanel';
 import {newSaleDraft, saleSearchPath} from '@/lib/waouh/smartSale';
@@ -23,6 +23,20 @@ beforeEach(()=>{
  mocks.search.mockReset().mockResolvedValue({results:[],mode:'find_buyers',source_mix:{}});
 });
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();sessionStorage.clear();});
+function Location(){return <output>{useLocation().search}</output>;}
+it('persists the inline publication in the route before launching the buyer search',async()=>{
+ await act(async()=>root.render(<MemoryRouter initialEntries={['/app/nexus?kind=vendre&q=Samsung%20S25&city=Cotonou']}><WaouhGlobalDiscoveryPanel/><Location/></MemoryRouter>));
+ await act(async()=>{
+  const price=host.querySelector<HTMLInputElement>('[aria-label="Prix souhaité"]')!;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(price,'350000');price.dispatchEvent(new Event('input',{bubbles:true}));
+  const state=host.querySelector<HTMLSelectElement>('[aria-label="État du produit"]')!;
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value')!.set!.call(state,'good');state.dispatchEvent(new Event('change',{bubbles:true}));
+ });
+ await act(async()=>host.querySelector<HTMLButtonElement>('.wss-publish')!.click());
+ expect(host.querySelector('output')?.textContent).toContain('article_id=article-a');
+ expect(mocks.publish).toHaveBeenCalledOnce();expect(mocks.search).toHaveBeenCalledOnce();
+ expect(mocks.follow).toHaveBeenCalledWith('owner-a',expect.objectContaining({article_id:'article-a'}));
+});
 it('opens a published sale, renders the product and starts the buyer search with its identity',async()=>{
  const path=saleSearchPath('owner-a',sale);
  await act(async()=>root.render(<MemoryRouter initialEntries={[path]}><WaouhGlobalDiscoveryPanel/></MemoryRouter>));

@@ -18,6 +18,13 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke:mocks
 beforeEach(()=>{vi.useFakeTimers();mocks.analyze.mockReset().mockResolvedValue({suggestions:{}});mocks.publish.mockReset();mocks.upload.mockReset().mockResolvedValue({error:null});mocks.invoke.mockReset();});
 afterEach(()=>{cleanup();vi.useRealTimers();});
 describe('compact sale composer',()=>{
+ it('keeps photos already uploaded if a later photo fails',async()=>{
+  mocks.upload.mockResolvedValueOnce({error:null}).mockResolvedValueOnce({error:new Error('network')});
+  render(<WaouhSmartSale onPublished={()=>{}}/>);
+  await act(async()=>{fireEvent.change(container.querySelector('input[multiple]')!,{target:{files:[1,2].map(i=>new File(['image'],i+'.jpg',{type:'image/jpeg'}))}});});
+  expect(screen.getByText('1 / 4 photos')).toBeTruthy();
+  expect(container.querySelectorAll('.wss-slot img')).toHaveLength(1);
+ });
  it('keeps the committed sale when navigation fails and retries navigation without publishing twice',async()=>{
   const done=vi.fn().mockImplementationOnce(()=>{throw new Error('navigation');});
   mocks.publish.mockImplementation(async(_owner,draft)=>({draft,article:{...draft,id:'article-a',article_id:'article-a'}}));

@@ -26,7 +26,7 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
  };
  useEffect(()=>{
   const version=++generation.current;let active=true;
-  setAnalyzing(false);if(!user||(!draft.title.trim()&&!draft.photos.length))return;
+  setAnalyzing(false);if(!user||uploading||publishing||saved||(!draft.title.trim()&&!draft.photos.length))return;
   const timer=window.setTimeout(async()=>{
    if(!active||version!==generation.current||!alive.current||submitLock.current)return;
    const photos=draft.photos[0]||'',visual=!!photos&&photos!==photoKey.current;
@@ -41,7 +41,7 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
    finally{if(active&&version===generation.current)setAnalyzing(false);}
   },650);
   return()=>{active=false;clearTimeout(timer);};
- },[draft.title,draft.photos.join('|'),draft.condition,user?.id]);
+ },[draft.title,draft.photos.join('|'),draft.condition,user?.id,uploading,publishing,saved]);
  const add=async(files:FileList|null)=>{
   if(!files?.length||uploading||publishing)return;
   if(!user){onConnect?.();return;}
@@ -54,6 +54,8 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
     const path=`nexus/${owner}/sale/${crypto.randomUUID()}.${file.name.split('.').pop()||'jpg'}`;
     const {error}=await supabase.storage.from('waouh-uploads').upload(path,file,uploadOptions(file.type));if(error)throw error;
     next.push(supabase.storage.from('waouh-uploads').getPublicUrl(path).data.publicUrl);
+    if(!alive.current||ownerRef.current!==owner)return;
+    setDraft(d=>({...d,photos:next.slice(0,4)}));
    }
    if(alive.current&&ownerRef.current===owner)setDraft(d=>({...d,photos:next.slice(0,4)}));
   }catch{if(alive.current)setNotice('Photo non ajoutée. Essayez une autre image.');}

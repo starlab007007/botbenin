@@ -411,8 +411,11 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_outbound_queue",filter:`web_session_id=eq.${sessionId}`}, onQueueInsert);
         channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_notifications",filter:`web_session_id=eq.${sessionId}`}, onUnifiedInsert);
       } else if (ids.length) {
-        channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_outbound_queue",filter:`to_user_id=in.(${ids.join(',')})`}, onQueueInsert);
-        channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_notifications",filter:`user_id=in.(${ids.join(',')})`}, onUnifiedInsert);
+        for (let start=0; start<ids.length; start+=100) {
+          const group=ids.slice(start,start+100).join(',');
+          channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_outbound_queue",filter:`to_user_id=in.(${group})`}, onQueueInsert);
+          channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_notifications",filter:`user_id=in.(${group})`}, onUnifiedInsert);
+        }
       } else { return; }
       channels.push(channel.subscribe());
     })().catch(() => { if (active) console.warn('[waouh-notifs] subscription unavailable'); });

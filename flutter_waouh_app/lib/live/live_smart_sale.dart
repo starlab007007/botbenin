@@ -312,6 +312,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
           await LiveNexusService(legacy.supabase).uploadSharedImage(file),
         );
         if (!_valid) return;
+        setState(() => _draft['photos'] = next.take(4).toList());
       }
       if (_valid) setState(() => _draft['photos'] = next.take(4).toList());
     } catch (_) {
