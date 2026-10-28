@@ -38,6 +38,13 @@ describe('compact sale composer',()=>{
   await act(async()=>{resolve({suggestions:{condition:'new',city:'Cotonou',price:{value:400000,low:380000,high:410000,observations:3}}});});
   expect((screen.getByLabelText('Prix souhaité') as HTMLInputElement).value.replace(/\D/g,'')).toBe('300000');expect(screen.getByLabelText('État du produit')).toHaveValue('good');expect(screen.getByLabelText('Ville ou quartier')).toHaveValue('Parakou');
  });
+ it('clears obsolete inferred facts when the product changes',()=>{
+  render(<WaouhSmartSale onPublished={()=>{}}/>);
+  fireEvent.change(screen.getByLabelText('Produit à vendre'),{target:{value:'Moto neuve 650000 FCFA'}});
+  expect(screen.getByLabelText('État du produit')).toHaveValue('new');
+  fireEvent.change(screen.getByLabelText('Produit à vendre'),{target:{value:'Samsung S25'}});
+  expect(screen.getByLabelText('Prix souhaité')).toHaveValue('');expect(screen.getByLabelText('État du produit')).toHaveValue('');
+ });
  it('never replaces a manually chosen place with a delayed GPS result',async()=>{
   let gps!:(v:any)=>void;Object.defineProperty(navigator,'geolocation',{configurable:true,value:{getCurrentPosition:(success:any)=>{gps=success;}}});
   mocks.invoke.mockResolvedValue({data:{city:'Cotonou',district:'Fidjrossè'}});

@@ -202,6 +202,13 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
             ).hasMatch('$value') ||
             '$value'.trim().isEmpty)
           _dirty.remove('title');
+        for (final field in ['price', 'condition', 'quantity', 'unit']) {
+          if (!_dirty.contains(field))
+            _draft[field] = field == 'unit' ? '' : null;
+        }
+        if (!_dirty.contains('price')) _price.clear();
+        if (!_dirty.contains('quantity')) _quantity.clear();
+        if (!_dirty.contains('unit')) _unit.clear();
         _sync(liveSaleTextSuggestions('$value'));
       }
     });
@@ -252,20 +259,29 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
       return;
     }
     final picker = ImagePicker();
-    final files = camera
-        ? [
-            await picker.pickImage(
-              source: ImageSource.camera,
+    late final List<XFile> files;
+    try {
+      files = camera
+          ? [
+              await picker.pickImage(
+                source: ImageSource.camera,
+                maxWidth: 1600,
+                maxHeight: 1600,
+                imageQuality: 82,
+              ),
+            ].whereType<XFile>().toList()
+          : await picker.pickMultiImage(
               maxWidth: 1600,
               maxHeight: 1600,
               imageQuality: 82,
-            ),
-          ].whereType<XFile>().toList()
-        : await picker.pickMultiImage(
-            maxWidth: 1600,
-            maxHeight: 1600,
-            imageQuality: 82,
-          );
+            );
+    } catch (_) {
+      if (_valid)
+        setState(
+          () => _notice = 'Photo indisponible. Choisissez une autre image.',
+        );
+      return;
+    }
     if (!_valid || files.isEmpty) return;
     _timer?.cancel();
     _generation++;

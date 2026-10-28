@@ -20,7 +20,7 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
   dirty.current.add(key==='district'?'city':key);if(key==='title'&&vague(String(value)))dirty.current.delete('title');
   setDraft(d=>({...d,[key]:value}));setNotice('');
   if(key==='title'){
-   const parsed=saleTextSuggestions(String(value));setDraft(d=>mergeSaleSuggestions(d,parsed,dirty.current));
+   const parsed=saleTextSuggestions(String(value));setDraft(d=>mergeSaleSuggestions({...d,...Object.fromEntries(['price','condition','quantity','unit'].filter(k=>!dirty.current.has(k)).map(k=>[k,k==='unit'?'':null]))},parsed,dirty.current));
   }
  };
  useEffect(()=>{
