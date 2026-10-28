@@ -578,10 +578,26 @@ Analyse un contenu volontairement partagé ou public et retourne uniquement JSON
   "city":string|null,
   "country_code":string|null,
   "availability":"available|low_stock|out_of_stock|unknown"|null,
+  "offer_kind":"product|service|announcement"|null,
+  "scope":string|null,
+  "price_basis":string|null,
+  "delivery_days":number|null,
+  "pages":number|null,
+  "visit_fee":number|null,
+  "diagnostic_fee":number|null,
+  "revisions":number|null,
+  "warranty":string|null,
+  "exclusions":string|null,
+  "time_slot":string|null,
+  "organization":string|null,
+  "conditions":string|null,
+  "deadline":string|null,
   "confidence":number
 }
 Règles:
 - Ne fabrique jamais un téléphone, email, nom, prix ou localisation absent.
+- Services et prestations : conserve seulement le périmètre, les frais, les délais et les livrables explicitement annoncés.
+- Opportunités : conserve l’organisateur, les conditions et l’échéance exacte (AAAA-MM-JJ). Date absente, relative ou année inconnue : null. Ne présume pas l’admissibilité d’un utilisateur.
 - confidence entre 0 et 1.
 - Montants en FCFA quand la devise est identifiable.
 - ANNOUNCE = information commerciale sans intention BUY/SELL suffisamment certaine.
@@ -592,12 +608,16 @@ Règles:
     const parsed = JSON.parse(raw);
     const text = (value: unknown, max = 240) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
     const number = (value: unknown) => {
+      if(value==null||value===''||typeof value==='boolean')return null;
       const n = Number(value);
       return Number.isFinite(n) && n >= 0 ? n : null;
     };
     const intent = ["BUY","SELL","ANNOUNCE","RFQ","UNKNOWN"].includes(String(parsed.intent))
       ? String(parsed.intent) : fallbackIntent;
+    // Image URLs must come from source media, never from generated extraction.
+    const {photos:_photos,...businessFacts}=discoveryBusinessFacts(parsed);
     return {
+      ...businessFacts,
       intent,
       actor_type: actorRoleFromIntent(intent, text(parsed.actor_type, 40)),
       actor_name: text(parsed.actor_name),

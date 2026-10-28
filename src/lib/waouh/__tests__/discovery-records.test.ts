@@ -1,8 +1,13 @@
 import {describe,it,expect} from 'vitest';
-import {loadDiscoveryRecords,discoveryBusinessFacts,publicSearchProfiles} from '../../../../supabase/functions/_shared/waouh-discovery-records';
+import {loadDiscoveryRecords,discoveryBusinessFacts,publicSearchProfiles,discoveryRecordCurrent} from '../../../../supabase/functions/_shared/waouh-discovery-records';
 import {productSnapshot} from '../../../../supabase/functions/_shared/waouh-product-presentation';
 import {missionMatches,normalizeMissionContext} from '../../../../supabase/functions/_shared/waouh-mission-domain';
 describe('unified discovery',()=>{
+ it('excludes closed opportunities from generic search as well as opportunity missions',()=>{
+  const row={fabric_id:'a',evidence:{offer_kind:'announcement',deadline:'2020-01-01'}};
+  expect(discoveryRecordCurrent(row,Date.parse('2026-01-01'))).toBe(false);
+  expect(discoveryRecordCurrent({...row,evidence:{offer_kind:'announcement'}},Date.parse('2026-01-01'))).toBe(true);
+ });
  it('uses opportunity and professional sources for the requested mission',()=>{
   const opportunities=publicSearchProfiles('find_sellers','PME','Cotonou','opportunity');
   expect(opportunities.map(p=>p.q).join(' ')).toContain('appel à projets');

@@ -1,7 +1,13 @@
 import { normalizeFabricText } from './waouh-signal-fabric.ts';
 import { publicBusinessEvidence } from './waouh-public-discovery.ts';
 import { productPhotos } from './waouh-product-presentation.ts';
-import { missionEntity } from './waouh-mission-domain.ts';
+import { missionEntity, missionDeadline, type MissionKind } from './waouh-mission-domain.ts';
+
+export function discoveryRecordCurrent(row: Record<string, any>, now=Date.now()) {
+  const offer={...row,fabric_id:String(row.fabric_id??'')};
+  const deadline=missionDeadline(offer);
+  return missionEntity(offer)!=='announcement'||deadline===null||deadline>=now;
+}
 
 /** One candidate loader for interactive search, the catalogue and background follow-up. */
 export async function loadDiscoveryRecords(
@@ -25,12 +31,13 @@ export async function loadDiscoveryRecords(
     .order('observed_at', {ascending: false}).limit(1000) : null;
   const [a, b] = await Promise.all([recent, targeted ?? Promise.resolve({data: [], error: null})]);
   if (a.error || b.error) throw new Error('discovery_records_unavailable');
-  const records = [...new Map([...(b.data ?? []), ...(a.data ?? [])].map(r => [r.fabric_id, r])).values()] as Record<string, any>[];
+  const candidates = [...new Map([...(b.data ?? []), ...(a.data ?? [])].map(r => [r.fabric_id, r])).values()] as Record<string, any>[];
+  const records=candidates.filter(r=>discoveryRecordCurrent(r));
   return {records, coverage: {inspected: records.length, targeted: b.data?.length ?? 0, recent: a.data?.length ?? 0, exhaustive: false}};
 }
 
 /** Persist declared business facts in the same shape for products, services and opportunities. */
-export function discoveryBusinessFacts(input: Record<string, any>) {
+export function discoveryBusinessFacts(input: Record<string, any>): Record<string, unknown> & {offer_kind: string} {
   const evidence = input.evidence && typeof input.evidence === 'object' ? input.evidence : {};
   const facts = publicBusinessEvidence({...evidence, ...input});
   const photos = publicBusinessEvidence({photos: productPhotos(input)}).photos;
@@ -40,7 +47,6 @@ export function discoveryBusinessFacts(input: Record<string, any>) {
   return {...facts, offer_kind: offerKind};
 }
 
-import type {MissionKind} from './waouh-mission-domain.ts';
 export function publicSearchProfiles(mode: string, query: string, city?: string | null, kind?: MissionKind) {
   const clean = query.replace(/"/g, "").trim();
   const where = [city, "Bénin"].filter(Boolean).join(" ");
