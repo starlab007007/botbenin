@@ -110,4 +110,33 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'miniature empty and failed photos fit a compact comparison tray',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                LiveProductGallery(
+                  photos: const [],
+                  title: 'Sans photo',
+                  width: 30,
+                  height: 36,
+                ),
+                LiveProductGallery(
+                  photos: [photos.first],
+                  title: 'Photo indisponible',
+                  width: 30,
+                  height: 36,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

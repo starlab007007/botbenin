@@ -44,17 +44,32 @@ class _LiveProductGalleryState extends State<LiveProductGallery> {
 
   Widget fallback({bool unavailable = false}) => ColoredBox(
     color: const Color(0xFFF1F3F8),
-    child: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.image_outlined, size: 28, color: Color(0xFF939DB1)),
-          const SizedBox(height: 8),
-          Text(
-            unavailable ? 'Photo indisponible' : 'Photo non fournie',
-            style: const TextStyle(fontSize: 10, color: Color(0xFF8B96AB)),
-          ),
-        ],
+    child: LayoutBuilder(
+      builder: (context, constraints) => Center(
+        child: constraints.maxWidth < 80 || constraints.maxHeight < 80
+            ? const Icon(
+                Icons.image_outlined,
+                size: 18,
+                color: Color(0xFF939DB1),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.image_outlined,
+                    size: 28,
+                    color: Color(0xFF939DB1),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    unavailable ? 'Photo indisponible' : 'Photo non fournie',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF8B96AB),
+                    ),
+                  ),
+                ],
+              ),
       ),
     ),
   );
