@@ -28,6 +28,15 @@ void main() {
       ),
     );
   });
+  test('fractional sale quantities survive saved mission context', () {
+    expect(
+      normalizeMissionContext({
+        'quantity': 1.5,
+        'unit': 'tonne',
+      }, 'sale')['quantity'],
+      1.5,
+    );
+  });
   test('context respects saved floor and infers days and pages', () {
     expect(
       normalizeMissionContext(

@@ -1,3 +1,4 @@
+import {loadDiscoveryRecords,discoveryBusinessFacts,publicSearchProfiles} from '../_shared/waouh-discovery-records.ts';
 import {normalizeSaleDraft,saleTextSuggestions,trustedSalePhotos,suggestSalePrice,saleCategory} from '../_shared/waouh-smart-sale.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import { withJourneyProducts, withMandateProducts, missionJourneyLimit } from '../_shared/waouh-mission-feed.ts';
@@ -577,10 +578,26 @@ Analyse un contenu volontairement partagé ou public et retourne uniquement JSON
   "city":string|null,
   "country_code":string|null,
   "availability":"available|low_stock|out_of_stock|unknown"|null,
+  "offer_kind":"product|service|announcement"|null,
+  "scope":string|null,
+  "price_basis":string|null,
+  "delivery_days":number|null,
+  "pages":number|null,
+  "visit_fee":number|null,
+  "diagnostic_fee":number|null,
+  "revisions":number|null,
+  "warranty":string|null,
+  "exclusions":string|null,
+  "time_slot":string|null,
+  "organization":string|null,
+  "conditions":string|null,
+  "deadline":string|null,
   "confidence":number
 }
 Règles:
 - Ne fabrique jamais un téléphone, email, nom, prix ou localisation absent.
+- Services et prestations : conserve seulement le périmètre, les frais, les délais et les livrables explicitement annoncés.
+- Opportunités : conserve l’organisateur, les conditions et l’échéance exacte (AAAA-MM-JJ). Date absente, relative ou année inconnue : null. Ne présume pas l’admissibilité d’un utilisateur.
 - confidence entre 0 et 1.
 - Montants en FCFA quand la devise est identifiable.
 - ANNOUNCE = information commerciale sans intention BUY/SELL suffisamment certaine.
@@ -591,12 +608,16 @@ Règles:
     const parsed = JSON.parse(raw);
     const text = (value: unknown, max = 240) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
     const number = (value: unknown) => {
+      if(value==null||value===''||typeof value==='boolean')return null;
       const n = Number(value);
       return Number.isFinite(n) && n >= 0 ? n : null;
     };
     const intent = ["BUY","SELL","ANNOUNCE","RFQ","UNKNOWN"].includes(String(parsed.intent))
       ? String(parsed.intent) : fallbackIntent;
+    // Image URLs must come from source media, never from generated extraction.
+    const {photos:_photos,...businessFacts}=discoveryBusinessFacts(parsed);
     return {
+      ...businessFacts,
       intent,
       actor_type: actorRoleFromIntent(intent, text(parsed.actor_type, 40)),
       actor_name: text(parsed.actor_name),
@@ -863,6 +884,7 @@ async function ingestCommerceSignal(
   const externalId = externalIdRaw ?? await sha256Hex(
     `${sourceKey}|${sourceUrl ?? ""}|${rawTextInput.slice(0, 5000)}|${actorName ?? ""}`,
   );
+  const businessFacts = discoveryBusinessFacts({...extraction, ...input});
   const row = {
     submitted_by: ownerId,
     source_id: source.id,
@@ -900,8 +922,11 @@ async function ingestCommerceSignal(
       ? pickEnum(input.availability, "availability", ["available","low_stock","out_of_stock","unknown"] as const)
       : extraction.availability,
     raw_text: redactPublicContacts(rawTextInput).slice(0, 20_000) || null,
+    photo_urls: (businessFacts.photos ?? []) as string[],
+    primary_photo_url: ((businessFacts.photos ?? []) as string[])[0] ?? null,
     evidence: {
       ...(jsonObject(input.evidence, "evidence")),
+      ...businessFacts,
       contact_hints: {
         phone_count: contactPhones.length,
         email_count: contactEmails.length,
@@ -916,8 +941,12 @@ async function ingestCommerceSignal(
   };
 
   const { data: existing, error: lookupError } = await sb.from("waouh_external_commerce_signals")
-    .select("id").eq("source_key", sourceKey).eq("source_external_id", externalId).maybeSingle();
+    .select("id,photo_urls,primary_photo_url,evidence").eq("source_key", sourceKey).eq("source_external_id", externalId).maybeSingle();
   if (lookupError) throw new ApiError(500, "nexus_signal_lookup_failed", lookupError.message);
+  if(existing){
+    row.evidence={...existing.evidence,...row.evidence};
+    if(!row.photo_urls.length){row.photo_urls=existing.photo_urls??[];row.primary_photo_url=existing.primary_photo_url??null;}
+  }
   const signal = existing?.id
     ? await queryOne<any>(
         sb.from("waouh_external_commerce_signals").update(row).eq("id", existing.id).select("*").single(),
@@ -1054,26 +1083,6 @@ function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
   return "serpapi";
 }
 
-function publicSearchProfiles(mode: DiscoveryMode, query: string, city?: string | null) {
-  const clean = query.replace(/"/g, "").trim();
-  const where = [city, "Bénin"].filter(Boolean).join(" ");
-  const sellIntent = '("à vendre" OR vente OR prix OR disponible OR arrivage OR boutique OR fournisseur)';
-  const buyIntent = '("je cherche" OR "besoin de" OR "qui vend" OR "cherche fournisseur" OR "demande de cotation" OR RFQ OR "appel d\'offres")';
-  const intent = mode === "find_sellers" ? sellIntent : buyIntent;
-  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me)";
-  const localBusinessSites = "(site:monentreprise.bj OR site:cci.bj OR site:apiex.bj OR site:.bj)";
-  const commerceSites = "(site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:linkedin.com)";
-  const b2bSites = "(site:marches-publics.bj OR site:armp.bj OR site:dgmp.bj OR site:linkedin.com OR site:.bj)";
-  const profiles = [
-    { key: "social", q: `"${clean}" ${intent} ${where} ${socialSites}` },
-    { key: "local", q: `"${clean}" ${intent} ${where} ${localBusinessSites}` },
-    {
-      key: mode === "find_buyers" ? "b2b" : "commerce",
-      q: `"${clean}" ${intent} ${where} ${mode === "find_buyers" ? b2bSites : commerceSites}`,
-    },
-  ];
-  return profiles;
-}
 
 async function refreshSerpApi(
   sb: SupabaseClient,
@@ -1082,6 +1091,7 @@ async function refreshSerpApi(
   query: string,
   city?: string | null,
   limit = 10,
+  missionKind?: MissionKind,
 ) {
   const key = await getRadarApiKey(sb as any, "serpapi", "SERPAPI_KEY");
   if (!key.ok || !key.key) {
@@ -1094,7 +1104,7 @@ async function refreshSerpApi(
     };
   }
 
-  const profiles = publicSearchProfiles(mode, query, city);
+  const profiles = publicSearchProfiles(mode, query, city, missionKind);
   const perProfile = Math.max(2, Math.min(6, Math.ceil(limit / profiles.length)));
   const saved: any[] = [];
   const seen = new Set<string>();
@@ -1130,7 +1140,7 @@ async function refreshSerpApi(
       try { hostname = new URL(link).hostname.replace(/^www\./, ""); } catch { /* keep web */ }
       const sourceKey = publicSourceKey(link, mode);
       const publicBusiness = sourceKey === "benin_directory";
-      const expectedIntent = mode === "find_sellers" ? "SELL" : (sourceKey === "b2b_rfq" ? "RFQ" : "BUY");
+      const expectedIntent = missionKind === 'opportunity' ? 'ANNOUNCE' : mode === "find_sellers" ? "SELL" : (sourceKey === "b2b_rfq" ? "RFQ" : "BUY");
       const rawText = [item.title, item.snippet].filter(Boolean).join("\n");
 
       const ingested = await ingestCommerceSignal(sb, ownerId, {
@@ -1139,8 +1149,8 @@ async function refreshSerpApi(
         source_url: link,
         raw_text: rawText,
         intent: expectedIntent,
-        actor_type: publicBusiness ? "business" : (mode === "find_sellers" ? "seller" : "buyer"),
-        product_name: query,
+        actor_type: missionKind === "opportunity" ? "announcer" : publicBusiness ? "business" : (mode === "find_sellers" ? "seller" : "buyer"),
+        product_name: typeof item.title === "string" ? item.title.slice(0,240) : undefined,
         city: city ?? null,
         contact_consent_basis: publicBusiness ? "public_business" : "unknown",
         public_business: publicBusiness,
@@ -1305,15 +1315,7 @@ async function globalDiscoverySearch(
     missionContext?: ReturnType<typeof normalizeMissionContext>;
   },
 ) {
-  const desired = input.mode === "find_sellers" ? ["SELL","ANNOUNCE"] : ["BUY","RFQ"];
-  const terms = normalizeFabricText(input.query).split(/\s+/).filter(t => /^[a-z0-9]{3,30}$/.test(t)).slice(0, 4);
-  let recent = sb.from("waouh_signal_fabric").select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1000);
-  let targeted = terms.length ? sb.from("waouh_signal_fabric").select("*").in("intent", desired)
-    .or(terms.map(t => `subject.ilike.%${t}%`).join(",")).order("observed_at", { ascending: false }).limit(1000) : recent;
-  if (input.publicRead) { recent = recent.in("source_key", PUBLIC_NEXUS_SOURCES); targeted = targeted.in("source_key", PUBLIC_NEXUS_SOURCES); }
-  const [recentRows, targetRows] = await Promise.all([recent, targeted]);
-  if (recentRows.error || targetRows.error) throw new ApiError(500, "nexus_global_discovery_failed", (recentRows.error || targetRows.error)!.message);
-  const data = [...new Map([...(targetRows.data || []), ...(recentRows.data || [])].map(row => [row.fabric_id, row])).values()];
+  const {records:data,coverage} = await loadDiscoveryRecords(sb, {query:input.query,mode:input.mode,publicSources:input.publicRead?PUBLIC_NEXUS_SOURCES:undefined});
   const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind})).filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
@@ -1334,7 +1336,7 @@ async function globalDiscoverySearch(
       (b.scores.total_score * 0.72 + Number(b.actionability_score ?? 0) * 0.28) -
       (a.scores.total_score * 0.72 + Number(a.actionability_score ?? 0) * 0.28)
     )
-    , input.limit).map(row => ({ ...row, coverage: { inspected: data.length, targeted: (targetRows.data || []).length, recent: (recentRows.data || []).length, exhaustive: false } }));
+    , input.limit).map(row => ({ ...row, coverage }));
 }
 
 
@@ -2289,9 +2291,9 @@ Deno.serve(async (req: Request) => {
         const identity = await getOrCreateNexusUser(sb,ownerId,'Utilisateur WAOUH');
         const id = draft.article_id ? uuid(draft.article_id,'article_id') : await automaticMandateId(ownerId,`smart-sale:${requestId}`,null);
         const values: Record<string,unknown> = {title:draft.title,description:draft.description||null,price:draft.price,currency:'XOF',condition:draft.condition,
-          category:saleCategory(draft.title),city:draft.city,address_description:draft.district||null,photos,status:'active',source_channel:'web',origin:'user',
+          category:saleCategory(draft.title),city:draft.city,address_description:draft.district||null,photos,status:'active',source_channel:'waouh_app',origin:'user',
           location:draft.latitude!==null&&draft.longitude!==null?`SRID=4326;POINT(${draft.longitude} ${draft.latitude})`:null,
-          ai_attributes:{smart_sale:true,quantity:draft.quantity,unit:draft.unit||'pièce',request_id:requestId}};
+          ai_attributes:{smart_sale:true,offer_kind:'product',quantity:draft.quantity,unit:draft.unit||'pièce',request_id:requestId}};
         const {data: previous,error: previousError} = await sb.from('waouh_articles').select('id').eq('id',id).maybeSingle();
         if(previousError)throw new ApiError(503,'sale_unavailable');
         let article: any;
@@ -2569,7 +2571,7 @@ Retourne uniquement JSON:
         const refresh: Record<string, unknown> = publicRead ? { google_places: { status: "not_requested", reason: "authentication_required_for_refresh" }, serpapi: { status: "not_requested", reason: "authentication_required_for_refresh" } } : {};
         if (refreshExternal) {
           const sourcePlan = new Set(intelligence.source_families ?? []);
-          const useMaps = mode === "find_sellers" && (allSources || sourcePlan.size === 0 || sourcePlan.has("maps"));
+          const useMaps = discoveryKind!=="opportunity" && mode === "find_sellers" && (allSources || sourcePlan.size === 0 || sourcePlan.has("maps"));
           const usePublicWeb = allSources || sourcePlan.size === 0 || [
             "web_public", "social_public", "directories", "b2b_rfq",
           ].some((family) => sourcePlan.has(family));
@@ -2581,7 +2583,7 @@ Retourne uniquement JSON:
           }
 
           if (usePublicWeb) {
-            refresh.serpapi = await settleDiscoverySource(() => refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12)));
+            refresh.serpapi = await settleDiscoverySource(() => refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12), discoveryKind));
           } else {
             refresh.serpapi = { configured: true, inserted: 0, status: "not_requested", reason: "not_selected_by_ai_plan", surfaces: {} };
           }
@@ -2809,7 +2811,7 @@ Retourne uniquement JSON:
         const initialRefresh: Record<string, unknown> = {};
         if(!automatic){
         try {
-          if (discoveryMode === "find_sellers") {
+          if (discoveryMode === "find_sellers" && discoveryKind!=="opportunity") {
             const places = await refreshGooglePlaces(
               sb,
               ownerId,
@@ -2830,6 +2832,7 @@ Retourne uniquement JSON:
             goal,
             city,
             Math.min(12, Math.max(maxContacts * 3, 6)),
+            discoveryKind,
           );
           initialRefresh.serpapi = {
             configured: serp.configured,
@@ -4018,88 +4021,25 @@ Retourne uniquement JSON:
         const preference = await getNexusPreference(sb, ownerId);
         const weights = nexusWeights(preference);
 
-        const [articlesResult, catalogResult] = await Promise.all([
-          sb.from("waouh_articles")
-            .select("id,title,description,category,brand,model,condition,price,currency,photos,city,status,origin,source_channel,created_at,updated_at,seller:waouh_users!seller_id(id,auth_user_id,display_name,city,reputation,sales_count,is_verified)")
-            .eq("status", "active")
-            .order("updated_at", { ascending: false })
-            .limit(500),
-          sb.from("waouh_unified_catalog")
-            .select("id,titre,description,categorie,prix_min,prix_max,devise,ville,vendeur_nom,vendeur_whatsapp,source,photos,promoted_article_id,is_active,updated_at")
-            .eq("is_active", true)
-            .order("updated_at", { ascending: false })
-            .limit(500),
-        ]);
-        if (articlesResult.error) throw new ApiError(500, "nexus_article_search_failed", articlesResult.error.message);
-        if (catalogResult.error) throw new ApiError(500, "nexus_catalog_search_failed", catalogResult.error.message);
-
+        const {records} = await loadDiscoveryRecords(sb,{query:semanticQuery,mode:'find_sellers',internalOnly:true});
+        const sellerIds=[...new Set(records.map(r=>r.evidence?.seller_id).filter(Boolean))];
+        const sellers=sellerIds.length?await sb.from('waouh_users').select('id,auth_user_id,display_name,city,reputation,sales_count,is_verified').in('id',sellerIds):{data:[],error:null};
+        if(sellers.error)throw new ApiError(500,'nexus_seller_lookup_failed');
+        const sellerMap=new Map((sellers.data??[]).map((r:any)=>[r.id,r]));
         const ranked: any[] = [];
-        for (const row of articlesResult.data ?? []) {
-          const seller = Array.isArray((row as any).seller) ? (row as any).seller[0] : (row as any).seller;
-          const article: ArticleLike = { ...(row as any), seller };
-          const scores = rankArticle({ query: semanticQuery, budgetMax, budgetMin, city: requestedCity, article, weights });
-          if (scores.relevance_score < 18) continue;
-          ranked.push({
-            kind: "article",
-            article_id: row.id,
-            catalog_id: null,
-            title: row.title,
-            description: row.description,
-            category: row.category,
-            brand: row.brand,
-            model: row.model,
-            condition: row.condition,
-            price: row.price == null ? null : Number(row.price),
-            currency: row.currency ?? "XOF",
-            city: row.city,
-            photos: row.photos ?? [],
-            source: row.source_channel ?? row.origin ?? "waouh",
-            seller: seller ? {
-              display_name: seller.display_name,
-              verified: seller.is_verified === true,
-              reputation: seller.reputation == null ? null : Number(seller.reputation),
-            } : null,
-            seller_auth_id: seller?.auth_user_id ?? null,
-            scores,
-          });
-        }
-
-        for (const row of catalogResult.data ?? []) {
-          if ((row as any).promoted_article_id) continue;
-          const article: ArticleLike = {
-            id: `catalog:${row.id}`,
-            title: row.titre,
-            description: row.description,
-            category: row.categorie,
-            price: row.prix_min ?? row.prix_max,
-            city: row.ville,
-            status: "active",
-            origin: String(row.source ?? "partner"),
-            source_channel: String(row.source ?? "partner"),
-            updated_at: row.updated_at ?? null,
-            seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", is_verified: row.source === "partner" },
-          };
-          const scores = rankArticle({ query: semanticQuery, budgetMax, budgetMin, city: requestedCity, article, weights });
-          if (scores.relevance_score < 18) continue;
-          ranked.push({
-            kind: "catalog",
-            article_id: null,
-            catalog_id: row.id,
-            title: row.titre,
-            description: row.description,
-            category: row.categorie,
-            brand: null,
-            model: null,
-            condition: null,
-            price: row.prix_min == null ? (row.prix_max == null ? null : Number(row.prix_max)) : Number(row.prix_min),
-            currency: row.devise ?? "XOF",
-            city: row.ville,
-            photos: row.photos ?? [],
-            source: String(row.source ?? "partner"),
-            seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", verified: row.source === "partner", reputation: null },
-            seller_auth_id: null,
-            scores,
-          });
+        for(const row of records){
+          const isArticle=String(row.fabric_id).startsWith('article:');
+          const seller:any=sellerMap.get(row.evidence?.seller_id)??{display_name:row.evidence?.seller_name??'Vendeur WAOUH',is_verified:row.evidence?.verified===true};
+          const product=productSnapshot(row)!;
+          const price=row.price_min??row.price_max;
+          if(budgetMax!==null&&price!==null&&Number(price)>budgetMax)continue;
+          const article:ArticleLike={id:row.fabric_id,title:row.subject,description:row.raw_text,category:row.category,brand:row.brand,model:row.model,condition:row.condition,price,city:row.city,status:'active',source_channel:row.source_key,updated_at:row.observed_at,seller};
+          const scores=rankArticle({query:semanticQuery,budgetMax,budgetMin,city:requestedCity,article,weights});
+          if(scores.relevance_score<18)continue;
+          ranked.push({kind:isArticle?'article':'catalog',fabric_id:row.fabric_id,article_id:isArticle?row.source_record_id:null,catalog_id:isArticle?null:row.source_record_id,
+            title:product.title,description:product.description,category:row.category,brand:row.brand,model:row.model,condition:row.condition,
+            price:price==null?null:Number(price),price_min:row.price_min,price_max:row.price_max,currency:product.currency,city:row.city,photos:product.photos,
+            evidence:row.evidence,source:row.source_key,seller:{display_name:seller.display_name,verified:seller.is_verified===true,reputation:seller.reputation==null?null:Number(seller.reputation)},seller_auth_id:seller.auth_user_id??null,scores});
         }
 
         ranked.sort((a, b) => b.scores.total_score - a.scores.total_score || Number(a.price ?? Infinity) - Number(b.price ?? Infinity));

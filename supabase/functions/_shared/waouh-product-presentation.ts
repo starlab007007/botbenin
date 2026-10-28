@@ -31,14 +31,14 @@ export type ProductSnapshot = {
   attributes: {label: string; value: string}[];
 };
 export function productSnapshot(value: unknown): ProductSnapshot | null {
-  const p = row(value), e = row(p.evidence), metadata = row(p.metadata);
+  const p = row(value), e = {...row(p.ai_attributes), ...row(p.evidence)}, metadata = row(p.metadata);
   if (metadata.product_snapshot) return productSnapshot({...row(metadata.product_snapshot), metadata: undefined});
   const title = text(p.title, p.subject, p.nom, p.name);
   if (!title) return null;
   const attributes = [
     ['Marque', text(p.brand, e.brand)], ['Modèle', text(p.model, e.model)],
     ['État', ({new:'Neuf',like_new:'Comme neuf',good:'Bon état',fair:'Utilisé',poor:'À réparer'} as Record<string,string>)[text(p.condition,e.condition,p.etat)]??text(p.condition,e.condition,p.etat)], ['Capacité', text(p.storage, e.storage, e.capacity)],
-    ['Couleur', text(p.color, e.color)], ['Unité', text(p.unit, p.unite, e.unit, e.price_unit)],
+    ['Couleur', text(p.color, e.color)], ['Quantité', amount(p.quantity,e.quantity)===null?'':String(amount(p.quantity,e.quantity)).replace('.',',')], ['Unité', text(p.unit, p.unite, e.unit, e.price_unit)],
     ['Garantie annoncée', text(p.warranty, e.warranty)], ['Livraison', text(p.delivery, e.delivery)],
   ].filter((v) => v[1]).map(([label, value]) => ({label, value: redactPublicContacts(value).slice(0, 160)}));
   if (Array.isArray(p.attributes)) for (const a of p.attributes) {

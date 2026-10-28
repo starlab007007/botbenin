@@ -81,7 +81,7 @@ Map<String, dynamic> normalizeMissionContext(
         (pages != null ? double.parse(pages[1]!) : null),
     'quantity': _positive(raw['quantity']) == null
         ? null
-        : _positive(raw['quantity'])!.floor().clamp(1, 100000),
+        : _positive(raw['quantity'])!.clamp(0, 100000),
     'unit': unit.length > 40 ? unit.substring(0, 40) : unit,
     'price_floor': requested > bound
         ? (requested > 0 ? requested : null)

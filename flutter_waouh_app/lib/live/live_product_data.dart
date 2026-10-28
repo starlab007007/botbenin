@@ -54,7 +54,10 @@ class LiveProductData {
     raw = meta['product_snapshot'] is Map
         ? productMap(meta['product_snapshot'])
         : original;
-    final e = productMap(raw['evidence']);
+    final e = {
+      ...productMap(raw['ai_attributes']),
+      ...productMap(raw['evidence']),
+    };
     title = productText(
       raw['title'] ?? raw['subject'] ?? raw['nom'] ?? raw['name'],
     );
@@ -83,9 +86,22 @@ class LiveProductData {
     for (final pair in {
       'Marque': raw['brand'] ?? e['brand'],
       'Modèle': raw['model'] ?? e['model'],
-      'État': const {'new':'Neuf','like_new':'Comme neuf','good':'Bon état','fair':'Utilisé','poor':'À réparer'}[raw['condition'] ?? e['condition']] ?? raw['condition'] ?? e['condition'],
+      'État':
+          const {
+            'new': 'Neuf',
+            'like_new': 'Comme neuf',
+            'good': 'Bon état',
+            'fair': 'Utilisé',
+            'poor': 'À réparer',
+          }[raw['condition'] ?? e['condition']] ??
+          raw['condition'] ??
+          e['condition'],
       'Capacité': raw['storage'] ?? e['storage'] ?? e['capacity'],
       'Couleur': raw['color'] ?? e['color'],
+      'Quantité': productAmount([
+        raw['quantity'],
+        e['quantity'],
+      ])?.toString().replaceFirst(RegExp(r'\.0$'), '').replaceAll('.', ','),
       'Unité': raw['unit'] ?? raw['unite'] ?? e['unit'] ?? e['price_unit'],
       'Garantie annoncée': raw['warranty'] ?? e['warranty'],
       'Livraison': raw['delivery'] ?? e['delivery'],
