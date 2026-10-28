@@ -41,7 +41,8 @@ void main() {
     await tester.ensureVisible(find.text('Publier et trouver'));
     await tester.tap(find.text('Publier et trouver'));
     await tester.pump();
-    expect(find.text('Annonce publiée'), findsOneWidget);
+    expect(publications, 1);
+    expect(find.text('ANNONCE PUBLIÉE'), findsOneWidget);
     expect(
       find.text('Publication non terminée. Votre fiche est conservée.'),
       findsNothing,
