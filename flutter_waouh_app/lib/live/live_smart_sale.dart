@@ -7,6 +7,7 @@ import 'live_city_field.dart';
 import 'live_guest_action_gate.dart';
 import 'live_nexus_service.dart';
 import 'live_smart_sale_data.dart';
+import 'live_product_presentation.dart';
 
 class LiveSmartSaleSheet extends StatelessWidget {
   const LiveSmartSaleSheet({super.key});
@@ -134,6 +135,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
       _publishing = false,
       _attempted = false;
   String _photoKey = '', _notice = '';
+  LivePublishedSale? _published;
   Map<String, dynamic>? _priceSuggestion;
   String? get _current => widget.currentOwner != null
       ? widget.currentOwner!()
@@ -146,9 +148,16 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     super.initState();
     _owner = _current;
     _draft = liveNewSaleDraft(widget.initial);
+    _dirty.addAll(
+      ['price', 'condition', 'quantity', 'unit'].where(
+        (key) => widget.initial[key] != null && widget.initial[key] != '',
+      ),
+    );
     _draft['photos'] = _photos;
     _title = TextEditingController(text: '${_draft['title']}');
-    _price = TextEditingController(text: _draft['price']?.toString() ?? '');
+    _price = TextEditingController(
+      text: _draft['price'] is num ? _money(_draft['price']) : '',
+    );
     _place = TextEditingController(
       text: '${_draft['location_label'] ?? ''}'.isNotEmpty
           ? '${_draft['location_label']}'
@@ -223,7 +232,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     if (_owner == null || (_title.text.trim().isEmpty && _photos.isEmpty))
       return;
     _timer = Timer(const Duration(milliseconds: 650), () async {
-      if (!_valid) return;
+      if (!_valid || _publishing || _published != null) return;
       final photo = _photos.isEmpty ? '' : _photos.first;
       final visual = photo.isNotEmpty && photo != _photoKey;
       setState(() => _analyzing = true);
@@ -316,7 +325,24 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     }
   }
 
+  void _openPublished() {
+    try {
+      widget.onPublished(_published!);
+    } catch (_) {
+      if (_valid)
+        setState(
+          () =>
+              _notice = 'Annonce publiée. Vous pouvez reprendre la recherche.',
+        );
+    }
+  }
+
   Future<void> _submit() async {
+    if (_publishing || _uploading || !_valid) return;
+    if (_published != null) {
+      _openPublished();
+      return;
+    }
     setState(() => _attempted = true);
     if (_owner == null) {
       await requireLiveAuthentication(
@@ -338,19 +364,21 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
       _analyzing = false;
       _notice = '';
     });
+    final submitted = Map<String, dynamic>.from(_draft);
     try {
       final article =
-          await (widget.publish?.call(Map.from(_draft)) ??
+          await (widget.publish?.call(submitted) ??
               LiveNexusService(
                 legacy.supabase,
-              ).publishSale(_owner!, Map.from(_draft)));
-      if (_valid)
-        widget.onPublished(
-          LivePublishedSale(_owner!, {
-            ..._draft,
-            'article_id': article['article_id'],
-          }, article),
-        );
+              ).publishSale(_owner!, submitted));
+      if (_valid) {
+        _published = LivePublishedSale(_owner!, {
+          ...submitted,
+          'article_id': article['article_id'],
+        }, article);
+        _draft = Map.from(_published!.draft);
+        _openPublished();
+      }
     } catch (_) {
       if (_valid)
         setState(
@@ -404,6 +432,22 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
   );
   @override
   Widget build(BuildContext context) {
+    if (_published != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LiveProductPresentation(
+            value: _published!.article,
+            label: 'Annonce publiée',
+          ),
+          if (_notice.isNotEmpty) Text(_notice),
+          FilledButton(
+            onPressed: _openPublished,
+            child: const Text('Reprendre la recherche'),
+          ),
+        ],
+      );
+    }
     final photos = _photos;
     final blocked = _publishing || _uploading;
     return Column(
@@ -535,7 +579,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
           'Produit',
           TextField(
             controller: _title,
-            enabled: !_publishing,
+            enabled: !_publishing && _published == null,
             maxLength: 200,
             decoration: _dec(
               'Ex. Samsung S25, moto, soja…',
@@ -552,7 +596,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                 'Prix souhaité',
                 TextField(
                   controller: _price,
-                  enabled: !_publishing,
+                  enabled: !_publishing && _published == null,
                   keyboardType: TextInputType.number,
                   decoration: _dec(
                     'Votre prix',
@@ -604,7 +648,9 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                         ),
                       )
                       .toList(),
-                  onChanged: _publishing ? null : (v) => _edit('condition', v),
+                  onChanged: _publishing || _published != null
+                      ? null
+                      : (v) => _edit('condition', v),
                 ),
               ),
             ),
@@ -632,18 +678,21 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
         _field(
           'Lieu',
           IgnorePointer(
-            ignoring: _publishing,
+            ignoring: _publishing || _published != null,
             child: LiveCityField(
               controller: _place,
               autoLocate: widget.autoLocate,
-              onChanged: () => setState(() {
-                _dirty.add('city');
-                _draft.addAll(liveSalePlace(_place.text));
-                _draft['latitude'] = null;
-                _draft['longitude'] = null;
-              }),
+              onChanged: () {
+                if (_publishing || _published != null) return;
+                setState(() {
+                  _dirty.add('city');
+                  _draft.addAll(liveSalePlace(_place.text));
+                  _draft['latitude'] = null;
+                  _draft['longitude'] = null;
+                });
+              },
               onCoordinatesChanged: (lat, lng) {
-                if (mounted)
+                if (_valid && !_publishing && _published == null)
                   setState(() {
                     _draft['latitude'] = lat;
                     _draft['longitude'] = lng;
@@ -669,7 +718,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
             children: [
               TextField(
                 controller: _description,
-                enabled: !_publishing,
+                enabled: !_publishing && _published == null,
                 maxLines: 3,
                 maxLength: 2000,
                 decoration: _dec(
@@ -685,7 +734,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                       'Quantité',
                       TextField(
                         controller: _quantity,
-                        enabled: !_publishing,
+                        enabled: !_publishing && _published == null,
                         keyboardType: TextInputType.number,
                         decoration: _dec('1'),
                         onChanged: (v) => _edit('quantity', double.tryParse(v)),
@@ -698,7 +747,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                       'Unité',
                       TextField(
                         controller: _unit,
-                        enabled: !_publishing,
+                        enabled: !_publishing && _published == null,
                         decoration: _dec('pièce, kg, tonne…'),
                         onChanged: (v) => _edit('unit', v),
                       ),
@@ -738,8 +787,10 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                       color: Colors.white,
                     ),
                   )
-                : const Text(
-                    'Publier et trouver',
+                : Text(
+                    _published == null
+                        ? 'Publier et trouver'
+                        : 'Reprendre la recherche',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
           ),

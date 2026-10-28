@@ -18,6 +18,23 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{functions:{invoke:mocks
 beforeEach(()=>{vi.useFakeTimers();mocks.analyze.mockReset().mockResolvedValue({suggestions:{}});mocks.publish.mockReset();mocks.upload.mockReset().mockResolvedValue({error:null});mocks.invoke.mockReset();});
 afterEach(()=>{cleanup();vi.useRealTimers();});
 describe('compact sale composer',()=>{
+ it('keeps the committed sale when navigation fails and retries navigation without publishing twice',async()=>{
+  const done=vi.fn().mockImplementationOnce(()=>{throw new Error('navigation');});
+  mocks.publish.mockImplementation(async(_owner,draft)=>({draft,article:{...draft,id:'article-a',article_id:'article-a'}}));
+  render(<WaouhSmartSale onPublished={done} initial={{title:'Samsung S25',price:350000,condition:'good',city:'Cotonou'}}/>);
+  await act(async()=>{fireEvent.click(screen.getByText('Publier et trouver'));});
+  expect(container.textContent).toContain('Annonce publiée');
+  expect(container.textContent).not.toContain('Publication non terminée');
+  await act(async()=>{fireEvent.click(screen.getByText('Reprendre la recherche'));});
+  expect(mocks.publish).toHaveBeenCalledTimes(1);expect(done).toHaveBeenCalledTimes(2);
+ });
+ it('preserves confirmed price and condition when reopening a published product',async()=>{
+  mocks.analyze.mockResolvedValue({suggestions:{condition:'fair',price:{value:100000,low:90000,high:110000,observations:3}}});
+  render(<WaouhSmartSale onPublished={()=>{}} initial={{title:'Samsung S25',price:350000,condition:'good',city:'Cotonou'}}/>);
+  await act(async()=>{vi.advanceTimersByTime(700);});
+  expect(screen.getByLabelText('Prix souhaité').value.replace(/\D/g,'')).toBe('350000');
+  expect(screen.getByLabelText('État du produit')).toHaveValue('good');
+ });
  it('caps multiple selection at four and publishes the visible facts only on a click',async()=>{
   const done=vi.fn();mocks.publish.mockImplementation(async(_owner,draft)=>({draft,article:{...draft,id:'article-a',article_id:'article-a'}}));
   const {container}=render(<WaouhSmartSale onPublished={done} initial={{title:'Samsung S25',price:350000,condition:'good',city:'Cotonou'}}/>);

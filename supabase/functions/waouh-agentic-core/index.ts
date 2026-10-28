@@ -2272,7 +2272,7 @@ Deno.serve(async (req: Request) => {
         if (term && !suggestions.price) {
           const {data: comparable,error} = await sb.from('waouh_articles')
             .select('id,title,brand,model,condition,price,currency,city,status,ai_attributes,origin_signal_id,updated_at')
-            .eq('status','active').eq('currency','XOF').ilike('title',`%${term.replace(/[%_]/g,'')}%`)
+            .eq('status','active').eq('currency','XOF').or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).ilike('title',`%${term.replace(/[%_]/g,'')}%`)
             .gte('updated_at',new Date(Date.now()-90*86400000).toISOString()).order('updated_at',{ascending:false}).limit(150);
           if (!error) suggestions.price = suggestSalePrice(target, comparable ?? []);
         }
@@ -2294,23 +2294,26 @@ Deno.serve(async (req: Request) => {
           category:saleCategory(draft.title),city:draft.city,address_description:draft.district||null,photos,status:'active',source_channel:'waouh_app',origin:'user',
           location:draft.latitude!==null&&draft.longitude!==null?`SRID=4326;POINT(${draft.longitude} ${draft.latitude})`:null,
           ai_attributes:{smart_sale:true,offer_kind:'product',quantity:draft.quantity,unit:draft.unit||'pièce',request_id:requestId}};
-        const {data: previous,error: previousError} = await sb.from('waouh_articles').select('id').eq('id',id).maybeSingle();
+        const {data: previous,error: previousError} = await sb.from('waouh_articles').select('*').eq('id',id).maybeSingle();
         if(previousError)throw new ApiError(503,'sale_unavailable');
         let article: any;
         if(previous){
           await ownedArticle(sb,ownerId,id);
-          article=await queryOne<any>(sb.from('waouh_articles').update(values).eq('id',id).select('*').single(),'sale_publish_failed');
+          // A retry after a lost response returns the original publication;
+          // it must not reactivate a sold article or overwrite later edits.
+          article=!draft.article_id ? previous : await queryOne<any>(sb.from('waouh_articles').update({...values,ai_attributes:{...previous.ai_attributes,...(values.ai_attributes as Record<string,unknown>)}}).eq('id',id).select('*').single(),'sale_publish_failed');
         }else{
           const created=await sb.from('waouh_articles').insert({id,seller_id:identity.id,...values}).select('*').single();
           if(created.error?.code==='23505'){
             await ownedArticle(sb,ownerId,id);
-            article=await queryOne<any>(sb.from('waouh_articles').update(values).eq('id',id).select('*').single(),'sale_publish_failed');
+            article=await queryOne<any>(sb.from('waouh_articles').select('*').eq('id',id).single(),'sale_publish_failed');
           }else if(created.error||!created.data)throw new ApiError(503,'sale_publish_failed');
           else article=created.data;
         }
         // The listing is created only by the explicit publication action, not by suggestion requests.
-        await audit(sb,ownerId,'nexus.sale.published','article',id,{photo_count:photos.length});
-        return jsonResponse({ok:true,data:{article:{...productSnapshot(article),price:article.price,condition:article.condition,category:article.category,quantity:draft.quantity,unit:draft.unit,article_id:article.id}}},201);
+        // This ancillary journal must not turn a committed listing into a false failure.
+        await audit(sb,ownerId,'nexus.sale.published','article',id,{photo_count:photos.length}).catch(()=>console.warn('[smart-sale] publication_audit_unavailable'));
+        return jsonResponse({ok:true,data:{article:{...productSnapshot(article),price:article.price,condition:article.condition,category:article.category,quantity:article.ai_attributes?.quantity,unit:article.ai_attributes?.unit,article_id:article.id}}},201);
       }
 
       case "nexus.identify_visual": {

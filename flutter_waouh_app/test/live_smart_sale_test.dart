@@ -5,6 +5,88 @@ import 'package:waouh_app_native/live/live_smart_sale.dart';
 import 'package:waouh_app_native/live/live_smart_sale_data.dart';
 
 void main() {
+  testWidgets('a navigation failure never republishes a committed sale', (
+    tester,
+  ) async {
+    var publications = 0, navigations = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LiveSmartSale(
+              owner: 'owner-a',
+              autoLocate: false,
+              initial: {
+                'title': 'Samsung S25',
+                'price': 350000.0,
+                'condition': 'good',
+                'city': 'Cotonou',
+              },
+              analyze: (_, _) async => {},
+              publish: (draft) async {
+                publications++;
+                return {...draft, 'article_id': 'article-a'};
+              },
+              onPublished: (_) {
+                navigations++;
+                if (navigations == 1) throw StateError('navigation');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    final price = find.byType(TextField).at(1);
+    expect(tester.widget<TextField>(price).controller!.text, '350 000');
+    await tester.ensureVisible(find.text('Publier et trouver'));
+    await tester.tap(find.text('Publier et trouver'));
+    await tester.pump();
+    expect(find.text('Annonce publiée'), findsOneWidget);
+    expect(
+      find.text('Publication non terminée. Votre fiche est conservée.'),
+      findsNothing,
+    );
+    await tester.tap(find.text('Reprendre la recherche'));
+    await tester.pump();
+    expect(publications, 1);
+    expect(navigations, 2);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('a late publication does not navigate after the form is closed', (
+    tester,
+  ) async {
+    final response = Completer<Map<String, dynamic>>();
+    var navigations = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LiveSmartSale(
+              owner: 'owner-a',
+              autoLocate: false,
+              initial: {
+                'title': 'Samsung S25',
+                'price': 350000,
+                'condition': 'good',
+                'city': 'Cotonou',
+              },
+              analyze: (_, _) async => {},
+              publish: (_) => response.future,
+              onPublished: (_) => navigations++,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.ensureVisible(find.text('Publier et trouver'));
+    await tester.tap(find.text('Publier et trouver'));
+    await tester.pump();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    response.complete({'title': 'Samsung S25', 'article_id': 'article-a'});
+    await tester.pump();
+    expect(navigations, 0);
+    expect(tester.takeException(), isNull);
+  });
   test(
     'intelligent sale understands French facts without inventing an unknown price',
     () {

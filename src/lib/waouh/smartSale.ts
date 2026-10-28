@@ -7,7 +7,8 @@ export const saleRequestId=()=>globalThis.crypto.randomUUID();
 export function newSaleDraft(value:Record<string,unknown>={}):SaleDraft{return {...normalizeSaleDraft(value),request_id:typeof value.request_id==='string'?value.request_id:saleRequestId()};}
 export function analyzeSale(owner:string,draft:SaleDraft,visual:boolean){return invokeWaouhAgentic<{suggestions:SaleSuggestions}>('nexus.sale.analyze',{...draft,visual},{expectedOwner:owner});}
 export async function publishSale(owner:string,draft:SaleDraft):Promise<PublishedSale>{
- const {article}=await invokeWaouhAgentic<{article:PublishedSale['article']}>('nexus.sale.publish',{...draft,confirmed:true},{expectedOwner:owner});
+ const {article}=await invokeWaouhAgentic<{article:PublishedSale['article']}>('nexus.sale.publish',{...draft,confirmed:true},{expectedOwner:owner,timeoutMs:30000});
+ if(!article?.article_id||typeof article.title!=='string')throw new Error('Publication non confirmée. Réessayez.');
  return {draft:{...draft,article_id:article.article_id},article};
 }
 const prefix='waouh:sale-handoff:';

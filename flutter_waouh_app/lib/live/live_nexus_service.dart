@@ -822,12 +822,15 @@ class LiveNexusService {
         )
         .timeout(
           Duration(
-            seconds:
-                [
-                  'nexus.global_discovery',
-                  'nexus.mandate.create',
-                  'nexus.sale.analyze',
-                ].contains(action)
+            seconds: action == 'nexus.global_discovery'
+                ? (payload['refresh_external'] == false ? 18 : 45)
+                : action == 'nexus.sale.publish'
+                ? 30
+                : [
+                    'nexus.global_discovery',
+                    'nexus.mandate.create',
+                    'nexus.sale.analyze',
+                  ].contains(action)
                 ? 120
                 : 18,
           ),
@@ -870,11 +873,32 @@ class LiveNexusService {
     return _map(envelope['data']);
   }
 
-  Future<Map<String,dynamic>> analyzeSale(String owner,Map<String,dynamic> draft,bool visual) async {
-    final data=await _invoke('nexus.sale.analyze',{...draft,'visual':visual},owner);return _map(data['suggestions']);
+  Future<Map<String, dynamic>> analyzeSale(
+    String owner,
+    Map<String, dynamic> draft,
+    bool visual,
+  ) async {
+    final data = await _invoke('nexus.sale.analyze', {
+      ...draft,
+      'visual': visual,
+    }, owner);
+    return _map(data['suggestions']);
   }
-  Future<Map<String,dynamic>> publishSale(String owner,Map<String,dynamic> draft) async {
-    final data=await _invoke('nexus.sale.publish',{...draft,'confirmed':true},owner);return _map(data['article']);
+
+  Future<Map<String, dynamic>> publishSale(
+    String owner,
+    Map<String, dynamic> draft,
+  ) async {
+    final data = await _invoke('nexus.sale.publish', {
+      ...draft,
+      'confirmed': true,
+    }, owner);
+    final article = _map(data['article']);
+    if (_text(article['article_id']).isEmpty ||
+        _text(article['title']).isEmpty) {
+      throw const NexusApiException('Publication non confirmée. Réessayez.');
+    }
+    return article;
   }
 
   Future<String> identifyVisual({

@@ -4,6 +4,20 @@ vi.mock('@/integrations/supabase/client',()=>({supabase:{auth:{getSession:mocks.
 import {invokeWaouhAgentic} from '../agenticClient';
 import {saveAvatarAutonomy,DEFAULT_AVATAR_AUTONOMY} from '../avatarAutonomy';
 beforeEach(()=>vi.resetAllMocks());
+it('rejects a completed mutation response after switching accounts',async()=>{
+ mocks.session.mockResolvedValueOnce({data:{session:{user:{id:'owner'},access_token:'test'}}}).mockResolvedValueOnce({data:{session:{user:{id:'other'},access_token:'other'}}});
+ mocks.invoke.mockResolvedValue({data:{ok:true,data:{article:{id:'saved'}}},error:null});
+ await expect(invokeWaouhAgentic('nexus.sale.publish',{}, {expectedOwner:'owner'})).rejects.toThrow('compte a changé');
+ expect(mocks.invoke).toHaveBeenCalledTimes(1);
+});
+it('aborts a stalled request and never repeats a publication automatically',async()=>{
+ vi.useFakeTimers();
+ mocks.invoke.mockImplementation((_name,{signal})=>new Promise(resolve=>signal.addEventListener('abort',()=>resolve({data:null,error:{message:'timeout'}}))));
+ const pending=invokeWaouhAgentic('nexus.sale.publish',{}, {timeoutMs:30000});
+ const checked=expect(pending).rejects.toThrow('timeout');
+ await vi.advanceTimersByTimeAsync(30000);await checked;
+ expect(mocks.invoke).toHaveBeenCalledTimes(1);vi.useRealTimers();
+});
 it('does not create a mission after the initiating account has changed',async()=>{
  mocks.session.mockResolvedValue({data:{session:{user:{id:'new-owner'},access_token:'new-token'}}});
  await expect(invokeWaouhAgentic('nexus.mandate.create',{goal:'Need'},{expectedOwner:'original-owner'})).rejects.toThrow('compte a changé');expect(mocks.invoke).not.toHaveBeenCalled();
