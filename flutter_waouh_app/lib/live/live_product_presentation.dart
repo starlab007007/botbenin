@@ -61,7 +61,18 @@ class _LiveProductGalleryState extends State<LiveProductGallery> {
   Widget image(String url, {BoxFit fit = BoxFit.contain}) => Image.network(
     url,
     fit: fit,
-    errorBuilder: (_, __, ___) => fallback(unavailable: true),
+    errorBuilder: (_, __, ___) => fit == BoxFit.cover
+        ? const ColoredBox(
+            color: Color(0xFFF1F3F8),
+            child: Center(
+              child: Icon(
+                Icons.image_outlined,
+                size: 18,
+                color: Color(0xFF939DB1),
+              ),
+            ),
+          )
+        : fallback(unavailable: true),
     loadingBuilder: (context, child, progress) => progress == null
         ? child
         : const Center(
