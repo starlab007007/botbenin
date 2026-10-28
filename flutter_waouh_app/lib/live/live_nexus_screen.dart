@@ -1,3 +1,5 @@
+import 'live_smart_sale.dart';
+import 'live_smart_sale_data.dart';
 import 'live_product_presentation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_mission_domain.dart';
@@ -34,6 +36,8 @@ class LiveNexusScreen extends StatefulWidget {
     this.initialBudget,
     this.initialMode,
     this.initialKind,
+    this.initialArticleId,
+    this.initialSaleDraft,
     this.autoLaunch = false,
   });
 
@@ -46,6 +50,7 @@ class LiveNexusScreen extends StatefulWidget {
   /// ou 'auto' (Trouver/Demander). Ignoré si absent ou non reconnu.
   final String? initialMode;
   final String? initialKind;
+  final String? initialArticleId, initialSaleDraft;
   final bool autoLaunch;
   @override
   State<LiveNexusScreen> createState() => _LiveNexusScreenState();
@@ -119,6 +124,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   StreamSubscription<dynamic>? _accountSubscription;
   String? _owner;
   String? _articleId;
+  LivePublishedSale? _saleSeed;
   StateSetter? _activityUpdate;
   final List<LiveMissionActivity> _events = [];
   final Set<String> _selectedOffers = {};
@@ -152,6 +158,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           _lastContext = {};
           _selectedArticle = null;
           _articleId = null;
+          _saleSeed = null;
           _confirmedWatch = false;
           brief.clear();
           maxDays.clear();
@@ -180,6 +187,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     } else if (widget.initialMode == 'auto') {
       smartMode = true;
     }
+    _saleSeed=LiveSaleHandoff.read(widget.initialSaleDraft,_owner);
+    if(_saleSeed!=null)_applySale(_saleSeed!);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       loadSources();
       if (widget.autoLaunch && query.text.trim().isNotEmpty) runSearch();
@@ -241,12 +250,12 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       _automatic = null;
       _automaticError = null;
       _automaticBusy = false;
-      _articleId = null;
+      _articleId = _selectedKind=='sale' ? (_saleSeed?.articleId ?? widget.initialArticleId) : null;
       _phase = 'understanding';
       _peekResults = false;
       _lastKind = _selectedKind;
       _confirmedWatch = false;
-      _selectedArticle = null;
+      _selectedArticle = _selectedKind=='sale' ? _saleSeed?.article : null;
       _lastContext = _draftContext;
       findSellers = _lastKind != 'sale';
       _lastGoal = text;
@@ -921,6 +930,9 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     );
   }
 
+  void _applySale(LivePublishedSale sale){
+    _saleSeed=sale;query.text='${sale.article['title']}';city.text='${sale.draft['city']}';brief.text='${sale.draft['description']??''}';quantity.text='${sale.draft['quantity']??''}';unit.text='${sale.draft['unit']??''}';_articleId=sale.articleId;_selectedArticle=sale.article;
+  }
   Widget _searchEditor() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -950,6 +962,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               },
       ),
       const SizedBox(height: 10),
+      if(_selectedKind=='sale') LiveSmartSale(key:ValueKey(_owner),initial:_saleSeed?.draft??{'title':query.text,'city':city.text},onPublished:(sale){_applySale(sale);runSearch();}) else ...[
       TextField(
         controller: query,
         maxLines: 3,
@@ -1116,6 +1129,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
               : 'Confier à Bot',
         ),
       ),
+      ],
     ],
   );
   Future<void> _delegateOne(NexusDiscoveryItem item) async {

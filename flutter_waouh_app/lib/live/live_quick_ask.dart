@@ -1,3 +1,4 @@
+import 'live_smart_sale.dart';
 import 'package:flutter/material.dart';
 
 import 'avatar/bot_character.dart' show botAvatarAsset;
@@ -80,7 +81,7 @@ Future<String?> showLiveQuickAsk(BuildContext context, LiveQuickAskKind kind) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _QuickAskSheet(kind: kind),
+    builder: (_) => kind == LiveQuickAskKind.vendre ? const LiveSmartSaleSheet() : _QuickAskSheet(kind: kind),
   );
 }
 

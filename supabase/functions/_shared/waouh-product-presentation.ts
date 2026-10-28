@@ -37,7 +37,7 @@ export function productSnapshot(value: unknown): ProductSnapshot | null {
   if (!title) return null;
   const attributes = [
     ['Marque', text(p.brand, e.brand)], ['Modèle', text(p.model, e.model)],
-    ['État', text(p.condition, e.condition, p.etat)], ['Capacité', text(p.storage, e.storage, e.capacity)],
+    ['État', ({new:'Neuf',like_new:'Comme neuf',good:'Bon état',fair:'Utilisé',poor:'À réparer'} as Record<string,string>)[text(p.condition,e.condition,p.etat)]??text(p.condition,e.condition,p.etat)], ['Capacité', text(p.storage, e.storage, e.capacity)],
     ['Couleur', text(p.color, e.color)], ['Unité', text(p.unit, p.unite, e.unit, e.price_unit)],
     ['Garantie annoncée', text(p.warranty, e.warranty)], ['Livraison', text(p.delivery, e.delivery)],
   ].filter((v) => v[1]).map(([label, value]) => ({label, value: redactPublicContacts(value).slice(0, 160)}));

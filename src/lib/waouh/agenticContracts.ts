@@ -316,6 +316,7 @@ export function normalizeAgenticBlocks(value: unknown): WaouhMessageBlock[] {
 }
 
 export type AgenticAction =
+  | "nexus.sale.analyze" | "nexus.sale.publish"
   | `nexus.external.${"read" | "invite" | "revoke" | "message" | "propose" | "accept" | "shipment" | "receipt" | "payment" | "payment_received" | "stop"}`
   | `nexus.guest.${"read" | "message" | "propose" | "accept" | "shipment" | "receipt" | "payment" | "payment_received" | "stop"}`
   | "nexus.source.sync" | "nexus.opportunity.start" | "nexus.opportunity.enrich" | "nexus.opportunity.status" | "nexus.opportunity.list" | "nexus.owned_articles" | "nexus.opportunity.bind_article"

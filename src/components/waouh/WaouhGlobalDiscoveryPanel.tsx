@@ -1,3 +1,5 @@
+import {WaouhSmartSale} from './WaouhSmartSale';
+import {saleHandoff,type PublishedSale} from '@/lib/waouh/smartSale';
 import {productSnapshot,WaouhProductPresentation} from './WaouhProductPresentation';
 import {missionCopy,normalizeMissionKind,normalizeMissionContext,missionCriteria,type MissionContext} from '@/lib/waouh/guidedDiscovery';
 import {WaouhGuidedProgress} from './WaouhGuidedProgress';
@@ -115,7 +117,10 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   );
   const [brief,setBrief]=useState(''),[maxDays,setMaxDays]=useState(''),[priceFloor,setPriceFloor]=useState(''),[quantity,setQuantity]=useState(''),[unit,setUnit]=useState('');
   const [kind,setKind]=useState(urlParams.get('kind')|| (urlMode==='find_buyers'?'vendre':urlMode==='find_sellers'?'acheter':'trouver'));
-  const autoStarted = useRef(false);
+  const autoStarted = useRef('');
+  const saleSeed=useRef<PublishedSale|null>(null);
+  const [salePreview,setSalePreview]=useState<PublishedSale|null>(null);
+  useEffect(()=>{saleSeed.current=null;setSalePreview(null);},[user?.id]);
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
   const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
   const [query, setQuery] = useState(() => urlParams.get("q") || "");
@@ -192,11 +197,18 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
 
   useEffect(() => { void loadSources(); }, []);
 
-  const searchEverywhere = async () => {
-    if(!query.trim()||busy)return;
+  const searchEverywhere = async (published?:PublishedSale) => {
+    const searchKind=published?'sale':selectedKind;
+    const seed=published??saleSeed.current;
+    const goal=published?.article.title??query.trim();
+    const requestedCity=published?.draft.city??city.trim();
+    const sale=searchKind==='sale'&&seed&&seed.article.title===goal?seed:null;
+    const articleId=searchKind==='sale'?(sale?.article.article_id??urlParams.get('article_id')??undefined):undefined;
+    const inputContext=sale?{...draftContext,brief:sale.draft.description,quantity:sale.draft.quantity,unit:sale.draft.unit}:draftContext;
+    if(!goal||busy)return;
     const version=++searchVersion.current;
     setBusy(true);setStarted(true);setDiscoveryPhase('understanding');setPeekResults(false);setPaused(false);setRefreshing(false);setLiveError('');setCompleteSearch(null);setResults([]);setContact(null);setContactJourney(null);
-    setLastSearch({goal:query.trim(),city:city.trim(),mode:selectedKind==='sale'?'sell':selectedKind==='purchase'?'buy':'ask',discovery_kind:selectedKind,mission_context:draftContext,budget_max:selectedKind==='opportunity'||selectedKind==='sale'?undefined:Number(budget)||undefined});
+    setLastSearch({goal,city:requestedCity,article_id:articleId,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:inputContext,budget_max:searchKind==='opportunity'||searchKind==='sale'?undefined:Number(budget)||undefined});
     let received=0;
     setEvents([{id:++eventId.current,at:new Date().toISOString(),text:'Recherche lancée selon votre besoin.'}]);
     let preferred:Awaited<ReturnType<typeof loadAvatarAutonomy>>|null=null;
@@ -205,11 +217,11 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       if(version!==searchVersion.current)return;
       const requestedBudget=Number(budget)||null;
       const capped=preferred?.budget_max&&requestedBudget?Math.min(preferred.budget_max,requestedBudget):requestedBudget??preferred?.budget_max??null;
-      const zone=city.trim()||preferred?.city||'';
-      const context=normalizeMissionContext(draftContext,selectedKind,query,selectedKind==='sale'?preferred?.price_floor:undefined);
-      const request:AutomaticSearch={goal:query.trim(),city:zone||undefined,budget_max:!['sale','opportunity'].includes(selectedKind)&&capped?capped:undefined,mode:selectedKind==='sale'?'sell':selectedKind==='purchase'?'buy':'ask',discovery_kind:selectedKind,mission_context:context};
+      const zone=requestedCity||preferred?.city||'';
+      const context=normalizeMissionContext(inputContext,searchKind,goal,searchKind==='sale'?preferred?.price_floor:undefined);
+      const request:AutomaticSearch={goal,article_id:articleId,city:zone||undefined,budget_max:!['sale','opportunity'].includes(searchKind)&&capped?capped:undefined,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:context};
       setLastSearch(request);setDiscoveryPhase('collecting');
-      const response=await progressiveNexusDiscovery({query:request.goal,mode:selectedKind==='sale'?'find_buyers':'find_sellers',discovery_kind:selectedKind,mission_context:context,city:zone||undefined,budget_max:request.budget_max,limit:24,refresh_external:!!user,smart:!!user},indexed=>{
+      const response=await progressiveNexusDiscovery({query:request.goal,mode:searchKind==='sale'?'find_buyers':'find_sellers',discovery_kind:searchKind,mission_context:context,city:zone||undefined,budget_max:request.budget_max,limit:24,refresh_external:!!user,smart:!!user},indexed=>{
         if(version!==searchVersion.current)return;
         received=indexed.results.length;setResults(indexed.results);setResolvedMode(indexed.mode);setRefreshing(!!user);
         record(indexed.results.length?`${indexed.results.length} premières offres reçues.`:'Recherche de nouvelles pistes.');
@@ -217,7 +229,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       if(version!==searchVersion.current)return;
       setResults(response.results);setResolvedMode(response.mode);setSourceMix(response.source_mix);setRefreshState(response.refresh??{});setIntelligence(response.intelligence??null);
       const smartBudget=response.intelligence?.budget_max??undefined;
-      const final:AutomaticSearch={...request,mode:request.mode,city:zone||response.intelligence?.city||undefined,budget_max:['sale','opportunity'].includes(selectedKind)?undefined:request.budget_max??(preferred?.budget_max&&smartBudget?Math.min(preferred.budget_max,smartBudget):smartBudget)};
+      const final:AutomaticSearch={...request,mode:request.mode,city:zone||response.intelligence?.city||undefined,budget_max:['sale','opportunity'].includes(searchKind)?undefined:request.budget_max??(preferred?.budget_max&&smartBudget?Math.min(preferred.budget_max,smartBudget):smartBudget)};
       setLastSearch(final);setCompleteSearch(final);setDiscoveryPhase('ready');setRefreshing(false);
       if(!city.trim()&&final.city)setCity(final.city);
       if(!budget&&final.budget_max)setBudget(String(Math.round(final.budget_max)));
@@ -228,10 +240,14 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   };
 
   useEffect(() => {
-    if (autoStarted.current || urlParams.get("go") !== "1" || !query.trim()) return;
-    autoStarted.current = true;
-    void searchEverywhere();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const launchKey=[urlParams.get('kind'),urlParams.get('q'),urlParams.get('sale_draft'),urlParams.get('article_id')].join('|');
+    if (autoStarted.current===launchKey || urlParams.get("go") !== "1" || !urlParams.get('q')?.trim()) return;
+    if(urlParams.get('sale_draft')&&!user)return;
+    const seed=saleHandoff(urlParams.get('sale_draft'),user?.id);
+    saleSeed.current=seed;setSalePreview(seed);
+    autoStarted.current = launchKey;
+    void searchEverywhere(seed??undefined);
+  }, [user?.id,urlParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const uploadSharedImage = async (file: File) => {
     if (!requireAuth("/app/nexus")) return;
@@ -344,7 +360,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   const activeKind=lastSearch?.discovery_kind??selectedKind;
   const activeContext=normalizeMissionContext(automatic?.mandate?.metadata?.mission_context??lastSearch?.mission_context??draftContext,activeKind,lastSearch?.goal||query);
   const articleSnapshot=automatic?.mandate?.metadata?.article_snapshot;
-  const selectedArticle=productSnapshot(articleSnapshot)??articles.find(a=>a.id===(completeSearch?.article_id??lastSearch?.article_id));
+  const selectedArticle=productSnapshot(articleSnapshot)??(activeKind==='sale'?salePreview?.article:null)??articles.find(a=>a.id===(completeSearch?.article_id??lastSearch?.article_id));
   const kindPicker=<label className="wgd wgd-kind">Type de mission<select aria-label="Type de mission" value={selectedKind} disabled={busy} onChange={e=>{setKind(e.target.value);setMode(e.target.value==='sale'?'find_buyers':'find_sellers');setResults([]);setCompleteSearch(null);setLastSearch(null);setStarted(false);}}><option value="purchase">Acheter</option><option value="opportunity">Opportunités</option><option value="service">Services</option><option value="project">Prestations</option><option value="sale">Vendre</option></select></label>;
   return (
     <Card className="wap wap-mission wmn border-0 bg-transparent shadow-none">
@@ -355,7 +371,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
           <TabsContent value="hunt" className="space-y-3">
             <div className="wap-scenarios" hidden={started}>{!started&&kindPicker}</div>
             <header className="wmn-head"><button type="button" className="wmn-icon" aria-label="Retour aux missions" onClick={()=>navigate('/app/missions')}><ArrowLeft/></button><div className="wmn-grow"><h1 className="!text-[19px]">{started?discoveryPhase==='ready'?missionCopy[activeKind].title:lastSearch?.goal||query:missionCopy[selectedKind].title}</h1>{started&&<p className="wmn-meta mt-1">{discoveryPhase==='ready'?`${lastSearch?.goal||query} · `:''}{lastSearch?.city||city||'Zone à préciser'}{lastSearch?.budget_max?` · ${moneyXof(lastSearch.budget_max)} max`:''}</p>}</div><button type="button" className="wmn-icon" aria-label="Mes outils de recherche" onClick={onTools}><MoreHorizontal/></button></header>
-            <details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">{started&&kindPicker}
+            {selectedKind==='sale'?<details className="wap-mobile-editor" open={!started}><summary>Mon article</summary><div className="wss-embedded"><WaouhSmartSale key={`${user?.id??'guest'}:${salePreview?.article.article_id??'new'}`} initial={{...salePreview?.draft,title:query,city}} onConnect={()=>requireAuth('/app/nexus?kind=vendre')} onPublished={sale=>{saleSeed.current=sale;setSalePreview(sale);setQuery(sale.article.title);setCity(sale.draft.city);setBrief(sale.draft.description);setQuantity(String(sale.draft.quantity??''));setUnit(sale.draft.unit);void searchEverywhere(sale);}}/></div></details>:<><details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">{started&&kindPicker}
               <div className="mt-3 flex gap-2">
                 <Input
                   value={query}
@@ -384,12 +400,12 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
                   {!['sale','opportunity'].includes(selectedKind) ? (
                     <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" className="h-11 rounded-2xl border-blue-100 bg-white" />
                   ) : (
-                    <div className="flex items-center rounded-2xl border border-dashed border-blue-100 bg-white/60 px-3 text-[11px] font-semibold text-slate-500">{selectedKind==='sale'?'Demandes à qualifier':'Conditions à examiner'}</div>
+                    <div className="flex items-center rounded-2xl border border-dashed border-blue-100 bg-white/60 px-3 text-[11px] font-semibold text-slate-500">Conditions à examiner</div>
                   )}
                 </div>
               )}
 
-              {selectedKind!=='purchase'&&<details className="wgd wgd-disclosure"><summary>Préciser mes critères</summary><label className="wmn-field">{selectedKind==='opportunity'?'Mon activité ou profil':selectedKind==='sale'?'Détails de mon article':'Mon besoin en détail'}<textarea className="wgd-brief" aria-label="Précisions de la mission" value={brief} onChange={e=>setBrief(e.target.value)} maxLength={1500}/></label>{selectedKind==='project'&&<label className="wmn-field">Délai souhaité · jours<input type="number" min={1} max={365} value={maxDays} onChange={e=>setMaxDays(e.target.value)}/></label>}{selectedKind==='sale'&&<><label className="wmn-field">Prix plancher · F CFA<input inputMode="numeric" value={priceFloor} onChange={e=>setPriceFloor(e.target.value.replace(/\D/g,''))}/></label><div className="wmn-grid"><label className="wmn-field">Quantité<input type="number" min={1} max={100000} value={quantity} onChange={e=>setQuantity(e.target.value)}/></label><label className="wmn-field">Unité<input value={unit} onChange={e=>setUnit(e.target.value)} maxLength={40} placeholder="pièce, sac…"/></label></div><p className="wmn-description">Votre prix plancher enregistré reste respecté.</p></>}</details>}
+              {selectedKind!=='purchase'&&<details className="wgd wgd-disclosure"><summary>Préciser mes critères</summary><label className="wmn-field">{selectedKind==='opportunity'?'Mon activité ou profil':'Mon besoin en détail'}<textarea className="wgd-brief" aria-label="Précisions de la mission" value={brief} onChange={e=>setBrief(e.target.value)} maxLength={1500}/></label>{selectedKind==='project'&&<label className="wmn-field">Délai souhaité · jours<input type="number" min={1} max={365} value={maxDays} onChange={e=>setMaxDays(e.target.value)}/></label>}</details>}
               {mode === "find_buyers" && query.trim() && (
                 <div className="mt-3 space-y-3">
                   <WaouhSellPhotos photos={sellPhotos} onPhotos={setSellPhotos} notes={sellNotes} onNotes={setSellNotes} />
@@ -406,7 +422,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
                 </Button>
 
               </div>
-            </div></details>
+            </div></details></>}
             {started&&<>{activeKind==='sale'&&selectedArticle&&(['understanding','collecting'].includes(discoveryPhase)||!results.length)&&<WaouhProductPresentation value={selectedArticle} label="Mon article à vendre"/>}{(['understanding','collecting'].includes(discoveryPhase)||paused)&&<WaouhGuidedProgress missionKind={activeKind} phase={discoveryPhase} count={results.length} refreshing={refreshing} onActivity={()=>setActivityOpen(true)}/>}{!['understanding','collecting'].includes(discoveryPhase)&&!paused&&<button type="button" className="wmn-text" onClick={()=>setActivityOpen(true)}><ListChecks size={15}/>Voir le déroulé de ma recherche</button>}{['understanding','collecting'].includes(discoveryPhase)&&results.length>0&&!peekResults&&<button type="button" className="wmn-secondary" onClick={()=>setPeekResults(true)}>Voir les premières pistes</button>}<Sheet open={activityOpen} onOpenChange={setActivityOpen}><SheetContent side="bottom" className="wmn-sheet" aria-describedby="wmn-search-log"><SheetTitle>Le travail de Bot</SheetTitle><SheetDescription id="wmn-search-log" className="sr-only">Étapes réelles de cette recherche.</SheetDescription><WaouhLiveMission busy={busy} paused={paused} count={results.length} refreshing={refreshing} error={liveError} events={events} onPause={()=>{searchVersion.current++;setBusy(false);setPaused(true);setDiscoveryPhase('paused');setCompleteSearch(null);record('Recherche mise en pause.');}} onResume={()=>void searchEverywhere()}/></SheetContent></Sheet></>}
             {liveError&&<p role="alert" className="wmn-error">{liveError}<button type="button" className="wmn-text" onClick={()=>void searchEverywhere()}>Réessayer</button></p>}
             {started&&!busy&&results.length===0&&<div className="wmn-screen-empty"><h2>{paused?'Recherche en pause':'Aucune piste pour le moment'}</h2><p>{automatic?.mandate?'Bot poursuit le suivi dans vos limites.':'Ajustez votre besoin ou relancez la recherche.'}</p><button type="button" className="wmn-primary" onClick={()=>automatic?.mandate?navigate(`/app/missions?mandate=${automatic.mandate.id}`):void searchEverywhere()}>{automatic?.mandate?missionCopy[activeKind].cta:'Réessayer'}</button></div>}

@@ -10,7 +10,7 @@ import { compressImage, uploadOptions } from "@/lib/imageOptimize";
 
 export type Att = { url: string; type: string };
 
-const MAX_PHOTOS = 2;
+const MAX_PHOTOS = 4;
 const SUGGESTED_ITEMS = [
   "iPhone", "Samsung Galaxy", "Ordinateur portable", "Télévision",
   "Frigo", "Climatiseur", "Voiture", "Moto", "Terrain", "Maison",

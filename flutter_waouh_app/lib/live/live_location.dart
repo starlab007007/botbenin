@@ -61,11 +61,11 @@ class LiveLocationService {
       // an empty form.
       try {
         final last = await Geolocator.getLastKnownPosition();
-        if (last != null) {
+        if (last != null && DateTime.now().difference(last.timestamp).abs() <= const Duration(minutes:10) && last.accuracy <= 1500) {
           return LiveLocation(latitude: last.latitude, longitude: last.longitude);
         }
       } catch (_) {}
-      return LiveLocation(errorMessage: 'Position introuvable : $error');
+      return const LiveLocation(errorMessage: 'Position introuvable. Saisissez la ville.');
     }
   }
 

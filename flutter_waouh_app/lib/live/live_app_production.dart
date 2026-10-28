@@ -268,6 +268,8 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             initialBudget: state.uri.queryParameters['budget'],
             initialMode: state.uri.queryParameters['mode'],
             initialKind: state.uri.queryParameters['kind'],
+            initialArticleId: state.uri.queryParameters['article_id'],
+            initialSaleDraft: state.uri.queryParameters['sale_draft'],
             autoLaunch: state.uri.queryParameters['go'] == '1',
           ),
         ),

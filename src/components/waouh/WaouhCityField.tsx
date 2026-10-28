@@ -31,13 +31,14 @@ export function suggestPlaces(input: string, limit = 6): Suggestion[] {
  * bouton « Ma position » (géolocalisation + adresse déduite) et remplissage
  * automatique silencieux si l'autorisation est déjà accordée.
  */
-export function WaouhCityField({ value, onChange, placeholder = "Ville ou quartier", className = "", ariaLabel = "Ville ou quartier", autoLocate = true }: {
+export function WaouhCityField({ value, onChange, placeholder = "Ville ou quartier", className = "", ariaLabel = "Ville ou quartier", autoLocate = true, onCoordinatesChange }: {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   className?: string;
   ariaLabel?: string;
   autoLocate?: boolean;
+  onCoordinatesChange?: (coords:{latitude:number;longitude:number}|null)=>void;
 }) {
   const [open, setOpen] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -46,10 +47,14 @@ export function WaouhCityField({ value, onChange, placeholder = "Ville ou quarti
   const box = useRef<HTMLDivElement>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const callbacks=useRef({onChange,onCoordinatesChange});callbacks.current={onChange,onCoordinatesChange};
+  const revision=useRef(0),alive=useRef(true),busy=useRef(false);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   const suggestions = useMemo(() => suggestPlaces(value), [value]);
 
   const locate = useCallback(async (silent: boolean) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) { if (!silent) setNotice("Position indisponible sur cet appareil."); return; }
+    if(busy.current)return;busy.current=true;const started=revision.current;
     setLocating(true);
     setNotice("");
     try {
@@ -58,16 +63,18 @@ export function WaouhCityField({ value, onChange, placeholder = "Ville ou quarti
       const { data } = await supabase.functions.invoke("waouh-geocode", { body: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
       const city = typeof data?.city === "string" ? data.city.trim() : "";
       const district = typeof data?.district === "string" ? data.district.trim() : "";
+      if(!alive.current||revision.current!==started)return;
       if (city) {
         if (silent && valueRef.current.trim()) return;
-        onChange(district && district !== city ? `${district}, ${city}` : city);
+        callbacks.current.onChange(district && district !== city ? `${district}, ${city}` : city);
+        callbacks.current.onCoordinatesChange?.({latitude:pos.coords.latitude,longitude:pos.coords.longitude});
       } else if (!silent) setNotice("Position trouvée, ville inconnue. Saisissez-la.");
     } catch (err: any) {
-      if (!silent) setNotice(err?.code === 1 ? "Autorisez la position dans votre navigateur." : "Position introuvable. Saisissez la ville.");
+      if (alive.current&&!silent) setNotice(err?.code === 1 ? "Autorisez la position dans votre navigateur." : "Position introuvable. Saisissez la ville.");
     } finally {
-      setLocating(false);
+      busy.current=false;if(alive.current)setLocating(false);
     }
-  }, [onChange]);
+  }, []);
 
   useEffect(() => {
     if (!autoLocate || valueRef.current.trim() || typeof navigator === "undefined" || !navigator.permissions?.query) return;
@@ -82,7 +89,7 @@ export function WaouhCityField({ value, onChange, placeholder = "Ville ou quarti
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  const pick = (s: Suggestion) => { onChange(s.value); setOpen(false); setNotice(""); };
+  const pick = (s: Suggestion) => { revision.current++;callbacks.current.onCoordinatesChange?.(null);onChange(s.value); setOpen(false); setNotice(""); };
   const show = open && suggestions.length > 0 && fold(value) !== fold(suggestions[0]?.value ?? "");
 
   return (
@@ -95,7 +102,7 @@ export function WaouhCityField({ value, onChange, placeholder = "Ville ou quarti
         autoComplete="off"
         role="combobox"
         aria-expanded={show}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(0); }}
+        onChange={(e) => { revision.current++;callbacks.current.onCoordinatesChange?.(null);onChange(e.target.value); setOpen(true); setActive(0); }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => {
           if (!show) return;

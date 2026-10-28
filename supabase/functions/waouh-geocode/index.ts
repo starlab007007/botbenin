@@ -28,7 +28,7 @@ const stripDiacritics = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 function normalizeCity(rawCity: string | null | undefined): { city: string; district: string | null; lat?: number; lng?: number } {
-  if (!rawCity) return { city: "Cotonou", district: null };
+  if (!rawCity) return { city: "", district: null };
   const cleaned = String(rawCity).split(",")[0].split("/")[0].trim();
   const stripped = stripDiacritics(cleaned);
   for (const c of BENIN_CITIES) {
@@ -45,7 +45,7 @@ function normalizeCity(rawCity: string | null | undefined): { city: string; dist
     }
   }
   // Unknown — keep the cleaned raw value
-  return { city: cleaned || "Cotonou", district: null };
+  return { city: cleaned, district: null };
 }
 
 function nearestCity(lat: number, lng: number) {
@@ -61,7 +61,7 @@ function nearestCity(lat: number, lng: number) {
       best = city;
     }
   }
-  return best;
+  return bestDistance <= 1 ? best : null;
 }
 
 serve(async (req) => {
@@ -113,7 +113,7 @@ serve(async (req) => {
       throw new Error("nominatim_invalid_json");
     }
 
-    let rawCity = "Cotonou", country = "Bénin", display_name = "", outLat = lat, outLng = lng;
+    let rawCity = typeof query === "string" ? query.trim() : "", country = "Bénin", display_name = "", outLat = lat, outLng = lng;
     let rawDistrict: string | null = null;
 
     if (Array.isArray(data) && data[0]) {

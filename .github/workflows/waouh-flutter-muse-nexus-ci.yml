@@ -123,6 +123,7 @@ jobs:
           flutter test test/live_minimal_premium_test.dart
           flutter test test/live_mission_domain_test.dart
           flutter test test/live_module_policy_test.dart test/live_product_presentation_test.dart
+          flutter test test/live_smart_sale_test.dart
           flutter test test/live_essential_offers_test.dart
           flutter test test/live_convergence_contract_test.dart
           flutter test test/live_nexus_service_test.dart
