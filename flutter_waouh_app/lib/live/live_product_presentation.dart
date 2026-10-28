@@ -196,7 +196,9 @@ class _LiveProductGalleryState extends State<LiveProductGallery> {
                         ),
                       ),
                     ),
-                  if (urls.isNotEmpty)
+                  if (urls.isNotEmpty &&
+                      widget.height >= 80 &&
+                      (widget.width ?? 100) >= 60)
                     Positioned(
                       right: 9,
                       bottom: 9,

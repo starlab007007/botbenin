@@ -136,6 +136,7 @@ void main() {
         ),
       );
       await tester.pump();
+      expect(find.text('1 / 1'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
