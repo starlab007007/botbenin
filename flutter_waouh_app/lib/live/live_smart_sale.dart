@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_city_field.dart';
+import 'live_guest_action_gate.dart';
 import 'live_nexus_service.dart';
 import 'live_smart_sale_data.dart';
 
@@ -255,7 +256,11 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
   Future<void> _add({bool camera = false}) async {
     if (_uploading || _publishing || _photos.length >= 4) return;
     if (_owner == null) {
-      setState(() => _notice = 'Connectez-vous pour ajouter vos photos.');
+      await requireLiveAuthentication(
+        context,
+        next: '/app/nexus?kind=vendre',
+        actionLabel: 'ajouter les photos de votre produit',
+      );
       return;
     }
     final picker = ImagePicker();
@@ -314,7 +319,11 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
   Future<void> _submit() async {
     setState(() => _attempted = true);
     if (_owner == null) {
-      setState(() => _notice = 'Connectez-vous pour publier votre produit.');
+      await requireLiveAuthentication(
+        context,
+        next: '/app/nexus?kind=vendre',
+        actionLabel: 'publier votre produit',
+      );
       return;
     }
     if ('${_draft['title']}'.trim().length < 3 ||
