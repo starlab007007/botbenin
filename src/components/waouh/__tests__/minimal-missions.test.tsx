@@ -3,6 +3,7 @@ import {createRoot,type Root} from 'react-dom/client';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 const mocks=vi.hoisted(()=>({user:{id:'owner-a'},list:vi.fn()}));
+vi.mock('@/integrations/supabase/client',()=>{const c={on:()=>c,subscribe:()=>c};return {supabase:{channel:()=>c,removeChannel:vi.fn()}};});
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:mocks.user})}));
 vi.mock('@/lib/waouh/nexus',()=>({listNexusMandates:mocks.list,listNexusOpportunityJourneys:async()=>({journeys:[]}),updateNexusMandate:vi.fn()}));
 vi.mock('@/lib/waouh/agenticClient',()=>({invokeWaouhAgentic:async()=>({missions:[],approvals:[]})}));
@@ -22,4 +23,15 @@ it('ignores the previous account response after a change of account',async()=>{
  await act(async()=>root.render(<MemoryRouter><Page/></MemoryRouter>));
  await act(async()=>oldResponse({mandates:[{id:'a',goal:'Besoin privé du compte A',status:'active',metadata:{}}]}));
  expect(host.textContent).toContain('Besoin du compte B');expect(host.textContent).not.toContain('Besoin privé du compte A');expect(host.querySelectorAll('h1')).toHaveLength(1);expect(host.textContent).not.toContain('NEXUS');
+});
+
+it('preserves loaded missions and retries a failed refresh automatically',async()=>{
+ vi.useFakeTimers();
+ mocks.list.mockResolvedValueOnce({mandates:[{id:'m',goal:'Mon produit suivi',status:'active',created_at:'2026-10-28T08:00:00Z',metadata:{}}]}).mockRejectedValueOnce(new Error('offline')).mockResolvedValue({mandates:[{id:'m',goal:'Mon produit suivi',status:'active',created_at:'2026-10-28T08:00:00Z',metadata:{}}]});
+ await act(async()=>root.render(<MemoryRouter><Page/></MemoryRouter>));
+ await act(async()=>{window.dispatchEvent(new Event('focus'));});
+ expect(host.textContent).toContain('Mon produit suivi');expect(host.textContent).toContain('Je rétablis le suivi automatiquement');
+ await act(async()=>{await vi.advanceTimersByTimeAsync(5000);});
+ expect(mocks.list).toHaveBeenCalledTimes(3);expect(host.textContent).toContain('Mon produit suivi');expect(host.textContent).not.toContain('Je rétablis le suivi automatiquement');
+ vi.useRealTimers();
 });

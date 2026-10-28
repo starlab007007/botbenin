@@ -1,3 +1,4 @@
+import {productPhotos,productSnapshot} from '../../../supabase/functions/_shared/waouh-product-presentation';
 // WAOUH — Résultats Nexus externes → Deal Room (Web).
 //
 // Une carte Nexus sans article (`fabric_id = external:<uuid>`) ouvre directement la fenêtre de
@@ -47,7 +48,7 @@ function technicalFailure(): CommerceActionResponse {
 }
 
 /** Détail de l'évènement `waouh:open-match-chat` pour la fenêtre de négociation de l'article matérialisé. */
-export function openMatchDetail(response: CommerceActionResponse, card: { title: string; price: number | null; city: string | null; photo: string | null }) {
+export function openMatchDetail(response: CommerceActionResponse, card: { title: string; price: number | null; city: string | null; photo: string | null; photos?:string[]; product_snapshot?:unknown }) {
   return {
     article_id: response.article_id,
     thread_id: response.thread_id,
@@ -60,6 +61,8 @@ export function openMatchDetail(response: CommerceActionResponse, card: { title:
     price: card.price,
     city: card.city,
     photo: card.photo,
+    photos: productPhotos({photos:card.photos??[card.photo]}),
+    product_snapshot: productSnapshot(card.product_snapshot??{...card,photos:card.photos??[card.photo]}),
     source: "nexus_direct_deal",
   };
 }

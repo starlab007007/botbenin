@@ -1,3 +1,4 @@
+import 'live_product_data.dart';
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
@@ -249,30 +250,7 @@ class NexusDiscoveryItem {
     return null;
   }
 
-  List<String> get photoUrls {
-    final out = <String>{};
-    final photos = evidence['photos'];
-    if (photos is List) {
-      for (final value in photos) {
-        final text = value?.toString().trim() ?? '';
-        if (text.startsWith('http://') || text.startsWith('https://')) {
-          out.add(text);
-        }
-      }
-    }
-    for (final key in [
-      'primary_photo_url',
-      'image_url',
-      'photo',
-      'thumbnail',
-    ]) {
-      final text = evidence[key]?.toString().trim() ?? '';
-      if (text.startsWith('http://') || text.startsWith('https://')) {
-        out.add(text);
-      }
-    }
-    return out.take(4).toList(growable: false);
-  }
+  List<String> get photoUrls => liveProductPhotos({'evidence': evidence});
 
   String get detailsSummary =>
       _cleanInfo(
@@ -359,8 +337,13 @@ class NexusDiscoveryItem {
     final maxRaw = json['price_max'];
     final evidence = {
       ..._map(json['evidence']),
+      'photos': liveProductPhotos(json),
       for (final key in [
+        'brand',
         'model',
+        'storage',
+        'color',
+        'description',
         'unit',
         'price_unit',
         'offer_kind',
@@ -720,6 +703,7 @@ class NexusOpportunityJourney {
     this.nextBestActionCode,
     this.contactPack,
     this.maskedContact = const <String, dynamic>{},
+    this.productSnapshot = const <String, dynamic>{},
     this.timeline = const <Map<String, dynamic>>[],
   });
 
@@ -748,6 +732,7 @@ class NexusOpportunityJourney {
   final NexusContactPack? contactPack;
   final Map<String, dynamic> maskedContact;
   final List<Map<String, dynamic>> timeline;
+  final Map<String, dynamic> productSnapshot;
 
   bool get waiting => stage == 'waiting_reply' || stage == 'contacting';
   bool get negotiating => stage == 'negotiating' || contactability == 'C5';
@@ -758,6 +743,7 @@ class NexusOpportunityJourney {
   ) => NexusOpportunityJourney(
     id: _text(json['id']),
     fabricId: _text(json['fabric_id']),
+    productSnapshot: _map(_map(json['metadata'])['product_snapshot']),
     stage: _text(json['stage'], 'discovered'),
     mode: _text(json['mode'], 'buy'),
     contactability: _text(json['contactability_level'], 'C0'),
@@ -814,27 +800,62 @@ class LiveNexusService {
     Map<String, dynamic> payload = const {},
     String? expectedOwner,
   ]) async {
-    final boundSession = expectedOwner != null
-        ? client.auth.currentSession
-        : null;
-    if (expectedOwner != null && boundSession?.user.id != expectedOwner)
+    var session = client.auth.currentSession;
+    final owner = expectedOwner ?? session?.user.id;
+    if (expectedOwner != null && session?.user.id != expectedOwner)
       throw const NexusApiException(
         'Votre compte a changé. Relancez l’action.',
       );
     const publicActions = <String>{'nexus.global_discovery', 'nexus.sources'};
-    if (client.auth.currentUser == null && !publicActions.contains(action)) {
+    if (owner == null && !publicActions.contains(action))
       throw const NexusApiException(
         'Connectez-vous pour continuer cette action.',
       );
+    Future<FunctionResponse> request() => client.functions
+        .invoke(
+          _agenticFunction,
+          body: <String, dynamic>{'action': action, 'payload': payload},
+          headers: {
+            if (session != null)
+              'Authorization': 'Bearer ${session!.accessToken}',
+          },
+        )
+        .timeout(
+          Duration(
+            seconds:
+                [
+                  'nexus.global_discovery',
+                  'nexus.mandate.create',
+                ].contains(action)
+                ? 120
+                : 18,
+          ),
+        );
+    late FunctionResponse response;
+    try {
+      response = await request();
+    } on FunctionException catch (e) {
+      // A rejected session has not executed the action. Refresh it once only.
+      if (e.status != 401 ||
+          owner == null ||
+          client.auth.currentUser?.id != owner)
+        rethrow;
+      final refreshed = await client.auth.refreshSession().timeout(
+        const Duration(seconds: 12),
+      );
+      session = refreshed.session;
+      if (session == null ||
+          session!.user.id != owner ||
+          client.auth.currentUser?.id != owner)
+        throw const NexusApiException(
+          'Votre compte a changé. Relancez l’action.',
+        );
+      response = await request();
     }
-    final response = await client.functions.invoke(
-      _agenticFunction,
-      body: <String, dynamic>{'action': action, 'payload': payload},
-      headers: {
-        if (boundSession != null)
-          'Authorization': 'Bearer ${boundSession.accessToken}',
-      },
-    );
+    if (owner != null && client.auth.currentUser?.id != owner)
+      throw const NexusApiException(
+        'Votre compte a changé. Relancez l’action.',
+      );
     final envelope = _map(response.data);
     if (envelope['ok'] != true) {
       final error = _map(envelope['error']);

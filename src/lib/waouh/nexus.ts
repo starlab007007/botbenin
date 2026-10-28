@@ -571,6 +571,8 @@ export type NexusOpportunityJourney = {
   actionability_score?: number;
   next_best_action?: NexusNextBestAction;
   contact_pack?: NexusContactPack | Record<string, unknown>;
+  metadata?: {product_snapshot?: import("../../../supabase/functions/_shared/waouh-product-presentation").ProductSnapshot; [key:string]:unknown};
+  city?: string | null;
 };
 
 export async function startNexusOpportunity(
@@ -684,7 +686,7 @@ export async function getNexusContactPack(fabricId: string) {
 }
 
 export async function listNexusOwnedArticles() {
-  return invokeWaouhAgentic<{ articles: Array<{ id: string; title: string; price: number }> }>("nexus.owned_articles", {});
+  return invokeWaouhAgentic<{ articles: Array<{ id: string; title: string; price: number; photos?:string[]; description?:string; city?:string; currency?:string; brand?:string; model?:string; condition?:string }> }>("nexus.owned_articles", {});
 }
 
 export async function createNexusMandate(payload: {

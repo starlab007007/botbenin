@@ -1,3 +1,4 @@
+import {productPhotos,productSnapshot} from './WaouhProductPresentation';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import { supabase } from "@/integrations/supabase/client";
@@ -360,7 +361,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       try {
         const res = await supabase
           .from("waouh_articles")
-          .select("id,title,price,city,photos")
+          .select("id,title,description,brand,model,condition,price,currency,city,photos")
           .eq("id", articleId)
           .maybeSingle();
         art = res.data;
@@ -393,6 +394,8 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
           title: art?.title || detail.title || existing?.title || "Annonce",
           price: art?.price ?? detail.price ?? existing?.price ?? null,
           city: art?.city ?? detail.city ?? existing?.city ?? null,
+          photos: productPhotos(art??detail.product_snapshot??{photos:detail.photos??existing?.photos??[detail.photo??existing?.photo]}),
+          product_snapshot: productSnapshot(art??detail.product_snapshot??existing?.product_snapshot??detail),
           photo:
             (Array.isArray(art?.photos) && art!.photos[0]) ||
             detail.photo ||

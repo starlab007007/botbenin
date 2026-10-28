@@ -190,7 +190,7 @@ export default function PartnerProductsPage() {
           <div className="space-y-4">
             <div>
               <Label>Photos du produit <span className="text-xs text-muted-foreground">(3 max)</span></Label>
-              <ProductPhotoUploader value={form.photos} onChange={photos => setForm({ ...form, photos })} max={3} />
+              <ProductPhotoUploader value={form.photos} onChange={photos => setForm({ ...form, photos })} max={4} />
             </div>
             <div><Label>Nom *</Label><Input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-4">

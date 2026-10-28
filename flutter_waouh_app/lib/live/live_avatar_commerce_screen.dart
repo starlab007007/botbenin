@@ -1,3 +1,4 @@
+import 'live_product_presentation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -958,6 +959,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (current.productSnapshot.isNotEmpty) LiveProductPresentation(value: current.productSnapshot),
                 const SizedBox(height: 12),
                 LinearProgressIndicator(
                   value: current.progress.clamp(0, 100) / 100,

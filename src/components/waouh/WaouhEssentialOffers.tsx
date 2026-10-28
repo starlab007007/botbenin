@@ -1,3 +1,4 @@
+import {ProductGallery, ProductFacts, productSnapshot} from './WaouhProductPresentation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MapPin, ShoppingBag, SlidersHorizontal, Sparkles, ArrowRight, Check, X, Briefcase } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -11,8 +12,7 @@ import './waouh-essential.css';
 function OfferImage({ item, large = false, onClick }: { item: NexusDiscoveryResult; large?: boolean; onClick?: () => void }) {
   const photos = resultPhotos(item), [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [item.fabric_id, photos[0]]);
-  const content = photos[0] && !failed ? <img src={photos[0]} alt={item.subject || 'Offre'} loading="lazy" onError={() => setFailed(true)} /> : <span className="we-no-photo">{offerKind(item) === 'service' ? <Briefcase /> : <ShoppingBag />}<small>Sans photo</small></span>;
-  return onClick && photos.length ? <button className={`we-photo ${large ? 'we-photo-large' : ''}`} onClick={onClick} aria-label="Agrandir la photo">{content}</button> : <div className={`we-photo ${large ? 'we-photo-large' : ''}`}>{content}</div>;
+  return <div className={`we-photo ${large?'we-photo-large':''}`}><ProductGallery photos={photos} title={item.subject||'Offre'} detail={large} compact={!large}/></div>;
 }
 
 /** The original result object is passed to every action, regardless of filtering. */
@@ -49,7 +49,7 @@ export function WaouhEssentialOffers({ results, city = '', renderActions }: { re
       {item && <><OfferImage item={item} large onClick={() => setGallery(true)} /><SheetTitle className="we-detail-title">{item.subject || item.category || 'Offre'}</SheetTitle><div className="we-detail-price">{offerPrice(item)}</div><SheetDescription id="we-detail-description">{offerHint(item)} · {item.city || 'Zone à confirmer'}</SheetDescription><div className="we-advice"><Sparkles size={16}/><span>{offerAdvice(item)}</span></div>
         <details className="we-disclosure"><summary>Marché <span>{market?.label}</span></summary><p className="we-muted">Prix observés ; unité, modèle et conditions doivent correspondre.</p>{market?.median != null && <p>Médiane des références : {new Intl.NumberFormat('fr-FR').format(market.median)} {item.currency === 'XOF' || !item.currency ? 'F CFA' : item.currency}</p>}{market?.refs.map(ref => <a className="we-reference" key={ref.url} href={ref.url} target="_blank" rel="noreferrer"><span>{ref.seller}</span><strong>{new Intl.NumberFormat('fr-FR').format(ref.amount)} {ref.currency === 'XOF' ? 'F CFA' : ref.currency}</strong><small>{ref.observed_at ? new Date(ref.observed_at).toLocaleDateString('fr-FR') : 'Date non précisée'} · {ref.comparable ? 'Comparable' : 'Équivalence à confirmer'}</small></a>)}</details>
         <details className="we-disclosure"><summary>Pourquoi ce choix ?</summary><p>{(item.scores?.reasons || []).filter(t => !/ENRICH|NEXUS|C[0-5]|score|Opportunity OS|\d+%/i.test(t)).slice(0,3).join(' · ') || 'Offre issue de votre recherche. Conditions à vérifier.'}</p>{typeof item.evidence?.description === 'string' && <p>{item.evidence.description}</p>}<small>Vos coordonnées restent protégées.</small></details>
-        <div className="we-actions">{renderActions(item)}</div>
+        {productSnapshot(item)&&<ProductFacts product={productSnapshot(item)!}/>}<div className="we-actions">{renderActions(item)}</div>
       </>}
     </SheetContent></Sheet>
     <Dialog open={compare} onOpenChange={setCompare}><DialogContent className="we-comparison"><DialogTitle>Comparer · {chosen.length} offres</DialogTitle><p className="we-muted">Prix observés. Comparez les mêmes unités et conditions.</p><div className="we-comparison-scroll"><div className="we-comparison-grid" style={{gridTemplateColumns:`repeat(${chosen.length}, minmax(180px, 1fr))`}}>{chosen.map(r => <div key={r.fabric_id}><OfferImage item={r}/><h3>{r.subject || 'Offre'}</h3><strong className="we-price">{offerPrice(r)}</strong><p>{offerHint(r)}</p><p>{r.city || 'Zone à confirmer'}</p><p>{offerAdvice(r)}</p><p>Marché : {offerMarket(r).label}</p><button className="we-text-button" onClick={() => { setCompare(false); setActive(r.fabric_id); }}>Voir l’offre <ArrowRight size={14}/></button></div>)}</div></div></DialogContent></Dialog>

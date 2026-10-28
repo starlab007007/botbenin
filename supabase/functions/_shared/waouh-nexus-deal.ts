@@ -85,7 +85,7 @@ export function signalUnavailableReason(signal: ExternalSignal, now: Date = new 
 
 function publicPhotos(signal: ExternalSignal): string[] {
   const urls = [signal.primary_photo_url, ...(Array.isArray(signal.photo_urls) ? signal.photo_urls : [])];
-  return [...new Set(urls.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u)))].slice(0, 6);
+  return [...new Set(urls.filter((u): u is string => typeof u === "string" && /^https?:\/\//i.test(u)))].slice(0, 4);
 }
 
 const asPrice = (v: unknown): number | null => {

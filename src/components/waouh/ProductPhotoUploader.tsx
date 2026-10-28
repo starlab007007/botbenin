@@ -19,7 +19,7 @@ interface Props {
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
-  value, onChange, max = 3, folder = 'partner-products', bucket = 'waouh-media', className,
+  value, onChange, max = 4, folder = 'partner-products', bucket = 'waouh-media', className,
 }: Props) {
   const { toast } = useToast();
   const [uploading, setUploading] = React.useState(false);
@@ -63,15 +63,15 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="grid grid-cols-3 gap-2">
-        {(value || []).map((url, i) => (
+      <div className="grid grid-cols-4 gap-2">
+        {(value || []).slice(0, max).map((url, i) => (
           <div key={url + i} className="relative aspect-square rounded-md overflow-hidden border bg-muted group">
             <img src={thumbUrl(url)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => removeAt(i)}
               aria-label="Supprimer"
-              className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition"
+              className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground opacity-100 transition"
             >
               <X className="h-3 w-3" />
             </button>

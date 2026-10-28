@@ -1,3 +1,4 @@
+import {ProductGallery, productPhotos} from './WaouhProductPresentation';
 import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import { useEffect, useState } from "react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
@@ -19,7 +20,7 @@ export function WaouhOfferComparison({ results }: { results: NexusDiscoveryResul
       </label>)}
     </div>
     {offers.length > 0 && <div className="my-3 grid gap-2 sm:grid-cols-3">{offers.map(result => <dl key={result.fabric_id} className="min-w-0 rounded-xl bg-muted/40 p-3 text-xs">
-      <dt className="break-words font-semibold">{result.subject || result.category || "Offre"}</dt>
+      <div style={{height:120}}><ProductGallery photos={productPhotos(result)} title={result.subject||'Offre'}/></div><dt className="break-words font-semibold">{result.subject || result.category || "Offre"}</dt>
       <dd className="mt-2 font-semibold">{result.price_min != null && result.price_max != null && result.price_min !== result.price_max ? `${moneyXof(result.price_min)} – ${moneyXof(result.price_max)}` : result.price_min != null || result.price_max != null ? moneyXof(result.price_min ?? result.price_max) : "Prix à demander"}</dd>
       <dd className="mt-1 break-words">{result.city || "Zone à confirmer"} · {sourceDisplayName(result.source_key)}</dd>
       <dd className="mt-2 text-muted-foreground">État, stock, livraison : à confirmer.</dd>

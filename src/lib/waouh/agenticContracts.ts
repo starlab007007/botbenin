@@ -1,3 +1,4 @@
+import {productPhotos} from '../../../supabase/functions/_shared/waouh-product-presentation';
 export const WAOUH_MESSAGE_SCHEMA = "waouh.message.v1" as const;
 export const WAOUH_PRODUCT_SCHEMA = "waouh.product.v1" as const;
 export const WAOUH_OFFER_SCHEMA = "waouh.offer.v1" as const;
@@ -175,8 +176,7 @@ export function normalizeWaouhProductV1(value: unknown): WaouhProductV1 | null {
   const productId = text(row.product_id, row.id, row.article_id);
   const title = text(row.title, row.name, row.nom);
   if (!productId || !title) return null;
-  const rawPhotos = row.photos ?? row.images ?? row.media ?? row.image_url ?? row.photo;
-  const photos = (Array.isArray(rawPhotos) ? rawPhotos : [rawPhotos]).map(safeMediaUrl).filter(Boolean);
+  const photos = productPhotos(row);
   return {
     schema: WAOUH_PRODUCT_SCHEMA,
     product_id: productId,
@@ -186,7 +186,7 @@ export function normalizeWaouhProductV1(value: unknown): WaouhProductV1 | null {
     price_min_amount: finite(row.price_min_amount ?? row.price_min ?? row.prix_min),
     price_max_amount: finite(row.price_max_amount ?? row.price_max ?? row.prix_max),
     currency: text(row.currency) || "XOF",
-    photos: [...new Set(photos)],
+    photos: [...new Set(photos)].slice(0, 4),
     city: text(row.city, row.ville) || null,
     condition: text(row.condition, row.etat) || null,
     source: text(row.source) || null,

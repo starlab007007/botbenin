@@ -1,3 +1,4 @@
+import 'live_product_presentation.dart';
 import 'dart:async';
 import 'live_mission_domain.dart';
 import 'package:flutter/material.dart';
@@ -181,6 +182,20 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (widget.missionKind == 'purchase' ||
+                          o.photoUrls.isNotEmpty)
+                        LiveProductPresentation(
+                          value: {
+                            'id': o.fabricId,
+                            'title': o.title,
+                            'evidence': o.evidence,
+                            'price_min': o.priceMin,
+                            'price_max': o.priceMax,
+                            'currency': o.currency,
+                            'city': o.city,
+                          },
+                          label: 'Produit comparé',
+                        ),
                       Text(
                         o.title,
                         style: TextStyle(
@@ -392,6 +407,13 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         color: avatarPremiumMuted,
                       ),
                     ),
+                    LiveProductFacts(
+                      product: LiveProductData({
+                        'title': o.title,
+                        'evidence': o.evidence,
+                        'city': o.city,
+                      }),
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       missionOfferView(o, widget.missionKind)['value']!,
@@ -577,6 +599,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
         width: width,
         height: height,
         large: true,
+        detail: detail,
       );
     final view = missionOfferView(o, widget.missionKind),
         icon = widget.missionKind == 'opportunity'
@@ -770,45 +793,9 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
         ),
         const SizedBox(height: 20),
         if (widget.missionKind == 'sale' && widget.ownArticle != null)
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: avatarPremiumBlue,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${widget.ownArticle!['title'] ?? 'Mon article'}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        contextNumber('price_floor') != null
-                            ? 'Plancher : ${money(contextNumber('price_floor')!)}'
-                            : 'Prix plancher à définir',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: avatarPremiumMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          LiveProductPresentation(
+            value: widget.ownArticle,
+            label: 'Mon article à vendre',
           ),
         if (rows.isNotEmpty) ...[
           Row(
@@ -845,37 +832,40 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    for (var i = 0; i < shown.length; i += 2)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _tile(shown[i], i == 0, false),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 17),
+          if (shown.length == 1)
+            _tile(shown.first, true, true)
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
                   child: Column(
                     children: [
-                      for (var i = 1; i < shown.length; i += 2)
+                      for (var i = 0; i < shown.length; i += 2)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _tile(shown[i], false, true),
+                          child: _tile(shown[i], i == 0, false),
                         ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 17),
+                    child: Column(
+                      children: [
+                        for (var i = 1; i < shown.length; i += 2)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _tile(shown[i], false, true),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           if (rows.length > 4)
             ExpansionTile(
               tilePadding: EdgeInsets.zero,

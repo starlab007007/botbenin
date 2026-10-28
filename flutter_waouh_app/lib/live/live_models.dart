@@ -601,7 +601,7 @@ class LiveMatch {
         liveAttachments(row['photos']).map((item) => item.url).toList();
     final payloadPhotos =
         liveAttachments(payload['photos']).map((item) => item.url).toList();
-    final photos = rowPhotos.isNotEmpty ? rowPhotos : payloadPhotos;
+    final photos = (rowPhotos.isNotEmpty ? rowPhotos : payloadPhotos).take(4).toList();
     final read = row['opened'] == true || row['read_at'] != null;
     return LiveMatch(
       key: key,
@@ -698,7 +698,7 @@ class LiveMatch {
       price: newer.price ?? price,
       city: newer.city ?? city,
       photo: newer.photo ?? photo,
-      photoUrls: <String>{...photoUrls, ...other.photoUrls}.toList(),
+      photoUrls: <String>{...photoUrls, ...other.photoUrls}.take(4).toList(),
       unreadCount: unreadCount + other.unreadCount,
     );
   }

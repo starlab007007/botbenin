@@ -1,3 +1,4 @@
+import 'live_product_presentation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -978,7 +979,7 @@ class LiveDealRoomBanner extends StatelessWidget {
         LiveMuseAvatar(mode: mode, phase: pending ? LiveMusePhase.searching : LiveMusePhase.negotiating, size: 32),
         const SizedBox(width: 7),
         if (match.photo != null && match.photo!.trim().isNotEmpty) ...[
-          ClipRRect(
+          InkWell(onTap: () => showLiveProductDetails(context, {'title':match.title,'photos':match.photoUrls.isNotEmpty?match.photoUrls:[match.photo],'price':match.price,'city':match.city}), child: ClipRRect(
             borderRadius: BorderRadius.circular(11),
             child: Image.network(
               match.photo!,
@@ -987,7 +988,7 @@ class LiveDealRoomBanner extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _DealFallback(mode: mode),
             ),
-          ),
+          )),
           const SizedBox(width: 7),
         ],
         Expanded(
