@@ -1,3 +1,5 @@
+import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
+import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -422,6 +424,9 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
     typeof mandate.metadata.article_id === "string"
     ? mandate.metadata.article_id
     : null;
+  const product = mandate.mode === 'sell'
+    ? (await withJourneyProducts(sb, [{fabric_id: signal.fabric_id, mode: 'sell', article_id: mandateArticleId, metadata: {}}], ownerId))[0]?.metadata?.product_snapshot ?? null
+    : productSnapshot(signal);
   const { data: existing } = await sb.from("waouh_opportunity_journeys")
     .select("*").eq("owner_id", ownerId).eq("fabric_id", signal.fabric_id)
     .eq("mandate_id", mandate.id).eq("mode", mandate.mode)
@@ -434,7 +439,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
       actionability_score: pack.actionability_score,
       next_best_action: pack.next_best_action,
       contact_pack: pack,
-      metadata: { ...(existing.metadata || {}), match_score: matchScore, worker_seen_at: new Date().toISOString() },
+      metadata: { ...(existing.metadata || {}), product_snapshot: product, match_score: matchScore, worker_seen_at: new Date().toISOString() },
       updated_at: new Date().toISOString(),
     }).eq("id", existing.id);
     return { ...existing, article_id: existing.article_id ?? mandateArticleId, mandate_id: mandate.id, contact_pack: pack };
@@ -461,7 +466,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
     last_action: "autonomy_match_selected",
     next_action: pack.next_best_action,
     last_message: "Avatar a sélectionné cette opportunité selon votre mandat.",
-    metadata: { match_score: matchScore, autonomy_mode: mandate.autonomy_mode },
+    metadata: { match_score: matchScore, autonomy_mode: mandate.autonomy_mode, product_snapshot: product },
   }).select("*").single();
   if (error) throw error;
   return data;

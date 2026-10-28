@@ -13,3 +13,9 @@ export function followAutomaticSearch(owner:string,input:AutomaticSearch):Promis
 }
 
 export function automaticMissionMessage(m:NexusAvatarMandate){if(m.status==='paused')return 'Le suivi de cette mission est en pause.';if(!autonomyWindowOpen(m))return 'Bot reprendra à l’ouverture.';if(m.metadata?.discovery_kind==='opportunity')return 'Votre avatar surveille les publications et les échéances. Toute candidature reste à valider.';if(m.metadata?.autonomy_settings&&!normalizeAvatarAutonomy(m.metadata.autonomy_settings).allow_contact)return 'Bot compare. Les contacts attendent votre accord.';return 'Bot poursuit la mission selon vos règles.';}
+
+/** Only the idempotent automatic-follow action may be retried after transport failure. */
+export function automaticFollowRetryable(error:unknown):boolean {
+ const status=(error as {status?:number}|null)?.status;
+ return status==null||status===408||status===429||status>=500;
+}

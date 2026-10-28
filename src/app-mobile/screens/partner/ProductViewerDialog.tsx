@@ -1,3 +1,4 @@
+import {ProductGallery} from '@/components/waouh/WaouhProductPresentation';
 import * as React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -61,40 +62,12 @@ export default function ProductViewerDialog({ product, open, onClose, onUpdated,
 
         <div className="px-4 pb-4 space-y-4">
           {/* Photo gallery */}
-          {photos.length > 0 ? (
-            <div className="space-y-2">
-              <ChatImage
-                src={photos[0]}
-                caption={product.nom}
-                gallery={gallery}
-                index={0}
-                imgClassName="w-full max-h-80 object-contain bg-muted"
-              />
-              {photos.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {photos.slice(1).map((u, i) => (
-                    <ChatImage
-                      key={u + i}
-                      src={u}
-                      gallery={gallery}
-                      index={i + 1}
-                      caption={product.nom}
-                      imgClassName="aspect-square"
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="h-44 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
-              <ImageOff className="h-8 w-8" />
-            </div>
-          )}
+          <ProductGallery photos={photos} title={product.nom||'Produit'} detail/>
 
           {/* Photo editor */}
           {editingPhotos ? (
             <div className="rounded-lg border bg-card p-3 space-y-3">
-              <ProductPhotoUploader value={photos} onChange={setPhotos} max={3} />
+              <ProductPhotoUploader value={photos} onChange={setPhotos} max={4} />
               <div className="flex gap-2 justify-end">
                 <Button variant="ghost" size="sm" onClick={() => { setPhotos(Array.isArray(product.photos) ? product.photos : []); setEditingPhotos(false); }}>
                   Annuler

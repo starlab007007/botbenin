@@ -102,12 +102,12 @@ export default function ProductFormNativeScreen({ businessId, initial, onClose, 
     >
       <div>
         <label className="text-sm font-medium block mb-1.5">
-          Photos du produit <span className="text-xs text-muted-foreground">(3 max)</span>
+          Photos du produit <span className="text-xs text-muted-foreground">(4 max)</span>
         </label>
         <ProductPhotoUploader
           value={form.photos}
           onChange={photos => setForm({ ...form, photos })}
-          max={3}
+          max={4}
         />
       </div>
 

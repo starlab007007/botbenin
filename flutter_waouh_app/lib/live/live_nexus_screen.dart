@@ -1,3 +1,5 @@
+import 'live_product_presentation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_mission_domain.dart';
 import 'live_guided_progress.dart';
 import 'dart:async';
@@ -109,6 +111,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Map<String, dynamic>? _automatic;
   bool _automaticBusy = false;
+  Timer? _followRetry;
+  int _followAttempt = 0;
   String? _automaticError;
   String _lastGoal = '', _lastCity = '', _priority = 'price';
   double? _lastBudget;
@@ -137,6 +141,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       if (next != _owner && mounted) {
         _owner = next;
         _searchVersion++;
+        _followRetry?.cancel();
         setState(() {
           discovery = null;
           _automatic = null;
@@ -183,6 +188,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   @override
   void dispose() {
+    _followRetry?.cancel();
     _searchVersion++;
     _accountSubscription?.cancel();
     for (final item in <TextEditingController>[
@@ -221,6 +227,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       if (text.isEmpty) notice('Décrivez votre besoin.');
       return;
     }
+    _followRetry?.cancel();
+    _followAttempt = 0;
     final version = ++_searchVersion;
     final account = legacy.supabase.auth.currentUser?.id;
     setState(() {
@@ -352,7 +360,13 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Future<void> _follow(int version) async {
     final account = legacy.supabase.auth.currentUser?.id;
-    if (account == null || _automaticBusy || _lastGoal.isEmpty) return;
+    if (!mounted ||
+        version != _searchVersion ||
+        account == null ||
+        _automaticBusy ||
+        _lastGoal.isEmpty)
+      return;
+    _followRetry?.cancel();
     final sentPriority = _priority;
     setState(() {
       _automaticBusy = true;
@@ -398,11 +412,32 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           );
         }
       });
-    } catch (_) {
+      _followAttempt = 0;
+    } catch (error) {
       if (mounted &&
           version == _searchVersion &&
-          account == legacy.supabase.auth.currentUser?.id)
-        setState(() => _automaticError = 'Suivi indisponible. Réessayez.');
+          account == legacy.supabase.auth.currentUser?.id) {
+        final transient =
+            error is TimeoutException ||
+            (error is FunctionException &&
+                (error.status == 408 ||
+                    error.status == 429 ||
+                    error.status >= 500)) ||
+            (error is! NexusApiException && error is! FunctionException);
+        final retry = transient && _followAttempt < 3;
+        setState(
+          () => _automaticError = retry
+              ? 'Je rétablis le suivi automatiquement…'
+              : 'Le suivi n’a pas pu être enregistré.',
+        );
+        if (retry) {
+          final seconds = [5, 15, 30][_followAttempt++];
+          _followRetry = Timer(
+            Duration(seconds: seconds),
+            () => _follow(version),
+          );
+        }
+      }
     } finally {
       if (mounted &&
           version == _searchVersion &&
@@ -1200,6 +1235,14 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             ),
             children: [_searchEditor()],
           ),
+          if (_lastKind == 'sale' &&
+              _ownedArticle != null &&
+              (['understanding', 'collecting'].contains(_phase) ||
+                  results.isEmpty))
+            LiveProductPresentation(
+              value: _ownedArticle,
+              label: 'Mon article à vendre',
+            ),
           if (['understanding', 'collecting'].contains(_phase) || _paused)
             LiveGuidedProgress(
               missionKind: _activeKind,

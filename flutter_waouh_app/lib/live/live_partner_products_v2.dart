@@ -1,3 +1,4 @@
+import 'live_product_presentation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -296,45 +297,7 @@ class LivePartnerProductDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
         children: [
-          GestureDetector(
-            onTap: () => _openFullscreenImage(context, product,
-                photos.isEmpty ? null : photos.first, heroTag),
-            child: Hero(
-              tag: heroTag,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: SizedBox(
-                    height: 290,
-                    child: _productImage(photos.isEmpty ? null : photos.first,
-                        fit: BoxFit.cover)),
-              ),
-            ),
-          ),
-          if (photos.length > 1) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 84,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: photos.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, index) => GestureDetector(
-                  onTap: () => _openFullscreenImage(
-                      context,
-                      product,
-                      photos[index],
-                      'partner-product-${product.id}-photo-$index'),
-                  child: Hero(
-                    tag: 'partner-product-${product.id}-photo-$index',
-                    child: ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: _productImage(photos[index],
-                            width: 84, height: 84, fit: BoxFit.cover)),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          LiveProductGallery(photos: photos, title: product.name, detail: true, height: 290),
           const SizedBox(height: 20),
           Row(children: [
             Expanded(
@@ -517,7 +480,7 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
-    if (_photos.length >= 3) return;
+    if (_photos.length >= 4) return;
     final partnerController = context.read<legacy.PartnerController>();
     final file =
         await ImagePicker().pickImage(source: source, imageQuality: 82);
@@ -642,7 +605,7 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
           children: [
-            Text('Photos du produit (3 max)', style: WaouhText.bodyStrong),
+            Text('Photos du produit (4 max)', style: WaouhText.bodyStrong),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               ..._photos.asMap().entries.map((entry) => Stack(children: [
@@ -662,7 +625,7 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
                                 child: Icon(Icons.close_rounded,
                                     size: 15, color: Colors.white)))),
                   ])),
-              if (_photos.length < 3)
+              if (_photos.length < 4)
                 InkWell(
                     onTap: _uploading ? null : _choosePhoto,
                     child: Container(

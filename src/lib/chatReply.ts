@@ -1,3 +1,4 @@
+import {productPhotos} from '../../supabase/functions/_shared/waouh-product-presentation';
 import type { WaouhResultCard } from '@/components/waouh/WaouhProductCard';
 import { normalizeAgenticBlocks, normalizeWaouhProductV1, type WaouhMessageBlock } from '@/lib/waouh/agenticContracts';
 
@@ -35,15 +36,14 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
     } : object(item);
     const title = label(r.title, r.nom, r.name);
     if (!title) return [];
-    const rawPhotos = r.photos ?? r.images ?? r.media ?? r.photo ?? r.image ?? r.image_url;
-    const photos = (Array.isArray(rawPhotos) ? rawPhotos : [rawPhotos]).map(mediaUrl).filter(Boolean);
+    const photos = productPhotos(r);
     const index = number(r.index);
     return [{
       ...r, id: label(r.id, r.article_id) || `result-${i + 1}`, title,
       index: index && index > 0 ? index : i + 1,
       source: label(r.source) || (catalogue ? 'catalogue' : 'waouh'),
       price: number(r.price ?? r.prix), price_min: number(r.price_min ?? r.prix_min), price_max: number(r.price_max ?? r.prix_max),
-      city: label(r.city, r.ville), photos: [...new Set(photos)],
+      city: label(r.city, r.ville), photos: [...new Set(photos)].slice(0, 4),
       source_url: label(r.source_url, r.url, r.sourceUrl) || null,
       fabric_id: label(r.fabric_id, r.fabricId) || null,
       intent: label(r.intent, r.signal_intent) || null,

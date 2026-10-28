@@ -417,7 +417,7 @@ export function WaouhProductCard({
         return;
       }
       const detail = openMatchDetail(outcome.response, {
-        title: result.title, price: listPrice, city: result.city ?? null, photo: photos[0] ?? null,
+        title: result.title, price: listPrice, city: result.city ?? null, photo: photos[0] ?? null, photos, product_snapshot: result,
       });
       bufferOpenIntent(detail as OpenDetail);
       window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));

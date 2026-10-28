@@ -1,3 +1,4 @@
+import {WaouhProductPresentation} from './WaouhProductPresentation';
 import { WaouhJourneyTracker } from "./WaouhJourneyTracker";
 import { WaouhMessageText } from "./WaouhMessageText";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -59,6 +60,8 @@ export type MatchChatMeta = {
   price: number | null;
   city?: string | null;
   photo?: string | null;
+  photos?: string[];
+  product_snapshot?: unknown;
   kind: "buyer" | "seller";
   closed?: boolean;
 };
@@ -924,6 +927,7 @@ export function WaouhMatchChatWindow({
       <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
         <SheetContent side={isMobile ? "bottom" : "right"} className={cn("overflow-y-auto p-4", isMobile ? "max-h-[85dvh] rounded-t-3xl" : "w-[400px] sm:max-w-[400px]")}>
           <SheetHeader><SheetTitle className="text-left text-base">{match.title}</SheetTitle></SheetHeader>
+          <WaouhProductPresentation value={match.product_snapshot??{title:match.title,photos:match.photos??[match.photo],price:match.price,city:match.city}} label="Produit de cet échange"/>
           <div className="mt-3 space-y-3">
             <WaouhJourneyTracker threadId={match.thread_id || serverThreadId} />
         {/* Parcours v3 : progression en 7 étapes, dans le même bloc. */}

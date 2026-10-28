@@ -1,3 +1,4 @@
+import {productPhotos} from '../../../supabase/functions/_shared/waouh-product-presentation';
 import { maskPhone } from "./liveReasoning";
 
 const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v.trim());
@@ -6,9 +7,7 @@ const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\
 type Loose = { evidence?: Record<string, unknown> | null; contact_pack?: unknown };
 
 export function resultPhotos(result: Loose): string[] {
-  const e = (result.evidence ?? {}) as Record<string, unknown>;
-  const list: unknown[] = [e.primary_photo_url, e.image_url, ...(Array.isArray(e.photos) ? e.photos : [])];
-  return Array.from(new Set(list.filter(isUrl).map((u) => u.trim()))).slice(0, 6);
+  return productPhotos(result);
 }
 
 /** Contact masqué : seuls les 4 derniers chiffres sont affichés. */

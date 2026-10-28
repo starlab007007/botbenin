@@ -1,3 +1,4 @@
+import {ProductGallery} from './WaouhProductPresentation';
 import { useState } from "react";
 import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
@@ -29,20 +30,10 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
   return (
     <article className="overflow-hidden rounded-[26px] border border-blue-100 bg-white shadow-[0_18px_44px_-34px_rgba(37,99,235,.55)]">
       <div className="relative aspect-[16/10] w-full bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-100">
-        {shown ? (
-          <img src={shown} alt={title} loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken((b) => ({ ...b, [shown]: true }))} className="h-full w-full object-cover" />
-        ) : (
-          <div className="grid h-full w-full place-items-center text-blue-300"><ImageOff className="h-8 w-8" /></div>
-        )}
+        <ProductGallery photos={photos} title={title}/>
         <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-black text-blue-700 shadow-sm backdrop-blur">{score}% compatible</span>
         {verified && <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black text-white"><BadgeCheck className="h-3 w-3" />Vérifié</span>}
-        {photos.length > 1 && (
-          <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1">
-            {photos.map((u, i) => (
-              <button key={u} type="button" aria-label={`Photo ${i + 1}`} onClick={() => setPhoto(i)} className={`h-1.5 rounded-full transition-all ${i === photo ? "w-5 bg-white" : "w-1.5 bg-white/60"}`} />
-            ))}
-          </div>
-        )}
+
       </div>
 
       <div className="space-y-3 p-4">

@@ -11,15 +11,15 @@ function publicPhoto(value:unknown){
 export function publicBusinessEvidence(value:unknown){
  const e=value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
  const result:Record<string,unknown>={};
- for(const key of ['unit','price_unit','price_basis','scope','deliverables','perimetre','service_scope','conditions','eligibility_conditions','exclusions','warranty','guarantee','condition','offer_kind','kind','time_slot','organization','organizer']){
+ for(const key of ['description','brand','model','storage','color','unit','price_unit','price_basis','scope','deliverables','perimetre','service_scope','conditions','eligibility_conditions','exclusions','warranty','guarantee','condition','offer_kind','kind','time_slot','organization','organizer']){
   const v=e[key];if(typeof v==='string')result[key]=redactPublicContacts(v).slice(0,1500);else if(Array.isArray(v))result[key]=v.filter(x=>typeof x==='string').slice(0,8).map(x=>redactPublicContacts(x)).join(' · ').slice(0,1500);
  }
  for(const key of ['deadline','closing_date','expires_at','available_at'])if(missionDate(e[key])!==null)result[key]=e[key];
  for(const key of ['delivery_days','duration_days','pages','page_count','visit_fee','callout_fee','diagnostic_fee','delivery_fee','delivery_cost','revisions','revision_count','minimum_quantity','min_quantity','quantity','requested_quantity'])if(typeof e[key]==='number'&&Number.isFinite(e[key])&&Number(e[key])>=0)result[key]=e[key];
  for(const key of ['diagnostic_included','delivery_included','price_confirmed','availability_confirmed','in_stock','remote','eligible'])if(typeof e[key]==='boolean')result[key]=e[key];
  if(['available','unavailable'].includes(String(e.availability)))result.availability=e.availability;
- const photos=[e.primary_photo_url,e.image_url,...(Array.isArray(e.photos)?e.photos:[])].map(publicPhoto).filter(Boolean).slice(0,6);
- if(photos.length)result.photos=[...new Set(photos)];
+ const photos=[e.primary_photo_url,e.image_url,...(Array.isArray(e.photos)?e.photos:[])].map(publicPhoto).filter(Boolean);
+ if(photos.length)result.photos=[...new Set(photos)].slice(0,4);
  return result;
 }
 export function publicNexusResult(row: Record<string, unknown>) {

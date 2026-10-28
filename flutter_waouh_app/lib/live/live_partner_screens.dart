@@ -874,11 +874,11 @@ String _formatNumber(num value) {
   return buffer.toString();
 }
 
-/// Up-to-3 photo grid uploader: shows existing photos with a remove button,
+/// Up-to-4 photo grid uploader: shows existing photos with a remove button,
 /// an "add" tile while under the max, and uploads straight to
 /// `waouh-media/partner-products` exactly like ProductPhotoUploader.tsx.
 class _PhotoGridUploader extends StatefulWidget {
-  const _PhotoGridUploader({required this.photos, required this.onChanged, required this.controller, this.max = 3});
+  const _PhotoGridUploader({required this.photos, required this.onChanged, required this.controller, this.max = 4});
   final List<String> photos;
   final ValueChanged<List<String>> onChanged;
   final legacy.PartnerController controller;

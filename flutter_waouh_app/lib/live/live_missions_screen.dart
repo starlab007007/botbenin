@@ -1,3 +1,6 @@
+import 'live_mission_feed.dart';
+import 'live_product_presentation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -174,7 +177,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
     with WidgetsBindingObserver {
   late final LiveNexusService _service;
   StreamSubscription<dynamic>? _auth;
-  Timer? _timer;
+  Timer? _timer, _retryTimer;
+  RealtimeChannel? _updates;
+  int _retryAttempt = 0;
   String? _account;
   int _version = 0;
   List<Map<String, dynamic>> _mandates = [];
@@ -200,9 +205,13 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
           _paused = false;
           _loading = false;
         });
+        _retryTimer?.cancel();
+        _retryAttempt = 0;
+        _subscribe();
         _load();
       }
     });
+    _subscribe();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _load();
@@ -226,9 +235,36 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
   void dispose() {
     _version++;
     _timer?.cancel();
+    _retryTimer?.cancel();
+    if (_updates != null) legacy.supabase.removeChannel(_updates!);
     _auth?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _subscribe() {
+    if (_updates != null) legacy.supabase.removeChannel(_updates!);
+    if (_account == null) return;
+    final channel = legacy.supabase.channel(
+      'missions-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    for (final table in [
+      'waouh_avatar_mandates',
+      'waouh_opportunity_journeys',
+    ]) {
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: table,
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'owner_id',
+          value: _account!,
+        ),
+        callback: (_) => _load(),
+      );
+    }
+    _updates = channel.subscribe();
   }
 
   Future<void> _load() async {
@@ -238,28 +274,38 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
     final v = ++_version;
     setState(() => _loading = true);
     try {
-      final data = await _service.listMandates();
-      final journeys = await _service.listOpportunities(
-        includeCompleted: true,
-        limit: 100,
-      );
-      final rules = await loadLiveAvatarAutonomy();
+      final parts = await Future.wait([
+        readMissionPart(() => _service.listMandates()),
+        readMissionPart(
+          () => _service.listOpportunities(includeCompleted: true, limit: 100),
+        ),
+        readMissionPart(() => loadLiveAvatarAutonomy()),
+      ]);
       if (!mounted ||
           v != _version ||
           account != legacy.supabase.auth.currentUser?.id)
         return;
+      final data = parts[0].value,
+          journeys = parts[1].value,
+          rules = parts[2].value;
+      final failed = parts.take(2).any((part) => part.failed);
       setState(() {
-        final rows = data['mandates'];
-        _mandates = rows is List
-            ? rows
-                  .whereType<Map>()
-                  .map((r) => Map<String, dynamic>.from(r))
-                  .toList()
-            : [];
-        _journeys = journeys;
-        _paused = rules['paused'] == true;
-        _error = null;
+        if (data is Map && data['mandates'] is List)
+          _mandates = (data['mandates'] as List)
+              .whereType<Map>()
+              .map((r) => Map<String, dynamic>.from(r))
+              .toList();
+        if (journeys is List<NexusOpportunityJourney>) _journeys = journeys;
+        if (rules is Map) _paused = rules['paused'] == true;
+        _error = failed ? 'Je rétablis le suivi automatiquement…' : null;
       });
+      _retryTimer?.cancel();
+      if (failed) {
+        _retryAttempt++;
+        _retryTimer = Timer(missionRetryDelay(_retryAttempt), _load);
+      } else {
+        _retryAttempt = 0;
+      }
       if (!_openedInitial) {
         _openedInitial = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -276,7 +322,10 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
       }
     } catch (_) {
       if (mounted && v == _version)
-        setState(() => _error = 'Suivi indisponible. Réessayez.');
+        setState(() => _error = 'Je rétablis le suivi automatiquement…');
+      _retryTimer?.cancel();
+      if (mounted && v == _version)
+        _retryTimer = Timer(missionRetryDelay(++_retryAttempt), _load);
     } finally {
       if (mounted && v == _version) setState(() => _loading = false);
     }
@@ -434,6 +483,11 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
+                  if (meta['article_snapshot'] is Map)
+                    LiveProductPresentation(
+                      value: meta['article_snapshot'],
+                      label: 'Mon article à vendre',
+                    ),
                   if (watch) ...[
                     Text(
                       liveAutomaticMissionMessage(row),
@@ -481,13 +535,16 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            j.subject ?? 'Opportunité',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                          if (j.productSnapshot.isNotEmpty)
+                            LiveProductPresentation(value: j.productSnapshot)
+                          else
+                            Text(
+                              j.subject ?? 'Opportunité',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 7),
                           Text(
                             {
@@ -879,7 +936,11 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                 const BotCharacter(size: 24, animated: false),
                 const SizedBox(width: 9),
                 Text(
-                  _paused ? 'Bot est en pause.' : 'Bot s’occupe de la suite.',
+                  _paused
+                      ? 'Bot est en pause.'
+                      : _error != null
+                      ? 'Actualisation automatique du suivi…'
+                      : 'Bot s’occupe de la suite.',
                   style: const TextStyle(
                     fontSize: 11,
                     color: avatarPremiumMuted,
@@ -891,9 +952,12 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
               const SizedBox(height: 16),
               Text(
                 _error!,
-                style: const TextStyle(fontSize: 12, color: Colors.red),
+                style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
               ),
-              TextButton(onPressed: _load, child: const Text('Réessayer')),
+              TextButton(
+                onPressed: _load,
+                child: const Text('Actualiser maintenant'),
+              ),
             ],
           ],
         ),

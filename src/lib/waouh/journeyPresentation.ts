@@ -76,5 +76,8 @@ export function journeyChatDetail(journey: NexusOpportunityJourney) {
     kind: journey.mode === "sell" ? "seller" : "buyer",
     title: journey.subject || "Démarche WAOUH",
     source: "avatar_opportunity",
+    product_snapshot: journey.metadata?.product_snapshot,
+    photos: journey.metadata?.product_snapshot?.photos,
+    photo: journey.metadata?.product_snapshot?.photos?.[0]??null,
   };
 }

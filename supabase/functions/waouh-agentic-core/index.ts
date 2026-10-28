@@ -1,3 +1,5 @@
+import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
+import { withJourneyProducts, withMandateProducts, missionJourneyLimit } from '../_shared/waouh-mission-feed.ts';
 import {modulePolicyAllowed,modulesForAction} from '../_shared/waouh-module-policy.ts';
 import {MISSION_KINDS,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
 import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused,automaticFollowBlock} from "../_shared/waouh-automatic-mission.ts";
@@ -222,7 +224,7 @@ function wakeOpportunityWorker(
 
 async function ownedArticle(sb: SupabaseClient, authUserId: string, articleId: string) {
   const article = await queryOne<any>(
-    sb.from("waouh_articles").select("id,seller_id,title,price,currency,status").eq("id", articleId).maybeSingle(),
+    sb.from("waouh_articles").select("id,seller_id,title,description,brand,model,condition,price,currency,photos,city,status").eq("id", articleId).maybeSingle(),
     "article_not_found",
   );
   const seller = await queryOne<any>(
@@ -1398,9 +1400,9 @@ async function ensureOpportunityJourney(
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq("id", existing.id).select("*").single();
       if (refreshError) throw new ApiError(500, "opportunity_journey_refresh_failed", refreshError.message);
-      return refreshed;
+      return (await withJourneyProducts(sb, [refreshed], ownerId))[0];
     }
-    return existing;
+    return (await withJourneyProducts(sb, [existing], ownerId))[0];
   }
 
   const firstEvent = {
@@ -1410,6 +1412,7 @@ async function ensureOpportunityJourney(
     action: "opportunity_started",
     message: "Opportunité prise en charge par Avatar",
   };
+  const productRow = (await withJourneyProducts(sb, [{fabric_id: input.fabricId, mode: input.mode, article_id: input.articleId, metadata: input.metadata ?? {}}], ownerId))[0];
   return await queryOne<any>(
     sb.from("waouh_opportunity_journeys").insert({
       owner_id: ownerId,
@@ -1433,7 +1436,7 @@ async function ensureOpportunityJourney(
       next_action: journeyNextAction(stage, level),
       last_message: "Avatar a pris en charge cette opportunité.",
       timeline: [firstEvent],
-      metadata: input.metadata ?? {},
+      metadata: productRow.metadata,
     }).select("*").single(),
     "opportunity_journey_create_failed",
   );
@@ -2609,7 +2612,7 @@ Retourne uniquement JSON:
         if (identityError) throw new ApiError(500, "identity_lookup_failed");
         const ids = (users ?? []).map((row: any) => row.id);
         if (!ids.length) return jsonResponse({ ok: true, data: { articles: [] } });
-        const { data, error } = await sb.from("waouh_articles").select("id,title,price,city").in("seller_id", ids).eq("status", "active").order("updated_at", { ascending: false }).limit(100);
+        const { data, error } = await sb.from("waouh_articles").select("id,title,description,brand,model,condition,price,currency,city,photos").in("seller_id", ids).eq("status", "active").order("updated_at", { ascending: false }).limit(100);
         if (error) throw new ApiError(500, "owned_articles_failed");
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
@@ -2723,7 +2726,7 @@ Retourne uniquement JSON:
               automatic_follow: automatic,
               comparison_priority: comparisonPriority,
               ...(context?{discovery_kind:discoveryKind,mission_context:context}:{}),
-              ...(saleArticle?{article_snapshot:{id:saleArticle.id,title:saleArticle.title,price:saleArticle.price,currency:saleArticle.currency}}:{}),
+              ...(saleArticle?{article_snapshot:{...productSnapshot(saleArticle),price:saleArticle.price}}:{}),
               user_confirmed_mandate: true,
               followup_hours: autonomyRules?.followup_hours??followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
@@ -2890,9 +2893,10 @@ Retourne uniquement JSON:
         ]);
         if (mandates.error) throw new ApiError(500, "nexus_mandate_list_failed", mandates.error.message);
         if (intents.error) throw new ApiError(500, "nexus_intent_list_failed", intents.error.message);
+        const presented = await withMandateProducts(sb, mandates.data ?? [], ownerId);
         const { data: metrics, error: metricsError } = await sb.rpc("waouh_avatar_mission_metrics", { p_owner_id: ownerId });
-        if (metricsError) throw new ApiError(500, "mission_metrics_failed", metricsError.message);
-        return jsonResponse({ ok: true, data: { mandates: (mandates.data ?? []).map((m: any) => ({ ...m, metrics: (metrics ?? []).find((x: any) => x.mandate_id === m.id) ?? {} })), intents: intents.data ?? [] }});
+        if (metricsError) console.warn('[waouh-agentic-core] mission_metrics_unavailable', metricsError.code);
+        return jsonResponse({ ok: true, data: { mandates: presented.map((m: any) => ({ ...m, metrics: metricsError ? null : (metrics ?? []).find((x: any) => x.mandate_id === m.id) ?? {} })), intents: intents.data ?? [], ...(metricsError ? {warnings: ['metrics_unavailable']} : {}) }});
       }
 
       case "nexus.mandate.update": {
@@ -3046,11 +3050,12 @@ Retourne uniquement JSON:
         const { data, error } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
         if (error) throw new ApiError(500, "opportunity_journey_status_failed", error.message);
         if (!data) throw new ApiError(404, "opportunity_journey_not_found");
-        return jsonResponse({ ok: true, data: { journey: data } });
+        return jsonResponse({ ok: true, data: { journey: (await withJourneyProducts(sb, [data], ownerId))[0] } });
       }
 
       case "nexus.opportunity.list": {
-        const limit = integer(payload.limit, "limit", 20, 1, 50);
+        let limit: number;
+        try { limit = missionJourneyLimit(payload.limit); } catch { throw new ApiError(422, "invalid_limit"); }
         const includeCompleted = payload.include_completed === true;
         let q = sb.from("waouh_opportunity_journeys")
           .select("*")
@@ -3062,7 +3067,7 @@ Retourne uniquement JSON:
         if (!includeCompleted) q = q.not("stage", "in", "(completed,cancelled)");
         const { data, error } = await q;
         if (error) throw new ApiError(500, "opportunity_journey_list_failed", error.message);
-        const journeys = data ?? [];
+        const journeys = await withJourneyProducts(sb, data ?? [], ownerId);
         return jsonResponse({
           ok: true,
           data: {

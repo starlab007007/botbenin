@@ -1,3 +1,4 @@
+import {WaouhProductPresentation} from './WaouhProductPresentation';
 import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import type { NexusOpportunityJourney } from "@/lib/waouh/nexus";
 import { journeyPresentation, journeyHistory } from "@/lib/waouh/journeyPresentation";
@@ -6,6 +7,7 @@ export function WaouhJourneyProgress({ journey }: { journey: NexusOpportunityJou
   const history = journeyHistory(journey);
   const sourceUrl = /^https?:\/\//i.test(journey.source_url || "") ? journey.source_url : null;
   return <div className="space-y-3 text-xs">
+    {journey.metadata?.product_snapshot&&<WaouhProductPresentation value={journey.metadata.product_snapshot}/>}
     <div className="flex items-center justify-between gap-2"><span className="font-semibold">{view.status}</span><span className="truncate text-slate-500">{sourceDisplayName(journey.source_key)}</span></div>
 
     {journey.last_message && <p className="line-clamp-2 leading-relaxed text-slate-600"><strong>Dernière action : </strong>{journey.last_message}</p>}

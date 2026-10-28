@@ -1,3 +1,4 @@
+import 'live_product_presentation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'live_nexus_service.dart';
@@ -15,52 +16,19 @@ class LiveEssentialPhoto extends StatelessWidget {
     this.width = 84,
     this.height = 106,
     this.large = false,
+    this.detail = false,
   });
   final NexusDiscoveryItem item;
   final double width, height;
-  final bool large;
+  final bool large, detail;
   @override
-  Widget build(BuildContext context) {
-    final placeholder = ColoredBox(
-      color: const Color(0xFFF3EFED),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              essentialKind(item) == 'service'
-                  ? Icons.work_outline
-                  : Icons.shopping_bag_outlined,
-              color: essentialMuted,
-              size: large ? 40 : 25,
-            ),
-            if (width > 60)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                  'Sans photo',
-                  style: TextStyle(fontSize: 10, color: essentialMuted),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: item.photoUrls.isEmpty
-            ? placeholder
-            : Image.network(
-                item.photoUrls.first,
-                fit: large ? BoxFit.contain : BoxFit.cover,
-                errorBuilder: (_, __, ___) => placeholder,
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => LiveProductGallery(
+    photos: item.photoUrls,
+    title: item.title,
+    width: width,
+    height: height,
+    detail: detail,
+  );
 }
 
 class LiveEssentialOffers extends StatefulWidget {
