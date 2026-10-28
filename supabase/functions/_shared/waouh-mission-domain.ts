@@ -26,7 +26,7 @@ export function normalizeMissionContext(value:unknown,kind:MissionKind,query='',
  const raw=value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
  const q=missionText(query),days=q.match(/\b(\d{1,3})\s*(jours?|semaines?)\b/),pages=q.match(/\b(\d{1,3})\s*pages?\b/);
  const day=positive(raw.max_days)??(days?Number(days[1])*(days[2].startsWith('semaine')?7:1):null);
- return {kind,brief:str(raw.brief).slice(0,1500),max_days:day!==null?Math.max(1,Math.min(365,Math.floor(day))):null,required_pages:positive(raw.required_pages)??(pages?Number(pages[1]):null),quantity:positive(raw.quantity)!==null?Math.max(1,Math.min(100000,Math.floor(Number(raw.quantity)))):null,unit:str(raw.unit).slice(0,40),price_floor:Math.max(positive(raw.price_floor)??0,positive(floor)??0)||null};
+ return {kind,brief:str(raw.brief).slice(0,1500),max_days:day!==null?Math.max(1,Math.min(365,Math.floor(day))):null,required_pages:positive(raw.required_pages)??(pages?Number(pages[1]):null),quantity:positive(raw.quantity)!==null?Math.min(100000,Number(raw.quantity)):null,unit:str(raw.unit).slice(0,40),price_floor:Math.max(positive(raw.price_floor)??0,positive(floor)??0)||null};
 }
 export function missionCriteria(context:MissionContext):MissionCriteria{return {missionKind:context.kind,brief:context.brief,maxDays:context.max_days,requiredPages:context.required_pages,quantity:context.quantity,unit:context.unit,priceFloor:context.price_floor};}
 export function missionDate(raw:unknown):number|null{

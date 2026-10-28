@@ -1,3 +1,4 @@
+import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
@@ -1325,10 +1326,7 @@ Deno.serve(async (req) => {
       }
 
       if (!nexusDiscovery.ok) {
-        const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];
-        const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
-          .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1500);
-        if (signalError) throw signalError;
+        const {records:signals}=await loadDiscoveryRecords(sb,{query:intent.query_text,mode:intent.mode});
         ranked = (signals ?? []).filter((signal:any)=>!mandate.metadata?.mission_context||missionMatches(signal,missionCriteria(mandate.metadata.mission_context))).map((signal: FabricSignal) => ({
           ...signal,
           scores: scoreFabricSignal({
