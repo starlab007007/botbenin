@@ -96,7 +96,9 @@ jobs:
         run: |
           npm install --prefix /tmp/guardian-browser --no-audit --no-fund playwright@1.56.1
           /tmp/guardian-browser/node_modules/.bin/playwright install --with-deps chromium
-          cp scripts/guardian/browser.mjs /tmp/guardian-browser/browser.mjs
+          cp scripts/guardian/browser.mjs scripts/guardian/browser.test.mjs /tmp/guardian-browser/
+      - name: Verify browser probe
+        run: node --test /tmp/guardian-browser/browser.test.mjs
       - name: Read-only browser check
         run: node /tmp/guardian-browser/browser.mjs /tmp/guardian-render.json
       - name: Record independent observations
