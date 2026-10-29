@@ -11,6 +11,7 @@ class LivePremiumJourneyScreen extends StatefulWidget {
 }
 
 class _LivePremiumJourneyScreenState extends State<LivePremiumJourneyScreen> {
+  int activeGroup = 0;
   bool loading = true;
   String? error;
   List<Map<String, dynamic>> missions = [];
@@ -64,32 +65,106 @@ class _LivePremiumJourneyScreenState extends State<LivePremiumJourneyScreen> {
     }
   }
 
-  @override Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF7F9FE),
-    appBar: AppBar(title: const Text('WAOUH · Parcours premium'),
-      actions: [IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh), tooltip: 'Actualiser')]),
-    body: ListView(padding: const EdgeInsets.all(16), children: [
-      const Text('Bot cherche, compare et prépare. Vous confirmez l’accord final.',
-        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Color(0xFF0B1A44))),
-      const SizedBox(height: 12),
-      if (loading) const LinearProgressIndicator(),
-      if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
-      Text(missions.isEmpty ? 'Aucune mission confirmée dans votre compte.' : '${missions.length} mission(s) retrouvée(s)',
-        style: const TextStyle(color: Color(0xFF53627B))),
-      const SizedBox(height: 20),
-      ...PremiumJourneyScreen.values.map((screen) => Padding(
-        padding: const EdgeInsets.only(bottom: 9),
-        child: Card(color: Colors.white, child: ListTile(
-          leading: CircleAvatar(backgroundColor: const Color(0xFFE6EDFF),
-            child: Text('${screen.index + 1}', style: const TextStyle(color: Color(0xFF315BF5)))),
-          title: Text(premiumJourneyTitles[screen] ?? ''),
-          subtitle: Text(premiumJourneyPrimaryActions[screen] ?? ''),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _open(screen),
-        )),
-      )),
-      const Text('Les confirmations de stock, de remise et de paiement proviennent des données métier, jamais des maquettes.',
-        style: TextStyle(color: Color(0xFF53627B), fontSize: 12)),
-    ]),
-  );
+  static const groupNames = [
+    '01 — Trouver et choisir',
+    '02 — Du contact à l’accord',
+    '03 — Services, opportunités, autonomie',
+    '04 — Rejoindre, suivre, conclure',
+  ];
+  IconData iconFor(PremiumJourneyScreen step) {
+    switch (step) {
+      case PremiumJourneyScreen.liveSearch: return Icons.search;
+      case PremiumJourneyScreen.selection: return Icons.checklist_rounded;
+      case PremiumJourneyScreen.offerDetail: return Icons.verified_outlined;
+      case PremiumJourneyScreen.sellerRequest: return Icons.notifications_active_outlined;
+      case PremiumJourneyScreen.dealRoom: return Icons.forum_outlined;
+      case PremiumJourneyScreen.agreement: return Icons.handshake_outlined;
+      case PremiumJourneyScreen.serviceQuote: return Icons.handyman_outlined;
+      case PremiumJourneyScreen.opportunity: return Icons.work_outline;
+      case PremiumJourneyScreen.mandate: return Icons.tune;
+      case PremiumJourneyScreen.externalInvite: return Icons.link;
+      case PremiumJourneyScreen.fulfillment: return Icons.local_shipping_outlined;
+      case PremiumJourneyScreen.completion: return Icons.task_alt;
+    }
+  }
+  @override Widget build(BuildContext context) {
+    const blue = Color(0xFF4266FA), navy = Color(0xFF09163A);
+    final screens = PremiumJourneyScreen.values.skip(activeGroup * 3).take(3).toList();
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: const Text('WAOUH', style: TextStyle(color: navy, fontWeight: FontWeight.w800)),
+        actions: [IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh))],
+      ),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const SizedBox(height: 8),
+        const Center(child: CircleAvatar(radius: 29, backgroundColor: Color(0xFFE3EBFF), child: Text('🤖', style: TextStyle(fontSize: 27)))),
+        const SizedBox(height: 12),
+        const Text('Votre parcours, avec Bot',
+          textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: navy)),
+        const SizedBox(height: 6),
+        const Text('Je cherche, je vérifie et je prépare. Vous confirmez l’accord final.',
+          textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Color(0xFF526285))),
+        const SizedBox(height: 20),
+        Row(children: List.generate(4, (i) => Expanded(child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: OutlinedButton(
+            onPressed: () => setState(() => activeGroup = i),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: i == activeGroup ? blue : Colors.white,
+              foregroundColor: i == activeGroup ? Colors.white : navy,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+            ),
+            child: Text('${i+1}'),
+          ),
+        )))),
+        const SizedBox(height: 16),
+        Text(groupNames[activeGroup], textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: navy)),
+        if (loading) const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+        if (error != null) Padding(padding: const EdgeInsets.all(10), child: Text(error!, style: const TextStyle(color: Colors.red))),
+        if (missions.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text('${missions.length} mission(s) réellement enregistrée(s)',
+            style: const TextStyle(color: Color(0xFF53627B)))),
+        const SizedBox(height: 14),
+        for (final screen in screens) Card(
+          elevation: 0, color: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: Color(0xFFDDE4F1))),
+          margin: const EdgeInsets.only(bottom: 14),
+          child: Padding(padding: const EdgeInsets.all(20), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Icon(Icons.arrow_back_ios_new, size: 17),
+                const Text('WAOUH', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: navy)),
+                Icon(iconFor(screen), size: 20, color: navy),
+              ]),
+              const SizedBox(height: 25),
+              CircleAvatar(radius: 30, backgroundColor: const Color(0xFFEAF0FF),
+                child: Icon(iconFor(screen), size: 30, color: blue)),
+              const SizedBox(height: 16),
+              Text(premiumJourneyTitles[screen] ?? '', textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: navy)),
+              const SizedBox(height: 14),
+              Container(padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(color: const Color(0xFFF3F6FC), borderRadius: BorderRadius.circular(12)),
+                child: const Text('Les prix, les contacts et les confirmations sont issus du dossier réel. Aucune action externe ne part sans autorisation.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF526285)))),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () => _open(screen),
+                style: FilledButton.styleFrom(backgroundColor: blue, minimumSize: const Size.fromHeight(48)),
+                child: Text(premiumJourneyPrimaryActions[screen] ?? 'Ouvrir cette étape'),
+              ),
+            ]))),
+        ),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          TextButton(onPressed: activeGroup == 0 ? null : () => setState(() => activeGroup--), child: const Text('Précédent')),
+          FilledButton(onPressed: activeGroup == 3 ? null : () => setState(() => activeGroup++), child: const Text('Suivant')),
+        ]),
+      ]),
+    );
+  }
 }
