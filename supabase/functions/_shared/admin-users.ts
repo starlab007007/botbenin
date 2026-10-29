@@ -50,7 +50,9 @@ export function createAdminUsersHandler(client: AdminUsersClient) {
       if (typeof page !== 'number' || !Number.isSafeInteger(page) || page < 1 || page > 1000000) {
         return json({ error: 'Demande invalide.' }, 400);
       }
-      const perPage = 200;
+      // Older open web tabs have no pagination body; keep their list useful
+      // while the new web release is rolling out.
+      const perPage = body?.page == null ? 1000 : 200;
       const { data, error } = await client.auth.admin.listUsers({ page, perPage });
       if (error) throw error;
       // One batched lookup instead of one database request for every account.

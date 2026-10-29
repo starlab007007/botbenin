@@ -56,4 +56,10 @@ describe('user administration endpoint', () => {
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain('private backend detail');
   });
+  it('keeps the current account list accessible to already-open older web tabs', async () => {
+    const { handler, listUsers } = setup({ count: 250 });
+    const response = await handler(request());
+    expect(listUsers).toHaveBeenCalledWith({ page: 1, perPage: 1000 });
+    expect((await response.json()).users).toHaveLength(250);
+  });
 });

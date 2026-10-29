@@ -6,6 +6,8 @@ on:
       - prod
     paths:
       - "supabase/config.toml"
+      - "supabase/functions/list-users-admin/**"
+      - "supabase/functions/_shared/admin-users.ts"
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
@@ -64,6 +66,8 @@ on:
       - prod
     paths:
       - "supabase/config.toml"
+      - "supabase/functions/list-users-admin/**"
+      - "supabase/functions/_shared/admin-users.ts"
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
