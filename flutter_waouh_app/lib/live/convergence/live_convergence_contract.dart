@@ -58,7 +58,7 @@ Map<String, dynamic> liveConvergenceTotal(List<Map<String, dynamic>> parts) {
   var total = 0.0, complete = parts.isNotEmpty;
   for (final p in parts) {
     final agreement=convergenceMap(p['agreement']), agreed=convergenceAmount(convergenceMap(convergenceMap(p['agreement'])['terms'])['amount']);
-    final useAgreement=agreement['status']!='rejected' && agreed!=null;
+    final useAgreement=['accepted','completed'].contains(agreement['status']) && agreed!=null;
     final a = useAgreement?agreed:convergenceAmount(p['amount']), b = useAgreement?0.0:convergenceAmount(p['extra_cost']);
     total += (a ?? 0) + (b ?? 0); complete = complete && a != null && b != null;
   }
