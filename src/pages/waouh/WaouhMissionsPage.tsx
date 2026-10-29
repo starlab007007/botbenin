@@ -72,6 +72,7 @@ export default function WaouhMissionsPage(){
   return <div className="wmn-surface"><main className="wmn" data-waouh-ui="minimal-missions">
     <header className="wmn-head"><h1>Missions</h1><span className="wmn-grow"/><button type="button" className="wmn-icon" aria-label="Autres outils de mission" onClick={()=>setSheet('tools')}><MoreHorizontal/></button></header>
     <button type="button" className="wmn-new" onClick={()=>setSheet('new')}><span className="wmn-grow">Quel est votre besoin ?</span><span><ArrowUpRight/></span></button>
+    <button type="button" className="wmn-primary" onClick={()=>navigate('/app/premium')}>Mon parcours achat, service et vente<ChevronRight size={17}/></button>
     {loading&&!mandates.length&&!legacy.length?<p className="wmn-description mt-6" role="status">Chargement…</p>:<>
       {scopedApprovals.length>0&&!archive&&<button type="button" className="wmn-mission mt-6" onClick={()=>setSheet('advanced')}><span className="wmn-flag">À valider</span><h3>{scopedApprovals.length===1?scopedApprovals[0].title:`${scopedApprovals.length} décisions vous attendent`}</h3><span className="wmn-mission-bottom">Examiner<span className="wmn-grow"/><ArrowUpRight/></span></button>}
       <div className="wmn-sectionline"><span>{archive?'Terminées':'En cours'}</span><span>{current.length+legacyRows.length}</span></div>

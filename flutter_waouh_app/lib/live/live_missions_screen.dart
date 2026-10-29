@@ -744,6 +744,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
           ),
         ),
         actions: [
+          IconButton(tooltip:'Mon parcours achat, service et vente',icon:const Icon(Icons.handshake_outlined),onPressed:()=>context.push('/app/premium')),
           PopupMenuButton<String>(
             tooltip: 'Autres outils de mission',
             onSelected: (v) {
