@@ -58,6 +58,11 @@ let ws;
 let nextId = 1;
 const pending = new Map();
 let runtimeExceptions = [];
+// This suite checks navigation with all modules available. Production admins can
+// legitimately hide a module; those settings must not make CI nondeterministic.
+// Hidden/disabled module behavior is covered by the module-policy contract tests.
+const modulePolicyFixture = JSON.parse(fs.readFileSync('supabase/functions/_shared/waouh-module-catalog.json', 'utf8'))
+  .map((module) => ({ module_key: module.key, visible: true, access_enabled: true, automation_enabled: true }));
 
 function send(method, params = {}) {
   return new Promise((resolve, reject) => {
@@ -138,10 +143,26 @@ async function connectCdp() {
         "runtime exception",
       );
     }
+    if (message.method === 'Fetch.requestPaused') {
+      void send('Fetch.fulfillRequest', {
+        requestId: message.params.requestId,
+        responseCode: 200,
+        responseHeaders: [
+          { name: 'Content-Type', value: 'application/json' },
+          { name: 'Access-Control-Allow-Origin', value: '*' },
+          { name: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
+          { name: 'Access-Control-Allow-Headers', value: 'authorization, apikey, content-type, x-client-info, x-waouh-session, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version' },
+        ],
+        body: Buffer.from(JSON.stringify(modulePolicyFixture)).toString('base64'),
+      }).catch((error) => runtimeExceptions.push(`Fixture error: ${error.message}`));
+    }
   });
 
   await send("Page.enable");
   await send("Runtime.enable");
+  await send('Fetch.enable', {
+    patterns: [{ urlPattern: 'https://*.supabase.co/rest/v1/rpc/waouh_module_policy*', requestStage: 'Request' }],
+  });
 }
 
 async function evaluate(expression) {
