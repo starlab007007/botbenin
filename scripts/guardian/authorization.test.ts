@@ -60,3 +60,44 @@ Deno.test("Probe cannot repair/configure; event identity is server-verified", as
     403,
   );
 });
+Deno.test("External observer distinguishes reachable control from fresh internal checks", async () => {
+  const req = new Request("https://test", {
+    headers: { "x-guardian-probe": "external-token" },
+  });
+  for (
+    const [data, error, expected] of [
+      [
+        {
+          status: "healthy",
+          last_seen_at: new Date().toISOString(),
+          fresh_for_seconds: 420,
+        },
+        null,
+        true,
+      ],
+      [
+        {
+          status: "healthy",
+          last_seen_at: new Date(Date.now() - 421000).toISOString(),
+          fresh_for_seconds: 420,
+        },
+        null,
+        false,
+      ],
+      [null, null, false],
+      [null, { message: "unavailable" }, false],
+    ] as const
+  ) {
+    const q: any = {
+      select: () => q,
+      eq: () => q,
+      maybeSingle: async () => ({ data, error }),
+    };
+    const sb = {
+      rpc: async () => ({ data: "external", error: null }),
+      from: () => q,
+    };
+    const response = await guardianHandle(req, sb, { action: "guardian.ping" });
+    equal(await response!.json(), { ok: true, monitoring_fresh: expected });
+  }
+});

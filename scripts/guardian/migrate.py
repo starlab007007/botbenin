@@ -6,24 +6,27 @@ import json
 import re
 import urllib.error
 from provision import query
-VERSION='20261029014011'
-NAME='waouh_guardian'
-PATH=Path('supabase/migrations')/(VERSION+'_'+NAME+'.sql')
+MIGRATIONS=[
+    ('20261029014011','waouh_guardian',"to_regclass('public.waouh_guardian_settings') is not null"),
+    ('20261029081414','waouh_guardian_autonomy',"exists(select 1 from information_schema.columns where table_schema='public' and table_name='waouh_guardian_incidents' and column_name='notified_states')"),
+]
 def literal(value): return "'"+value.replace("'","''")+"'"
-def main():
-    sql=PATH.read_text()
+def apply(version,name,installed):
+    sql=(Path('supabase/migrations')/(version+'_'+name+'.sql')).read_text()
     print('GUARDIAN migration: preflight')
-    state=query("select to_regclass('public.waouh_guardian_settings') is not null as installed,(select md5(statements[1]) from supabase_migrations.schema_migrations where version='"+VERSION+"') as digest;")[0]
+    state=query("select "+installed+" as installed,(select md5(statements[1]) from supabase_migrations.schema_migrations where version='"+version+"') as digest;")[0]
     if state['installed']:
         if state['digest']!=hashlib.md5(sql.encode()).hexdigest(): raise ValueError('schema history differs')
         print('GUARDIAN: migration already applied');return
     if state['digest']: raise ValueError('inconsistent history')
     print('GUARDIAN migration: applying reviewed SQL')
-    query('begin;\n'+sql+'\ninsert into supabase_migrations.schema_migrations(version,name,statements) values('+literal(VERSION)+','+literal(NAME)+',array['+literal(sql)+']);\ncommit;')
+    query('begin;\n'+sql+'\ninsert into supabase_migrations.schema_migrations(version,name,statements) values('+literal(version)+','+literal(name)+',array['+literal(sql)+']);\ncommit;')
     print('GUARDIAN migration: verifying schema')
     check=query('select count(*) as n from public.waouh_guardian_components;')[0]
-    if check['n']!=16: raise ValueError('schema verification')
+    if check['n']!=16 or query('select '+installed+' as installed;')[0]['installed'] is not True: raise ValueError('schema verification')
     print('GUARDIAN: additive migration verified '+hashlib.sha256(sql.encode()).hexdigest()[:12])
+def main():
+    for migration in MIGRATIONS: apply(*migration)
 if __name__=='__main__':
     try: main()
     except urllib.error.HTTPError as error:

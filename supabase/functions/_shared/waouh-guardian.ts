@@ -257,7 +257,18 @@ export async function guardianHandle(
     });
   }
   if (["host", "external"].includes(actor.role)) {
-    if (action === "ping") return json({ ok: true });
+    if (action === "ping") {
+      const { data, error } = await sb.from("waouh_guardian_components")
+        .select("status,last_seen_at,fresh_for_seconds")
+        .eq("component", "internal_monitor").eq("observer", "internal")
+        .maybeSingle();
+      // Reachable control is not proof that the internal scheduler is alive.
+      return json({
+        ok: true,
+        monitoring_fresh: !error && data != null &&
+          effectiveStatus(data) === "healthy",
+      });
+    }
     if (action === "ingest") {
       let probes;
       try {
