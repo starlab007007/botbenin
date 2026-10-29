@@ -45,6 +45,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.117.0
+      - name: Apply reviewed additive migration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/guardian/migrate.py
       - name: Deploy guarded observer
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
