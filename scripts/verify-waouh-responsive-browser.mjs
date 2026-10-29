@@ -151,15 +151,20 @@ async function connectCdp() {
           { name: 'Content-Type', value: 'application/json' },
           { name: 'Access-Control-Allow-Origin', value: '*' },
           { name: 'Access-Control-Allow-Methods', value: 'POST, OPTIONS' },
-          { name: 'Access-Control-Allow-Headers', value: 'authorization, apikey, content-type, x-client-info, x-waouh-session, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version' },
+          { name: 'Access-Control-Allow-Headers', value: 'authorization, apikey, content-type, accept-profile, content-profile, prefer, range, range-unit, x-client-info, x-waouh-session, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version' },
         ],
         body: Buffer.from(JSON.stringify(modulePolicyFixture)).toString('base64'),
-      }).catch((error) => runtimeExceptions.push(`Fixture error: ${error.message}`));
+      }).catch((error) => {
+        // Navigation/reload can cancel a paused request before its fixture arrives.
+        if (!/Invalid InterceptionId/i.test(error.message)) runtimeExceptions.push(`Fixture error: ${error.message}`);
+      });
     }
   });
 
   await send("Page.enable");
   await send("Runtime.enable");
+  await send('Network.enable');
+  await send('Network.setBypassServiceWorker', { bypass: true });
   await send('Fetch.enable', {
     patterns: [{ urlPattern: 'https://*.supabase.co/rest/v1/rpc/waouh_module_policy*', requestStage: 'Request' }],
   });
