@@ -126,3 +126,6 @@ execute format('grant execute on function %s to service_role',f.signature);end l
 select cron.schedule('waouh-guardian-observer','*/2 * * * *',$cron$
 select net.http_post(url:='https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waouh-health-check',headers:=jsonb_build_object('Content-Type','application/json','X-Waouh-Internal',(select decrypted_secret from vault.decrypted_secrets where name='waouh_runtime_internal_secret' limit 1)),body:='{"action":"guardian.tick"}'::jsonb,timeout_milliseconds:=55000);
 $cron$);
+
+-- Start only after the new guarded observer is deployed.
+update cron.job set active=false where jobname='waouh-guardian-observer';

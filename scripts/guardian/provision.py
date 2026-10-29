@@ -9,7 +9,10 @@ def query(sql):
     with urllib.request.urlopen(r,timeout=30) as response: return json.load(response)
 def main():
     actor=sys.argv[1]
-    if actor not in ('host','external','activate'): raise ValueError('actor')
+    if actor not in ('host','external','activate','start'): raise ValueError('actor')
+    if actor=='start':
+        query("update cron.job set active=true where jobname='waouh-guardian-observer';")
+        print('GUARDIAN: internal observer scheduled');return 0
     if actor=='activate':
         ok=query('select public.waouh_guardian_activate() as activated;')[0].get('activated') is True
         print('GUARDIAN: '+('monitoring activated' if ok else 'healthy baselines incomplete'));return 0 if ok else 1

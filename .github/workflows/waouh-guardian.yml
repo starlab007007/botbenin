@@ -24,7 +24,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.21 vitest@2.1.9
       - run: node scripts/tests/waouh-guardian-db.mjs
       - run: python3 -m unittest discover -s scripts/guardian -p 'test_*.py' -v
       - run: npx vitest run src/lib/guardian src/hooks/useNotifications.test.tsx
@@ -54,6 +55,10 @@ jobs:
           Path('supabase/config.toml').write_text('project_id = "mvynepqulhflxtyymtzs"\n[api]\nenabled = true\nport = 54321\n[edge_runtime]\nenabled = true\npolicy = "per_worker"\n')
           PY
           supabase functions deploy waouh-health-check --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
+      - name: Start internal observer
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/guardian/provision.py start
       - name: Prepare private host configuration
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
