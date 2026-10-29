@@ -12,6 +12,7 @@ create function cron.alter_job(job_id bigint,active boolean)returns void languag
 insert into cron.job(jobname,active) values('intentionally-paused',false),('unrelated-active',true);
 insert into public.roles values('00000000-0000-4000-8000-000000000001','admin');insert into public.user_roles values('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');`);
 await db.exec(fs.readFileSync('supabase/migrations/20261029014011_waouh_guardian.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261029081414_waouh_guardian_autonomy.sql','utf8'));
 const one=async(q,args=[])=>(await db.query(q,args)).rows[0];
 assert.deepEqual((await db.query('select jobname,active from cron.job order by jobname')).rows,[{jobname:'intentionally-paused',active:false},{jobname:'unrelated-active',active:true},{jobname:'waouh-guardian-observer',active:false}]);
 assert.ok(!/update\s+cron\.job\s+set/i.test(fs.readFileSync('supabase/migrations/20261029014011_waouh_guardian.sql','utf8')),'managed cron table must use its supported API');
@@ -31,4 +32,20 @@ const request=randomUUID(),approved=(await claim(request)).r;assert.equal(approv
 await one("select public.waouh_guardian_finish_restart($1,'succeeded','VERIFIED')",[approved.action_id]);for(const age of[-50,-10])await obs('web_public','host','healthy',age);assert.equal((await one("select status from public.waouh_guardian_incidents where component='web_public' and resolved_at is null")).status,'verifying');for(const age of[-50,-10])await obs('web_public','external','healthy',age);assert.equal((await one("select status from public.waouh_guardian_incidents where component='web_public'")).status,'resolved');
 await outage();await obs('web_public','external','down',-120);assert.equal((await claim()).r.reason,'REPAIR_BUDGET_EXHAUSTED');await db.exec("update public.waouh_guardian_actions set started_at=now()-interval '2 hours'");assert.equal((await claim()).r.granted,true);await db.exec("update public.waouh_guardian_actions set started_at=now()-interval '4 minutes' where status='claimed';select public.waouh_guardian_housekeeping();");assert.equal((await one("select status from public.waouh_guardian_actions order by started_at desc limit 1")).status,'unknown');
 const user=randomUUID();for(let i=0;i<5;i++)assert.equal((await one("select public.waouh_guardian_client_event($1,'web','render_error','other') as ok",[user])).ok,true);assert.equal((await one("select public.waouh_guardian_client_event($1,'web','render_error','other') as ok",[user])).ok,false);assert.equal((await one('select public.waouh_guardian_begin_tick() as ok')).ok,true);assert.equal((await one('select public.waouh_guardian_begin_tick() as ok')).ok,false);
+// Lost results and failed verification notify once; maintenance defers alerts.
+const notices=async()=>Number((await one('select count(*) as n from public.notifications')).n);
+await db.exec('select public.waouh_guardian_housekeeping()');const afterLost=await notices();
+await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost);
+const repair=(await one("select incident_id from public.waouh_guardian_actions where status='unknown'")).incident_id;
+assert.equal((await one('select cause_code from public.waouh_guardian_incidents where id=$1',[repair])).cause_code,'RESULT_MISSING');
+assert.ok((await one('select notified_states from public.waouh_guardian_incidents where id=$1',[repair])).notified_states.some(s=>s.startsWith('attention:')));
+await db.exec("update public.waouh_guardian_settings set maintenance_until=now()+interval '30 minutes'");
+const warning=randomUUID();await one("insert into public.waouh_guardian_incidents(id,component,cause_code,severity,status) values($1,'runtime','OBSERVATION_STALE','warning','confirmed')",[warning]);
+await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost);
+await db.exec('update public.waouh_guardian_settings set maintenance_until=null;select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost+1);
+await one("update public.waouh_guardian_incidents set severity='critical' where id=$1",[warning]);await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost+2);
+await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost+2);
+await one("update public.waouh_guardian_actions set status='succeeded',finished_at=now()-interval '21 minutes' where incident_id=$1",[repair]);await one("update public.waouh_guardian_incidents set status='verifying' where id=$1",[repair]);
+await db.exec('select public.waouh_guardian_housekeeping()');assert.equal((await one('select cause_code from public.waouh_guardian_incidents where id=$1',[repair])).cause_code,'RECOVERY_UNCONFIRMED');assert.equal(await notices(),afterLost+3);
+await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost+3);
 console.log('GUARDIAN database: access isolation, deduplication, confirmation, recovery, maintenance, independent evidence, repair budgets, lost result and rate limits passed');await db.close();

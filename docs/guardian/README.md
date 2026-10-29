@@ -51,3 +51,17 @@ Les observations sont conservées 14 jours, les événements clients 7 jours ; l
 incidents et interventions restent consultables. Aucun contenu métier n’est purgé.
 Les alertes intégrées nécessitent l’accès à l’application ; les échecs de la sonde
 extérieure restent également visibles dans le contrôle de livraison indépendant.
+
+## Continuité et escalade
+
+Une sonde extérieure vérifie aussi la fraîcheur du dernier contrôle interne.
+Un point d’accès qui répond sans contrôle interne récent ne suffit pas à établir
+un état sain. Les incidents, aggravations et interventions sans résultat sont
+notifiés une seule fois par état significatif. Après une maintenance, les alertes
+restées en attente sont réévaluées. Une relance sans confirmation indépendante
+du rétablissement pendant 20 minutes requiert une vérification humaine.
+
+Le transfert de la configuration d’hôte utilise le même utilisateur que sa
+création : le fichier reste privé (0600) et n’est pas rendu lisible pour un
+conteneur de transfert. Les références de clé sont temporaires, la vérification
+de clé hôte est active et les fichiers temporaires sont nettoyés.

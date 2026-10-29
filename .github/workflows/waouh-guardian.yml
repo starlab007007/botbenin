@@ -67,23 +67,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: python3 scripts/guardian/provision.py host guardian-config.json
-      - name: Copy host observer outside web container
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: 'scripts/guardian/agent.py,scripts/guardian/install-host.sh,guardian-config.json'
-          target: '/home/debian/waouh-guardian-install'
-      - name: Install minute observer
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: sh /home/debian/waouh-guardian-install/scripts/guardian/install-host.sh /home/debian/waouh-guardian-install
+      - name: Install private host observer
+        env:
+          GUARDIAN_HOST: ${{ secrets.VPS_HOST }}
+          GUARDIAN_USER: ${{ secrets.VPS_USER }}
+          GUARDIAN_PORT: ${{ secrets.VPS_PORT || 22 }}
+          GUARDIAN_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: python3 scripts/guardian/ship-host.py
       - name: Remove temporary credential
         if: always()
         run: rm -f guardian-config.json
