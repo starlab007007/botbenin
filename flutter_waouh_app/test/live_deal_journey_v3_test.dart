@@ -263,4 +263,13 @@ void main() {
     });
   });
 
+  group('Reprise parcours suspendu — transitions sûres', () {
+    test('accord et clôture restent des étapes différentes', () {
+      expect(liveStageFromWorkflow('awaiting_confirmation'), 'agreement');
+      expect(liveStageFromWorkflow('completed'), 'payment');
+      expect(liveCommerceStageIsTerminal('completed'), isTrue);
+      expect(liveCommerceStageIsTerminal('countered'), isFalse);
+    });
+  });
+
 }

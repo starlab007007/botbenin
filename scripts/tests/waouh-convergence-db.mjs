@@ -37,10 +37,14 @@ await denied(users[0],'agreement_reject',{component_id:cid,version:version-1},'a
 await denied(users[0],'agreement_accept',{component_id:cid,version},'budget_exceeded');
 await cmd(users[0],'mission_update',{mission_id:mid,budget_max:12000});
 await cmd(users[0],'agreement_accept',{component_id:cid,version});
-b=await cmd(users[1],'agreement_accept',{component_id:cid,version});assert.equal(b.components[0].agreement.status,'accepted');checks++;
+b=await cmd(users[1],'agreement_accept',{component_id:cid,version});assert.equal(b.components[0].agreement.status,'accepted');
+assert.ok(b.components[0].agreement.owner_accepted_at,'Owner acceptance must be persisted');
+assert.ok(b.components[0].agreement.provider_accepted_at,'Provider acceptance must be persisted');checks+=3;
 b=await cmd(users[0],'agreement_complete',{component_id:cid,version});assert.notEqual(b.mission.status,'completed');checks++;
 await denied(users[1],'agreement_propose',{component_id:cid,terms},'agreement_completed');
-b=await cmd(users[1],'agreement_complete',{component_id:cid,version});assert.equal(b.mission.status,'completed');checks++;
+b=await cmd(users[1],'agreement_complete',{component_id:cid,version});assert.equal(b.mission.status,'completed');
+assert.ok(b.components[0].agreement.owner_completed_at,'Owner completion must be persisted');
+assert.ok(b.components[0].agreement.provider_completed_at,'Provider completion must be persisted');checks+=3;
 // A voluntary pool uses a real provider quote, a maximum of five, and versioned consent.
 const memberMissions=[];for(let i=0;i<6;i++)memberMissions.push((await create(i,'group')).mission.id);
 const pool=await cmd(users[0],'pool_create',{mission_id:memberMissions[0],topic:'Interventions plomberie même quartier',deadline:'2030-12-01T18:00:00Z',consent:true});const gid=pool.pool_id;

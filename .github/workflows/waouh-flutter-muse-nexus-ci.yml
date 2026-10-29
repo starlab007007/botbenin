@@ -127,6 +127,7 @@ jobs:
           flutter test test/live_guardian_test.dart
           flutter test test/live_essential_offers_test.dart
           flutter test test/live_convergence_contract_test.dart
+          flutter test test/premium_journey_contract_test.dart
           flutter test test/live_nexus_service_test.dart
           flutter test test/live_agentic_waouh_test.dart
           flutter test test/live_models_test.dart

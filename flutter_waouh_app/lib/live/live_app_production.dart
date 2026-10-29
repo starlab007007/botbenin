@@ -24,6 +24,7 @@ import 'live_guardian.dart';
 import 'live_menu_sheet.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
+import 'live_premium_journey_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_onboarding.dart';
@@ -253,6 +254,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           ),
         ),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
+        GoRoute(path: '/app/premium', builder: (_, __) => const LivePremiumJourneyScreen()),
         GoRoute(
           path: '/app/missions',
           builder: (_, state) => LiveMissionsScreen(

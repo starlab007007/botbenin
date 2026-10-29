@@ -106,6 +106,7 @@ const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
+const WaouhPremiumJourneyPage = lazy(() => import("./pages/waouh/WaouhPremiumJourneyPage"));
 const WaouhAiHubPage = lazy(() => import("./pages/waouh/WaouhAiHubPage"));
 const WaouhRadarMapPage = lazy(() => import("./pages/waouh/WaouhRadarMapPage"));
 const WaouhMatchDeepLinkPage = lazy(() => import("./pages/waouh/WaouhMatchDeepLinkPage"));
@@ -384,6 +385,7 @@ const AppContent = () => {
                     <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarCommercePage /></RequireMobileAuth>} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />
+                    <Route path="premium" element={<RequireMobileAuth><WaouhPremiumJourneyPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhNexusPage />} />
                     <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
