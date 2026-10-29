@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -269,7 +270,7 @@ export function WaouhMatchChatList({
     load();
 
     // Single combined realtime channel
-    const ch = supabase.channel(`waouh-match-list-${sessionId ?? authUserId ?? "anon"}`);
+    const ch = scopedRealtimeChannel(`waouh-match-list-${sessionId ?? authUserId ?? "anon"}`);
     if (sessionId) {
       ch.on(
         "postgres_changes",

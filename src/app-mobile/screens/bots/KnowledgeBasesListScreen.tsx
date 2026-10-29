@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Database, Plus, Sparkles, BarChart3, Package, MapPin, MessageSquareText } from 'lucide-react';
@@ -27,7 +28,7 @@ export default function KnowledgeBasesListScreen() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/app/auth'); return; }
-    const ch = supabase.channel(`mobile-kb-${user.id}`)
+    const ch = scopedRealtimeChannel(`mobile-kb-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'knowledge_bases', filter: `user_id=eq.${user.id}` }, () => fetchKnowledgeBases())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

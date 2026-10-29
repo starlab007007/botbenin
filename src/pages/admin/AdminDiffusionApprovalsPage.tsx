@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ export default function AdminDiffusionApprovalsPage() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
 
   useEffect(() => {
-    const ch = supabase.channel("admin-approvals-live")
+    const ch = scopedRealtimeChannel("admin-approvals-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_diffusion_approvals" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };

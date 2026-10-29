@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from 'react';
 import { Archive, MessageSquare, Plus, Radar as RadarIcon, Search, Sparkles, Store, Handshake, ShoppingBag } from 'lucide-react';
@@ -165,8 +166,7 @@ export const CenterChatHome = ({
 
     load();
     const channels = waouhUserIds.map((uid) =>
-      supabase
-        .channel(`erp-conv-list-${uid}`)
+      scopedRealtimeChannel(`erp-conv-list-${uid}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'waouh_conversations', filter: `user_id=eq.${uid}` },

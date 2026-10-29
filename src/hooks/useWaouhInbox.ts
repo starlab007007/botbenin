@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWaouhResync } from "@/lib/waouh/resync";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,8 +86,7 @@ export function useWaouhInbox(sessionId: string, authUserId: string | null) {
     // waouh_conversations has user_id column but for anon session we filter by phone_number web:<sid>.
     // For authed users we'd need user_id in (...) which realtime cannot express;
     // rely on backend function refresh + debounce.
-    const ch = supabase
-      .channel(`waouh-inbox-${authUserId ?? sessionId}`)
+    const ch = scopedRealtimeChannel(`waouh-inbox-${authUserId ?? sessionId}`)
       .on(
         "postgres_changes",
         convFilter

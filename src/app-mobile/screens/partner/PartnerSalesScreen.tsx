@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useState } from "react";
 import { useWaouhPartner } from "@/hooks/useWaouhPartner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,8 +23,7 @@ export default function PartnerSalesScreen() {
         setLoading(false);
       });
 
-    const ch = supabase
-      .channel(`m-sales-list-${partner.id}`)
+    const ch = scopedRealtimeChannel(`m-sales-list-${partner.id}`)
       .on(
         "postgres_changes",
         {

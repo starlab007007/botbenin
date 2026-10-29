@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -61,7 +62,7 @@ export function useUnreadCounts(convIds: string[], userId?: string) {
   // Realtime: bump on incoming messages
   useEffect(() => {
     if (!userId) return;
-    const ch = supabase.channel(`mobile-unread-${userId}`)
+    const ch = scopedRealtimeChannel(`mobile-unread-${userId}`)
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${userId}` },
         (p) => {

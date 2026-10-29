@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -35,7 +36,7 @@ export function useAiAgents() {
 
   useEffect(() => {
     load();
-    const ch = supabase.channel("ai_agents_changes")
+    const ch = scopedRealtimeChannel("ai_agents_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_ai_agents" }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

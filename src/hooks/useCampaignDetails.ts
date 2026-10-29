@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -56,7 +57,7 @@ export function useCampaignDetails(campaignId: string | null) {
   // Realtime
   useEffect(() => {
     if (!campaignId) return;
-    const ch = supabase.channel(`wa_jobs_${campaignId}`)
+    const ch = scopedRealtimeChannel(`wa_jobs_${campaignId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'wa_send_jobs', filter: `campaign_id=eq.${campaignId}`,
       }, () => load())

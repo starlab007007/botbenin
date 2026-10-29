@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +25,7 @@ export const AdminDashboardPage: React.FC = () => {
       if (alive) setPendingDiffusion(count ?? 0);
     };
     load();
-    const ch = supabase
-      .channel('admin-diffusion-approvals-count')
+    const ch = scopedRealtimeChannel('admin-diffusion-approvals-count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_diffusion_approvals' }, load)
       .subscribe();
     return () => { alive = false; supabase.removeChannel(ch); };
