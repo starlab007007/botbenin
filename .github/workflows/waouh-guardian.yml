@@ -1,0 +1,111 @@
+name: BOT WAOUH GUARDIAN
+on:
+  push:
+    branches: [prod]
+    paths: ['scripts/guardian/**','scripts/tests/waouh-guardian-db.mjs','supabase/functions/waouh-health-check/**','supabase/functions/_shared/waouh-guardian*','supabase/migrations/*guardian*','.github/workflows/waouh-guardian.yml']
+  pull_request:
+    branches: [prod]
+    paths: ['scripts/guardian/**','scripts/tests/waouh-guardian-db.mjs','supabase/functions/waouh-health-check/**','supabase/functions/_shared/waouh-guardian*','supabase/migrations/*guardian*','.github/workflows/waouh-guardian.yml']
+  schedule:
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guardian-${{ github.event_name == 'schedule' && 'external' || github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/tests/waouh-guardian-db.mjs
+      - run: python3 -m unittest discover -s scripts/guardian -p 'test_*.py' -v
+      - run: npx vitest run src/lib/guardian src/hooks/useNotifications.test.tsx
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --no-config supabase/functions/waouh-health-check/index.ts
+      - run: deno test --no-config --allow-env scripts/guardian/authorization.test.ts
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule' && github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+      - name: Deploy guarded observer
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -eu
+          python3 - <<'PY'
+          from pathlib import Path
+          Path('supabase/config.toml').write_text('project_id = "mvynepqulhflxtyymtzs"\n[api]\nenabled = true\nport = 54321\n[edge_runtime]\nenabled = true\npolicy = "per_worker"\n')
+          PY
+          supabase functions deploy waouh-health-check --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
+      - name: Prepare private host configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/guardian/provision.py host guardian-config.json
+      - name: Copy host observer outside web container
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: 'scripts/guardian/agent.py,scripts/guardian/install-host.sh,guardian-config.json'
+          target: '/home/debian/waouh-guardian-install'
+      - name: Install minute observer
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: sh /home/debian/waouh-guardian-install/scripts/guardian/install-host.sh /home/debian/waouh-guardian-install
+      - name: Remove temporary credential
+        if: always()
+        run: rm -f guardian-config.json
+  external:
+    needs: [validate, deploy]
+    if: always() && github.ref == 'refs/heads/prod' && (github.event_name == 'schedule' || needs.deploy.result == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare independent observer
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/guardian/provision.py external /tmp/guardian-external.json
+      - name: Install isolated browser
+        run: |
+          npm install --prefix /tmp/guardian-browser --no-audit --no-fund playwright@1.56.1
+          /tmp/guardian-browser/node_modules/.bin/playwright install --with-deps chromium
+          cp scripts/guardian/browser.mjs /tmp/guardian-browser/browser.mjs
+      - name: Read-only browser check
+        run: node /tmp/guardian-browser/browser.mjs /tmp/guardian-render.json
+      - name: Record independent observations
+        run: python3 scripts/guardian/external.py /tmp/guardian-external.json /tmp/guardian-render.json
+      - name: Activate only after healthy baselines
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/guardian/provision.py activate
+      - name: Remove probe credential
+        if: always()
+        run: rm -f /tmp/guardian-external.json

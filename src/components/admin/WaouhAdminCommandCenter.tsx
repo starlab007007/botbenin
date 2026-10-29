@@ -527,7 +527,7 @@ export default function WaouhAdminCommandCenter() {
             items={[
               { label: "Centre de contrôle", path: "/admin/waouh?tab=control", note: "État global, alertes et interrupteurs" },
               { label: "Monitoring temps réel", path: "/admin/waouh/monitoring", note: "Métriques et santé opérationnelle" },
-              { label: "Health Check", path: "/admin/waouh/health-check", note: "Divergences et cohérence des flux" },
+              { label: "GUARDIAN", path: "/admin/waouh/guardian", note: "Surveillance et interventions sûres" },
               { label: "Historique & traces", path: "/admin/waouh/historique", note: "Messages, négociations, queue et traces" },
               { label: "Deal Ops", path: "/admin/waouh/deals", note: "Deals, livraison, paiement et arbitrage" },
             ]}
@@ -698,7 +698,7 @@ export default function WaouhAdminCommandCenter() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
             <QuickButton label="NEXUS · Signal Fabric" onClick={() => navigate("/admin/waouh/data-control")} />
-            <QuickButton label="Health Check" onClick={() => navigate("/admin/waouh/health-check")} />
+            <QuickButton label="GUARDIAN" onClick={() => navigate("/admin/waouh/guardian")} />
             <QuickButton label="Historique" onClick={() => navigate("/admin/waouh/historique")} />
             <QuickButton label="Deals" onClick={() => navigate("/admin/waouh/deals")} />
             <QuickButton label="Diffusions" badge={cc.approvals.diffusion_pending} onClick={() => navigate("/admin/waouh/diffusion-approvals")} />

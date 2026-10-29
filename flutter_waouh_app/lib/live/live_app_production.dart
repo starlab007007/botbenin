@@ -20,6 +20,7 @@ import 'live_inbox_production.dart';
 import 'live_match_chat_v2.dart';
 import 'live_error_fallback.dart';
 import 'live_frontend_modules.dart';
+import 'live_guardian.dart';
 import 'live_menu_sheet.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
@@ -55,6 +56,7 @@ LivePushService? _livePushService;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await legacy.initializeWaouhBackend();
+  LiveGuardian.install(legacy.supabase);
   _livePushService = LivePushService(legacy.supabase);
   unawaited(_livePushService!.initialize());
   runApp(const LiveWaouhProductionApp());
@@ -563,7 +565,9 @@ class LiveProductionShell extends StatelessWidget {
                           (e) => e.key == moduleForPath(path),
                         );
                         return NavigationBar(
-                          selectedIndex: selected < 0 ? entries.length : selected,
+                          selectedIndex: selected < 0
+                              ? entries.length
+                              : selected,
                           onDestinationSelected: (i) {
                             if (i == entries.length) {
                               menu();

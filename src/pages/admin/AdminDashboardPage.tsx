@@ -37,7 +37,7 @@ export const AdminDashboardPage: React.FC = () => {
       items: [
         { label: 'Centre de contrôle', path: '/admin/waouh?tab=control', note: 'État global, alertes et kill switches', icon: Activity },
         { label: 'Monitoring temps réel', path: '/admin/waouh/monitoring', note: 'Santé et métriques opérationnelles', icon: Activity },
-        { label: 'Health Check', path: '/admin/waouh/health-check', note: 'Divergences, synchronisation et anomalies', icon: HeartPulse },
+        { label: 'GUARDIAN', path: '/admin/waouh/guardian', note: 'Surveillance et interventions sûres', icon: HeartPulse },
         { label: 'Historique & traces', path: '/admin/waouh/historique', note: 'Chat, négociations, queue et traces', icon: History },
         { label: 'Deal Ops', path: '/admin/waouh/deals', note: 'Deals, livraison, paiement et arbitrage', icon: Truck },
       ],
@@ -65,7 +65,7 @@ export const AdminDashboardPage: React.FC = () => {
       items: [
         { label: 'Paramètres généraux', path: '/admin/waouh?tab=settings', note: 'IA, commerce, paiement et règles', icon: SlidersHorizontal },
         { label: 'Monitoring temps réel', path: '/admin/waouh/monitoring', note: 'Santé et métriques opérationnelles', icon: Activity },
-        { label: 'Health Check', path: '/admin/waouh/health-check', note: 'Divergences, synchronisation et anomalies', icon: HeartPulse },
+        { label: 'GUARDIAN', path: '/admin/waouh/guardian', note: 'Surveillance et interventions sûres', icon: HeartPulse },
         { label: 'Historique & traces', path: '/admin/waouh/historique', note: 'Chat, négociations, outbound et traces', icon: History },
       ],
     },
