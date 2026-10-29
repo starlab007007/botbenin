@@ -6,10 +6,15 @@ grant select on public.roles,public.user_roles to service_role;grant insert on p
 create table public.waouh_outbound_queue(id uuid,status text,created_at timestamptz,next_attempt_at timestamptz,circuit_open_until timestamptz);
 create schema vault;create table vault.secrets(id uuid default gen_random_uuid(),name text,decrypted_secret text);create view vault.decrypted_secrets as select * from vault.secrets;
 create function vault.create_secret(secret text,secret_name text)returns uuid language sql as $$insert into vault.secrets(name,decrypted_secret)values(secret_name,secret)returning id$$;
-create schema cron;create table cron.job(jobname text,active boolean);create function cron.schedule(n text,s text,q text)returns bigint language sql as $$select 1::bigint$$;
+create role cron_owner;create schema cron;create table cron.job(jobid bigint generated always as identity primary key,jobname text unique,active boolean);alter table cron.job owner to cron_owner;
+create function cron.schedule(n text,s text,q text)returns bigint language sql security definer as $$insert into cron.job(jobname,active)values(n,true)on conflict(jobname)do update set active=true returning jobid$$;
+create function cron.alter_job(job_id bigint,active boolean)returns void language sql security definer as $$update cron.job set active=$2 where jobid=$1$$;
+insert into cron.job(jobname,active) values('intentionally-paused',false),('unrelated-active',true);
 insert into public.roles values('00000000-0000-4000-8000-000000000001','admin');insert into public.user_roles values('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');`);
 await db.exec(fs.readFileSync('supabase/migrations/20261029014011_waouh_guardian.sql','utf8'));
 const one=async(q,args=[])=>(await db.query(q,args)).rows[0];
+assert.deepEqual((await db.query('select jobname,active from cron.job order by jobname')).rows,[{jobname:'intentionally-paused',active:false},{jobname:'unrelated-active',active:true},{jobname:'waouh-guardian-observer',active:false}]);
+assert.ok(!/update\s+cron\.job\s+set/i.test(fs.readFileSync('supabase/migrations/20261029014011_waouh_guardian.sql','utf8')),'managed cron table must use its supported API');
 const obs=(c,o,s,age=0,id=randomUUID(),d={})=>one("select public.waouh_guardian_observe($1,$2,$3,$4,$5,now()+$6::int*interval '1 second',null,$7::jsonb) as r",[id,c,o,s,s==='healthy'?'OK':'HTTP_UNAVAILABLE',age,JSON.stringify(d)]);
 const claim=(id=randomUUID())=>one('select public.waouh_guardian_claim_restart($1) as r',[id]);
 for(const role of['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(one('select * from public.waouh_guardian_settings'));await assert.rejects(claim());await assert.rejects(one("select public.waouh_guardian_probe_actor('x')"));await db.exec('reset role');}

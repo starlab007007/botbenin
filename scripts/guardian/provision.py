@@ -11,7 +11,9 @@ def main():
     actor=sys.argv[1]
     if actor not in ('host','external','activate','start'): raise ValueError('actor')
     if actor=='start':
-        query("update cron.job set active=true where jobname='waouh-guardian-observer';")
+        query("select cron.alter_job(job_id := (select jobid from cron.job where jobname='waouh-guardian-observer'), active := true);")
+        if query("select active from cron.job where jobname='waouh-guardian-observer';") != [{'active': True}]:
+            raise ValueError('observer not scheduled')
         print('GUARDIAN: internal observer scheduled');return 0
     if actor=='activate':
         ok=query('select public.waouh_guardian_activate() as activated;')[0].get('activated') is True

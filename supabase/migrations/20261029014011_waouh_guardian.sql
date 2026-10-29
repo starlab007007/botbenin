@@ -128,4 +128,4 @@ select net.http_post(url:='https://mvynepqulhflxtyymtzs.supabase.co/functions/v1
 $cron$);
 
 -- Start only after the new guarded observer is deployed.
-update cron.job set active=false where jobname='waouh-guardian-observer';
+select cron.alter_job(job_id := (select jobid from cron.job where jobname='waouh-guardian-observer'), active := false);
