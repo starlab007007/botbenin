@@ -575,6 +575,7 @@ jobs:
             --use-api
 
           secured_legacy=(
+            waouh-agentic-core
             waouh-radar-site-scraper
             waouh-opportunity-worker
             waouh-waha-sync-contacts
