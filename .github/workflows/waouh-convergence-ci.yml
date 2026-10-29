@@ -27,6 +27,7 @@ jobs:
         run: npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.21 vitest@2.1.9
       - run: python3 scripts/verify-waouh-release.py
       - run: node scripts/tests/waouh-convergence-db.mjs
+      - run: node scripts/tests/waouh-business-journey-db.mjs
       - run: node scripts/tests/waouh-module-policy-db.mjs
       - run: node scripts/tests/waouh-discovery-db.mjs
       - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ src/lib/admin/__tests__ src/pages/admin/__tests__

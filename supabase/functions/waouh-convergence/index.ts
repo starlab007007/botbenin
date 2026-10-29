@@ -1,3 +1,4 @@
+import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
 import { getRequestUser, jsonResponse, waouhCorsHeaders } from '../_shared/waouh-auth.ts';
 import { chatCompletion } from '../_shared/agent-ai.ts';
@@ -16,6 +17,18 @@ Deno.serve(async req => {
       const { data, error } = await sb.rpc('waouh_convergence_command', { p_actor: user.id, p_action: name, p });
       if (error) throw error; return data;
     };
+    if(action.startsWith('business.')) {
+      if(action==='business.select') {
+        const source=(payload.source&&typeof payload.source==='object')?payload.source as Record<string,any>:{};
+        const product=productSnapshot(source.product||source);
+        if(!product) return jsonResponse({ok:false,error:'Offre incomplète.'},422);
+        if(product.currency.toUpperCase()!=='XOF')return jsonResponse({ok:false,error:'Demandez un devis en F CFA avant de poursuivre avec cette offre.'},422);
+        payload.source={title:product.title,kind:['product','service','announcement'].includes(source.kind)?source.kind:'product',source_ref:String(source.source_ref||product.id).slice(0,300),source_url:/^https?:\/\//i.test(String(source.source_url))?source.source_url:null,amount:product.price_min,extra_cost:null,unit:String(source.unit||'forfait').slice(0,50),scope:String(source.scope||'').slice(0,2000),source_snapshot:{product}};
+      }
+      const {data,error}=await sb.rpc('waouh_business_command',{p_actor:user.id,p_action:action,p:payload});
+      if(error) return jsonResponse({ok:false,error:'Cette action n’a pas pu être confirmée. Actualisez le dossier et vérifiez les conditions.'},String(error.code)==='42501'?403:409);
+      return jsonResponse({ok:true,data});
+    }
     if (action === 'suggest') {
       const bundle = await command('ai_request', payload);
       const controller = new AbortController();

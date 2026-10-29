@@ -254,7 +254,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           ),
         ),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
-        GoRoute(path: '/app/premium', builder: (_, __) => const LivePremiumJourneyScreen()),
+        GoRoute(path: '/app/premium', builder: (_, state) => LivePremiumJourneyScreen(missionId:state.uri.queryParameters['mission_id'],componentId:state.uri.queryParameters['component_id'])),
         GoRoute(
           path: '/app/missions',
           builder: (_, state) => LiveMissionsScreen(
