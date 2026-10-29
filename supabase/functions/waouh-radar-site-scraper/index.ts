@@ -7,6 +7,8 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
+import {sourceScanDue,sourceRetryAt} from '../_shared/waouh-source-retry.ts';
+declare const EdgeRuntime: {waitUntil(task:Promise<unknown>):void};
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -16,11 +18,12 @@ const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || "";
 async function firecrawlScrape(url: string): Promise<{ markdown?: string; links?: string[] }> {
   const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
+    signal: AbortSignal.timeout(20000),
     headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({ url, formats: ["markdown", "links"], onlyMainContent: true }),
   });
   const d = await r.json();
-  if (!r.ok) throw new Error(`firecrawl ${r.status}: ${JSON.stringify(d).slice(0, 200)}`);
+  if (!r.ok) throw Object.assign(new Error(`scraper_http_${r.status}`),{status:r.status});
   // Normalise SDK + REST shapes
   return { markdown: d.markdown ?? d.data?.markdown, links: d.links ?? d.data?.links };
 }
@@ -28,6 +31,7 @@ async function firecrawlScrape(url: string): Promise<{ markdown?: string; links?
 async function aiExtractListings(markdown: string): Promise<any[]> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(25000),
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
@@ -39,6 +43,7 @@ async function aiExtractListings(markdown: string): Promise<any[]> {
     }),
   });
   const d = await r.json();
+  if (!r.ok) throw Object.assign(new Error(`extraction_http_${r.status}`),{status:r.status});
   try {
     const parsed = JSON.parse(d.choices?.[0]?.message?.content ?? "{}");
     return Array.isArray(parsed.items) ? parsed.items : [];
@@ -54,7 +59,7 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
 
   if (!FIRECRAWL_API_KEY) {
-    return new Response(JSON.stringify({ ok: false, error: "FIRECRAWL_API_KEY missing" }), {
+    return new Response(JSON.stringify({ ok: false, error: "Collecte temporairement indisponible." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -76,6 +81,7 @@ Deno.serve(async (req) => {
     const perSource: any[] = [];
 
     for (const src of sources) {
+      if (!sourceScanDue(src)) continue;
       let srcCount = 0;
       let srcError: string | null = null;
       try {
@@ -116,6 +122,7 @@ Deno.serve(async (req) => {
         await sb.from("waouh_radar_sources").update({
           last_scan_at: new Date().toISOString(),
           last_signal_count: srcCount,
+          config: {...src.config,retry_after:null,last_error:null},
         }).eq("id", src.id);
       } catch (e: any) {
         srcError = e?.message || String(e);
@@ -123,17 +130,20 @@ Deno.serve(async (req) => {
         await sb.from("waouh_radar_sources").update({
           last_scan_at: new Date().toISOString(),
           last_signal_count: 0,
+          config: {...src.config,retry_after:sourceRetryAt(Number(e?.status)||0),last_error:'Collecte temporairement indisponible.'},
         }).eq("id", src.id);
       }
-      perSource.push({ id: src.id, url: src.identifier, count: srcCount, error: srcError });
+      perSource.push({ id: src.id, url: src.identifier, count: srcCount, error: srcError?'Collecte temporairement indisponible.':null });
+      // A shared provider quota cannot improve by immediately trying every source.
+      if (srcError?.includes('http_402') || srcError?.includes('http_429')) break;
     }
 
     if (total > 0) {
-      fetch(`${SUPABASE_URL}/functions/v1/waouh-radar-process`, {
+      EdgeRuntime.waitUntil(fetch(`${SUPABASE_URL}/functions/v1/waouh-radar-process`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 200 }),
-      }).catch(console.error);
+      }).then(response => { if (!response.ok) console.warn("[site-scraper] processing_unavailable",response.status); }).catch(console.error));
     }
 
     return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
@@ -141,6 +151,6 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error("[waouh-radar-site-scraper]", e);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: 'Collecte temporairement indisponible.' }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

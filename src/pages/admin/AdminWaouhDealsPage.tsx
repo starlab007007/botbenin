@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,8 +104,7 @@ export default function AdminWaouhDealsPage() {
   useEffect(() => {
     fetchData();
     // Realtime: refresh when a deal is inserted/updated
-    const ch = supabase
-      .channel("admin-waouh-deals")
+    const ch = scopedRealtimeChannel("admin-waouh-deals")
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_deals" }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

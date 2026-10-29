@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -71,7 +72,7 @@ export default function WaouhPage() {
       setPendingApprovals(count ?? 0);
     };
     loadPending();
-    const ch = supabase.channel("waouh-approvals-badge")
+    const ch = scopedRealtimeChannel("waouh-approvals-badge")
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_diffusion_approvals" }, loadPending)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -96,8 +97,7 @@ export default function WaouhPage() {
 
   useEffect(() => {
     loadAll();
-    const ch = supabase
-      .channel(`waouh-realtime-${Math.random().toString(36).slice(2, 8)}`)
+    const ch = scopedRealtimeChannel(`waouh-realtime-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_articles" }, (payload: any) => {
         setActivity((prev) => [{ type: "article", at: new Date(), payload: payload.new }, ...prev].slice(0, 10));
         loadAll();

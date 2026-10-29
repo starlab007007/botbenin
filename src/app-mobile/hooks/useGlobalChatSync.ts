@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,18 +209,19 @@ export function useGlobalChatSync() {
         }
       } catch {}
 
+      if (cancelled) return;
       // One authenticated Realtime channel is enough: RLS filters events to
       // the caller's WAOUH identities. This replaces N channels for N legacy
       // identity rows. Guests keep the session-scoped fallback.
       if (authUserId) {
-        const ch = supabase.channel(`mobile-msgs-auth-${authUserId}`)
+        const ch = scopedRealtimeChannel(`mobile-msgs-auth-${authUserId}`)
           .on("postgres_changes",
             { event: "INSERT", schema: "public", table: "waouh_messages" },
             handler)
           .subscribe();
         channels.push(ch);
       } else if (sessionId) {
-        const ch = supabase.channel(`mobile-msgs-sess-${sessionId}`)
+        const ch = scopedRealtimeChannel(`mobile-msgs-sess-${sessionId}`)
           .on("postgres_changes",
             { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
             handler)

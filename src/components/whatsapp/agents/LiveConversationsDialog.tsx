@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import React, { useEffect, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
 
   useEffect(() => {
     load();
-    const ch = supabase.channel(`agent_conv_${agent.id}`)
+    const ch = scopedRealtimeChannel(`agent_conv_${agent.id}`)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "waouh_ai_agent_conversations", filter: `agent_id=eq.${agent.id}` },
         (payload) => {

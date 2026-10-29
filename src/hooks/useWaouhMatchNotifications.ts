@@ -306,7 +306,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         if (sessionId) saveNotifs(sessionId, merged);
         return merged;
       });
-    })();
+    })().catch(() => { if (active) console.warn("[waouh-notifs] history unavailable"); });
 
     return () => { active = false; };
   }, [sessionId, authUserId]);
@@ -316,8 +316,10 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     if (!sessionId) return;
     const suffix = Math.random().toString(36).slice(2, 8);
     const channels: any[] = [];
+    let active = true;
 
     const onQueueInsert = async (payload: any) => {
+      if (!active) return;
       const row: any = payload.new;
       const payloadData = row.payload || {};
       const presentation = smartPresentation(row.template, payloadData);
@@ -337,6 +339,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       try {
         if (typeof Notification !== "undefined" && Notification.permission === "granted") {
           const reg = await navigator.serviceWorker?.getRegistration();
+          if (!active) return;
           const opts: NotificationOptions & { actions?: unknown[] } = {
             body, icon: "/favicon.ico", badge: "/favicon.ico",
             tag: `waouh-${row.id}`,
@@ -354,7 +357,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
           else new Notification(title, opts);
         }
       } catch (e) { console.warn("[waouh] showNotification failed", e); }
-      if (!row.to_phone) {
+      if (active && !row.to_phone) {
         await supabase.from("waouh_outbound_queue" as any)
           .update({ status: "sent", sent_at: new Date().toISOString() })
           .eq("id", row.id);
@@ -362,6 +365,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     };
 
     const onUnifiedInsert = (payload: any) => {
+      if (!active) return;
       const row: any = payload.new;
       const pickPhoto =
         (Array.isArray(row.photos) && row.photos[0]) ||
@@ -395,43 +399,28 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
 
 
-    channels.push(
-      supabase
-        .channel(`waouh_outbound_${sessionId}_${suffix}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_outbound_queue", filter: `web_session_id=eq.${sessionId}` }, onQueueInsert)
-        .subscribe()
-    );
-    // Realtime for unified notifications scoped to this session
-    channels.push(
-      supabase
-        .channel(`waouh_notifs_s_${sessionId}_${suffix}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_notifications", filter: `web_session_id=eq.${sessionId}` }, onUnifiedInsert)
-        .subscribe()
-    );
+    // Resolve identity before subscribing. A late lookup must never create a
+    // channel after this screen has gone away. One channel serves all bindings.
+    void (async () => {
+      const ids = authUserId
+        ? await fetchAuthIdentityIds(supabase, authUserId)
+        : [];
+      if (!active) return;
+      const channel = supabase.channel(`waouh_notifs_${suffix}`);
+      if (!authUserId) {
+        channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_outbound_queue",filter:`web_session_id=eq.${sessionId}`}, onQueueInsert);
+        channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_notifications",filter:`web_session_id=eq.${sessionId}`}, onUnifiedInsert);
+      } else if (ids.length) {
+        for (let start=0; start<ids.length; start+=100) {
+          const group=ids.slice(start,start+100).join(',');
+          channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_outbound_queue",filter:`to_user_id=in.(${group})`}, onQueueInsert);
+          channel.on("postgres_changes", {event:"INSERT",schema:"public",table:"waouh_notifications",filter:`user_id=in.(${group})`}, onUnifiedInsert);
+        }
+      } else { return; }
+      channels.push(channel.subscribe());
+    })().catch(() => { if (active) console.warn('[waouh-notifs] subscription unavailable'); });
 
-    // Resolve waouh_users.id and subscribe per-user for both tables (auth users only)
-    (async () => {
-      const ors: string[] = [`web_session_id.eq.${sessionId}`];
-      if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
-      const { data: wusers } = await supabase
-        .from("waouh_users").select("id").or(ors.join(",")).limit(50);
-      (wusers ?? []).forEach((u: any) => {
-        channels.push(
-          supabase
-            .channel(`waouh_outbound_u_${u.id}_${suffix}`)
-            .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_outbound_queue", filter: `to_user_id=eq.${u.id}` }, onQueueInsert)
-            .subscribe()
-        );
-        channels.push(
-          supabase
-            .channel(`waouh_notifs_u_${u.id}_${suffix}`)
-            .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_notifications", filter: `user_id=eq.${u.id}` }, onUnifiedInsert)
-            .subscribe()
-        );
-      });
-    })();
-
-    return () => { channels.forEach((ch) => supabase.removeChannel(ch)); };
+    return () => { active = false; channels.forEach((ch) => { void supabase.removeChannel(ch); }); };
   }, [sessionId, authUserId, upsertNotif]);
 
   const visibleNotifications = notifications.filter((n) => !isSelfNotif(n.template));

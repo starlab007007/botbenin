@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Search, Shield, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { Users, Search, Shield, Mail, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
@@ -15,13 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -39,21 +32,7 @@ import { UserProfileModal } from '@/components/admin/UserProfileModal';
 import { Eye, Edit, MoreVertical } from 'lucide-react';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 
-interface User {
-  id: string;
-  email: string;
-  created_at: string;
-  email_confirmed_at: string | null;
-  last_sign_in_at: string | null;
-}
-
-interface AuthUser {
-  id: string;
-  email?: string;
-  created_at: string;
-  email_confirmed_at?: string | null;
-  last_sign_in_at?: string | null;
-}
+import { loadAdminUsers, type AdminUser as User } from '@/lib/admin/users';
 
 interface UserRole {
   role_id: string;
@@ -68,14 +47,6 @@ interface Role {
   name: string;
 }
 
-interface DiagnosticInfo {
-  step: string;
-  status: 'success' | 'error' | 'pending';
-  message: string;
-  data?: any;
-  timestamp: Date;
-}
-
 export const AdminUsersManagementPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -85,143 +56,30 @@ export const AdminUsersManagementPage: React.FC = () => {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<DiagnosticInfo[]>([]);
-  const [showDiagnostics, setShowDiagnostics] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
-  const addDiagnostic = (step: string, status: 'success' | 'error' | 'pending', message: string, data?: any) => {
-    setDiagnostics(prev => [...prev, { step, status, message, data, timestamp: new Date() }]);
-  };
-
   const fetchUsers = async () => {
-    setDiagnostics([]);
-    addDiagnostic('init', 'pending', 'Début de la récupération des utilisateurs');
-    console.log('🔍 [AdminUsers] Fetching users...');
-    
-    // Vérifier l'authentification d'abord
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      addDiagnostic('session', 'error', 'Erreur lors de la récupération de la session', { error: sessionError });
-      console.error('❌ [AdminUsers] Session error:', sessionError);
-    } else if (!session) {
-      addDiagnostic('session', 'error', 'Aucune session active - utilisateur non connecté');
-      console.error('❌ [AdminUsers] No active session');
-      toast({
-        title: 'Erreur d\'authentification',
-        description: 'Vous devez être connecté pour accéder à cette page',
-        variant: 'destructive',
-      });
-      setLoading(false);
-      return;
-    } else {
-      addDiagnostic('session', 'success', 'Session authentifiée', {
-        userId: session.user.id,
-        email: session.user.email
-      });
-      console.log('✅ [AdminUsers] Session valid:', { 
-        userId: session.user.id,
-        email: session.user.email
-      });
-    }
-    
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setLoading(true);
+    setLoadError(null);
+    const timeout = setTimeout(() => controller.abort(new DOMException('Timeout', 'TimeoutError')), 30000);
     try {
-      setLoading(true);
-      
-      addDiagnostic('function-call', 'pending', 'Appel de la fonction list-users-admin');
-      console.log('📞 [AdminUsers] Calling list-users-admin function...');
-      
-      const { data, error } = await supabase.functions.invoke('list-users-admin', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
-      
-      console.log('📊 [AdminUsers] Response:', { 
-        hasData: !!data, 
-        dataKeys: data ? Object.keys(data) : [],
-        error: error,
-        rawData: JSON.stringify(data, null, 2)
-      });
-      
-      if (error) {
-        addDiagnostic('function-call', 'error', 'Erreur lors de l\'appel de la fonction', { 
-          error: error.message,
-          details: error 
-        });
-        console.error('❌ [AdminUsers] Error from function:', error);
-        toast({
-          title: 'Erreur',
-          description: error.message || 'Erreur inconnue lors de la récupération des utilisateurs',
-          variant: 'destructive',
-        });
-        setUsers([]);
-        return;
-      }
-
-      if (!data) {
-        addDiagnostic('function-call', 'error', 'Aucune donnée retournée par la fonction');
-        console.error('⚠️ [AdminUsers] No data returned');
-        toast({
-          title: 'Avertissement',
-          description: 'Aucune donnée retournée par le serveur',
-        });
-        setUsers([]);
-        return;
-      }
-
-      if (!data.users) {
-        addDiagnostic('function-call', 'error', 'Format de réponse invalide - pas de tableau users', { response: data });
-        console.error('⚠️ [AdminUsers] No users array in response:', data);
-        toast({
-          title: 'Avertissement',
-          description: 'Format de réponse invalide - aucun tableau users',
-        });
-        setUsers([]);
-        return;
-      }
-
-      addDiagnostic('function-call', 'success', `${data.users.length} utilisateurs récupérés`, {
-        usersCount: data.users.length,
-        sampleUsers: data.users.slice(0, 3)
-      });
-      console.log('✅ [AdminUsers] Users received:', data.users.length);
-      console.log('👥 [AdminUsers] Sample users:', data.users.slice(0, 3));
-      
-      const formattedUsers: User[] = data.users.map((u: any) => ({
-        id: u.id,
-        email: u.email || 'Sans email',
-        created_at: u.created_at,
-        email_confirmed_at: u.email_confirmed_at || null,
-        last_sign_in_at: u.last_sign_in_at || null,
-      }));
-      
-      setUsers(formattedUsers);
-      addDiagnostic('formatting', 'success', `${formattedUsers.length} utilisateurs formatés avec succès`);
-      
-      toast({
-        title: 'Succès',
-        description: `${formattedUsers.length} utilisateur(s) chargé(s)`,
-      });
-      
-      if (formattedUsers.length === 0) {
-        addDiagnostic('result', 'error', 'Aucun utilisateur trouvé dans la base de données');
-        console.log('⚠️ [AdminUsers] No users found in database');
-      }
-    } catch (error: any) {
-      addDiagnostic('exception', 'error', 'Exception lors de la récupération', { 
-        error: error.message,
-        stack: error.stack 
-      });
-      console.error('💥 [AdminUsers] Exception:', error);
-      toast({
-        title: 'Erreur',
-        description: error.message || 'Impossible de charger les utilisateurs',
-        variant: 'destructive',
-      });
-      setUsers([]);
+      const result = await loadAdminUsers(controller.signal);
+      if (activeRequest.current === controller) setUsers(result);
+    } catch (error) {
+      if (activeRequest.current !== controller) return;
+      console.error('[AdminUsers] load failed', error);
+      const message = error instanceof Error && /^(Reconnectez-vous|Vous ne pouvez pas)/.test(error.message)
+        ? error.message : 'Impossible de charger les utilisateurs. Réessayez.';
+      if (message.startsWith('Reconnectez-vous') || message.startsWith('Vous ne pouvez pas')) setUsers([]);
+      setLoadError(message);
     } finally {
-      setLoading(false);
+      clearTimeout(timeout);
+      if (activeRequest.current === controller) setLoading(false);
     }
   };
 
@@ -253,7 +111,7 @@ export const AdminUsersManagementPage: React.FC = () => {
         .eq('user_id', userId);
 
       if (error) throw error;
-      setUserRoles(data?.map((ur: UserRole) => ur.roles.id) || []);
+      setUserRoles(data?.flatMap((ur: UserRole) => ur.roles?.id ? [ur.roles.id] : []) || []);
     } catch (error) {
       console.error('Error fetching user roles:', error);
     }
@@ -262,6 +120,7 @@ export const AdminUsersManagementPage: React.FC = () => {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    return () => { activeRequest.current?.abort(); activeRequest.current = null; };
   }, []);
 
   const handleOpenUserDialog = async (user: User) => {
@@ -321,17 +180,10 @@ export const AdminUsersManagementPage: React.FC = () => {
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div className="container mx-auto py-8">
-        <div className="text-center">Chargement...</div>
-      </div>
-    );
-  }
-
   return (
     <PermissionGuard 
-      anyPermissions={['users.view', 'users.edit']}
+      permission="users.view"
+      fallback={<Alert><AlertTitle>Accès restreint</AlertTitle><AlertDescription>Vous ne pouvez pas consulter cette liste.</AlertDescription></Alert>}
       fallbackMessage="Vous n'avez pas la permission de gérer les utilisateurs. Cette page est réservée aux administrateurs."
     >
       <div className="container mx-auto py-8 px-4">
@@ -342,100 +194,37 @@ export const AdminUsersManagementPage: React.FC = () => {
           </p>
         </div>
 
-      {/* Panneau de diagnostic */}
-      <Card className="mb-6 border-blue-500">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-blue-500" />
-              Diagnostic du Système
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDiagnostics(!showDiagnostics)}
-            >
-              {showDiagnostics ? 'Masquer' : 'Afficher'}
-            </Button>
-          </div>
-        </CardHeader>
-        {showDiagnostics && (
-          <CardContent>
-            <div className="space-y-3">
-              {diagnostics.length === 0 ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Aucun diagnostic disponible</AlertTitle>
-                  <AlertDescription>
-                    Cliquez sur le bouton de rechargement pour lancer le diagnostic
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                diagnostics.map((diag, index) => (
-                  <Alert 
-                    key={index} 
-                    variant={diag.status === 'error' ? 'destructive' : 'default'}
-                    className={diag.status === 'success' ? 'border-green-500' : ''}
-                  >
-                    <div className="flex items-start gap-3">
-                      {diag.status === 'success' && <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />}
-                      {diag.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500 mt-0.5" />}
-                      {diag.status === 'pending' && <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5" />}
-                      <div className="flex-1">
-                        <AlertTitle className="text-sm font-semibold mb-1">
-                          {diag.step} - {diag.status}
-                        </AlertTitle>
-                        <AlertDescription className="text-xs">
-                          <div className="mb-2">{diag.message}</div>
-                          {diag.data && (
-                            <details className="mt-2">
-                              <summary className="cursor-pointer text-xs font-medium">
-                                Voir les détails
-                              </summary>
-                              <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-40">
-                                {JSON.stringify(diag.data, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {diag.timestamp.toLocaleTimeString()}
-                          </div>
-                        </AlertDescription>
-                      </div>
-                    </div>
-                  </Alert>
-                ))
-              )}
-            </div>
-            <Button 
-              onClick={fetchUsers} 
-              className="w-full mt-4"
-              variant="outline"
-            >
-              Relancer le diagnostic
-            </Button>
-          </CardContent>
-        )}
-      </Card>
+      {loadError && (
+        <Alert variant="destructive" className="mb-6" role="alert">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Chargement interrompu</AlertTitle>
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
+      )}
 
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Liste des Utilisateurs ({filteredUsers.length})
+            Utilisateurs{!loading && !loadError ? ` (${filteredUsers.length})` : ''}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-            <div className="relative">
+          <div className="mb-4 flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par email..."
+                aria-label="Rechercher un utilisateur"
+                placeholder="Rechercher un utilisateur…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
+            <Button variant="outline" onClick={fetchUsers} disabled={loading}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loadError ? 'Réessayer' : 'Actualiser'}
+            </Button>
           </div>
 
           <Table>
@@ -449,7 +238,11 @@ export const AdminUsersManagementPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {loading && users.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-8" role="status">Chargement des utilisateurs…</TableCell></TableRow>
+              ) : loadError && users.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-8">La liste n’a pas pu être chargée.</TableCell></TableRow>
+              ) : filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">
                     <Users className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />

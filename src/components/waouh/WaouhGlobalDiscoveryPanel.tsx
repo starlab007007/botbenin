@@ -1,5 +1,5 @@
 import {WaouhSmartSale} from './WaouhSmartSale';
-import {saleHandoff,type PublishedSale} from '@/lib/waouh/smartSale';
+import {saleHandoff,saleSearchPath,type PublishedSale} from '@/lib/waouh/smartSale';
 import {productSnapshot,WaouhProductPresentation} from './WaouhProductPresentation';
 import {missionCopy,normalizeMissionKind,normalizeMissionContext,missionCriteria,type MissionContext} from '@/lib/waouh/guidedDiscovery';
 import {WaouhGuidedProgress} from './WaouhGuidedProgress';
@@ -209,7 +209,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
     const version=++searchVersion.current;
     setBusy(true);setStarted(true);setDiscoveryPhase('understanding');setPeekResults(false);setPaused(false);setRefreshing(false);setLiveError('');setCompleteSearch(null);setResults([]);setContact(null);setContactJourney(null);
     setLastSearch({goal,city:requestedCity,article_id:articleId,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:inputContext,budget_max:searchKind==='opportunity'||searchKind==='sale'?undefined:Number(budget)||undefined});
-    let received=0;
+    let received=0,indexedReceived=false,followRequest:AutomaticSearch|null=null;
     setEvents([{id:++eventId.current,at:new Date().toISOString(),text:'Recherche lancée selon votre besoin.'}]);
     let preferred:Awaited<ReturnType<typeof loadAvatarAutonomy>>|null=null;
     try{
@@ -220,10 +220,11 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       const zone=requestedCity||preferred?.city||'';
       const context=normalizeMissionContext(inputContext,searchKind,goal,searchKind==='sale'?preferred?.price_floor:undefined);
       const request:AutomaticSearch={goal,article_id:articleId,city:zone||undefined,budget_max:!['sale','opportunity'].includes(searchKind)&&capped?capped:undefined,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:context};
+      followRequest=request;
       setLastSearch(request);setDiscoveryPhase('collecting');
       const response=await progressiveNexusDiscovery({query:request.goal,mode:searchKind==='sale'?'find_buyers':'find_sellers',discovery_kind:searchKind,mission_context:context,city:zone||undefined,budget_max:request.budget_max,limit:24,refresh_external:!!user,smart:!!user},indexed=>{
         if(version!==searchVersion.current)return;
-        received=indexed.results.length;setResults(indexed.results);setResolvedMode(indexed.mode);setRefreshing(!!user);
+        indexedReceived=true;received=indexed.results.length;setResults(indexed.results);setResolvedMode(indexed.mode);setRefreshing(!!user);
         record(indexed.results.length?`${indexed.results.length} premières offres reçues.`:'Recherche de nouvelles pistes.');
       });
       if(version!==searchVersion.current)return;
@@ -235,7 +236,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       if(!budget&&final.budget_max)setBudget(String(Math.round(final.budget_max)));
       record(response.results.length?`${response.results.length} offres reçues. Comparaison mise à jour.`:'Aucune piste compatible pour le moment.');
       void loadSources();
-    }catch(error){if(version!==searchVersion.current)return;setDiscoveryPhase(received?'partial':'error');setLiveError('Recherche interrompue. Réessayez.');setRefreshing(false);record('Recherche interrompue. Les premières pistes restent accessibles.');}
+    }catch(error){if(version!==searchVersion.current)return;setDiscoveryPhase(indexedReceived?'partial':'error');setLiveError(indexedReceived?'Recherche externe indisponible. Vos premières pistes sont conservées.':'Recherche interrompue. Réessayez.');setRefreshing(false);record('Recherche interrompue. Les premières pistes restent accessibles.');if(indexedReceived&&automaticFollowRetryable(error))setCompleteSearch(followRequest);}
     finally{if(version===searchVersion.current)setBusy(false);}
   };
 
@@ -371,7 +372,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
           <TabsContent value="hunt" className="space-y-3">
             <div className="wap-scenarios" hidden={started}>{!started&&kindPicker}</div>
             <header className="wmn-head"><button type="button" className="wmn-icon" aria-label="Retour aux missions" onClick={()=>navigate('/app/missions')}><ArrowLeft/></button><div className="wmn-grow"><h1 className="!text-[19px]">{started?discoveryPhase==='ready'?missionCopy[activeKind].title:lastSearch?.goal||query:missionCopy[selectedKind].title}</h1>{started&&<p className="wmn-meta mt-1">{discoveryPhase==='ready'?`${lastSearch?.goal||query} · `:''}{lastSearch?.city||city||'Zone à préciser'}{lastSearch?.budget_max?` · ${moneyXof(lastSearch.budget_max)} max`:''}</p>}</div><button type="button" className="wmn-icon" aria-label="Mes outils de recherche" onClick={onTools}><MoreHorizontal/></button></header>
-            {selectedKind==='sale'?<details className="wap-mobile-editor" open={!started}><summary>Mon article</summary><div className="wss-embedded"><WaouhSmartSale key={`${user?.id??'guest'}:${salePreview?.article.article_id??'new'}`} initial={{...salePreview?.draft,title:query,city}} onConnect={()=>requireAuth('/app/nexus?kind=vendre')} onPublished={sale=>{saleSeed.current=sale;setSalePreview(sale);setQuery(sale.article.title);setCity(sale.draft.city);setBrief(sale.draft.description);setQuantity(String(sale.draft.quantity??''));setUnit(sale.draft.unit);void searchEverywhere(sale);}}/></div></details>:<><details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">{started&&kindPicker}
+            {selectedKind==='sale'?<details className="wap-mobile-editor" open={!started}><summary>Mon article</summary><div className="wss-embedded"><WaouhSmartSale key={`${user?.id??'guest'}:${salePreview?.article.article_id??'new'}`} initial={{...salePreview?.draft,title:query,city}} onConnect={()=>requireAuth('/app/nexus?kind=vendre')} onPublished={sale=>{saleSeed.current=sale;setSalePreview(sale);setQuery(sale.article.title);setCity(sale.draft.city);setBrief(sale.draft.description);setQuantity(String(sale.draft.quantity??''));setUnit(sale.draft.unit);if(user)navigate(saleSearchPath(user.id,sale),{replace:true});}}/></div></details>:<><details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">{started&&kindPicker}
               <div className="mt-3 flex gap-2">
                 <Input
                   value={query}

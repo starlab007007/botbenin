@@ -29,7 +29,7 @@ jobs:
       - run: node scripts/tests/waouh-convergence-db.mjs
       - run: node scripts/tests/waouh-module-policy-db.mjs
       - run: node scripts/tests/waouh-discovery-db.mjs
-      - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__
+      - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ src/lib/admin/__tests__ src/pages/admin/__tests__
       - run: npm run build
       - uses: denoland/setup-deno@v2
         with:

@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,8 +74,7 @@ export default function WhatsAppScreen() {
   // Realtime — strictly scoped to current user
   useEffect(() => {
     if (!user?.id) return;
-    const ch = supabase
-      .channel(`wa_mobile_${user.id}`)
+    const ch = scopedRealtimeChannel(`wa_mobile_${user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "whatsapp_accounts", filter: `user_id=eq.${user.id}` },

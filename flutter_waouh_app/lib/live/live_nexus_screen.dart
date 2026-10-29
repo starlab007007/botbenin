@@ -349,18 +349,26 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       });
       _activityUpdate?.call(() {});
       if (account != null) unawaited(_follow(version));
-    } catch (_) {
+    } catch (error) {
       if (mounted && version == _searchVersion)
         setState(() {
-          _phase = discovery?.results.isNotEmpty == true ? 'partial' : 'error';
+          _phase = discovery != null ? 'partial' : 'error';
           _refreshing = false;
-          _liveError = 'Recherche interrompue. Réessayez.';
+          _liveError = discovery != null
+              ? 'Recherche externe indisponible. Vos premières pistes sont conservées.'
+              : 'Recherche interrompue. Réessayez.';
           _events.add(
             LiveMissionActivity(
               'Recherche interrompue. Les premières pistes restent accessibles.',
             ),
           );
         });
+      if (mounted && version == _searchVersion && discovery != null &&
+          account != null && account == legacy.supabase.auth.currentUser?.id &&
+          error is! NexusApiException &&
+          (error is! FunctionException || error.status == 408 || error.status == 429 || error.status >= 500)) {
+        unawaited(_follow(version));
+      }
     } finally {
       if (mounted && version == _searchVersion) setState(() => busy = false);
       _activityUpdate?.call(() {});

@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +23,7 @@ export default function BotsScreen() {
       setBots((data as any) ?? []); setLoading(false);
     };
     load();
-    const ch = supabase.channel(`mobile-bots-${user.id}`)
+    const ch = scopedRealtimeChannel(`mobile-bots-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "bots", filter: `owner_id=eq.${user.id}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };

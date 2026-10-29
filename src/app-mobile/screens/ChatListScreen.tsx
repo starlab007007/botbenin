@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { WaouhPremiumAvatar } from '@/components/waouh/WaouhPremiumAvatar';
 import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
@@ -245,8 +246,7 @@ export default function ChatListScreen() {
       }
     };
     load();
-    const channel = supabase
-      .channel(`mobile-conv-list-${user?.id ?? "guest"}`)
+    const channel = scopedRealtimeChannel(`mobile-conv-list-${user?.id ?? "guest"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_conversations" }, load)
       .subscribe();
     return () => { mounted = false; supabase.removeChannel(channel); };

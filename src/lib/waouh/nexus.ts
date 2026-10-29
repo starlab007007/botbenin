@@ -474,7 +474,7 @@ export async function globalNexusDiscovery(input: {
     }>;
     intelligence?: NexusSmartDiscoveryPlan;
     explanation?: string;
-  }>("nexus.global_discovery", { mode: "auto", smart: true, all_sources: true, ...input });
+  }>("nexus.global_discovery", { mode: "auto", smart: true, all_sources: true, ...input }, {timeoutMs:input.refresh_external===false?18000:45000});
 }
 
 export async function ingestSharedCommerceSignal(input: {

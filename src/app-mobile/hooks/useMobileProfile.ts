@@ -1,3 +1,4 @@
+import {scopedRealtimeChannel} from '@/lib/waouh/realtimeChannel';
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "./useMobileAuth";
@@ -20,6 +21,7 @@ export function useMobileProfile() {
   useEffect(() => {
     if (!user) { setProfile(null); setLoading(false); return; }
     let mounted = true;
+    setLoading(true);setProfile(null);
     (async () => {
       const { data } = await supabase
         .from("profiles")
@@ -46,14 +48,14 @@ export function useMobileProfile() {
         setProfile(data as any);
       }
       setLoading(false);
-    })();
+    })().catch(() => { if (mounted) setLoading(false); });
 
-    const ch = supabase.channel(`mobile-profile-${user.id}`)
+    const ch = scopedRealtimeChannel(`mobile-profile-${user.id}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
-        (p) => setProfile(p.new as any))
+        (p) => { if (mounted) setProfile(p.new as any); })
       .subscribe();
     return () => { mounted = false; supabase.removeChannel(ch); };
-  }, [user]);
+  }, [user?.id]);
 
   const update = async (patch: Partial<MobileProfile>) => {
     if (!user) throw new Error("auth_required");
