@@ -412,8 +412,10 @@ serve(async (req) => {
         }),
 
         channel: channelUsed,
-        delivered_at: waResult?.ok ? new Date().toISOString() : null,
-        delivery_status: waResult?.ok ? "delivered" : (waResult?.skipped ? "queued" : "failed"),
+        // An accepted queue entry or an in-app record is not proof of handset delivery.
+        // Delivery receipts must be written by the channel acknowledgement handler.
+        delivered_at: null,
+        delivery_status: waResult?.ok || waResult?.skipped ? "queued" : "failed",
       });
       if (notifErr) {
         // Duplicate (23505) is silently ignored — means same event already dispatched
