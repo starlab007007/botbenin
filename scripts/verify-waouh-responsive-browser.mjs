@@ -168,6 +168,16 @@ async function navigate(url, viewport) {
   });
   await send("Page.navigate", { url });
   await sleep(1800);
+  // Root is loaded lazily. Wait for its actionable form on every navigation,
+  // including repeated visits on tablet/mobile, instead of racing chunk loading.
+  if (new URL(url).pathname === '/') {
+    const started = Date.now();
+    while (Date.now() - started < 10000) {
+      const ready = await evaluate(`Boolean(document.querySelector('input[aria-label="Votre besoin"]') && document.querySelector('[data-waouh-action="acheter"]'))`);
+      if (ready) break;
+      await sleep(200);
+    }
+  }
 
   const state = await evaluate(`(() => ({
     text: document.body?.innerText || "",

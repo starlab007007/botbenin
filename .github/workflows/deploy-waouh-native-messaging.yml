@@ -231,7 +231,7 @@ jobs:
               for path in Path('supabase/functions').iterdir()
               if path.is_dir() and path.name.startswith('waouh-tel-')
           )
-          functions.extend(['waouh-native-messaging-settings', 'waouh-native-simulator', 'waouh-webhook', 'waouh-agentic-core', 'waha-session-mobile'])
+          functions.extend(['waouh-native-messaging-settings', 'waouh-native-simulator', 'waouh-webhook', 'waouh-agentic-core', 'waha-session-mobile', 'list-users-admin'])
 
           errors = []
           function_config = config.get('functions', {})
@@ -261,6 +261,7 @@ jobs:
               -print | sort
           )
           entrypoints+=(supabase/functions/waha-webhook/index.ts)
+          entrypoints+=(supabase/functions/list-users-admin/index.ts)
           entrypoints+=(supabase/functions/waouh-channel-in/index.ts)
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
@@ -561,6 +562,11 @@ jobs:
 
           echo "🔐 Deploying authenticated mobile WAHA session manager..."
           supabase functions deploy waha-session-mobile \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+
+          echo "Deploying authenticated user administration..."
+          supabase functions deploy list-users-admin \
             --project-ref "$SUPABASE_PROJECT_REF" \
             --use-api
 
