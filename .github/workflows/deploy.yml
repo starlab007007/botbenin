@@ -97,6 +97,8 @@ jobs:
           envs: DEPLOY_TOKEN,DEPLOY_REPOSITORY,DEPLOY_SHA
           script: |
             set -eu
+            exec 9>/home/debian/waouh-web-deploy.lock
+            flock -x 9
 
             RELEASE_URL="https://api.github.com/repos/${DEPLOY_REPOSITORY}/tarball/${DEPLOY_SHA}"
             RELEASE_ARCHIVE="/tmp/botbenin-${DEPLOY_SHA}.tar.gz"

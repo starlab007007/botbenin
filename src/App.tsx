@@ -121,6 +121,7 @@ const AdminWaouhMonitoringPage = lazy(() => import("./pages/admin/AdminWaouhMoni
 const AdminWaouhBusinessesPage = lazy(() => import("./pages/admin/AdminWaouhBusinessesPage"));
 const AdminWaouhDealsPage = lazy(() => import("./pages/admin/AdminWaouhDealsPage"));
 const AdminWaouhHistoriquePage = lazy(() => import("./pages/admin/AdminWaouhHistoriquePage"));
+const AdminGuardianPage = lazy(() => import("./pages/admin/AdminGuardianPage"));
 const AdminWaouhHealthCheckPage = lazy(() => import("./pages/admin/AdminWaouhHealthCheckPage"));
 const AdminWaouhNativeMessagingPage = lazy(() => import("./pages/admin/AdminWaouhNativeMessagingPage"));
 const AdminWaouhContactLayerPage = lazy(() => import("./pages/admin/AdminWaouhContactLayerPage"));
@@ -340,6 +341,7 @@ const AppContent = () => {
                      <Route path="/admin/waouh/businesses" element={<AdminRoute><AdminWaouhBusinessesPage /></AdminRoute>} />
                      <Route path="/admin/waouh/deals" element={<AdminRoute><AdminWaouhDealsPage /></AdminRoute>} />
                     <Route path="/admin/waouh/historique" element={<AdminRoute><AdminWaouhHistoriquePage /></AdminRoute>} />
+                    <Route path="/admin/waouh/guardian" element={<AdminRoute><AdminGuardianPage /></AdminRoute>} />
                     <Route path="/admin/waouh/health-check" element={<AdminRoute><AdminWaouhHealthCheckPage /></AdminRoute>} />
                     <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />
                     <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />

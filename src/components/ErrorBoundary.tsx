@@ -3,6 +3,7 @@
  * Catches React errors and provides fallback UI
  */
 
+import { reportGuardian } from '@/lib/guardian/client';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ErrorManager } from '@/services/errorHandling/ErrorManager';
 import { MonitoringService } from '@/services/monitoring/MonitoringService';
@@ -41,6 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    void reportGuardian('render_error');
     // Log error to monitoring services
     MonitoringService.critical('React', 'Component error caught', {
       error: error.message,
@@ -95,7 +97,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <CardTitle>Une erreur s'est produite</CardTitle>
               </div>
               <CardDescription>
-                L'application a rencontré une erreur inattendue. Nos équipes ont été notifiées.
+                L’application a rencontré une difficulté. Réessayez ou rechargez la page.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

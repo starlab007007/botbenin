@@ -2,9 +2,10 @@
 // Returns: last webhook activity, per-article message counts, and
 // detected divergences (negotiations without messages, messages without
 // matching article rows, traces missing for recent negotiations).
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+const serve = Deno.serve;
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
+import { guardianActor, guardianHandle } from "../_shared/waouh-guardian.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
@@ -16,10 +17,18 @@ serve(async (req) => {
   try {
     const sb = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (input, init) => fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000) }) } }
     );
 
-    const body = await req.json().catch(() => ({}));
+    if (req.method !== 'POST') return new Response(null, {status:405,headers:corsHeaders});
+    const raw = await req.text();
+    if (raw.length > 16384) return new Response(null, {status:413,headers:corsHeaders});
+    let body; try { body = raw ? JSON.parse(raw) : {}; } catch { return new Response(null,{status:400,headers:corsHeaders}); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return new Response(null,{status:400,headers:corsHeaders});
+    const guardian = await guardianHandle(req,sb,body); if (guardian) return guardian;
+    const actor = await guardianActor(req,sb);
+    if (!['admin','service','internal'].includes(actor.role)) return new Response(JSON.stringify({ok:false,error:'Accès réservé à l’administration.'}),{status:403,headers:{...corsHeaders,'Content-Type':'application/json'}});
     const hours = Math.min(Math.max(Number(body?.hours ?? 24), 1), 24 * 30);
     const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
     const topN = Math.min(Math.max(Number(body?.top ?? 20), 1), 200);
@@ -204,8 +213,8 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e: any) {
-    console.error("[waouh-health-check] error", e);
-    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+    console.error("[waouh-health-check] operation unavailable");
+    return new Response(JSON.stringify({ ok: false, error: "Suivi temporairement indisponible. Réessayez." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

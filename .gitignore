@@ -30,3 +30,7 @@ flutter_waouh_app/supabase/
 *.bak
 *.bak_*
 __noop__
+
+# GUARDIAN credentials and local bytecode
+guardian-config.json
+__pycache__/
