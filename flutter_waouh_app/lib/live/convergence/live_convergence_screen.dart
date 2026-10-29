@@ -1,3 +1,4 @@
+import '../live_product_presentation.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -11,8 +12,9 @@ String convergenceMoney(dynamic n) => n == null || n == '' ? 'À préciser' : '$
 Future<void> openLiveConvergence(BuildContext context, {Map<String, dynamic>? source}) => Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => LiveConvergenceScreen(source: source)));
 
 class LiveConvergenceScreen extends StatefulWidget {
-  const LiveConvergenceScreen({super.key, this.source});
+  const LiveConvergenceScreen({super.key, this.source,this.missionId,this.componentId});
   final Map<String, dynamic>? source;
+  final String? missionId,componentId;
   @override State<LiveConvergenceScreen> createState() => _LiveConvergenceScreenState();
 }
 class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
@@ -51,14 +53,15 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     try { final saved = jsonDecode(prefs.getString('waouh.convergence.draft.$uid') ?? '{}'); if (saved is Map && saved['goal'] != null) next = saved.map((k,v) => MapEntry(k.toString(),v.toString())); } catch (_) { /* keep source seed */ }
     if (!mounted || client.auth.currentUser?.id != uid) return;
     setState(() => draft = next);
-    await run('list');
+    await run(widget.missionId==null?'list':'business.get',widget.missionId==null?{}:{'mission_id':widget.missionId});
   }
   Future<dynamic> run(String action, [Map<String, dynamic> payload = const {}]) async {
     if (!mounted || busy) return null;
     final uid = client.auth.currentUser?.id;
     setState(() { busy = true; error = ''; });
     try {
-      final data = convergenceMap(await api(action, payload));
+      var data = convergenceMap(await api(action, payload));
+      if(data['mission'] is Map && !action.startsWith('business.')) data=convergenceMap(await api('business.get',{'mission_id':data['mission']['id']}));
       if (!mounted || client.auth.currentUser?.id != uid) return null;
       setState(() {
         if (data['mission'] is Map) bundle = data;
@@ -115,12 +118,14 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   }
   Future<void> proposeAgreement(Map<String,dynamic> c) async {
     final a = convergenceMap(c['agreement']), old = convergenceMap(a['terms']);
-    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result']},numeric:{'amount'});
-    if (terms != null) await run('agreement_propose',{'component_id':c['id'],'terms':{...terms,'amount':convergenceAmount(terms['amount'])}});
+    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result']},numeric:{'amount'});
+    if (terms != null) await run('agreement_propose',{'component_id':c['id'],'terms':{...terms,'workflow_version':2,'amount':convergenceAmount(terms['amount'])}});
   }
   Widget component(Map<String,dynamic> c) {
     final a = convergenceMap(c['agreement']), terms = convergenceMap(a['terms']), selected = mission['selected_plan_id'] == c['plan_id'];
     return panel('${c['title']}',[
+      if(c['source_snapshot'] is Map && c['source_snapshot']['product'] is Map)LiveProductPresentation(value:c['source_snapshot']['product']),
+      businessPanel(c),
       Text('${convergenceMoney(c['amount'])} · ${c['unit']} · frais ${convergenceMoney(c['extra_cost'])}'),
       const Text('Montants renseignés, à confirmer dans l’accord.', style: TextStyle(fontSize: 12)),
       if (own && c['provider_id'] == null && !closed) button('Inviter ce professionnel',() => run('invite',{'component_id':c['id']})),
@@ -131,7 +136,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
         if(a['status']=='accepted')Text('Résultat : demandeur ${a['owner_completed_at']==null?'à confirmer':'confirmé'} · professionnel ${a['provider_completed_at']==null?'à confirmer':'confirmé'}'),
         if (a['status'] == 'completed') const Text('Résultat confirmé par les deux parties') else if (!closed) ...[
           button('Confirmer cette version',() => run('agreement_accept',{'component_id':c['id'],'version':a['version']}),enabled:selected && c['provider_id'] != null && a['status'] != 'rejected' && (own ? a['owner_accepted_at'] : a['provider_accepted_at']) == null,primary:true),
-          if (a['status'] == 'accepted') button(own ? 'Valider le résultat reçu' : 'Confirmer la réalisation',() => run('agreement_complete',{'component_id':c['id'],'version':a['version'],'note':'Résultat attendu confirmé dans WAOUH.'}),enabled:(own ? a['owner_completed_at'] : a['provider_completed_at']) == null),
+          if (a['status'] == 'accepted' && terms['workflow_version']!=2) button(own ? 'Valider le résultat reçu' : 'Confirmer la réalisation',() => run('agreement_complete',{'component_id':c['id'],'version':a['version'],'note':'Résultat attendu confirmé dans WAOUH.'}),enabled:(own ? a['owner_completed_at'] : a['provider_completed_at']) == null),
           button('Refuser cet accord',() => run('agreement_reject',{'component_id':c['id'],'version':a['version']}),enabled:a['owner_completed_at']==null && a['provider_completed_at']==null),
         ],
         if (!selected) const Text('Le demandeur doit retenir ce chemin avant confirmation.'),
@@ -167,6 +172,31 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
       if(own && !closed) button('Clôturer ce besoin',() async { final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Clôturer ce besoin ?'),content:const Text('Les démarches commerciales engagées restent à traiter dans leurs discussions.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Continuer')),TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Clôturer'))]));if(ok==true)run('cancel',{'mission_id':mission['id']}); }),
     ]);
   }
+  Widget businessPanel(Map<String,dynamic> c){
+    final a=convergenceMap(c['agreement']), rows=bundle?['evidence'] as List? ?? [], e=rows.map(convergenceMap).firstWhere((v)=>v['component_id']==c['id']&&v['version']==(a['version']??0),orElse:()=>{});
+    final buyer=(mission['criteria'] as List? ?? []).contains('workflow:sale')?!own:own;
+    Future<void> act(String op,[Map<String,dynamic> p=const {}])async{await run('business.$op',{'component_id':c['id'],'version':a['version'],...p});}
+    return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      for(final m in (bundle?['messages'] as List? ?? []).map(convergenceMap).where((m)=>m['component_id']==c['id']))Align(alignment:m['mine']==true?Alignment.centerRight:Alignment.centerLeft,child:Card(color:m['mine']==true?const Color(0xFFE8EEFF):Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Text('${m['text']}\nPublié dans l’échange')))),
+      if(c['provider_id']!=null&&!closed)button('Envoyer un message',()async{final p=await form('Votre échange',{'text':'Votre message'});if(p!=null)await act('message',{'text':p['text'],'request_id':_requestUuid()});}),
+      if(c['kind']=='announcement'&&own)...[
+        button('Préparer mon dossier',()=>act('application_prepare')),
+        button('J’ai déposé ma candidature',()=>act('application_submit',{'confirmation':'submitted'}),enabled:e['application_prepared_at']!=null),
+        if(e['application_submitted_at']!=null)const Text('Dépôt déclaré par vous. Réponse de l’organisme à attendre.'),
+      ],
+      if(e['issue']!=null)Text('Problème signalé : ${e['issue']}. Clôture suspendue.'),
+      if(a['status']=='accepted'&&e['issue']==null)...[
+        if(buyer&&e['receipt_at']==null)button('Confirmer la réception / prestation',()=>act('receipt')),
+        if(buyer&&e['payment_reported_at']==null)button('J’ai effectué le paiement',()=>act('payment_report')),
+        if(!buyer&&e['payment_reported_at']!=null&&e['payment_received_at']==null)button('J’ai reçu le paiement',()=>act('payment_receive')),
+        if(e['receipt_at']!=null&&e['payment_received_at']!=null)button('Confirmer la clôture',()=>act('complete'),enabled:(own?a['owner_completed_at']:a['provider_completed_at'])==null),
+        button('Signaler un problème',()async{final p=await form('Signaler un problème',{'text':'Que constatez-vous ?'});if(p!=null)await act('issue',p);}),
+      ],
+      if(a['status']=='completed')Wrap(children:[for(var n=1;n<=5;n++)IconButton(tooltip:'$n étoiles',onPressed:busy?null:()=>act('rating',{'rating':n}),icon:Icon(((own?e['owner_rating']:e['provider_rating']) as num? ?? 0)>=n?Icons.star:Icons.star_border))]),
+      const Text('Les paiements sont déclarés par les parties ; aucun paiement n’est exécuté ici.',style:TextStyle(fontSize:11)),
+    ]);
+  }
+  String _requestUuid(){final h=DateTime.now().microsecondsSinceEpoch.toRadixString(16).padLeft(32,'0');return '${h.substring(0,8)}-${h.substring(8,12)}-4${h.substring(13,16)}-8${h.substring(17,20)}-${h.substring(20)}';}
   Future<void> groups() async { await run('pool_list',{'city':mission['city'] ?? draft['city'],'kind':mission['kind'] ?? draft['kind']}); }
   Widget groupView() => Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
     panel('Ensemble · jusqu’à 5 participants',[const Text('Sujet, ville et échéance sont visibles. Les coordonnées, budgets et discussions restent privés. Aucune économie n’est présumée.'),

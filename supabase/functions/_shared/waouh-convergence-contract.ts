@@ -106,7 +106,7 @@ export function sanitizeAiPlans(input: unknown) {
   });
 }
 export const CONVERGENCE_ACTIONS = new Set(['list','get','create','cancel','mission_update','plan_add','plan_select','component_add','component_remove','invite','redeem_invite',
-  'agreement_propose','agreement_accept','agreement_reject','agreement_complete','pool_list','pool_create','pool_join','pool_leave','pool_invite','pool_quote','pool_accept','metrics','suggest']);
+  'agreement_propose','agreement_accept','agreement_reject','agreement_complete','pool_list','pool_create','pool_join','pool_leave','pool_invite','pool_quote','pool_accept','metrics','suggest','business.get','business.contact','business.select','business.message','business.receipt','business.payment_report','business.payment_receive','business.complete','business.issue','business.rating','business.application_prepare','business.application_submit']);
 export function validateConvergenceRequest(body: unknown) {
   const b = record(body), action = String(b.action ?? ''), p = record(b.payload);
   if (!CONVERGENCE_ACTIONS.has(action)) throw new Error('Action non reconnue.');
@@ -125,6 +125,7 @@ export function validateConvergenceRequest(body: unknown) {
   const requiredId = action.startsWith('agreement_') || ['invite','component_remove'].includes(action) ? 'component_id'
     : ['pool_join','pool_leave','pool_invite','pool_quote','pool_accept'].includes(action) ? 'pool_id'
     : ['get','cancel','mission_update','plan_add','plan_select','component_add','pool_create','suggest'].includes(action) ? 'mission_id' : null;
+  if(action.startsWith('business.') && !(action==='business.get'||action==='business.select'?p.mission_id:p.component_id))throw new Error('Référence requise.');
   if (requiredId && !p[requiredId]) throw new Error('Référence requise.');
   if (['component_add','plan_select'].includes(action) && !p.plan_id) throw new Error('Chemin requis.');
   if (action === 'pool_join' && !p.mission_id) throw new Error('Besoin requis.');
