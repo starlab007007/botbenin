@@ -6,7 +6,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);
 create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
-for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
 const owner='00000000-0000-4000-8000-000000000001',seller='00000000-0000-4000-8000-000000000002',stranger='00000000-0000-4000-8000-000000000003';
 for(const id of [owner,seller,stranger])await db.query('insert into auth.users values($1)',[id]);
 const cmd=async(actor,action,p={})=>(await db.query('select public.waouh_convergence_command($1,$2,$3) d',[actor,action,p])).rows[0].d;
@@ -47,4 +47,20 @@ b=await cmd(owner,'create',{request_key:'test-opportunity-journey',kind:'announc
 b=await biz(owner,'select',{mission_id:mid,source:{...source,kind:'announcement',source_ref:'external:job'}});const job=b.selected_component_id;
 await assert.rejects(biz(owner,'application_submit',{component_id:job,confirmation:'submitted'}),/application_confirmation_required/);
 await biz(owner,'application_prepare',{component_id:job});b=await biz(owner,'application_submit',{component_id:job,confirmation:'submitted'});assert.ok(b.evidence[0].application_submitted_at);assert.notEqual(b.mission.status,'completed');
+// Atomic contact: internal seller, cross-device retry, closed mission, foreign actor.
+const article='00000000-0000-4000-8000-000000000004';
+await db.query('insert into public.waouh_users values($1,$2)',[seller,seller]);
+await db.query("insert into public.waouh_articles values($1,$2,'active')",[article,seller]);
+b=await cmd(owner,'create',{request_key:'atomic-interest-test',kind:'product',goal:'Atomic phone',city:'Cotonou'});
+const atomicMid=b.mission.id;
+b=await biz(owner,'select',{mission_id:atomicMid,source:{...source,source_ref:'article:'+article}});
+const atomicCid=b.selected_component_id;
+const open=async(actor,p)=>(await db.query('select public.waouh_business_open($1,$2) d',[actor,p])).rows[0].d;
+const opening={mission_id:atomicMid,component_id:atomicCid,confirmed:true};
+await assert.rejects(open(stranger,opening),/forbidden/);
+await assert.rejects(open(owner,{...opening,confirmed:false}),/explicit_confirmation_required/);
+b=await open(owner,opening);assert.equal(b.contact_state,'recorded');assert.equal(b.messages.length,1);
+b=await open(owner,opening);assert.equal(b.messages.length,1);
+assert.equal((await db.query('select count(*) n from public.waouh_notifications')).rows[0].n,1);
+await cmd(owner,'cancel',{mission_id:atomicMid});await assert.rejects(open(owner,opening),/mission_closed/);
 await db.close();console.log('Business journey SQL passed: isolated buyer/seller, access control, invitations, messages, deduplication, revisions, payment/receipt guards, bilateral closure, ratings and opportunity declarations.');

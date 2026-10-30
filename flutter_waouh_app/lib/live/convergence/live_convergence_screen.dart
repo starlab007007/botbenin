@@ -22,6 +22,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   Map<String, dynamic>? bundle, metrics;
   List<Map<String, dynamic>> missions = [], pools = [];
   String tab = 'missions', error = '', invitation = '', token = '';
+  String? focusedComponent;
   bool busy = false, consent = false;
   Map<String, String> draft = {}, groupDraft = {};
   String requestKey = DateTime.now().microsecondsSinceEpoch.toString();
@@ -33,7 +34,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   bool get own => bundle?['is_owner'] == true;
   bool get closed => ['cancelled', 'completed'].contains(mission['status']);
   @override void initState() {
-    super.initState(); _loadAccount();
+    super.initState(); focusedComponent=widget.componentId; _loadAccount();
     authSubscription = client.auth.onAuthStateChange.listen((_) { if (client.auth.currentUser?.id != loadedAccount) _loadAccount(); });
   }
   @override void dispose() { authSubscription?.cancel(); super.dispose(); }
@@ -121,10 +122,26 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result']},numeric:{'amount'});
     if (terms != null) await run('agreement_propose',{'component_id':c['id'],'terms':{...terms,'workflow_version':2,'amount':convergenceAmount(terms['amount'])}});
   }
+  Future<void> interested(Map<String,dynamic> c) async {
+    if(busy||closed)return;
+    final uid=client.auth.currentUser?.id, mid=mission['id'], cid=c['id'];
+    setState((){busy=true;error='';});
+    try{
+      final ids={'mission_id':mid,'component_id':cid};
+      final data=convergenceMap(await api('business.open',{...ids,'confirmed':true}));
+      if(!mounted||client.auth.currentUser?.id!=uid)return;
+      if(data['contact_state']=='contact_required'){
+        setState((){bundle=data;focusedComponent='$cid';error='Contact à compléter. Aucun envoi externe confirmé.';});return;
+      }
+      if(mounted&&client.auth.currentUser?.id==uid)setState((){bundle=data;focusedComponent='$cid';});
+    }catch(_){if(mounted&&client.auth.currentUser?.id==uid)setState(()=>error='Contact non confirmé. Réessayez.');}
+    finally{if(mounted&&client.auth.currentUser?.id==uid)setState(()=>busy=false);}
+  }
   Widget component(Map<String,dynamic> c) {
     final a = convergenceMap(c['agreement']), terms = convergenceMap(a['terms']), selected = mission['selected_plan_id'] == c['plan_id'];
     return panel('${c['title']}',[
       if(c['source_snapshot'] is Map && c['source_snapshot']['product'] is Map)LiveProductPresentation(value:c['source_snapshot']['product']),
+      if(own&&!closed)button('Intéressé',()=>interested(c),primary:true),
       businessPanel(c),
       Text('${convergenceMoney(c['amount'])} · ${c['unit']} · frais ${convergenceMoney(c['extra_cost'])}'),
       const Text('Montants renseignés, à confirmer dans l’accord.', style: TextStyle(fontSize: 12)),
@@ -151,6 +168,8 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
       ...missions.map((m) => Card(child:ListTile(title:Text('${m['goal']}'),subtitle:Text('${m['city']} · ${statuses[m['status']] ?? m['status']}'),trailing:const Icon(Icons.chevron_right),onTap:() => run('get',{'mission_id':m['id']})))),
     ]);
     final plans = (bundle!['plans'] as List).map(convergenceMap), components = (bundle!['components'] as List).map(convergenceMap).toList();
+    final focused=components.where((c)=>c['id']==focusedComponent).toList();
+    if(focused.isNotEmpty)return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[TextButton.icon(onPressed:()=>setState(()=>focusedComponent=null),icon:const Icon(Icons.arrow_back),label:const Text('Toutes les offres')),component(focused.first)]);
     return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
       TextButton.icon(onPressed:() { setState(() => bundle=null); run('list'); },icon:const Icon(Icons.chevron_left),label:const Text('Mes besoins')),
       button('Actualiser les confirmations',()=>run('get',{'mission_id':mission['id']})),
