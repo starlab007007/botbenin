@@ -106,7 +106,7 @@ export function sanitizeAiPlans(input: unknown) {
   });
 }
 export const CONVERGENCE_ACTIONS = new Set(['list','get','create','cancel','mission_update','plan_add','plan_select','component_add','component_remove','invite','redeem_invite',
-  'agreement_propose','agreement_accept','agreement_reject','agreement_complete','pool_list','pool_create','pool_join','pool_leave','pool_invite','pool_quote','pool_accept','metrics','suggest','business.get','business.contact','business.select','business.message','business.receipt','business.payment_report','business.payment_receive','business.complete','business.issue','business.rating','business.application_prepare','business.application_submit']);
+  'agreement_propose','agreement_accept','agreement_reject','agreement_complete','pool_list','pool_create','pool_join','pool_leave','pool_invite','pool_quote','pool_accept','metrics','suggest','business.open','business.get','business.contact','business.select','business.message','business.receipt','business.payment_report','business.payment_receive','business.complete','business.issue','business.rating','business.application_prepare','business.application_submit']);
 export function validateConvergenceRequest(body: unknown) {
   const b = record(body), action = String(b.action ?? ''), p = record(b.payload);
   if (!CONVERGENCE_ACTIONS.has(action)) throw new Error('Action non reconnue.');

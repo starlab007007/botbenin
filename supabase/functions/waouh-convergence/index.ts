@@ -25,7 +25,9 @@ Deno.serve(async req => {
         if(product.currency.toUpperCase()!=='XOF')return jsonResponse({ok:false,error:'Demandez un devis en F CFA avant de poursuivre avec cette offre.'},422);
         payload.source={title:product.title,kind:['product','service','announcement'].includes(source.kind)?source.kind:'product',source_ref:String(source.source_ref||product.id).slice(0,300),source_url:/^https?:\/\//i.test(String(source.source_url))?source.source_url:null,amount:product.price_min,extra_cost:null,unit:String(source.unit||'forfait').slice(0,50),scope:String(source.scope||'').slice(0,2000),source_snapshot:{product}};
       }
-      const {data,error}=await sb.rpc('waouh_business_command',{p_actor:user.id,p_action:action,p:payload});
+      const {data,error}=action==='business.open'
+        ?await sb.rpc('waouh_business_open',{p_actor:user.id,p:payload})
+        :await sb.rpc('waouh_business_command',{p_actor:user.id,p_action:action,p:payload});
       if(error) return jsonResponse({ok:false,error:'Cette action n’a pas pu être confirmée. Actualisez le dossier et vérifiez les conditions.'},String(error.code)==='42501'?403:409);
       return jsonResponse({ok:true,data});
     }
