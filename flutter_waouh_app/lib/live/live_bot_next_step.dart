@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -44,6 +45,8 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
   bool _busy = false;
   int? _linked;
   String _error = '';
+  String? _mandateId;
+  String? _launchKey;
   List<Map<String, dynamic>>? _articles;
   String _articleSel = '';
 
@@ -109,36 +112,57 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
       _error = '';
     });
     try {
-      final data = await widget.service.createMandate(
-        mode: widget.mode,
-        goal: widget.goal,
-        articleId: widget.mode == 'sell' && _article.isNotEmpty ? _article : null,
-        priceFloor: widget.mode == 'sell' ? widget.priceFloor : null,
-        autonomyMode: _autonomy,
-        city: widget.city.trim().isEmpty ? null : widget.city.trim(),
-        budgetMax: widget.mode == 'buy' ? widget.budget : null,
-        maxContacts: _picked,
-        maxFollowups: _autonomy == 'assisted' ? 0 : 1,
-        allowWhatsapp: _whatsapp,
-        allowPublicBusiness: true,
-        allowBlindMessage: true,
-        durationHours: 72,
-        completionGoal: 'agreement',
-      );
-      final mandate = data['mandate'];
-      final mandateId = mandate is Map ? '${mandate['id'] ?? ''}' : '';
+      final launchKey = jsonEncode([widget.mode, widget.goal, _article,
+        widget.priceFloor, _autonomy, widget.city, widget.budget,
+        _picked, _whatsapp]);
+      if (_launchKey != launchKey || _mandateId == null) {
+        final data = await widget.service.createMandate(
+          mode: widget.mode,
+          goal: widget.goal,
+          articleId: widget.mode == 'sell' && _article.isNotEmpty ? _article : null,
+          priceFloor: widget.mode == 'sell' ? widget.priceFloor : null,
+          autonomyMode: _autonomy,
+          city: widget.city.trim().isEmpty ? null : widget.city.trim(),
+          budgetMax: widget.mode != 'sell' ? widget.budget : null,
+          maxContacts: _picked,
+          maxFollowups: _autonomy == 'assisted' ? 0 : 1,
+          allowWhatsapp: _whatsapp,
+          allowPublicBusiness: true,
+          allowBlindMessage: true,
+          durationHours: 72,
+          completionGoal: 'agreement',
+        );
+        final mandate = data['mandate'];
+        final mandateId = mandate is Map ? '${mandate['id'] ?? ''}' : '';
+        if (mandateId.isEmpty) throw StateError('Mandat non confirmé');
+        _mandateId = mandateId;
+        _launchKey = launchKey;
+      }
       var linked = 0;
       for (final item in widget.items.take(_picked)) {
         try {
-          await widget.service.startOpportunity(
+          final result = await widget.service.startOpportunity(
             fabricId: item.fabricId,
             mode: widget.mode,
-            mandateId: mandateId,
+            mandateId: _mandateId,
           );
+          if (result.id.isEmpty) {
+            throw StateError('Prise en charge non confirmée');
+          }
           linked++;
         } catch (_) {}
       }
-      if (mounted) setState(() => _linked = linked);
+      if (mounted) setState(() {
+        if (linked == 0) {
+          _error = 'Aucune offre n’a pu être prise en charge. Réessayez ou consultez vos missions.';
+          _confirm = false;
+        } else {
+          _linked = linked;
+          if (linked < _picked) {
+            _error = '${_picked - linked} offre(s) non prise(s) en charge. Consultez vos missions pour la suite.';
+          }
+        }
+      });
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -181,6 +205,8 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: WaouhPalette.muted),
             ),
             const SizedBox(height: 10),
+            if (_error.isNotEmpty)
+              Text(_error, style: const TextStyle(color: Color(0xFF92400E))),
             FilledButton(
               onPressed: () => context.go('/app/missions'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),

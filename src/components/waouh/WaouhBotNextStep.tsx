@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Handshake, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity, type NexusDiscoveryResult } from "@/lib/waouh/nexus";
@@ -53,6 +53,7 @@ export function WaouhBotNextStep({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ linked: number } | null>(null);
+  const launchRef = useRef<{ key: string; mandateId: string } | null>(null);
   const [articles, setArticles] = useState<Array<{ id: string; title: string; price: number }> | null>(null);
   const [articleSel, setArticleSel] = useState("");
   const needsArticle = mode === "sell" && !articleId;
@@ -84,14 +85,14 @@ export function WaouhBotNextStep({
     setBusy(true);
     setError("");
     try {
-      const response = await createNexusMandate({
+      const payload: Parameters<typeof createNexusMandate>[0] = {
         mode,
         goal: goal.trim(),
         article_id: mode === "sell" ? article || undefined : undefined,
         price_floor: mode === "sell" ? priceFloor || undefined : undefined,
         autonomy_mode: autonomy,
         city: city?.trim() || undefined,
-        budget_max: mode === "buy" ? budget || undefined : undefined,
+        budget_max: mode !== "sell" ? budget || undefined : undefined,
         max_contacts: picked,
         max_followups: autonomy === "assisted" ? 0 : 1,
         duration_hours: 72,
@@ -104,10 +105,26 @@ export function WaouhBotNextStep({
         allow_blind_message: true,
         allow_whatsapp: whatsapp,
         origin_surface: originSurface,
-      });
+      };
+      const key = JSON.stringify(payload);
+      if (launchRef.current?.key !== key) {
+        const response = await createNexusMandate(payload);
+        if (!response.mandate?.id) throw new Error("Le mandat n’a pas été créé. Réessayez.");
+        launchRef.current = { key, mandateId: response.mandate.id };
+      }
       const targets = results.slice(0, picked);
-      const settled = await Promise.allSettled(targets.map((item) => startNexusOpportunity(item.fabric_id, mode, response.mandate.id)));
-      setDone({ linked: settled.filter((s) => s.status === "fulfilled").length });
+      const settled = await Promise.allSettled(targets.map(async (item) => {
+        const result = await startNexusOpportunity(item.fabric_id, mode, launchRef.current!.mandateId);
+        if (!result.journey?.id) throw new Error("Prise en charge non confirmée.");
+      }));
+      const linked = settled.filter((s) => s.status === "fulfilled").length;
+      if (!linked) {
+        setError("Aucune offre n’a pu être prise en charge. Réessayez ou consultez vos missions.");
+        setConfirm(false);
+        return;
+      }
+      if (linked < targets.length) setError(`${targets.length - linked} offre(s) non prise(s) en charge. Consultez vos missions pour la suite.`);
+      setDone({ linked });
     } catch (e) {
       setError(userFacingErrorText(e, "save"));
       setConfirm(false);
@@ -126,6 +143,7 @@ export function WaouhBotNextStep({
             <p className="mt-1 text-xs font-semibold text-slate-600">
               {done.linked} offre{done.linked > 1 ? "s" : ""} prise{done.linked > 1 ? "s" : ""} en charge. {autonomy === "assisted" ? "Vous validez chaque message." : "Je vous préviens à chaque réponse."}
             </p>
+            {error && <p role="alert" className="mt-1 text-xs font-semibold text-amber-800">{error}</p>}
           </div>
         </div>
         <button type="button" onClick={() => navigate("/app/missions?view=suivi")} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-black text-white shadow-lg shadow-blue-600/25 active:scale-[0.99]">
