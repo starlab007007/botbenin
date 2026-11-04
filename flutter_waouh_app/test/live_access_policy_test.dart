@@ -12,6 +12,7 @@ void main() {
       expect(requiresWaouhAuthentication('/app/avatar/acheter'), isTrue);
       expect(requiresWaouhAuthentication('/app/diffusion'), isTrue);
       expect(requiresWaouhAuthentication('/app/profile'), isTrue);
+      expect(requiresWaouhAuthentication('/app/deal-room'), isTrue);
       expect(requiresWaouhAuthentication('/app/notifications'), isTrue);
     });
 

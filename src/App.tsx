@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -104,6 +104,8 @@ const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge";
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
+const WaouhDealRoomPage = lazy(() => import("./pages/waouh/WaouhDealRoomPage"));
+function WaouhSearchEntry(){const {search}=useLocation();const p=new URLSearchParams(search);return ['sell','find_buyers'].includes(p.get('mode')||'')||p.get('kind')==='sale'?<WaouhNexusPage/>:<WaouhDealRoomPage/>;}
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 const WaouhPremiumJourneyPage = lazy(() => import("./pages/waouh/WaouhPremiumJourneyPage"));
@@ -386,7 +388,9 @@ const AppContent = () => {
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />
                     <Route path="premium" element={<RequireMobileAuth><WaouhPremiumJourneyPage /></RequireMobileAuth>} />
-                    <Route path="nexus" element={<WaouhNexusPage />} />
+                    <Route path="nexus" element={<WaouhSearchEntry />} />
+                    <Route path="nexus-legacy" element={<WaouhNexusPage />} />
+                    <Route path="deal-room" element={<RequireMobileAuth><WaouhDealRoomPage /></RequireMobileAuth>} />
                     <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="apresbac" element={<ApresBacPage />} />

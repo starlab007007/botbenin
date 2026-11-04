@@ -5,6 +5,54 @@ import { autonomyWindowOpen } from "./waouh-avatar-autonomy-settings.ts";
 import { openBuyerDeal } from './waouh-deal-open.ts';
 import { planAvatarNegotiation, journeyReplyToken } from './waouh-avatar-lifecycle.ts';
 import { CENTRAL_WAHA_SESSION } from './waouh-central-whatsapp.ts';
+import { planAvatarNegotiationStart, dispatchAvatarNegotiationStart } from './waouh-avatar-negotiation-start.ts';
+
+async function startInitialNegotiation(sb: any, mandate: any, journey: any, approval?: any) {
+  if (!journey.thread_id || !journey.article_id) return;
+  // Reconcile a dispatch whose response was lost before the Journey was saved.
+  const { data: existing, error: lookupError } = await sb.from('waouh_negotiations').select('id')
+    .eq('thread_id', journey.thread_id).in('state', ['proposed', 'countered']).limit(1).maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) {
+    const saved = await sb.from('waouh_opportunity_journeys').update({ negotiation_id: existing.id }).eq('id', journey.id);
+    if (saved.error) throw saved.error;
+    return;
+  }
+  const { data: article, error: articleError } = await sb.from('waouh_articles').select('price').eq('id', journey.article_id).maybeSingle();
+  if (articleError || !article) throw articleError ?? new Error('initial_article_missing');
+  const plan = planAvatarNegotiationStart(mandate, journey, article.price, !!approval);
+  if (plan.kind === 'wait') return;
+  if (plan.kind === 'approval') {
+    const proposed = planAvatarNegotiationStart(mandate, journey, article.price, true);
+    if (proposed.kind === 'wait' || proposed.kind === 'approval') return;
+    await requestAvatarApproval(sb, mandate, journey, 'negotiate_offer', `initial:${journey.id}:${proposed.kind}:${proposed.kind === 'offer' ? proposed.amount : 'quote'}`,
+      proposed.kind === 'offer' ? `Autoriser Bot à proposer ${proposed.amount} FCFA ?` : 'Autoriser Bot à demander le prix et les conditions dans cet échange ?',
+      { initial_negotiation: true, initial_kind: proposed.kind, initial_amount: proposed.kind === 'offer' ? proposed.amount : null });
+    return;
+  }
+  if (approval && (approval.context.initial_kind !== plan.kind ||
+      (plan.kind === 'offer' && approval.context.initial_amount !== plan.amount))) throw new Error('offer_changed_reapproval_required');
+  const { data: actor, error: actorError } = await sb.from('waouh_users').select('id').eq('auth_user_id', mandate.owner_id).order('created_at').limit(1).maybeSingle();
+  if (actorError || !actor) throw actorError ?? new Error('avatar_owner_identity_missing');
+  const result = await dispatchAvatarNegotiationStart(journey, plan, async (body) => {
+    const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/waouh-commerce-action`, {
+      method: 'POST', headers: { Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, actor_user_id: actor.id }), signal: AbortSignal.timeout(15000),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(`initial_negotiation_dispatch_failed:${response.status}`);
+    return data;
+  });
+  const saved = await sb.from('waouh_opportunity_journeys').update({
+    negotiation_id: result.negotiation_id ?? null,
+    metadata: { ...journey.metadata, initial_negotiation_sent: true },
+    last_action: plan.kind === 'offer' ? 'initial_offer_sent' : 'initial_quote_requested',
+    next_action: 'Attendre la réponse du contact', next_best_action: 'WAIT_REPLY',
+    last_message: plan.kind === 'offer' ? `Bot a proposé ${plan.amount} FCFA dans votre budget. Réponse attendue.` : 'Bot a demandé le prix et les conditions. Réponse attendue.',
+    last_activity_at: new Date().toISOString(),
+  }).eq('id', journey.id);
+  if (saved.error) throw saved.error;
+}
 
 export async function avatarNotice(sb: any, ownerId: string, key: string, text: string, context: any = {}) {
   if(context.mandate_id){
@@ -108,7 +156,11 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20, approvalId?:
       } else if (c.operation === 'avatar.lifecycle') {
         const { data: mandate } = await sb.from('waouh_avatar_mandates').select('*').eq('id', c.mandate_id).eq('owner_id', approval.owner_id).maybeSingle();
         if (!mandate || mandate.status !== 'active' || Date.parse(mandate.expires_at) <= Date.now()) throw new Error('approval_mandate_inactive');
-        if (approval.action_type === 'send_message') {
+        if (c.initial_negotiation && approval.action_type === 'negotiate_offer') {
+          if (!autonomyWindowOpen(mandate) || await avatarAccountPaused(sb, mandate.owner_id)) continue;
+          await startInitialNegotiation(sb, mandate, journey, approval);
+          outcome = 'initial_negotiation_started';
+        } else if (approval.action_type === 'send_message') {
           await sb.from('waouh_opportunity_journeys').update({ stage: 'contact_ready', next_best_action: 'CONTACT_NOW',
             metadata: { ...journey.metadata, contact_approved: true, contact_approval_id: approval.id }, last_action: 'contact_approved',
           }).eq('id', journey.id);
@@ -242,11 +294,7 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20, journeyId?: st
         }
       }
       if (j.stage === 'negotiating' && j.thread_id && !j.negotiation_id) {
-        await sb.from('waouh_opportunity_journeys').update({ last_action: 'terms_required',
-          next_action: 'Proposer un prix ou demander un devis dans la Deal Room', next_best_action: 'REQUEST_APPROVAL',
-          last_message: 'Contact établi. Une première offre ou un devis est nécessaire avant de négocier.',
-        }).eq('id', j.id);
-        await avatarNotice(sb, m.owner_id, `avatar-terms:${j.id}`, 'Votre contact est prêt : proposez un prix ou précisez le devis dans la Deal Room.', j);
+        await startInitialNegotiation(sb, m, j);
       }
       if (j.deal_id) {
         const { data: deal } = await sb.from('waouh_deals').select('*').eq('id', j.deal_id).maybeSingle();

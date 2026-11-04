@@ -48,7 +48,8 @@ export type OpenBuyerDealCode =
   | "self"
   | "article_unavailable"
   | "thread_failed"
-  | "invalid_offer";
+  | "invalid_offer"
+  | "unified_room_required";
 
 export interface OpenBuyerDealResult {
   ok: boolean;
@@ -202,6 +203,14 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   }
   if (!thread?.id) return emptyResult("thread_failed", article);
   const threadId: string = thread.id;
+  // A mapped room owns all future offers; never open a parallel legacy agreement.
+  const { data: unifiedRoom, error: unifiedError } = await sb.from("waouh_deal_room_links")
+    .select("id").eq("thread_id", threadId).eq("active", true).is("blocked_reason", null).maybeSingle();
+  if (unifiedRoom) return emptyResult("unified_room_required", article);
+  if (unifiedError && !["42P01", "PGRST205"].includes(unifiedError.code)) {
+    console.warn("[waouh-deal-open] unified room lookup failed", unifiedError.code);
+    return emptyResult("thread_failed", article);
+  }
 
   // Intérêt (dédupliqué sur article × acheteur × thread).
   // Index d'unicité PARTIEL en base : un upsert avec onConflict échoue (42P10). Insert simple, doublon (23505) ignoré.

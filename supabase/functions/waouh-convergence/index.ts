@@ -13,6 +13,16 @@ Deno.serve(async req => {
     const raw = await req.text(); if (raw.length > 40000) return jsonResponse({ ok: false, error: 'Demande trop volumineuse.' }, 413);
     const { action, payload } = validateConvergenceRequest(JSON.parse(raw));
     const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+    // All writes to an adopted component must use its single room writer.
+    if (payload.component_id && action !== 'business.get' && action !== 'get') {
+      const linked = await sb.from('waouh_deal_room_links').select('id,blocked_reason').eq('id',payload.component_id).maybeSingle();
+      if(linked.error && !['42P01','PGRST205'].includes(linked.error.code))throw linked.error;
+      if(linked.data && !linked.data.blocked_reason){
+        const access=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:payload.component_id});
+        if(access.error)return jsonResponse({ok:false,error:'Échange privé.'},403);
+        return jsonResponse({ok:false,error:'Continuez dans la Deal Room commune.',code:'unified_room_required',deal_room_id:payload.component_id},409);
+      }
+    }
     const command = async (name: string, p: Record<string, unknown>) => {
       const { data, error } = await sb.rpc('waouh_convergence_command', { p_actor: user.id, p_action: name, p });
       if (error) throw error; return data;

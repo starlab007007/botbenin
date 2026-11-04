@@ -1,0 +1,2155 @@
+[
+  {
+    "name": "invitation",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": false,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "contact",
+      "action": "invite",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 2,
+      "actor": "you",
+      "phase": "contact",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "current"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "upcoming"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Inviter votre interlocuteur",
+      "total": 6,
+      "action": "invite",
+      "detail": "Il doit rejoindre la Deal Room avant de pouvoir y répondre.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Contact",
+      "action_label": "Préparer et copier l’invitation",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "manual_offer",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": "propose",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Proposer vos conditions",
+      "total": 6,
+      "action": "propose",
+      "detail": "Précisez le prix total, la remise et le paiement convenu.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Négociation",
+      "action_label": "Proposer un prix / des conditions",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "service_quote",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "service",
+      "price": null,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": "message",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Préciser la demande",
+      "total": 6,
+      "action": "message",
+      "detail": "Échangez sur le prix total et les conditions avant l’accord.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Négociation",
+      "action_label": "Écrire dans l’échange",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "bot_prepares",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "bot",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": null,
+      "actor": "bot",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "bot",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Bot prend le relais",
+      "total": 6,
+      "action": null,
+      "detail": "Son intervention suit vos limites et les horaires du mandat. Vous confirmerez l’accord final.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "Bot",
+      "phase_label": "Négociation",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "bot_waits_reply",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "bot",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": [
+        {
+          "author_kind": "bot"
+        }
+      ]
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": null,
+      "actor": "counterparty",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "counterparty",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Réponse attendue",
+      "total": 6,
+      "action": null,
+      "detail": "Bot a écrit dans l’échange. La réponse de l’interlocuteur est attendue.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "Réponse attendue",
+      "phase_label": "Négociation",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "assisted_approval",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "bot",
+      "allowed_actions": [
+        "approve_step"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": "approve_step",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Autoriser l’étape de Bot",
+      "total": 6,
+      "action": "approve_step",
+      "detail": "La prochaine proposition ou relance reste dans les limites de votre mandat.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Négociation",
+      "action_label": "Autoriser l’étape",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "paused",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "paused",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": "resume_bot",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Bot est en pause",
+      "total": 6,
+      "action": "resume_bot",
+      "detail": "L’historique et le mandat sont conservés.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Négociation",
+      "action_label": "Reprendre avec le mandat conservé",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "expired",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "bot",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": [],
+      "expires_at": "2026-11-04T07:00:00Z"
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": "takeover",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "current"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Reprendre la décision",
+      "total": 6,
+      "action": "takeover",
+      "detail": "Le mandat est arrivé à échéance. Aucun nouvel envoi automatique n’est autorisé.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Négociation",
+      "action_label": "Reprendre la main",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "review",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "proposed",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": null,
+        "provider_accepted_at": null
+      },
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "agreement",
+      "action": "review",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 4,
+      "actor": "you",
+      "phase": "agreement",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "current"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Relire les conditions",
+      "total": 6,
+      "action": "review",
+      "detail": "Vérifiez la version 2 avant de donner votre accord.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Accord",
+      "action_label": "Relire les conditions",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "signature_pending",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "message",
+        "propose",
+        "accept",
+        "reject",
+        "delegate",
+        "takeover",
+        "pause",
+        "resume_bot",
+        "invite"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "proposed",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "ok",
+        "provider_accepted_at": null
+      },
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "agreement",
+      "action": null,
+      "actor": "counterparty",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 4,
+      "actor": "counterparty",
+      "phase": "agreement",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "current"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Accord de l’autre partie attendu",
+      "total": 6,
+      "action": null,
+      "detail": "Votre accord est enregistré pour cette version.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "Réponse attendue",
+      "phase_label": "Accord",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "receipt",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "receipt",
+        "payment_report",
+        "issue"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": "receipt",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "you",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "current"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Confirmer la réception",
+      "total": 6,
+      "action": "receipt",
+      "detail": "Validez uniquement après la remise du produit ou la réalisation de la prestation.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Réception",
+      "action_label": "Confirmer la réception",
+      "alternatives": [
+        {
+          "label": "J’ai effectué le paiement",
+          "action": "payment_report"
+        }
+      ],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "payment_report",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "payment_report"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {
+        "receipt_at": "ok"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": "payment_report",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "you",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "current"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Déclarer le paiement effectué",
+      "total": 6,
+      "action": "payment_report",
+      "detail": "Cette déclaration ne déclenche aucun transfert d’argent.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Réception",
+      "action_label": "J’ai effectué le paiement",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "seller_payment",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": false,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "payment_receive"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {
+        "receipt_at": "ok",
+        "payment_reported_at": "ok"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": "payment_receive",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "you",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "current"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Confirmer le paiement reçu",
+      "total": 6,
+      "action": "payment_receive",
+      "detail": "Vérifiez la réception effective avant de confirmer.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Réception",
+      "action_label": "J’ai reçu le paiement",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "wait_payment",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {
+        "receipt_at": "ok",
+        "payment_reported_at": "ok"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": null,
+      "actor": "counterparty",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "counterparty",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "current"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Confirmation du paiement attendue",
+      "total": 6,
+      "action": null,
+      "detail": "Votre interlocuteur doit confirmer le paiement reçu.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "Réponse attendue",
+      "phase_label": "Réception",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "closure",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "complete"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {
+        "receipt_at": "2026-11-04T09:00:00Z",
+        "payment_reported_at": "2026-11-04T09:01:00Z",
+        "payment_received_at": "2026-11-04T09:02:00Z"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "closure",
+      "action": "complete",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 6,
+      "actor": "you",
+      "phase": "closure",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "complete"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "current"
+        }
+      ],
+      "title": "Confirmer la clôture",
+      "total": 6,
+      "action": "complete",
+      "detail": "Réception et paiement sont confirmés. Chaque partie clôture séparément.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": true
+        },
+        {
+          "label": "Votre clôture",
+          "confirmed": false
+        },
+        {
+          "label": "Clôture de l’autre partie",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Clôture",
+      "action_label": "Confirmer la clôture",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "wait_closure",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z",
+        "owner_completed_at": "ok"
+      },
+      "evidence": {
+        "receipt_at": "2026-11-04T09:00:00Z",
+        "payment_reported_at": "2026-11-04T09:01:00Z",
+        "payment_received_at": "2026-11-04T09:02:00Z"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "closure",
+      "action": null,
+      "actor": "counterparty",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 6,
+      "actor": "counterparty",
+      "phase": "closure",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "complete"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "current"
+        }
+      ],
+      "title": "Dernière confirmation attendue",
+      "total": 6,
+      "action": null,
+      "detail": "Votre clôture est enregistrée. L’autre partie doit encore confirmer.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": true
+        },
+        {
+          "label": "Votre clôture",
+          "confirmed": true
+        },
+        {
+          "label": "Clôture de l’autre partie",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "Réponse attendue",
+      "phase_label": "Clôture",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "completed",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "rating"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "completed",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z",
+        "owner_completed_at": "ok",
+        "provider_completed_at": "ok"
+      },
+      "evidence": {
+        "receipt_at": "2026-11-04T09:00:00Z",
+        "payment_reported_at": "2026-11-04T09:01:00Z",
+        "payment_received_at": "2026-11-04T09:02:00Z"
+      },
+      "messages": [],
+      "closed": true
+    },
+    "expected": {
+      "phase": "closure",
+      "action": "rating",
+      "actor": "you",
+      "status": "completed"
+    },
+    "guidance": {
+      "step": 6,
+      "actor": "you",
+      "phase": "closure",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "complete"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "complete"
+        }
+      ],
+      "title": "Deal clôturé",
+      "total": 6,
+      "action": "rating",
+      "detail": "Votre avis est facultatif.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "completed",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": true
+        },
+        {
+          "label": "Votre clôture",
+          "confirmed": true
+        },
+        {
+          "label": "Clôture de l’autre partie",
+          "confirmed": true
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Clôture",
+      "action_label": "Évaluer l’échange",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "completed_rated",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "rating"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "completed",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z",
+        "owner_completed_at": "ok",
+        "provider_completed_at": "ok"
+      },
+      "evidence": {
+        "receipt_at": "2026-11-04T09:00:00Z",
+        "payment_reported_at": "2026-11-04T09:01:00Z",
+        "payment_received_at": "2026-11-04T09:02:00Z",
+        "owner_rating": 5
+      },
+      "messages": [],
+      "closed": true
+    },
+    "expected": {
+      "phase": "closure",
+      "action": null,
+      "actor": "done",
+      "status": "completed"
+    },
+    "guidance": {
+      "step": 6,
+      "actor": "done",
+      "phase": "closure",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "complete"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "complete"
+        }
+      ],
+      "title": "Deal clôturé",
+      "total": 6,
+      "action": null,
+      "detail": "Les deux parties ont confirmé la fin de l’échange.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "completed",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": true
+        },
+        {
+          "label": "Votre clôture",
+          "confirmed": true
+        },
+        {
+          "label": "Clôture de l’autre partie",
+          "confirmed": true
+        }
+      ],
+      "actor_label": "Terminé",
+      "phase_label": "Clôture",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "issue",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "issue"
+      ],
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "2026-11-04T08:00:00Z",
+        "provider_accepted_at": "2026-11-04T08:01:00Z"
+      },
+      "evidence": {
+        "issue": "Produit à vérifier"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": "issue",
+      "actor": "both",
+      "status": "blocked"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "both",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "blocked"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Problème à résoudre",
+      "total": 6,
+      "action": "issue",
+      "detail": "Un signalement est enregistré. La clôture est suspendue.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "blocked",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À résoudre ensemble",
+      "phase_label": "Réception",
+      "action_label": "Voir le signalement",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "reconciliation",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [],
+      "agreement": null,
+      "evidence": {},
+      "messages": [],
+      "blocked_reason": "legacy",
+      "closed": true
+    },
+    "expected": {
+      "phase": "negotiation",
+      "action": null,
+      "actor": "system",
+      "status": "blocked"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "system",
+      "phase": "negotiation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "blocked"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "upcoming"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Dossier à vérifier",
+      "total": 6,
+      "action": null,
+      "detail": "Un échange historique doit être relié avant de continuer.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "blocked",
+      "checklist": [],
+      "actor_label": "Vérification",
+      "phase_label": "Négociation",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "false_completion",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "product",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [],
+      "agreement": {
+        "version": 2,
+        "status": "completed",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": null,
+        "provider_accepted_at": null
+      },
+      "evidence": {},
+      "messages": [],
+      "closed": true
+    },
+    "expected": {
+      "phase": "agreement",
+      "action": null,
+      "actor": "system",
+      "status": "stopped"
+    },
+    "guidance": {
+      "step": 4,
+      "actor": "system",
+      "phase": "agreement",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "blocked"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "upcoming"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Dossier fermé",
+      "total": 6,
+      "action": null,
+      "detail": "Ce dossier n’accepte plus d’action. Son historique reste disponible.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "stopped",
+      "checklist": [],
+      "actor_label": "Vérification",
+      "phase_label": "Accord",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 2
+    }
+  },
+  {
+    "name": "opportunity_prepare",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "announcement",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "application_prepare"
+      ],
+      "agreement": null,
+      "evidence": {},
+      "messages": []
+    },
+    "expected": {
+      "phase": "preparation",
+      "action": "application_prepare",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 2,
+      "actor": "you",
+      "phase": "preparation",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Offre choisie",
+          "state": "complete"
+        },
+        {
+          "id": "preparation",
+          "label": "Dossier",
+          "state": "current"
+        },
+        {
+          "id": "submission",
+          "label": "Transmission",
+          "state": "upcoming"
+        },
+        {
+          "id": "followup",
+          "label": "Suivi",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Préparer votre dossier",
+      "total": 4,
+      "action": "application_prepare",
+      "detail": "Rassemblez les éléments demandés pour cette opportunité.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Dossier",
+      "action_label": "Préparer ma démarche",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "opportunity_submit",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "announcement",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [
+        "application_submit"
+      ],
+      "agreement": null,
+      "evidence": {
+        "application_prepared_at": "ok"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "submission",
+      "action": "application_submit",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 3,
+      "actor": "you",
+      "phase": "submission",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Offre choisie",
+          "state": "complete"
+        },
+        {
+          "id": "preparation",
+          "label": "Dossier",
+          "state": "complete"
+        },
+        {
+          "id": "submission",
+          "label": "Transmission",
+          "state": "current"
+        },
+        {
+          "id": "followup",
+          "label": "Suivi",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Confirmer la transmission",
+      "total": 4,
+      "action": "application_submit",
+      "detail": "Confirmez uniquement un dossier réellement transmis.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "À vous",
+      "phase_label": "Transmission",
+      "action_label": "Je confirme avoir transmis mon dossier",
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "opportunity_followup",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": true,
+      "kind": "announcement",
+      "price": 150000,
+      "provider_joined": true,
+      "control_mode": "manual",
+      "allowed_actions": [],
+      "agreement": null,
+      "evidence": {
+        "application_prepared_at": "ok",
+        "application_submitted_at": "ok"
+      },
+      "messages": []
+    },
+    "expected": {
+      "phase": "followup",
+      "action": null,
+      "actor": "counterparty",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 4,
+      "actor": "counterparty",
+      "phase": "followup",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Offre choisie",
+          "state": "complete"
+        },
+        {
+          "id": "preparation",
+          "label": "Dossier",
+          "state": "complete"
+        },
+        {
+          "id": "submission",
+          "label": "Transmission",
+          "state": "complete"
+        },
+        {
+          "id": "followup",
+          "label": "Suivi",
+          "state": "current"
+        }
+      ],
+      "title": "Réponse attendue",
+      "total": 4,
+      "action": null,
+      "detail": "La transmission est déclarée. Aucun résultat n’est encore confirmé.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [],
+      "actor_label": "Réponse attendue",
+      "phase_label": "Suivi",
+      "action_label": null,
+      "alternatives": [],
+      "offer_version": 0
+    }
+  },
+  {
+    "name": "advance_payment",
+    "room": {
+      "deal_room_id": "room",
+      "is_owner": false,
+      "kind": "product",
+      "provider_joined": true,
+      "control_mode": "manual",
+      "agreement": {
+        "version": 2,
+        "status": "accepted",
+        "terms": {
+          "amount": 145000
+        },
+        "owner_accepted_at": "ok",
+        "provider_accepted_at": "ok"
+      },
+      "evidence": {
+        "payment_reported_at": "ok"
+      },
+      "allowed_actions": [
+        "payment_receive"
+      ],
+      "messages": []
+    },
+    "expected": {
+      "phase": "fulfilment",
+      "action": "payment_receive",
+      "actor": "you",
+      "status": "active"
+    },
+    "guidance": {
+      "step": 5,
+      "actor": "you",
+      "phase": "fulfilment",
+      "steps": [
+        {
+          "id": "search",
+          "label": "Recherche",
+          "state": "complete"
+        },
+        {
+          "id": "contact",
+          "label": "Contact",
+          "state": "complete"
+        },
+        {
+          "id": "negotiation",
+          "label": "Négociation",
+          "state": "complete"
+        },
+        {
+          "id": "agreement",
+          "label": "Accord",
+          "state": "complete"
+        },
+        {
+          "id": "fulfilment",
+          "label": "Réception",
+          "state": "current"
+        },
+        {
+          "id": "closure",
+          "label": "Clôture",
+          "state": "upcoming"
+        }
+      ],
+      "title": "Confirmer le paiement reçu",
+      "total": 6,
+      "action": "payment_receive",
+      "detail": "Le paiement est déclaré. Vérifiez sa réception effective.",
+      "schema": "waouh.room_guidance.v1",
+      "status": "active",
+      "checklist": [
+        {
+          "label": "Réception confirmée",
+          "confirmed": false
+        },
+        {
+          "label": "Paiement déclaré",
+          "confirmed": true
+        },
+        {
+          "label": "Paiement reçu",
+          "confirmed": false
+        }
+      ],
+      "actor_label": "À vous",
+      "phase_label": "Réception",
+      "action_label": "J’ai reçu le paiement",
+      "alternatives": [],
+      "offer_version": 2
+    }
+  }
+]

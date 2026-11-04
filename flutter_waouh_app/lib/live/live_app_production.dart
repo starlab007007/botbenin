@@ -26,6 +26,7 @@ import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_premium_journey_screen.dart';
 import 'live_nexus_screen.dart';
+import 'live_deal_room.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_onboarding.dart';
 import 'live_partner_home.dart';
@@ -255,6 +256,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         ),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/premium', builder: (_, state) => LivePremiumJourneyScreen(missionId:state.uri.queryParameters['mission_id'],componentId:state.uri.queryParameters['component_id'])),
+        GoRoute(path: '/app/deal-room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
         GoRoute(
           path: '/app/missions',
           builder: (_, state) => LiveMissionsScreen(
@@ -266,6 +268,10 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         ),
         GoRoute(
           path: '/app/nexus',
+          builder: (_, state) => ['sell','find_buyers'].contains(state.uri.queryParameters['mode'])||state.uri.queryParameters['kind']=='sale'?LiveNexusScreen(initialQuery:state.uri.queryParameters['q'],initialCity:state.uri.queryParameters['city'],initialMode:state.uri.queryParameters['mode'],initialKind:'sale',initialArticleId:state.uri.queryParameters['article_id']):LiveDealRoomScreen(query:state.uri.queryParameters['q'],city:state.uri.queryParameters['city']),
+        ),
+        GoRoute(
+          path: '/app/nexus-legacy',
           builder: (_, state) => LiveNexusScreen(
             initialQuery: state.uri.queryParameters['q'],
             initialCity: state.uri.queryParameters['city'],

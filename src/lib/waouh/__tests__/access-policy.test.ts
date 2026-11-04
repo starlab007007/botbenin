@@ -17,6 +17,7 @@ describe("WAOUH access policy", () => {
     ["/app/chat/123", true],
     ["/app/avatar/buy", true],
     ["/app/missions", true],
+    ["/app/deal-room", true],
     ["/app/diffusion", true],
     ["/app/profile", true],
     ["/app/notifications", true],

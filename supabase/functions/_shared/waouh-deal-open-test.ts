@@ -204,3 +204,18 @@ Deno.test("expired articles never create a thread, even when reserved-article re
   assertEquals(result.threadId,null);
  }
 });
+
+Deno.test('a unified room prevents a parallel legacy negotiation', async () => {
+  stubFetch();
+  try {
+    const sb=seed();
+    const args={sb,articleId:ART,buyerUserId:BUYER,source:'test',offer:2300,supabaseUrl:'http://x',serviceRole:'k',notifySeller:'never' as const};
+    const first=await openBuyerDeal(args);
+    assertEquals(first.ok,true);
+    sb.tables.waouh_deal_room_links=[{id:crypto.randomUUID(),thread_id:first.threadId,active:true,blocked_reason:null}];
+    const count=sb.tables.waouh_negotiations.length;
+    const second=await openBuyerDeal(args);
+    assertEquals(second.code,'unified_room_required');
+    assertEquals(sb.tables.waouh_negotiations.length,count);
+  } finally {globalThis.fetch=originalFetch;}
+});

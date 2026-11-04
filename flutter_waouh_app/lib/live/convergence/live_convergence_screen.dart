@@ -1,3 +1,4 @@
+import '../live_deal_room.dart';
 import '../live_product_presentation.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -17,7 +18,7 @@ class LiveConvergenceScreen extends StatefulWidget {
   final String? missionId,componentId;
   @override State<LiveConvergenceScreen> createState() => _LiveConvergenceScreenState();
 }
-class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
+class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with WidgetsBindingObserver {
   final client = Supabase.instance.client;
   Map<String, dynamic>? bundle, metrics;
   List<Map<String, dynamic>> missions = [], pools = [];
@@ -27,6 +28,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   Map<String, String> draft = {}, groupDraft = {};
   String requestKey = DateTime.now().microsecondsSinceEpoch.toString();
   StreamSubscription<AuthState>? authSubscription;
+  Timer? refreshTimer;
   String? loadedAccount;
   static const kinds = {'product': 'Produit', 'service': 'Service', 'announcement': 'Annonce'};
   static const statuses = {'draft': 'Besoin à préciser', 'comparing': 'Solutions à comparer', 'agreed': 'Accord en cours', 'active': 'Réalisation en cours', 'completed': 'Résultat confirmé', 'cancelled': 'Clôturé'};
@@ -35,9 +37,31 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   bool get closed => ['cancelled', 'completed'].contains(mission['status']);
   @override void initState() {
     super.initState(); focusedComponent=widget.componentId; _loadAccount();
+    WidgetsBinding.instance.addObserver(this);
+    refreshTimer=Timer.periodic(const Duration(seconds:10),(_){
+      final state=WidgetsBinding.instance.lifecycleState;
+      if(state==null||state==AppLifecycleState.resumed)unawaited(_refreshCurrentMission());
+    });
     authSubscription = client.auth.onAuthStateChange.listen((_) { if (client.auth.currentUser?.id != loadedAccount) _loadAccount(); });
   }
-  @override void dispose() { authSubscription?.cancel(); super.dispose(); }
+  @override void dispose() { refreshTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); authSubscription?.cancel(); super.dispose(); }
+  @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    if(state==AppLifecycleState.resumed)unawaited(_refreshCurrentMission());
+  }
+  bool refreshing=false;
+  int mutationRevision=0;
+  Future<void> _refreshCurrentMission() async {
+    final uid=client.auth.currentUser?.id,mid=mission['id'],version=mutationRevision;
+    if(busy||refreshing||uid==null||mid==null)return;
+    refreshing=true;
+    try {
+      final data=convergenceMap(await api('business.get',{'mission_id':mid}));
+      if(mounted&&!busy&&version==mutationRevision&&client.auth.currentUser?.id==uid&&mission['id']==mid) {
+        setState(()=>bundle=data);
+      }
+    } catch (_) { /* Preserve the last confirmed state; explicit actions still report failures. */ }
+    finally {refreshing=false;}
+  }
   Future<dynamic> api(String action, [Map<String, dynamic> payload = const {}]) async {
     final response = await client.functions.invoke('waouh-convergence', body: {'action': action, 'payload': payload});
     final data = convergenceMap(response.data);
@@ -45,10 +69,16 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     return data['data'];
   }
   Future<void> _loadAccount() async {
+    mutationRevision++;
     final uid = client.auth.currentUser?.id; loadedAccount = uid;
     requestKey = DateTime.now().microsecondsSinceEpoch.toString();
     if (mounted) setState(() { bundle = null; missions = []; pools = []; metrics = null; invitation = ''; token = ''; consent = false; busy = false; error = ''; draft = {}; });
     if (uid == null) return;
+    if(widget.componentId!=null){
+      try{final room=await LiveDealRoomService(client).call('get',{'deal_room_id':widget.componentId});
+        if(mounted&&client.auth.currentUser?.id==uid&&room['blocked_reason']==null){await Navigator.of(context).pushReplacement<void,void>(MaterialPageRoute(builder:(_)=>LiveDealRoomScreen(roomId:widget.componentId)));return;}
+      }catch(_){/* Existing components remain on their original route until adopted. */}
+    }
     final prefs = await SharedPreferences.getInstance();
     Map<String, String> next = {'goal': '${widget.source?['title'] ?? ''}', 'city': '${widget.source?['city'] ?? ''}', 'kind': liveConvergenceKind(widget.source ?? {}), 'budget_max': '', 'deadline': '', 'landmark': '', 'criteria': ''};
     try { final saved = jsonDecode(prefs.getString('waouh.convergence.draft.$uid') ?? '{}'); if (saved is Map && saved['goal'] != null) next = saved.map((k,v) => MapEntry(k.toString(),v.toString())); } catch (_) { /* keep source seed */ }
@@ -58,6 +88,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   }
   Future<dynamic> run(String action, [Map<String, dynamic> payload = const {}]) async {
     if (!mounted || busy) return null;
+    mutationRevision++;
     final uid = client.auth.currentUser?.id;
     setState(() { busy = true; error = ''; });
     try {
@@ -119,11 +150,12 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   }
   Future<void> proposeAgreement(Map<String,dynamic> c) async {
     final a = convergenceMap(c['agreement']), old = convergenceMap(a['terms']);
-    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result']},numeric:{'amount'});
+    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result'],'payment':old['payment']},numeric:{'amount'});
     if (terms != null) await run('agreement_propose',{'component_id':c['id'],'terms':{...terms,'workflow_version':2,'amount':convergenceAmount(terms['amount'])}});
   }
   Future<void> interested(Map<String,dynamic> c) async {
     if(busy||closed)return;
+    mutationRevision++;
     final uid=client.auth.currentUser?.id, mid=mission['id'], cid=c['id'];
     setState((){busy=true;error='';});
     try{
@@ -140,6 +172,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   Widget component(Map<String,dynamic> c) {
     final a = convergenceMap(c['agreement']), terms = convergenceMap(a['terms']), selected = mission['selected_plan_id'] == c['plan_id'];
     return panel('${c['title']}',[
+      button('Ouvrir la Deal Room commune',()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>LiveDealRoomScreen(componentId:'${c['id']}')))),
       if(c['source_snapshot'] is Map && c['source_snapshot']['product'] is Map)LiveProductPresentation(value:c['source_snapshot']['product']),
       if(own&&!closed)button('Intéressé',()=>interested(c),primary:true),
       businessPanel(c),

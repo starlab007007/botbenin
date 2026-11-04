@@ -18,6 +18,7 @@ export const WAOUH_AUTH_REQUIRED_PREFIXES = [
   "/app/chat/",
   "/app/avatar/",
   "/app/missions",
+  "/app/deal-room",
   "/app/ia",
   "/app/bots",
   "/app/agents",

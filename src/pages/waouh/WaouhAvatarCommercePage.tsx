@@ -379,6 +379,8 @@ export default function WaouhAvatarCommercePage() {
   };
 
   const continueWith = async (item: NexusDiscoveryResult, initialOffer?: number) => {
+    if(mode!=='vendre'){navigate('/app/deal-room?'+new URLSearchParams({fabric_id:item.fabric_id,...(initialOffer?{offer:String(initialOffer)}:{})}));return;}
+
     setWorkingId(item.fabric_id);
     try {
       const evidence = (item.evidence || {}) as Record<string, unknown>;
@@ -766,7 +768,7 @@ export default function WaouhAvatarCommercePage() {
         })()}
 
         {results.length > 0 && !busy && (
-          <WaouhBotNextStep
+          mode!=='vendre'?<Button className="we-primary w-full" onClick={()=>navigate('/app/nexus?'+new URLSearchParams({q:goal,city,budget}))}>Choisir une offre à confier à Bot</Button>:<WaouhBotNextStep
             mode={mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy"}
             goal={goal}
             city={city}

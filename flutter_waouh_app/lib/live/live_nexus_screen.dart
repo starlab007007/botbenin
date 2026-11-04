@@ -1,3 +1,4 @@
+import 'live_deal_room.dart';
 import 'live_smart_sale.dart';
 import 'live_smart_sale_data.dart';
 import 'live_product_presentation.dart';
@@ -808,6 +809,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> prepareContact(NexusDiscoveryItem item) async {
+    if(_activeKind!='sale'){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}');}catch(e){if(mounted)notice(errorText(e));}return;}
+
     if (!await requireLiveAuthentication(
       context,
       next: '/app/nexus',
@@ -1141,6 +1144,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     ],
   );
   Future<void> _delegateOne(NexusDiscoveryItem item) async {
+    if(_activeKind!='sale'&&_activeKind!='opportunity'){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':false});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}&delegate=1');}catch(e){if(mounted)notice(errorText(e));}return;}
+
     if (!await requireLiveAuthentication(
       context,
       next: '/app/nexus',

@@ -6,3 +6,5 @@ describe('Shared module access contract',()=>{
  it('fails closed on unavailable or malformed policy',async()=>{for(const response of [{error:Error(),data:null},{data:null},{data:[]}])expect(await modulePolicyAllowed({rpc:async()=>response},['avatar'],'owner')).toBe(false);});
  it('requires every module needed by an autonomous mission',()=>{const keys=modulesForAction('nexus.mandate.create');expect(keys).toEqual(['nexus','missions','avatar']);expect(policyAllows(keys.map(module_key=>({module_key,visible:true,access_enabled:true,automation_enabled:module_key!=='avatar'})),keys,true)).toBe(false);});
 });
+
+it('maps the common Deal Room and legacy search to Nexus access controls',()=>{expect(moduleForPath('/app/deal-room?room_id=private')).toBe('nexus');expect(moduleForPath('/app/nexus-legacy')).toBe('nexus');});
