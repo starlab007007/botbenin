@@ -36,5 +36,28 @@ await assert.rejects(cmd(owner,'message',{...payload,text:'Autre contenu'}),/sco
 const version=r.agreement.version;await cmd(owner,'accept',{deal_room_id:id,version});r=await cmd(seller,'accept',{deal_room_id:id,version});assert.equal(r.agreement.status,'accepted');assert.equal(r.control_mode,'manual');
 assert.equal(r.mandate,null,'Seller cannot see buyer ceiling');
 await assert.rejects(cmd(owner,'delegate',{deal_room_id:id,mandate_revision:r.mandate_revision,confirmed:true,rules}),/already_confirmed/);
+
+// Assisted steps are one-shot approvals scoped to both the mandate and current offer.
+const article2='00000000-0000-4000-8000-000000000005';
+await db.query("insert into public.waouh_articles values($1,$2,'active')",[article2,seller]);
+let assisted=await cmd(owner,'open',{source:{...source,source_ref:'article:'+article2},city:'Cotonou',confirmed:true});const aid=assisted.deal_room_id;
+assisted=await cmd(owner,'delegate',{deal_room_id:aid,mandate_revision:0,confirmed:true,rules:{...rules,mode:'assisted',one_step_approved:true}});
+await db.query('select public.waouh_room_tick(20)');assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,0);
+await cmd(owner,'approve_step',{deal_room_id:aid,mandate_revision:assisted.mandate_revision,version:0});await db.query('select public.waouh_room_tick(20)');
+assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
+await db.query("update public.waouh_deal_room_links set next_run_at=now() where id=$1",[aid]);await db.query('select public.waouh_room_tick(20)');
+assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
+// History remains pageable after more than a hundred messages.
+for(let i=0;i<105;i++)await db.query("insert into public.waouh_business_messages(component_id,actor_id,request_id,text,created_at) values($1,$2,$3,$4,now()+($5::int*interval '1 second'))",[aid,owner,crypto.randomUUID(),'History '+i,i]);
+const latest=await cmd(owner,'get',{deal_room_id:aid});assert.equal(latest.messages.length,100);assert.ok(latest.message_cursor);
+const older=await cmd(owner,'get',{deal_room_id:aid,before_message:latest.message_cursor});assert.ok(older.messages.length>0);assert.equal(new Set([...older.messages,...latest.messages].map(x=>x.id)).size,107);
+// An expired mandate cannot resume or send.
+await db.query("update public.waouh_deal_room_links set expires_at=now()-interval '1 minute',next_run_at=now() where id=$1",[aid]);await db.query('select public.waouh_room_tick(20)');
+assisted=await cmd(owner,'get',{deal_room_id:aid});assert.equal(assisted.control_mode,'paused');await assert.rejects(cmd(owner,'resume_bot',{deal_room_id:aid,mandate_revision:assisted.mandate_revision,confirmed:true}),/expired/);
+// An external invitation joins the same room, without claiming delivery.
+let external=await cmd(owner,'open',{source:{...source,source_ref:'external:private'},city:'Cotonou',confirmed:true});assert.equal(external.provider_joined,false);
+const invited=await cmd(owner,'invite',{deal_room_id:external.deal_room_id});assert.ok(invited.token);
+await db.query("select public.waouh_convergence_command($1,'redeem_invite',$2)",[seller,{token:invited.token}]);
+const adopted=await cmd(seller,'adopt',{component_id:external.deal_room_id});assert.equal(adopted.deal_room_id,external.deal_room_id);assert.equal(adopted.provider_joined,true);
 for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(cmd(owner,'get',{deal_room_id:id}),/permission denied/);await db.exec('reset role');}
 await db.close();console.log('Unified Deal Room: same room, authorization, mandate bounds, no double send, takeover, stale versions, privacy and bilateral agreement passed.');

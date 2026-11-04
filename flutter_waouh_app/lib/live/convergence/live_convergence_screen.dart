@@ -1,3 +1,4 @@
+import '../live_deal_room.dart';
 import '../live_product_presentation.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -166,6 +167,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
   Widget component(Map<String,dynamic> c) {
     final a = convergenceMap(c['agreement']), terms = convergenceMap(a['terms']), selected = mission['selected_plan_id'] == c['plan_id'];
     return panel('${c['title']}',[
+      button('Ouvrir la Deal Room commune',()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>LiveDealRoomScreen(componentId:'${c['id']}')))),
       if(c['source_snapshot'] is Map && c['source_snapshot']['product'] is Map)LiveProductPresentation(value:c['source_snapshot']['product']),
       if(own&&!closed)button('Intéressé',()=>interested(c),primary:true),
       businessPanel(c),

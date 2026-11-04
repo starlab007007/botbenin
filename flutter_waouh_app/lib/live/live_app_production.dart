@@ -256,7 +256,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         ),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/premium', builder: (_, state) => LivePremiumJourneyScreen(missionId:state.uri.queryParameters['mission_id'],componentId:state.uri.queryParameters['component_id'])),
-        GoRoute(path: '/app/deal-room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],delegate:state.uri.queryParameters['delegate']=='1')),
+        GoRoute(path: '/app/deal-room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
         GoRoute(
           path: '/app/missions',
           builder: (_, state) => LiveMissionsScreen(

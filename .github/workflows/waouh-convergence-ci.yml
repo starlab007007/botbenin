@@ -2,10 +2,10 @@ name: WAOUH Convergence contracts
 on:
   pull_request:
     branches: [prod]
-    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
+    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
   push:
     branches: [prod]
-    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
+    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
   workflow_dispatch:
 permissions:
   contents: read

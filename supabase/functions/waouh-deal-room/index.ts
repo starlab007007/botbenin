@@ -3,7 +3,7 @@ import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-aut
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
-const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','receipt','payment_report','payment_receive','complete','issue','rating']);
+const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating']);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);
@@ -33,7 +33,7 @@ Deno.serve(async req=>{
    if(actor){const thread=await resolveProductThread({sb,articleId:component.source_ref.slice(8),actorUser:actor,role:'buyer',source:'unified_room'});
     if(thread){
      // Historical accepted deals must not be silently converted into a second agreement.
-     if(thread.deal_id||thread.negotiation_id)return jsonResponse({ok:false,error:'legacy_room_requires_reconciliation',thread_id:thread.id,deal_room_id:data.deal_room_id},409);
+     if(thread.deal_id||thread.negotiation_id){await sb.from('waouh_deal_room_links').update({thread_id:thread.id,blocked_reason:'legacy_room_requires_reconciliation',control_mode:'paused',next_run_at:null}).eq('id',data.deal_room_id).eq('owner_id',user.id);return jsonResponse({ok:false,error:'legacy_room_requires_reconciliation',thread_id:thread.id,deal_room_id:data.deal_room_id},409);}
      const saved=await sb.from('waouh_deal_room_links').update({thread_id:thread.id}).eq('id',data.deal_room_id).eq('owner_id',user.id);
      if(saved.error)throw saved.error;data.thread_id=thread.id;
     }

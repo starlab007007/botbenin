@@ -16,6 +16,7 @@ import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_nexus_screen.dart';
+import 'live_deal_room.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
@@ -97,7 +98,9 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/command', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/missions', builder: (_, __) => const LiveMissionsScreen()),
-        GoRoute(path: '/app/nexus', builder: (_, __) => const LiveNexusScreen()),
+        GoRoute(path: '/app/nexus', builder: (_, __) => const LiveDealRoomScreen()),
+        GoRoute(path: '/app/nexus-legacy', builder: (_, __) => const LiveNexusScreen()),
+        GoRoute(path: '/app/deal-room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
         GoRoute(path: '/app/diffusion', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
         GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),

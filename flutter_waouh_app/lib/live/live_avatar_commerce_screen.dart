@@ -1,3 +1,4 @@
+import 'live_deal_room.dart';
 import 'live_product_presentation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -769,6 +770,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _continue(NexusDiscoveryItem item, {bool proposePrice = false}) async {
+    if(widget.mode!=LiveAvatarCommerceMode.sell){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${proposePrice?'&propose=1':''}');}catch(e){if(mounted)setState(()=>_error='$e');}return;}
+
     if (!proposePrice && !essentialPrimaryNeedsPrice(item)) {
       await _mediatedContact(item);
       return;
@@ -1077,6 +1080,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _delegateToBot(NexusDiscoveryItem item) async {
+    if(widget.mode!=LiveAvatarCommerceMode.sell){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':false});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}&delegate=1');}catch(e){if(mounted)setState(()=>_error='$e');}return;}
+
     final mode = widget.mode == LiveAvatarCommerceMode.sell
         ? 'sell'
         : widget.mode == LiveAvatarCommerceMode.ask
@@ -1484,7 +1489,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               if(_error!=null)const Padding(padding:EdgeInsets.all(12),child:Text('La recherche n’a pas abouti. Réessayez.',style:TextStyle(color:Colors.red))),
               if(results.isNotEmpty)...[
                 if(widget.mode==LiveAvatarCommerceMode.sell)Padding(padding:const EdgeInsets.only(bottom:10),child:LiveMyArticleCard(title:_goal.text.trim(),floor:double.tryParse(_priceFloor),city:_city.text,photos:_sellPhotos,notes:_sellNotes)),
-                LiveBotNextStep(service:_nexus,mode:commerceMode,goal:_goal.text.trim(),city:_city.text,budget:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),items:results,articleId:widget.mode==LiveAvatarCommerceMode.sell?_selectedArticle:null,priceFloor:widget.mode==LiveAvatarCommerceMode.sell?double.tryParse(_priceFloor):null),
+                widget.mode!=LiveAvatarCommerceMode.sell?OutlinedButton(onPressed:()=>context.go('/app/nexus?${Uri(queryParameters:{'q':_goal.text,'city':_city.text,'budget':_budget.text}).query}'),child:const Text('Choisir une offre à confier à Bot')):LiveBotNextStep(service:_nexus,mode:commerceMode,goal:_goal.text.trim(),city:_city.text,budget:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),items:results,articleId:widget.mode==LiveAvatarCommerceMode.sell?_selectedArticle:null,priceFloor:widget.mode==LiveAvatarCommerceMode.sell?double.tryParse(_priceFloor):null),
                 LiveEssentialOffers(items:_response!.results,city:_city.text,mode:commerceMode,selected:_selectedOffers,onToggle:(id)=>setState((){if(_selectedOffers.contains(id)){_selectedOffers.remove(id);}else if(_selectedOffers.length<5){_selectedOffers.add(id);}}),onContinue:(item)=>_continue(item),onPropose:(item)=>_continue(item,proposePrice:true),onDelegate:(item)=>_delegateToBot(item),onFollow:(item)=>_followOpportunity(item)),
               ]else if(_response!=null&&!_loading)_EmptyDiscovery(avatarName:avatar.name),
               if(results.isEmpty&&!_loading)TextButton.icon(onPressed:()=>setState(()=>_showFollow=true),icon:const Icon(Icons.bolt_outlined,size:17),label:const Text('Configurer une veille')),
