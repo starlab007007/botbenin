@@ -41,3 +41,11 @@ La recette transactionnelle `scripts/tests/waouh-deal-room-live-audit.sql` a ex�
 L’essai a révélé une relance prématurée après pause/reprise. La migration `20261104105439_waouh_room_followup_resume_cooldown.sql` est appliquée en production: elle maintient l’intervalle de 24 heures depuis la dernière action Bot, sans retarder le traitement d’une nouvelle proposition vendeur. Tests ajoutés: reprise sans envoi immédiat, maintien de l’échéance initiale, relance autorisée après 24 heures et plafond de relances conservé.
 
 La recette physique complète sur deux appareils reste distincte de cette validation SQL et des tests UI automatisés. Un vendeur externe doit rejoindre la room via invitation pour y participer. Les paiements sont des déclarations, sans transfert financier automatique.
+
+## Guidage progressif 18.47
+
+Le serveur projette chaque snapshot en `guidance` (schéma `waouh.room_guidance.v1`): étape, responsable, tâche prioritaire, action autorisée, confirmations et alternatives. Web et Flutter rendent ce même contrat. Les étapes sont cochées à partir des preuves effectives; une signature seule, une interruption ou un signalement ne peuvent afficher une clôture confirmée. Les opportunités utilisent Dossier → Transmission → Suivi, sans processus d’achat imposé.
+
+La tâche change progressivement entre invitation, devis/proposition, autorisation Bot, relecture, attente de l’autre partie, réception, déclaration et confirmation du paiement, puis clôture et avis facultatif. Réception et paiement restent possibles dans l’ordre prévu par l’accord. Les écrans de relecture verrouillent la version approuvée; une modification distante impose une nouvelle lecture. Les formulaires de proposition et de mandat conservent aussi leur version d’ouverture.
+
+La migration `20261104111700_waouh_room_progressive_guidance.sql` ajoute une projection en lecture sans changer les paiements ni les accords existants. Vingt-cinq états canoniques partagés dans `tests/fixtures/waouh-room-guidance.json` couvrent les rôles, les attentes, les mandats, les blocages et les confirmations. Les clients antérieurs restent compatibles et ignorent le champ ajouté. L’affichage progressif requiert les nouvelles interfaces 18.47.

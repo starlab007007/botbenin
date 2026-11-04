@@ -6,7 +6,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
 create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
-for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql','20261104111700_waouh_room_progressive_guidance.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
 const owner='00000000-0000-4000-8000-000000000001',seller='00000000-0000-4000-8000-000000000002',other='00000000-0000-4000-8000-000000000003',article='00000000-0000-4000-8000-000000000004';
 for(const id of [owner,seller,other])await db.query('insert into auth.users values($1)',[id]);
 await db.query('insert into public.waouh_users values($1,$1)',[seller]);await db.query("insert into public.waouh_articles values($1,$2,'active')",[article,seller]);
@@ -109,4 +109,14 @@ await db.exec("create or replace function public.waouh_module_policy(uuid) retur
 await db.query('select public.waouh_room_tick(20)');
 assert.equal((await cmd(owner,'get',{deal_room_id:gated.deal_room_id})).messages.filter(m=>m.author_kind==='bot').length,0);
 console.log('Administrative automation switches stop the room worker.');
+const guidancePath=new URL('../../tests/fixtures/waouh-room-guidance.json',import.meta.url);
+const cases=JSON.parse(await readFile(guidancePath,'utf8'));
+for(const fixture of cases){
+ const guide=(await db.query("select public.waouh_room_guidance($1,'2026-11-04T12:00:00Z'::timestamptz) g",[fixture.room])).rows[0].g;
+ for(const [key,value] of Object.entries(fixture.expected))assert.deepEqual(guide[key],value,fixture.name+': '+key);
+ if(process.env.UPDATE_GUIDANCE_FIXTURES==='1')fixture.guidance=guide;
+ else assert.deepEqual(guide,fixture.guidance,fixture.name+': canonical guidance contract');
+}
+if(process.env.UPDATE_GUIDANCE_FIXTURES==='1'){const {writeFile}=await import('node:fs/promises');await writeFile(guidancePath,JSON.stringify(cases,null,2)+'\n');}
+console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and completion states passed.');
 await db.close();

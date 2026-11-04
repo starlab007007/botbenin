@@ -9,6 +9,7 @@ vi.mock('@/lib/waouh/progressiveDiscovery',()=>({progressiveNexusDiscovery:mocks
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'owner'}})}));
 vi.mock('@/components/waouh/bot/BotLiveAvatar',()=>({BotLiveAvatar:()=> <span>Avatar WAOUH</span>}));
 vi.mock('@/components/waouh/WaouhProductPresentation',()=>({ProductGallery:()=> <span>Photo</span>}));
+import guideCases from '../../../../tests/fixtures/waouh-room-guidance.json';
 import Page from '@/pages/waouh/WaouhDealRoomPage';
 let host:HTMLDivElement,root:Root;
 const base={deal_room_id:'room',is_owner:true,title:'Téléphone',price:150000,city:'Cotonou',provider_joined:true,control_mode:'bot',mandate_revision:2,current_offer_version:3,messages:[{id:'one',text:'Bonjour',mine:true,author_kind:'bot'}],allowed_actions:['delegate','takeover','message','propose','accept','reject'],agreement:{version:3,status:'proposed',terms:{amount:145000,scope:'Téléphone',quantity:1,deadline:'Demain',exclusions:'Livraison',expected_result:'Testé',payment:'À la remise'}}};
@@ -79,4 +80,30 @@ it('lets the seller confirm receipt of the declared payment and finish bilateral
  await mount();await click('J’ai reçu le paiement');await click('Confirmer la clôture');
  expect(mocks.call).toHaveBeenCalledWith('payment_receive',{deal_room_id:'room',version:3});
  expect(host.textContent).toContain('Échange clôturé');
+});
+
+it('shows one primary task at a time from the server receipt and closure snapshots',async()=>{
+ const state=(name:string)=>{const f=guideCases.find(f=>f.name===name)!;return {...base,...f.room,title:'Téléphone',current_offer_version:(f.room as any).agreement?.version??0,guidance:f.guidance};};
+ let current=state('receipt');
+ mocks.call.mockImplementation(async(action)=>{if(action==='receipt')current=state('payment_report');if(action==='payment_report')current=state('wait_payment');return current;});
+ await mount();expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Confirmer la réception');
+ expect([...host.querySelectorAll('button')].filter(b=>b.textContent?.trim()==='Confirmer la réception')).toHaveLength(1);
+ await click('Confirmer la réception');expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Déclarer le paiement effectué');
+ await click('J’ai effectué le paiement');expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Confirmation du paiement attendue');
+ expect(host.querySelector('.wr-guide-action')).toBeNull();expect(host.textContent).not.toContain('Parcours terminé');
+ current=state('completed');await click('Actualiser');expect(host.textContent).toContain('Parcours terminé');
+});
+
+it('freezes the reviewed version and requires another review if the server conditions change',async()=>{
+ const fixture=guideCases.find(f=>f.name==='review')!;
+ let current:any={...base,...fixture.room,title:'Téléphone',current_offer_version:2,guidance:fixture.guidance};
+ mocks.call.mockImplementation(async()=>current);
+ await mount();await click('Relire les conditions');
+ expect(host.querySelector('[aria-label="Relire les conditions"]')?.textContent).toContain('Version 2');
+ expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer ces conditions')!.disabled).toBe(false);
+ current={...current,current_offer_version:3,agreement:{...current.agreement,version:3,terms:{amount:147000}}};
+ await click('Actualiser');
+ const confirm=[...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer ces conditions')!;
+ expect(confirm.disabled).toBe(true);expect(host.textContent).toContain('Les conditions ont changé');
+ expect(mocks.call.mock.calls.some(c=>c[0]==='accept')).toBe(false);
 });

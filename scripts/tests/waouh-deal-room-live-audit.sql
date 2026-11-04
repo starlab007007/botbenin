@@ -19,6 +19,7 @@ begin
  source=jsonb_build_object('title','Recette technique annulée','kind',case when mode='manual' then 'product' else 'service' end,'source_ref','audit-full:'||gen_random_uuid(),'amount',150000,'source_snapshot',jsonb_build_object('product',jsonb_build_object('title','Recette technique annulée','photos','[]'::jsonb)));
  r=public.waouh_room_command(buyer,'open',jsonb_build_object('request_id',gen_random_uuid(),'source',source,'city','Cotonou','confirmed',false));
  room=(r->>'deal_room_id')::uuid;
+ if r->'guidance'->>'phase'<>'contact' then raise exception 'guidance_contact_failed';end if;
  if room is null or r->'agreement'<>'null'::jsonb then raise exception 'initial_room_contract';end if;
  d=public.waouh_room_command(buyer,'open',jsonb_build_object('request_id',gen_random_uuid(),'source',source,'city','Cotonou','confirmed',false));
  if d->>'deal_room_id'<>room::text then raise exception 'duplicate_room';end if;
@@ -64,6 +65,7 @@ begin
  r=public.waouh_room_command(buyer,'accept',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
  if r->'agreement'->>'status'='accepted' then raise exception 'unilateral_agreement';end if;
  r=public.waouh_room_command(seller,'accept',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
+ if r->'guidance'->>'phase'<>'fulfilment' then raise exception 'guidance_fulfilment_failed';end if;
  if r->'agreement'->>'status'<>'accepted' then raise exception 'bilateral_agreement_failed';end if;
  denied=false;begin perform public.waouh_room_command(buyer,'complete',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));exception when others then if sqlerrm not like '%evidence%' then raise;end if;denied=true;end;
  if not denied then raise exception 'premature_closure';end if;
@@ -73,6 +75,7 @@ begin
  r=public.waouh_room_command(buyer,'complete',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
  if r->'agreement'->>'status'='completed' then raise exception 'unilateral_closure';end if;
  r=public.waouh_room_command(seller,'complete',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
+ if r->'guidance'->>'status'<>'completed' then raise exception 'guidance_completion_failed';end if;
  if r->'agreement'->>'status'<>'completed' or r->>'closed'<>'true' then raise exception 'final_closure_failed';end if;
  r=public.waouh_room_command(buyer,'rating',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'rating',5));
  if r->'evidence'->>'owner_rating'<>'5' then raise exception 'rating_failed';end if;
