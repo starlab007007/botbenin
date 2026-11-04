@@ -43,3 +43,9 @@ it('uses the selected search reference for delegation without contacting before 
  expect(mocks.call).toHaveBeenCalledWith('open',expect.objectContaining({fabric_id:'article:selected',confirmed:false}));
  expect(mocks.call.mock.calls.some(c=>c[0]==='delegate')).toBe(false);
 });
+
+it('opens a new room without an agreement or invented confirmation',async()=>{
+ mocks.call.mockResolvedValue({...base,agreement:null,current_offer_version:0});await mount();
+ expect(host.textContent).toContain('Le prix et les conditions seront confirmés');
+ expect(host.textContent).not.toContain('Accord confirmé');
+});

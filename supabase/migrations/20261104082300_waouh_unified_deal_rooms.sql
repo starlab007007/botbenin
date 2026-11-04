@@ -58,7 +58,7 @@ begin
  if r.id is null or (p_actor is distinct from m.owner_id and p_actor is distinct from c.provider_id) then raise exception 'forbidden' using errcode='42501';end if;
  own=m.owner_id=p_actor;closed=m.status in ('completed','cancelled') or r.blocked_reason is not null;
  select * into a from public.waouh_convergence_agreements where component_id=c.id;
- select * into e from public.waouh_business_evidence where component_id=c.id and version=a.version;
+ select * into e from public.waouh_business_evidence where component_id=c.id and version=coalesce(a.version,0);
  buyer=case when m.criteria ? 'workflow:sale' then not own else own end;
  select coalesce(jsonb_agg(x order by x->>'created_at',x->>'id'),'[]') into msgs from (
  select jsonb_build_object('id',id,'text',text,'mine',actor_id=p_actor,'author_kind',author_kind,'created_at',created_at,'status','recorded') x
@@ -67,7 +67,8 @@ begin
  select id,event_type,actor_kind,created_at,payload from public.waouh_room_events where room_id=r.id and (p_before is null or id>p_before) order by id limit 100) q;
  actions='[]'::jsonb;if a.status='completed' then actions='["rating"]'::jsonb;end if;
  if not closed then
- if c.provider_id is not null then actions=actions||'["message","propose"]';end if;
+ if c.provider_id is not null then actions=actions||'["message"]';if c.kind<>'announcement' then actions=actions||'["propose"]';end if;end if;
+ if c.kind='announcement' and own then actions=actions||'["application_prepare"]';if e.application_prepared_at is not null and e.application_submitted_at is null then actions=actions||'["application_submit"]';end if;end if;
  if own then actions=actions||'["delegate","takeover","pause","resume_bot","invite"]';if r.control_mode='bot' and r.mandate->>'mode'<>'autonomous' then actions=actions||'["approve_step"]';end if;end if;
  if a.id is not null and a.status='proposed' then actions=actions||'["accept","reject"]';end if;
  if a.status='accepted' then
@@ -84,7 +85,7 @@ begin
  'blocked_reason',r.blocked_reason,'is_owner',own,'kind',c.kind,'title',c.title,'city',m.city,'product',c.source_snapshot->'product','price',c.amount,
  'provider_joined',c.provider_id is not null,'control_mode',r.control_mode,'mandate_revision',r.mandate_revision,
  'mandate',case when own then r.mandate else null end,'expires_at',case when own then r.expires_at else null end,
- 'initial_price_proposal',(select payload||jsonb_build_object('revision',id) from public.waouh_room_events where room_id=r.id and actor_kind='bot' and payload->>'amount' is not null order by id desc limit 1),'agreement',to_jsonb(a),'current_offer_version',coalesce(a.version,0),'last_offer_mine',r.last_offer_actor=p_actor,
+ 'initial_price_proposal',(select payload||jsonb_build_object('revision',id) from public.waouh_room_events where room_id=r.id and actor_kind='bot' and payload->>'amount' is not null order by id desc limit 1),'agreement',case when a.id is null then null else to_jsonb(a) end,'current_offer_version',coalesce(a.version,0),'last_offer_mine',r.last_offer_actor=p_actor,
  'messages',msgs,'message_cursor',case when jsonb_array_length(msgs)=100 then msgs->0->>'id' else null end,'counterparty_name',(select coalesce(to_jsonb(u)->>'display_name','Interlocuteur') from public.waouh_users u where u.auth_user_id=case when own then c.provider_id else m.owner_id end order by u.id limit 1),'events',ev,'allowed_actions',actions,'closed',closed,
  'evidence',to_jsonb(e),
  'next_action',case when closed then 'completed' when a.status='accepted' then 'follow' when a.status='proposed' then 'review' when c.provider_id is null then 'invite' when r.control_mode='bot' then 'bot_running' else 'message' end);
@@ -175,6 +176,7 @@ begin
  if own and r.control_mode='bot' then raise exception 'takeover_required';end if;
  b=public.waouh_business_command(p_actor,'business.message',jsonb_build_object('component_id',c.id,'request_id',req,'text',p->>'text'));
  elsif p_action='propose' then
+ if c.kind='announcement' then raise exception 'application_process_required';end if;
  if own and r.control_mode='bot' then raise exception 'takeover_required';end if;
  if (p->>'version')::integer is distinct from coalesce(a.version,0) then raise exception 'offer_version_changed';end if;
  if coalesce((p->'terms'->>'quantity')::integer,0) not between 1 and 100000 or length(trim(coalesce(p->'terms'->>'payment','')))<2 then raise exception 'complete_quantity_and_payment';end if;
@@ -189,7 +191,7 @@ begin
  update public.waouh_convergence_components set invite_hash=null,invite_expires_at=null where id=c.id;
  elsif p_action='invite' then
  b=public.waouh_convergence_command(p_actor,'invite',jsonb_build_object('component_id',c.id));
- elsif p_action in ('receipt','payment_report','payment_receive','complete','issue','rating') then
+ elsif p_action in ('receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit') then
  b=public.waouh_business_command(p_actor,'business.'||p_action,p||jsonb_build_object('component_id',c.id));
  elsif p_action not in ('open','adopt') then raise exception 'unknown_action';end if;
  insert into public.waouh_room_events(room_id,actor_id,event_type,payload) values(r.id,p_actor,p_action,jsonb_build_object('version',(select version from public.waouh_convergence_agreements where component_id=c.id)));
@@ -228,8 +230,8 @@ begin
  else msg='Une proposition est disponible. Votre confirmation des conditions est attendue.';end if;
  update public.waouh_deal_room_links set processed_offer_version=a.version where id=r.id;
  elsif not r.initial_sent then
- price=coalesce(nullif(r.mandate->>'initial_offer','')::numeric,case when budget is not null and c.amount>0 then least(c.amount,budget) end);
- msg=case when price is null then 'Pouvez-vous préciser votre prix total, la quantité, la remise et les conditions du devis ?' else 'Je représente le demandeur. Je propose '||price||' FCFA. Merci de préciser la quantité, la remise et les exclusions avant confirmation de l’accord.' end;
+ price=case when c.kind='announcement' then null else coalesce(nullif(r.mandate->>'initial_offer','')::numeric,case when budget is not null and c.amount>0 then least(c.amount,budget) end) end;
+ msg=case when c.kind='announcement' then 'Je représente le demandeur. Pouvez-vous préciser les modalités, les pièces nécessaires et la date limite de cette démarche ?' when price is null then 'Pouvez-vous préciser votre prix total, la quantité, la remise et les conditions du devis ?' else 'Je représente le demandeur. Je propose '||price||' FCFA. Merci de préciser la quantité, la remise et les exclusions avant confirmation de l’accord.' end;
  update public.waouh_deal_room_links set initial_sent=true where id=r.id;
  elsif r.followups<coalesce((r.mandate->>'max_followups')::integer,1) and a.id is null then
  msg='Bonjour, avez-vous pu examiner cette demande ? Merci de préciser votre proposition dans cet échange.';

@@ -76,4 +76,12 @@ closing=await cmd(owner,'rating',{deal_room_id:id,rating:5});
 assert.equal(closing.evidence.owner_rating,5);
 console.log('Receipt, payment declarations, bilateral closure and rating passed.');
 
+const opportunity=await cmd(owner,'open',{source:{...source,kind:'announcement',source_ref:'external:opportunity'},city:'Cotonou',confirmed:true});
+assert.ok(opportunity.allowed_actions.includes('application_prepare'));
+await assert.rejects(cmd(owner,'application_submit',{deal_room_id:opportunity.deal_room_id,confirmation:'submitted'}),/confirmation/);
+await cmd(owner,'application_prepare',{deal_room_id:opportunity.deal_room_id});
+const applied=await cmd(owner,'application_submit',{deal_room_id:opportunity.deal_room_id,confirmation:'submitted'});
+assert.ok(applied.evidence.application_submitted_at);
+assert.equal(applied.agreement,null);
+console.log('Opportunity application keeps its own process without a fabricated purchase agreement.');
 await db.close();

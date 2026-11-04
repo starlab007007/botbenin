@@ -3,7 +3,7 @@ import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-aut
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
-const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating']);
+const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit']);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);
@@ -17,8 +17,9 @@ Deno.serve(async req=>{
   const fabric=String(p.fabric_id||p.source?.source_ref||'');
   const {data:signal,error}=await sb.from('waouh_signal_fabric').select('*').eq('fabric_id',fabric).maybeSingle();
   if(error||!signal)return jsonResponse({ok:false,error:'offer_not_found'},404);
+  if(signal.is_active===false||(signal.expires_at&&Date.parse(signal.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);
   let record=signal;
-  if(fabric.startsWith('article:')){const {data:article}=await sb.from('waouh_articles').select('*').eq('id',fabric.slice(8)).eq('status','active').maybeSingle();if(!article)return jsonResponse({ok:false,error:'article_unavailable'},409);record={...signal,...article};}
+  if(fabric.startsWith('article:')){const {data:article}=await sb.from('waouh_articles').select('*').eq('id',fabric.slice(8)).eq('status','active').maybeSingle();if(!article||(article.expires_at&&Date.parse(article.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);record={...signal,...article};}
   const product=productSnapshot(record);if(!product||product.currency!=='XOF')return jsonResponse({ok:false,error:'quote_in_xof_required'},422);
   p.source={title:product.title,kind:resultKind(signal),source_ref:fabric,source_url:signal.source_url,amount:product.price_min,extra_cost:null,source_snapshot:{product}};
   p.city=signal.city||p.city||'À préciser';

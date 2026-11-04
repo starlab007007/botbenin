@@ -37,6 +37,7 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno test --no-config supabase/functions/_shared/waouh-avatar-negotiation-start-test.ts
+      - run: deno test --no-config --allow-env --allow-read supabase/functions/_shared/waouh-deal-open-test.ts
       - run: deno check --config supabase/functions/waouh-convergence/deno.json supabase/functions/waouh-convergence/index.ts
       - run: deno check --node-modules-dir=none supabase/functions/waouh-deal-room/index.ts
 

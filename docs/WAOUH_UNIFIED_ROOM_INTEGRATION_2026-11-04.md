@@ -27,3 +27,7 @@ Une ancienne négociation classique déjà liée nécessite une réconciliation 
 Les tests PGlite couvrent autorisations, idempotence, limites, relances, modes assistés, pagination, expiration, invitation, reprise et accord bilatéral. Les tests Web couvrent sélection, délégation, reprise et absence de faux succès. Des tests widgets Flutter couvrent la reprise et la réponse vendeur.
 
 Une compilation ne certifie pas une recette physique Android ni un accord entre deux comptes réels. Le déploiement de production et cette recette doivent être constatés avant de déclarer l’autonomie complète opérationnelle.
+
+## Compléments de validation
+
+Le parcours opportunité conserve la préparation puis la déclaration explicite de transmission du dossier, sans fabriquer un achat. Les tests couvrent désormais aussi réception, déclarations de paiement, clôture bilatérale, évaluation et ouverture sans accord. Le script de déploiement applique et enregistre atomiquement la seule migration dédiée; il refuse un schéma préexistant non suivi. La version préparée est 18.46.0+1793783142.
