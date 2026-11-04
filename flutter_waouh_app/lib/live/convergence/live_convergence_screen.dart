@@ -17,7 +17,7 @@ class LiveConvergenceScreen extends StatefulWidget {
   final String? missionId,componentId;
   @override State<LiveConvergenceScreen> createState() => _LiveConvergenceScreenState();
 }
-class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
+class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with WidgetsBindingObserver {
   final client = Supabase.instance.client;
   Map<String, dynamic>? bundle, metrics;
   List<Map<String, dynamic>> missions = [], pools = [];
@@ -27,6 +27,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   Map<String, String> draft = {}, groupDraft = {};
   String requestKey = DateTime.now().microsecondsSinceEpoch.toString();
   StreamSubscription<AuthState>? authSubscription;
+  Timer? refreshTimer;
   String? loadedAccount;
   static const kinds = {'product': 'Produit', 'service': 'Service', 'announcement': 'Annonce'};
   static const statuses = {'draft': 'Besoin à préciser', 'comparing': 'Solutions à comparer', 'agreed': 'Accord en cours', 'active': 'Réalisation en cours', 'completed': 'Résultat confirmé', 'cancelled': 'Clôturé'};
@@ -35,9 +36,31 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   bool get closed => ['cancelled', 'completed'].contains(mission['status']);
   @override void initState() {
     super.initState(); focusedComponent=widget.componentId; _loadAccount();
+    WidgetsBinding.instance.addObserver(this);
+    refreshTimer=Timer.periodic(const Duration(seconds:10),(_){
+      final state=WidgetsBinding.instance.lifecycleState;
+      if(state==null||state==AppLifecycleState.resumed)unawaited(_refreshCurrentMission());
+    });
     authSubscription = client.auth.onAuthStateChange.listen((_) { if (client.auth.currentUser?.id != loadedAccount) _loadAccount(); });
   }
-  @override void dispose() { authSubscription?.cancel(); super.dispose(); }
+  @override void dispose() { refreshTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); authSubscription?.cancel(); super.dispose(); }
+  @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    if(state==AppLifecycleState.resumed)unawaited(_refreshCurrentMission());
+  }
+  bool refreshing=false;
+  int mutationRevision=0;
+  Future<void> _refreshCurrentMission() async {
+    final uid=client.auth.currentUser?.id,mid=mission['id'],version=mutationRevision;
+    if(busy||refreshing||uid==null||mid==null)return;
+    refreshing=true;
+    try {
+      final data=convergenceMap(await api('business.get',{'mission_id':mid}));
+      if(mounted&&!busy&&version==mutationRevision&&client.auth.currentUser?.id==uid&&mission['id']==mid) {
+        setState(()=>bundle=data);
+      }
+    } catch (_) { /* Preserve the last confirmed state; explicit actions still report failures. */ }
+    finally {refreshing=false;}
+  }
   Future<dynamic> api(String action, [Map<String, dynamic> payload = const {}]) async {
     final response = await client.functions.invoke('waouh-convergence', body: {'action': action, 'payload': payload});
     final data = convergenceMap(response.data);
@@ -45,6 +68,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
     return data['data'];
   }
   Future<void> _loadAccount() async {
+    mutationRevision++;
     final uid = client.auth.currentUser?.id; loadedAccount = uid;
     requestKey = DateTime.now().microsecondsSinceEpoch.toString();
     if (mounted) setState(() { bundle = null; missions = []; pools = []; metrics = null; invitation = ''; token = ''; consent = false; busy = false; error = ''; draft = {}; });
@@ -58,6 +82,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   }
   Future<dynamic> run(String action, [Map<String, dynamic> payload = const {}]) async {
     if (!mounted || busy) return null;
+    mutationRevision++;
     final uid = client.auth.currentUser?.id;
     setState(() { busy = true; error = ''; });
     try {
@@ -119,11 +144,12 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> {
   }
   Future<void> proposeAgreement(Map<String,dynamic> c) async {
     final a = convergenceMap(c['agreement']), old = convergenceMap(a['terms']);
-    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result']},numeric:{'amount'});
+    final terms = await form('Fiche d’accord · nouvelle version',{'amount':'Prix total, frais inclus · F CFA','scope':'Ce qui est inclus','exclusions':'Ce qui est exclu (ou Aucune exclusion)','deadline':'Délai ou rendez-vous convenu','expected_result':'Comment constater le résultat ?','payment':'Paiement convenu'},initial:{'amount':old['amount'] ?? c['amount'],'scope':old['scope'] ?? c['scope'],'exclusions':old['exclusions'] ?? c['exclusions'],'deadline':old['deadline'],'expected_result':old['expected_result'],'payment':old['payment']},numeric:{'amount'});
     if (terms != null) await run('agreement_propose',{'component_id':c['id'],'terms':{...terms,'workflow_version':2,'amount':convergenceAmount(terms['amount'])}});
   }
   Future<void> interested(Map<String,dynamic> c) async {
     if(busy||closed)return;
+    mutationRevision++;
     final uid=client.auth.currentUser?.id, mid=mission['id'], cid=c['id'];
     setState((){busy=true;error='';});
     try{

@@ -295,7 +295,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
           const Text('Offres à contacter',style:TextStyle(fontSize:12,fontWeight:FontWeight.w700)),
           const SizedBox(height:6),
           Wrap(spacing:6,children:[for(final n in counts)ChoiceChip(label:Text('$n'),selected:_picked==n,onSelected:(_)=>setState((){_count=n;_confirm=false;}))]),
-          ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Réglages avancés',style:TextStyle(fontSize:13)),children:[SwitchListTile.adaptive(
+          Material(type:MaterialType.transparency,child:ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Réglages avancés',style:TextStyle(fontSize:13)),children:[SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: const Text('WhatsApp vérifié',
@@ -306,7 +306,7 @@ class _LiveBotNextStepState extends State<LiveBotNextStep> {
               _confirm = false;
             }),
           ),
-          ]),
+          ])),
           if (_error.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
