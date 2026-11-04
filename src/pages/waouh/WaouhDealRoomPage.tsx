@@ -9,7 +9,7 @@ import {resultPhotos} from '@/lib/waouh/resultCardData';
 import './deal-room.css';
 const money=(n:any)=>n==null?'Prix à préciser':`${new Intl.NumberFormat('fr-FR').format(Number(n))} F`;
 const mergeMessages=(old:any[]=[],fresh:any[]=[])=>[...new Map([...old,...fresh].map(m=>[m.id,m])).values()].sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
-const errors:Record<string,string>={takeover_required:'Reprenez la main avant d’écrire ou de proposer.',offer_version_changed:'Les conditions ont changé. Relisez la nouvelle version.',mandate_revision_changed:'Le mandat a changé. Actualisez.',initial_offer_outside_budget:'L’offre de départ doit respecter votre plafond.',forbidden:'Cet échange est privé.',legacy_room_requires_reconciliation:'Un échange historique existe déjà. Sa liaison doit être vérifiée avant de continuer.'};
+const errors:Record<string,string>={module_unavailable:'Ce module est actuellement indisponible.',takeover_required:'Reprenez la main avant d’écrire ou de proposer.',offer_version_changed:'Les conditions ont changé. Relisez la nouvelle version.',mandate_revision_changed:'Le mandat a changé. Actualisez.',initial_offer_outside_budget:'L’offre de départ doit respecter votre plafond.',forbidden:'Cet échange est privé.',legacy_room_requires_reconciliation:'Un échange historique existe déjà. Sa liaison doit être vérifiée avant de continuer.'};
 export default function WaouhDealRoomPage(){
  const {user}=useAuth(),[params,setParams]=useSearchParams(),id=params.get('room_id');
  const [room,setRoom]=useState<DealRoom|null>(null),[rooms,setRooms]=useState<any[]>([]),[results,setResults]=useState<any[]>([]),[detail,setDetail]=useState<any>(null);

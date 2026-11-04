@@ -93,7 +93,7 @@ const moduleCatalog = <Map<String, dynamic>>[
   {
     "key": "nexus",
     "label": "Recherche guidée",
-    "paths": ["/app/nexus"],
+    "paths": ["/app/nexus", "/app/deal-room", "/app/nexus-legacy"],
   },
   {
     "key": "ia",

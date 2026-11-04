@@ -31,3 +31,5 @@ Une compilation ne certifie pas une recette physique Android ni un accord entre 
 ## Compléments de validation
 
 Le parcours opportunité conserve la préparation puis la déclaration explicite de transmission du dossier, sans fabriquer un achat. Les tests couvrent désormais aussi réception, déclarations de paiement, clôture bilatérale, évaluation et ouverture sans accord. Le script de déploiement applique et enregistre atomiquement la seule migration dédiée; il refuse un schéma préexistant non suivi. La version préparée est 18.46.0+1793783142.
+
+Les politiques d’accès et d’automatisation existantes couvrent également la route Deal Room, son API et le worker. Les tests vérifient qu’une désactivation administrative empêche tout nouveau message automatique.

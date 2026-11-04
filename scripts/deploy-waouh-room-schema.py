@@ -15,7 +15,7 @@ select pg_advisory_xact_lock(hashtextextended('waouh-unified-room-schema',0));
 do $guard$ begin
  if not exists(select 1 from supabase_migrations.schema_migrations where version='20261104082300') then
   if to_regclass('public.waouh_deal_room_links') is not null then raise exception 'Untracked room schema; reconciliation required';end if;
-  if to_regprocedure('public.waouh_business_command(uuid,text,jsonb)') is null then raise exception 'Business journey prerequisite missing';end if;
+  if to_regprocedure('public.waouh_business_command(uuid,text,jsonb)') is null or to_regprocedure('public.waouh_module_policy(uuid)') is null then raise exception 'Business journey prerequisite missing';end if;
   execute $room_migration$""" + sql + """$room_migration$;
   insert into supabase_migrations.schema_migrations(version,name,statements)
   values('20261104082300','waouh_unified_deal_rooms',array[$room_migration$""" + sql + """$room_migration$]);

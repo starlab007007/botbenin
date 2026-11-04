@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 const db=new PGlite();
 await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function public.is_admin(uuid) returns boolean language sql as $$select false$$;
+create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
 for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
@@ -49,7 +50,7 @@ assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.au
 await db.query("update public.waouh_deal_room_links set next_run_at=now() where id=$1",[aid]);await db.query('select public.waouh_room_tick(20)');
 assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
 // History remains pageable after more than a hundred messages.
-for(let i=0;i<105;i++)await db.query("insert into public.waouh_business_messages(component_id,actor_id,request_id,text,created_at) values($1,$2,$3,$4,now()+($5::int*interval '1 second'))",[aid,owner,crypto.randomUUID(),'History '+i,i]);
+for(let i=0;i<105;i++)await db.query("insert into public.waouh_business_messages(component_id,actor_id,request_id,text,created_at) values($1,$2,$3,$4,now()-interval '1 day'+($5::int*interval '1 second'))",[aid,owner,crypto.randomUUID(),'History '+i,i]);
 const latest=await cmd(owner,'get',{deal_room_id:aid});assert.equal(latest.messages.length,100);assert.ok(latest.message_cursor);
 const older=await cmd(owner,'get',{deal_room_id:aid,before_message:latest.message_cursor});assert.ok(older.messages.length>0);assert.equal(new Set([...older.messages,...latest.messages].map(x=>x.id)).size,107);
 // An expired mandate cannot resume or send.
@@ -85,4 +86,13 @@ const applied=await cmd(owner,'application_submit',{deal_room_id:opportunity.dea
 assert.ok(applied.evidence.application_submitted_at);
 assert.equal(applied.agreement,null);
 console.log('Opportunity application keeps its own process without a fabricated purchase agreement.');
+// Administrative automation controls also stop the independent server worker.
+const policyArticle='00000000-0000-4000-8000-000000000006';
+await db.query("insert into public.waouh_articles values($1,$2,'active')",[policyArticle,seller]);
+let gated=await cmd(owner,'open',{source:{...source,source_ref:'article:'+policyArticle},city:'Cotonou',confirmed:true});
+gated=await cmd(owner,'delegate',{deal_room_id:gated.deal_room_id,mandate_revision:0,confirmed:true,rules});
+await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,false from unnest(array['nexus','missions','avatar']) k$$;");
+await db.query('select public.waouh_room_tick(20)');
+assert.equal((await cmd(owner,'get',{deal_room_id:gated.deal_room_id})).messages.filter(m=>m.author_kind==='bot').length,0);
+console.log('Administrative automation switches stop the room worker.');
 await db.close();

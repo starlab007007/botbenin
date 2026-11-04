@@ -2,6 +2,7 @@ import {createClient} from 'npm:@supabase/supabase-js@2.49.8';
 import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-auth.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
+import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
 const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit']);
 Deno.serve(async req=>{
@@ -13,6 +14,8 @@ Deno.serve(async req=>{
  const input=JSON.parse(raw),action=String(input.action||'').replace(/^room\./,''),p={...(input.payload||{})};
  if(!actions.has(action))return jsonResponse({ok:false,error:'unknown_action'},400);
  const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+ const automatic=['delegate','resume_bot','approve_step'].includes(action);
+ if(!await modulePolicyAllowed(sb,automatic?['nexus','missions','avatar']:['nexus'],user.id,automatic))return jsonResponse({ok:false,error:'module_unavailable'},403);
  if(action==='open'){
   const fabric=String(p.fabric_id||p.source?.source_ref||'');
   const {data:signal,error}=await sb.from('waouh_signal_fabric').select('*').eq('fabric_id',fabric).maybeSingle();
