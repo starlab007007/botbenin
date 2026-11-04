@@ -26,3 +26,13 @@ it('redeems an invitation without attaching an empty mission reference',async()=
  await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent?.includes('Continuer par code'))!.click());
  const payload=call.mock.calls.find(c=>c[0]==='redeem_invite')![1];expect(payload).not.toHaveProperty('mission_id');expect(payload.token).toBe('a'.repeat(64));
 });
+it('lets a participant reject the exact displayed agreement revision',async()=>{
+ const componentId='00000000-0000-4000-8000-000000000002';
+ const data={...bundle,components:[{id:componentId,provider_id:'seller',title:'Téléphone',agreement:{version:3,status:'proposed',terms:{amount:145000,scope:'Téléphone',deadline:'Demain',exclusions:'Livraison',expected_result:'Téléphone testé',payment:'À la remise'}}}]};
+ call.mockResolvedValue(data);
+ await act(async()=>root.render(<MemoryRouter initialEntries={[`/?mission_id=${bundle.mission.id}&component_id=${componentId}&screen=agreement`]}><Page/></MemoryRouter>));
+ const reject=[...host.querySelectorAll('button')].find(b=>b.textContent==='Refuser cet accord');
+ expect(reject).toBeTruthy();
+ await act(async()=>reject!.click());
+ expect(call).toHaveBeenCalledWith('agreement_reject',{mission_id:bundle.mission.id,component_id:componentId,version:3});
+});
