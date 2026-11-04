@@ -20,11 +20,11 @@ void main(){
   expect(find.text('Historique conservé'),findsOneWidget);expect(find.text('Bot mène l’échange'),findsOneWidget);
   await tester.ensureVisible(find.text('Reprendre la main'));await tester.tap(find.text('Reprendre la main'));await tester.pumpAndSettle();
   expect(api.calls,contains('takeover'));expect(find.text('Vous gérez l’échange'),findsOneWidget);expect(find.text('Historique conservé'),findsOneWidget);
-  await tester.pumpWidget(const SizedBox.shrink());await api.client.dispose();
+  await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  });
  testWidgets('seller can reply while the buyer delegates and no agreement is falsely confirmed',(tester)async{
   final api=_Service(owner:false);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'seller')));await tester.pumpAndSettle();
   expect(find.text('Reprendre la main'),findsNothing);expect(find.text('Votre message'),findsOneWidget);expect(find.text('Accord confirmé'),findsNothing);
-  await tester.pumpWidget(const SizedBox.shrink());await api.client.dispose();
+  await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  });
 }
