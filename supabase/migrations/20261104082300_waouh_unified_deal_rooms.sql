@@ -229,7 +229,7 @@ begin
  terms=a.terms||jsonb_build_object('amount',budget,'workflow_version',2);
  perform public.waouh_convergence_command(r.owner_id,'agreement_propose',jsonb_build_object('component_id',c.id,'terms',terms));
  update public.waouh_deal_room_links set last_offer_actor=r.owner_id,counter_rounds=counter_rounds+1 where id=r.id;
- msg='Je propose '||budget||' FCFA dans le plafond autorisé. L’accord final reste à confirmer par les deux parties.';
+ msg='Je propose '||budget||' FCFA. L’accord final reste à confirmer par les deux parties.';
  else msg='Une proposition est disponible. Votre confirmation des conditions est attendue.';end if;
  update public.waouh_deal_room_links set processed_offer_version=a.version where id=r.id;
  elsif not r.initial_sent then

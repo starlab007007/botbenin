@@ -28,7 +28,7 @@ await db.query('select public.waouh_room_tick(20)');assert.equal((await cmd(owne
 await assert.rejects(cmd(owner,'message',{deal_room_id:id,text:'Concurrent'}),/takeover_required/);
 const terms={amount:150000,quantity:1,scope:'Un téléphone',deadline:'Demain',exclusions:'Livraison exclue',expected_result:'Téléphone testé',payment:'À la remise'};
 r=await cmd(seller,'propose',{deal_room_id:id,version:0,terms});
-await db.query('select public.waouh_room_tick(20)');r=await cmd(owner,'get',{deal_room_id:id});assert.equal(r.agreement.terms.amount,145000);assert.equal(r.agreement.owner_accepted_at,null);assert.equal(r.agreement.provider_accepted_at,null);
+await db.query('select public.waouh_room_tick(20)');r=await cmd(owner,'get',{deal_room_id:id});assert.equal(r.agreement.terms.amount,145000);assert.equal(r.agreement.owner_accepted_at,null);assert.equal(r.agreement.provider_accepted_at,null);assert.ok(r.messages.filter(m=>m.author_kind==='bot').every(m=>!m.text.includes('plafond')));
 await assert.rejects(cmd(owner,'accept',{deal_room_id:id,version:1}),/changed/);
 const rev=r.mandate_revision;r=await cmd(owner,'takeover',{deal_room_id:id,mandate_revision:rev});assert.equal(r.control_mode,'manual');
 await assert.rejects(cmd(owner,'resume_bot',{deal_room_id:id,mandate_revision:rev,confirmed:true}),/revision_changed/);
