@@ -13,6 +13,7 @@ const cmd=async(actor,action,p={})=>(await db.query('select public.waouh_room_co
 const source={title:'Téléphone',source_ref:'article:'+article,kind:'product',amount:150000,source_snapshot:{product:{title:'Téléphone',photos:[]}}};
 let r=await cmd(owner,'open',{source,city:'Cotonou',confirmed:true});const id=r.deal_room_id;
 assert.equal(r.provider_joined,true);assert.equal(r.messages.length,1);
+assert.equal(Number((await db.query('select count(*) n from public.waouh_notifications')).rows[0].n),1);
 assert.equal((await cmd(owner,'open',{source,city:'Cotonou',confirmed:true})).deal_room_id,id);
 assert.equal((await cmd(owner,'get',{deal_room_id:id})).messages.length,1);
 await assert.rejects(cmd(other,'get',{deal_room_id:id}),/forbidden/);

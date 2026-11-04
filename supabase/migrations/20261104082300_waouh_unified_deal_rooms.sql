@@ -35,6 +35,8 @@ grant usage,select on sequence public.waouh_room_events_id_seq to service_role;
 create function public.waouh_room_notify() returns trigger language plpgsql security invoker set search_path=public,pg_temp as $$
 declare c public.waouh_convergence_components;m public.waouh_convergence_missions;target uuid;uid uuid;
 begin
+ -- Contact already emits its own invitation notice. Private mandate updates do not notify the seller.
+ if new.event_type not in ('message','propose','accept','reject','receipt','payment_report','payment_receive','complete','issue','bot_step') then return new;end if;
  select * into c from public.waouh_convergence_components where id=new.room_id;
  select * into m from public.waouh_convergence_missions where id=c.mission_id;
  target=case when new.actor_id=m.owner_id then c.provider_id else m.owner_id end;
