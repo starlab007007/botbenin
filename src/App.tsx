@@ -390,7 +390,7 @@ const AppContent = () => {
                     <Route path="premium" element={<RequireMobileAuth><WaouhPremiumJourneyPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhSearchEntry />} />
                     <Route path="nexus-legacy" element={<WaouhNexusPage />} />
-                    <Route path="deal-room" element={<WaouhDealRoomPage />} />
+                    <Route path="deal-room" element={<RequireMobileAuth><WaouhDealRoomPage /></RequireMobileAuth>} />
                     <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="apresbac" element={<ApresBacPage />} />

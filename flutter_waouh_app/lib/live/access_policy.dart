@@ -4,6 +4,7 @@ const waouhAuthRequiredPrefixes = <String>[
   '/app/chat/',
   '/app/avatar/',
   '/app/missions',
+  '/app/deal-room',
   '/app/ia',
   '/app/bots',
   '/app/agents',
