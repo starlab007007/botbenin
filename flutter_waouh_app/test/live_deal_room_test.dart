@@ -49,7 +49,7 @@ void main(){
   api.data={...api.data,'current_offer_version':3};
   await tester.tap(find.widgetWithText(FilledButton,'Confirmer ces conditions'));await tester.pumpAndSettle();
   expect(api.requests.lastWhere((r)=>r['action']=='accept')['version'],2);
-  expect(find.textContaining('offer_version_changed'),findsOneWidget);
+  expect(find.textContaining('Les conditions ont changé'),findsOneWidget);
   expect(find.text('Accord confirmé'),findsNothing);
   await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));

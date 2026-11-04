@@ -13,6 +13,13 @@ import 'live_product_presentation.dart';
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
 
+String roomError(Object error){
+ dynamic detail;String code='';
+ if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(error.status==401)return 'Reconnectez-vous pour retrouver cet échange.';if(error.status==404)return 'Le service des échanges est momentanément indisponible. Réessayez.';}
+ if(code.isEmpty)code=error is StateError?'${error.message}':error.toString();
+ return {'offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+}
+
 class LiveDealRoomService {
  LiveDealRoomService(this.client);
  final SupabaseClient client;
@@ -53,12 +60,12 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    if(!mounted||generation!=v)return;
    final nextId=data['deal_room_id']?.toString();if(nextId!=null&&draftRoom!=nextId){draftRoom=nextId;final prefs=await SharedPreferences.getInstance();if(!mounted||generation!=v)return;message.text=prefs.getString('waouh.room.draft.$owner.$nextId')??'';}
    setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';}else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null){proposalShown=true;await propose();}
-  }catch(e){if(mounted&&generation==v)setState(()=>error='$e');}finally{refreshing=false;}
+  }catch(e){if(mounted&&generation==v)setState(()=>error=roomError(e));}finally{refreshing=false;}
  }
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
   if(busy)return null;final v=++generation;setState((){busy=true;error='';notice='';});
   try{final d=await api.call(action,{if(roomId!=null)'deal_room_id':roomId,...p});if(!mounted||v!=generation)return null;setState((){if(d['deal_room_id']!=null){room={...d,'messages':mergeRoomMessages(room?['deal_room_id']==d['deal_room_id']?(room?['messages'] as List? ?? []):[],d['messages'] as List? ?? [])};roomId='${d['deal_room_id']}';}});return d;}
-  catch(e){if(mounted&&v==generation)setState(()=>error='Action non confirmée : $e');return null;}
+  catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));return null;}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
  }
  Future<void> search() async {if(searching||query.text.trim().length<3)return;final v=++generation;setState((){searching=true;error='';});try{final d=await nexus.searchProgressive(query:query.text,city:city.text,budgetMax:double.tryParse(budget.text),findSellers:true,discoveryKind:kind,onIndexed:(d){if(mounted&&v==generation)setState(()=>offers=d.results);});if(mounted&&v==generation)setState(()=>offers=d.results);}catch(_){if(mounted)setState(()=>error='Recherche partielle. Réessayez.');}finally{if(mounted)setState(()=>searching=false);}}
