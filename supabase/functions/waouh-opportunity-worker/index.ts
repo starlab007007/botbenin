@@ -1241,6 +1241,8 @@ Deno.serve(async (req) => {
   if (!isServiceCaller(req, SERVICE_ROLE) && !(await isTickCaller(req, sb))) {
     return json({ ok: false, code: "service_role_required" }, 401);
   }
+  const roomTick = await sb.rpc('waouh_room_tick', {p_limit:20});
+  if (roomTick.error) console.warn('[waouh-opportunity-worker] unified rooms',roomTick.error.code);
 
   const lease = crypto.randomUUID();
   const { data: claimed, error: claimError } = await sb.rpc("waouh_avatar_claim_worker", { p_token: lease });

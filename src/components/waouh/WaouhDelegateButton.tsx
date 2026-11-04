@@ -24,6 +24,7 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
 
   const run = async () => {
     if (busy) return;
+    if(mode!=='sell'){navigate(`/app/deal-room?${new URLSearchParams({fabric_id:result.fabric_id,delegate:'1'})}`);return;}
     setError("");
     if (!confirm) { setConfirm(true); return; }
     setBusy(true);
