@@ -74,6 +74,11 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     requestKey = DateTime.now().microsecondsSinceEpoch.toString();
     if (mounted) setState(() { bundle = null; missions = []; pools = []; metrics = null; invitation = ''; token = ''; consent = false; busy = false; error = ''; draft = {}; });
     if (uid == null) return;
+    if(widget.componentId!=null){
+      try{final room=await LiveDealRoomService(client).call('get',{'deal_room_id':widget.componentId});
+        if(mounted&&client.auth.currentUser?.id==uid&&room['blocked_reason']==null){await Navigator.of(context).pushReplacement<void,void>(MaterialPageRoute(builder:(_)=>LiveDealRoomScreen(roomId:widget.componentId)));return;}
+      }catch(_){/* Existing components remain on their original route until adopted. */}
+    }
     final prefs = await SharedPreferences.getInstance();
     Map<String, String> next = {'goal': '${widget.source?['title'] ?? ''}', 'city': '${widget.source?['city'] ?? ''}', 'kind': liveConvergenceKind(widget.source ?? {}), 'budget_max': '', 'deadline': '', 'landmark': '', 'criteria': ''};
     try { final saved = jsonDecode(prefs.getString('waouh.convergence.draft.$uid') ?? '{}'); if (saved is Map && saved['goal'] != null) next = saved.map((k,v) => MapEntry(k.toString(),v.toString())); } catch (_) { /* keep source seed */ }

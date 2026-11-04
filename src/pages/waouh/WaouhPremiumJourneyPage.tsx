@@ -14,12 +14,14 @@ import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
 import {openBusinessInterest,interestMessage,interestNumber} from '@/lib/waouh/businessInterest';
+import {roomCall} from '@/lib/waouh/dealRoom';
 import './business-journey.css';
 const money=(v:unknown)=>v==null?'À préciser':new Intl.NumberFormat('fr-FR').format(Number(v))+' F CFA';
 const phases=['Recherche','Sélection','Échange','Accord','Suivi'];
 export default function WaouhPremiumJourneyPage(){
  const {user}=useAuth(),navigate=useNavigate(),[params,setParams]=useSearchParams(),account=useRef(user?.id);account.current=user?.id;
  const mid=params.get('mission_id')||'',cid=params.get('component_id')||'',screen=params.get('screen')||'search';
+ useEffect(()=>{if(!cid||!user)return;let alive=true;void roomCall('get',{deal_room_id:cid}).then(d=>{if(alive&&!d.blocked_reason)navigate('/app/deal-room?room_id='+cid,{replace:true});}).catch(()=>{});return()=>{alive=false;};},[cid,user?.id,navigate]);
  const [bundle,setBundle]=useState<ConvergenceRow|null>(null),[missions,setMissions]=useState<ConvergenceRow[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [goal,setGoal]=useState(''),[city,setCity]=useState(''),[budget,setBudget]=useState(''),[kind,setKind]=useState('product'),[sale,setSale]=useState(false),[results,setResults]=useState<NexusDiscoveryResult[]>([]),[searching,setSearching]=useState(false);
  const [message,setMessage]=useState(''),[issue,setIssue]=useState(''),[invite,setInvite]=useState(''),[code,setCode]=useState(()=>window.location.hash.startsWith('#invite=')?window.location.hash.slice(8):''),[terms,setTerms]=useState({amount:'',scope:'',deadline:'',exclusions:'Aucune précisée',expected_result:'',payment:''});

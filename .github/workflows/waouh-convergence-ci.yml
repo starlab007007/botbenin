@@ -61,6 +61,16 @@ jobs:
           enabled = true
           policy = "per_worker"
           CONFIG
+      - name: Apply only the reviewed room schema
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 scripts/deploy-waouh-room-schema.py
+      - name: Deploy unified room API and server worker
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase functions deploy waouh-deal-room --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
+          supabase functions deploy waouh-opportunity-worker --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
       - name: Deploy the authenticated Convergence function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

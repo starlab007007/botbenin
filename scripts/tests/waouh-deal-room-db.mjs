@@ -60,4 +60,20 @@ const invited=await cmd(owner,'invite',{deal_room_id:external.deal_room_id});ass
 await db.query("select public.waouh_convergence_command($1,'redeem_invite',$2)",[seller,{token:invited.token}]);
 const adopted=await cmd(seller,'adopt',{component_id:external.deal_room_id});assert.equal(adopted.deal_room_id,external.deal_room_id);assert.equal(adopted.provider_joined,true);
 for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(cmd(owner,'get',{deal_room_id:id}),/permission denied/);await db.exec('reset role');}
-await db.close();console.log('Unified Deal Room: same room, authorization, mandate bounds, no double send, takeover, stale versions, privacy and bilateral agreement passed.');
+console.log('Unified Deal Room: same room, authorization, mandate bounds, no double send, takeover, stale versions, privacy and bilateral agreement passed.');
+
+// Fulfilment is a separate, bilateral step after the exact agreement is accepted.
+let closing=await cmd(owner,'get',{deal_room_id:id});
+await assert.rejects(cmd(owner,'complete',{deal_room_id:id,version:closing.agreement.version}),/evidence/);
+await cmd(owner,'receipt',{deal_room_id:id,version:closing.agreement.version});
+await cmd(owner,'payment_report',{deal_room_id:id,version:closing.agreement.version});
+await cmd(seller,'payment_receive',{deal_room_id:id,version:closing.agreement.version});
+await cmd(owner,'complete',{deal_room_id:id,version:closing.agreement.version});
+closing=await cmd(seller,'complete',{deal_room_id:id,version:closing.agreement.version});
+assert.equal(closing.agreement.status,'completed');
+assert.ok(closing.allowed_actions.includes('rating'));
+closing=await cmd(owner,'rating',{deal_room_id:id,rating:5});
+assert.equal(closing.evidence.owner_rating,5);
+console.log('Receipt, payment declarations, bilateral closure and rating passed.');
+
+await db.close();
