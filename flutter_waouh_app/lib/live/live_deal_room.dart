@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart' show WaouhColors;
 import 'live_nexus_service.dart';
@@ -61,6 +62,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  }
  Future<void> search() async {if(searching||query.text.trim().length<3)return;final v=++generation;setState((){searching=true;error='';});try{final d=await nexus.searchProgressive(query:query.text,city:city.text,budgetMax:double.tryParse(budget.text),findSellers:true,discoveryKind:kind,onIndexed:(d){if(mounted&&v==generation)setState(()=>offers=d.results);});if(mounted&&v==generation)setState(()=>offers=d.results);}catch(_){if(mounted)setState(()=>error='Recherche partielle. Réessayez.');}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
+ String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
  Widget button(String text,VoidCallback fn,{bool primary=false,bool enabled=true})=>Padding(padding:const EdgeInsets.only(top:8),child:primary?FilledButton(onPressed:busy||!enabled?null:fn,child:Text(text)):OutlinedButton(onPressed:busy||!enabled?null:fn,child:Text(text)));
  Widget card(List<Widget> children)=>Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:children)));
@@ -85,6 +87,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  }
  @override Widget build(BuildContext context){
   final r=room,a=r?['agreement'] as Map?,allowed=(r?['allowed_actions'] as List? ?? []),bot=r?['control_mode']=='bot';
+  final expired=DateTime.tryParse('${r?['expires_at']}')?.isBefore(DateTime.now())??false;
   return Theme(data:Theme.of(context).copyWith(colorScheme:Theme.of(context).colorScheme.copyWith(primary:WaouhColors.blue)),child:Scaffold(backgroundColor:WaouhColors.pearl,appBar:AppBar(title:const Text('WAOUH'),leading:roomId==null?null:IconButton(icon:const Icon(Icons.arrow_back),onPressed:(){generation++;setState((){roomId=null;room=null;message.clear();});unawaited(load());}),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh))]),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[
    if(error.isNotEmpty)Semantics(liveRegion:true,child:Text(error,style:TextStyle(color:Theme.of(context).colorScheme.error))),if(busy||searching)const LinearProgressIndicator(),
    if(roomId==null)...[
@@ -94,12 +97,14 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
     card([if(r['product'] is Map)LiveProductPresentation(value:r['product']),Text('${r['title']}',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(r['price'])),Text('${r['counterparty_name']??'Interlocuteur'}'),if(r['blocked_reason']!=null)const Text('Dossier historique : liaison à vérifier.'),Text(r['provider_joined']==true?'Interlocuteur dans l’échange':'Invitation nécessaire')]),
-    card([Row(children:[Image.asset('assets/bot/bot_avatar.png',width:40),const SizedBox(width:10),Expanded(child:Text(bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange'))]),
+    card([Row(children:[Image.asset('assets/bot/bot_avatar.png',width:40),const SizedBox(width:10),Expanded(child:Text(expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange'))]),
      if(r['is_owner']==true&&r['closed']!=true)button(bot?'Reprendre la main':'Confier à Bot',()=>bot?act('takeover',{'mandate_revision':r['mandate_revision']}):mandate()),
      if(r['is_owner']==true&&allowed.contains('approve_step'))button('Autoriser la prochaine proposition / relance dans les limites du mandat',()=>act('approve_step',{'mandate_revision':r['mandate_revision'],'version':r['current_offer_version']})),
      if(r['is_owner']==true&&bot)button('Mettre en pause',()=>act('pause',{'mandate_revision':r['mandate_revision']})),
-     if(r['is_owner']==true&&r['control_mode']=='paused')button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
+     if(r['is_owner']==true&&r['control_mode']=='paused'&&!expired)button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
     ]),
+    if(r['is_owner']==true&&r['expires_at']!=null)Text('Plafond privé : ${money((r['mandate'] as Map?)?['budget_max'])} · Mandat jusqu’au ${when(r['expires_at'])}',style:const TextStyle(fontSize:12)),
+    if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),
     if(r['message_cursor']!=null)button('Messages précédents',()async{final v=generation;try{final older=await api.call('get',{'deal_room_id':roomId,'before_message':r['message_cursor']});if(mounted&&v==generation)setState(()=>room={...room!,'message_cursor':older['message_cursor'],'messages':mergeRoomMessages(older['messages'] as List,room!['messages'] as List)});}catch(_){if(mounted)setState(()=>error='Historique momentanément indisponible.');}}),
     for(final m in (r['messages'] as List? ?? []))Align(alignment:m['mine']==true?Alignment.centerRight:Alignment.centerLeft,child:Card(color:m['mine']==true?WaouhColors.sky:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(m['author_kind']=='bot'?'Bot · représente le demandeur':m['mine']==true?'Vous':'Interlocuteur',style:const TextStyle(fontSize:11)),Text('${m['text']}')])))),
     if(allowed.contains('message')&&(!bot||r['is_owner']!=true))card([field('Votre message',message),button('Envoyer',()async{final d=await act('message',{'text':message.text});if(d!=null){message.clear();final prefs=await SharedPreferences.getInstance();await prefs.remove('waouh.room.draft.$owner.$roomId');}},primary:true,enabled:true)]),
