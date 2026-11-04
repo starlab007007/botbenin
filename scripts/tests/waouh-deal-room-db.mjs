@@ -6,7 +6,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
 create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
-for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
 const owner='00000000-0000-4000-8000-000000000001',seller='00000000-0000-4000-8000-000000000002',other='00000000-0000-4000-8000-000000000003',article='00000000-0000-4000-8000-000000000004';
 for(const id of [owner,seller,other])await db.query('insert into auth.users values($1)',[id]);
 await db.query('insert into public.waouh_users values($1,$1)',[seller]);await db.query("insert into public.waouh_articles values($1,$2,'active')",[article,seller]);
@@ -49,10 +49,24 @@ await cmd(owner,'approve_step',{deal_room_id:aid,mandate_revision:assisted.manda
 assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
 await db.query("update public.waouh_deal_room_links set next_run_at=now() where id=$1",[aid]);await db.query('select public.waouh_room_tick(20)');
 assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
+// Pause/resume cannot send a reminder before the original 24-hour deadline.
+let resumed=await cmd(owner,'get',{deal_room_id:aid});
+resumed=await cmd(owner,'delegate',{deal_room_id:aid,mandate_revision:resumed.mandate_revision,confirmed:true,rules});
+resumed=await cmd(owner,'pause',{deal_room_id:aid,mandate_revision:resumed.mandate_revision});
+resumed=await cmd(owner,'resume_bot',{deal_room_id:aid,mandate_revision:resumed.mandate_revision,confirmed:true});
+assert.equal((await db.query('select public.waouh_room_tick(1,$1) n',[aid])).rows[0].n,0);
+assert.equal((await cmd(owner,'get',{deal_room_id:aid})).messages.filter(m=>m.author_kind==='bot').length,1);
+assert.equal((await db.query("select l.next_run_at=(select max(created_at)+interval '24 hours' from public.waouh_room_events where room_id=l.id and actor_kind='bot') ok from public.waouh_deal_room_links l where id=$1",[aid])).rows[0].ok,true);
+await db.query("update public.waouh_room_events set created_at=now()-interval '25 hours' where room_id=$1 and actor_kind='bot'",[aid]);
+await db.query("update public.waouh_deal_room_links set next_run_at=now() where id=$1",[aid]);
+assert.equal((await db.query('select public.waouh_room_tick(1,$1) n',[aid])).rows[0].n,1);
+await db.query("update public.waouh_deal_room_links set next_run_at=now() where id=$1",[aid]);
+assert.equal((await db.query('select public.waouh_room_tick(1,$1) n',[aid])).rows[0].n,0);
+const historyBase=(await cmd(owner,'get',{deal_room_id:aid})).messages.length;
 // History remains pageable after more than a hundred messages.
 for(let i=0;i<105;i++)await db.query("insert into public.waouh_business_messages(component_id,actor_id,request_id,text,created_at) values($1,$2,$3,$4,now()-interval '1 day'+($5::int*interval '1 second'))",[aid,owner,crypto.randomUUID(),'History '+i,i]);
 const latest=await cmd(owner,'get',{deal_room_id:aid});assert.equal(latest.messages.length,100);assert.ok(latest.message_cursor);
-const older=await cmd(owner,'get',{deal_room_id:aid,before_message:latest.message_cursor});assert.ok(older.messages.length>0);assert.equal(new Set([...older.messages,...latest.messages].map(x=>x.id)).size,107);
+const older=await cmd(owner,'get',{deal_room_id:aid,before_message:latest.message_cursor});assert.ok(older.messages.length>0);assert.equal(new Set([...older.messages,...latest.messages].map(x=>x.id)).size,historyBase+105);
 // An expired mandate cannot resume or send.
 await db.query("update public.waouh_deal_room_links set expires_at=now()-interval '1 minute',next_run_at=now() where id=$1",[aid]);await db.query('select public.waouh_room_tick(20)');
 assisted=await cmd(owner,'get',{deal_room_id:aid});assert.equal(assisted.control_mode,'paused');await assert.rejects(cmd(owner,'resume_bot',{deal_room_id:aid,mandate_revision:assisted.mandate_revision,confirmed:true}),/expired/);

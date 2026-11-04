@@ -49,3 +49,34 @@ it('opens a new room without an agreement or invented confirmation',async()=>{
  expect(host.textContent).toContain('Le prix et les conditions seront confirmés');
  expect(host.textContent).not.toContain('Accord confirmé');
 });
+
+it('keeps buyer closure pending until evidence and the other participant confirm',async()=>{
+ let current:any={...base,control_mode:'manual',allowed_actions:['receipt','payment_report'],evidence:{},agreement:{...base.agreement,status:'accepted',owner_accepted_at:'ok',provider_accepted_at:'ok'}};
+ mocks.call.mockImplementation(async(action)=>{
+  if(action==='receipt')current={...current,evidence:{...current.evidence,receipt_at:'ok'},allowed_actions:['payment_report']};
+  if(action==='payment_report')current={...current,evidence:{...current.evidence,payment_reported_at:'ok'},allowed_actions:[]};
+  if(action==='complete')current={...current,agreement:{...current.agreement,owner_completed_at:'ok'},allowed_actions:[]};
+  return current;
+ });
+ await mount();expect(host.textContent).not.toContain('Confirmer la clôture');
+ await click('Confirmer la réception');await click('J’ai effectué le paiement');
+ expect(host.textContent).not.toContain('Confirmer la clôture');
+ current={...current,evidence:{...current.evidence,payment_received_at:'ok'},allowed_actions:['complete']};
+ await click('Actualiser');await click('Confirmer la clôture');
+ expect(mocks.call).toHaveBeenCalledWith('complete',{deal_room_id:'room',version:3});
+ expect(host.textContent).not.toContain('Échange clôturé');
+ current={...current,agreement:{...current.agreement,status:'completed',provider_completed_at:'ok'},closed:true,allowed_actions:['rating']};
+ await click('Actualiser');expect(host.textContent).toContain('Échange clôturé');
+ await click('5 ★');expect(mocks.call).toHaveBeenCalledWith('rating',{deal_room_id:'room',rating:5});
+});
+it('lets the seller confirm receipt of the declared payment and finish bilateral closure',async()=>{
+ let current:any={...base,is_owner:false,control_mode:'manual',allowed_actions:['payment_receive'],evidence:{receipt_at:'ok',payment_reported_at:'ok'},agreement:{...base.agreement,status:'accepted',owner_accepted_at:'ok',provider_accepted_at:'ok',owner_completed_at:'ok'}};
+ mocks.call.mockImplementation(async(action)=>{
+  if(action==='payment_receive')current={...current,evidence:{...current.evidence,payment_received_at:'ok'},allowed_actions:['complete']};
+  if(action==='complete')current={...current,agreement:{...current.agreement,status:'completed',provider_completed_at:'ok'},closed:true,allowed_actions:['rating']};
+  return current;
+ });
+ await mount();await click('J’ai reçu le paiement');await click('Confirmer la clôture');
+ expect(mocks.call).toHaveBeenCalledWith('payment_receive',{deal_room_id:'room',version:3});
+ expect(host.textContent).toContain('Échange clôturé');
+});

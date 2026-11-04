@@ -33,3 +33,11 @@ Une compilation ne certifie pas une recette physique Android ni un accord entre 
 Le parcours opportunité conserve la préparation puis la déclaration explicite de transmission du dossier, sans fabriquer un achat. Les tests couvrent désormais aussi réception, déclarations de paiement, clôture bilatérale, évaluation et ouverture sans accord. Le script de déploiement applique et enregistre atomiquement la seule migration dédiée; il refuse un schéma préexistant non suivi. La version préparée est 18.46.0+1793783142.
 
 Les politiques d’accès et d’automatisation existantes couvrent également la route Deal Room, son API et le worker. Les tests vérifient qu’une désactivation administrative empêche tout nouveau message automatique.
+
+## Recette métier après déploiement
+
+La recette transactionnelle `scripts/tests/waouh-deal-room-live-audit.sql` a exécuté en production le parcours manuel produit et le parcours Bot service jusqu’à `completed`, puis l’évaluation. Invitation, contact unique, isolation du tiers, propositions, ancienne version refusée, reprise après interruption, signatures et clôtures bilatérales, réception et déclarations de paiement ont été vérifiés. Les deux parcours ont terminé en 771 ms côté SQL dans cet essai; ce chiffre ne mesure pas la durée des échanges humains ou le réseau mobile. Toutes les données de recette ont été annulées par rollback.
+
+L’essai a révélé une relance prématurée après pause/reprise. La migration `20261104105439_waouh_room_followup_resume_cooldown.sql` est appliquée en production: elle maintient l’intervalle de 24 heures depuis la dernière action Bot, sans retarder le traitement d’une nouvelle proposition vendeur. Tests ajoutés: reprise sans envoi immédiat, maintien de l’échéance initiale, relance autorisée après 24 heures et plafond de relances conservé.
+
+La recette physique complète sur deux appareils reste distincte de cette validation SQL et des tests UI automatisés. Un vendeur externe doit rejoindre la room via invitation pour y participer. Les paiements sont des déclarations, sans transfert financier automatique.
