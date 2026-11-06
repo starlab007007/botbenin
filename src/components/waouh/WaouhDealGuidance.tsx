@@ -1,5 +1,5 @@
 import {Check,Clock3,ArrowRight,ShieldAlert} from 'lucide-react';
-export const roomGuideActions=new Set(['invite','review','propose','message','receipt','payment_report','payment_receive','complete','rating','issue','refresh','takeover','resume_bot','approve_step','application_prepare','application_submit']);
+export const roomGuideActions=new Set(['invite','review','propose','message','receipt','payment_report','payment_receive','complete','rating','issue','refresh','takeover','resume_bot','approve_step','application_prepare','application_submit','application_outcome']);
 export function searchGuidance(searching:boolean,hasResults:boolean){return {
  schema:'waouh.room_guidance.v1',phase:'search',step:1,total:6,status:'active',actor:searching?'bot':'you',actor_label:searching?'Bot':'À vous',
  title:searching?'Recherche en cours':hasResults?'Choisissez une offre':'Décrivez votre besoin',

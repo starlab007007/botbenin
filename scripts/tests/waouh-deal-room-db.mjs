@@ -6,7 +6,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
 create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
-for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql','20261104111700_waouh_room_progressive_guidance.sql','20261106130900_waouh_receipt_mutual_proof.sql','20261106190000_waouh_room_guidance_restore_and_agreement_lock.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql','20261104111700_waouh_room_progressive_guidance.sql','20261106130900_waouh_receipt_mutual_proof.sql','20261106190000_waouh_room_guidance_restore_and_agreement_lock.sql','20261106200000_waouh_opportunity_outcome.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
 const owner='00000000-0000-4000-8000-000000000001',seller='00000000-0000-4000-8000-000000000002',other='00000000-0000-4000-8000-000000000003',article='00000000-0000-4000-8000-000000000004';
 for(const id of [owner,seller,other])await db.query('insert into auth.users values($1)',[id]);
 await db.query('insert into public.waouh_users values($1,$1)',[seller]);await db.query("insert into public.waouh_articles values($1,$2,'active')",[article,seller]);
@@ -100,6 +100,30 @@ const applied=await cmd(owner,'application_submit',{deal_room_id:opportunity.dea
 assert.ok(applied.evidence.application_submitted_at);
 assert.equal(applied.agreement,null);
 console.log('Opportunity application keeps its own process without a fabricated purchase agreement.');
+// Opportunité conclue : l'annonceur répond au dossier transmis.
+const offerArticle='00000000-0000-4000-8000-000000000007';
+await db.query("insert into public.waouh_articles values($1,$2,'active')",[offerArticle,seller]);
+await db.query('insert into public.waouh_users values($1,$2)',['00000000-0000-4000-8000-000000000008',owner]);
+let job=await cmd(owner,'open',{source:{...source,kind:'announcement',source_ref:'article:'+offerArticle},city:'Cotonou',confirmed:true});
+const jobId=job.deal_room_id;assert.equal(job.provider_joined,true);
+assert.equal((await cmd(seller,'get',{deal_room_id:jobId})).guidance.title,'Dossier en préparation');
+await assert.rejects(cmd(seller,'application_outcome',{deal_room_id:jobId,outcome:'retained'}),/not_submitted/);
+await cmd(owner,'application_prepare',{deal_room_id:jobId});
+job=await cmd(owner,'application_submit',{deal_room_id:jobId,confirmation:'submitted'});
+assert.ok(!job.allowed_actions.includes('application_prepare')&&!job.allowed_actions.includes('application_outcome'));
+let publisher=await cmd(seller,'get',{deal_room_id:jobId});
+assert.ok(publisher.allowed_actions.includes('application_outcome'));assert.equal(publisher.guidance.action,'application_outcome');
+await assert.rejects(cmd(owner,'application_outcome',{deal_room_id:jobId,outcome:'retained'}),/forbidden/);
+await assert.rejects(cmd(seller,'application_outcome',{deal_room_id:jobId,outcome:'maybe'}),/invalid_outcome/);
+publisher=await cmd(seller,'application_outcome',{deal_room_id:jobId,outcome:'retained',text:'Profil retenu, entretien lundi'});
+assert.equal(publisher.evidence.application_outcome,'retained');assert.equal(publisher.guidance.status,'completed');
+assert.ok(!publisher.allowed_actions.includes('application_outcome'));
+job=await cmd(owner,'get',{deal_room_id:jobId});
+assert.equal(job.guidance.title,'Candidature retenue');assert.equal(job.guidance.status,'completed');assert.equal(job.evidence.application_outcome_note,'Profil retenu, entretien lundi');
+assert.ok(job.guidance.steps.every(step=>step.state==='complete'));
+await assert.rejects(cmd(seller,'application_outcome',{deal_room_id:jobId,outcome:'declined'}),/recorded/);
+assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='application-outcome:'||$1",[jobId])).rows[0].n),1);
+console.log('Opportunity concluded: publisher answers the transmitted application once, candidate is notified.');
 // Administrative automation controls also stop the independent server worker.
 const policyArticle='00000000-0000-4000-8000-000000000006';
 await db.query("insert into public.waouh_articles values($1,$2,'active')",[policyArticle,seller]);

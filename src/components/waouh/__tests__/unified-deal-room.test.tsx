@@ -85,6 +85,18 @@ it('lets the seller confirm receipt of the declared payment and finish bilateral
  expect(host.textContent).toContain('Échange clôturé');
 });
 
+it('lets the publisher answer a transmitted application once, which concludes the opportunity',async()=>{
+ let current:any={...base,is_owner:false,kind:'announcement',control_mode:'manual',agreement:null,current_offer_version:0,allowed_actions:['message','application_outcome'],evidence:{application_prepared_at:'ok',application_submitted_at:'ok'}};
+ mocks.call.mockImplementation(async(action,p)=>{if(action==='application_outcome')current={...current,allowed_actions:['message'],evidence:{...current.evidence,application_outcome:p.outcome,application_outcome_note:p.text}};return current;});
+ await mount();await click('Répondre au dossier');
+ const note=host.querySelector('.wr-sheet textarea') as HTMLTextAreaElement;await act(async()=>{note.value='Entretien lundi';Simulate.change(note);});
+ await click('Retenir ce dossier');
+ expect(mocks.call).toHaveBeenCalledWith('application_outcome',{deal_room_id:'room',outcome:'retained',text:'Entretien lundi'});
+ expect(host.querySelector('.wr-sheet')).toBeNull();
+ expect(host.textContent).toContain('✓ Candidature retenue — Entretien lundi');
+ expect([...host.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Répondre au dossier')).toBe(false);
+});
+
 it('shows one primary task at a time from the server receipt and closure snapshots',async()=>{
  const state=(name:string)=>{const f=guideCases.find(f=>f.name===name)!;return {...base,buyer:true,...f.room,title:'Téléphone',current_offer_version:(f.room as any).agreement?.version??0,guidance:f.guidance};};
  let current=state('receipt');

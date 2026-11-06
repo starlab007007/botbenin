@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart' show WaouhColors;
 
-const roomGuideActions=<String>{'invite','review','propose','message','receipt','payment_report','payment_receive','complete','rating','issue','refresh','takeover','resume_bot','approve_step','application_prepare','application_submit'};
+const roomGuideActions=<String>{'invite','review','propose','message','receipt','payment_report','payment_receive','complete','rating','issue','refresh','takeover','resume_bot','approve_step','application_prepare','application_submit','application_outcome'};
 Map<String,dynamic> searchRoomGuidance(bool searching,bool hasResults)=>{
  'schema':'waouh.room_guidance.v1','phase':'search','step':1,'total':6,'status':'active','actor':searching?'bot':'you','actor_label':searching?'Bot':'À vous',
  'title':searching?'Recherche en cours':hasResults?'Choisissez une offre':'Décrivez votre besoin',

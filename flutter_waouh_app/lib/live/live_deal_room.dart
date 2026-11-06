@@ -18,7 +18,7 @@ String roomError(Object error){
  dynamic detail;String code='';
  if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(error.status==401)return 'Reconnectez-vous pour retrouver cet échange.';if(error.status==404)return 'Le service des échanges est momentanément indisponible. Réessayez.';}
  if(code.isEmpty)code=error is StateError?'${error.message}':error.toString();
- return {'agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+ return {'application_not_submitted':'Le dossier doit d’abord être transmis.','application_outcome_recorded':'Votre réponse à ce dossier est déjà enregistrée.','invalid_outcome':'Choisissez si le dossier est retenu ou non.','invalid_outcome_note':'La note doit contenir entre 3 et 500 caractères.','agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
 }
 
 /// Règles par défaut de « Confier à Bot » — identiques au web.
@@ -225,6 +225,31 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    ]),
   );
  }
+ // Annonceur : réponse au dossier transmis (retenu / non retenu), définitive.
+ Future<void> outcomePanel() async {
+  final r=room;if(r==null)return;
+  final sheetOwner=owner;final note=TextEditingController();
+  final choice=await showModalBottomSheet<String>(context:context,isScrollControlled:true,useSafeArea:true,backgroundColor:Colors.white,
+   builder:(ctx)=>StatefulBuilder(builder:(ctx,update){
+    final text=note.text.trim();final valid=text.isEmpty||text.length>=3;
+    return Padding(padding:EdgeInsets.fromLTRB(20,22,20,20+MediaQuery.of(ctx).viewInsets.bottom),child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     const Text('Répondre au dossier',style:TextStyle(fontSize:19,fontWeight:FontWeight.w600)),
+     const SizedBox(height:8),
+     const Text('Le candidat sera informé de votre réponse. Elle ne pourra plus être modifiée.',style:TextStyle(fontSize:13,color:Colors.black54)),
+     const SizedBox(height:16),
+     TextField(controller:note,maxLength:500,maxLines:3,onChanged:(_)=>update((){}),decoration:const InputDecoration(labelText:'Note pour le candidat (facultatif)',border:OutlineInputBorder())),
+     const SizedBox(height:12),
+     FilledButton(onPressed:valid?()=>Navigator.pop(ctx,'retained'):null,child:const Text('Retenir ce dossier')),
+     const SizedBox(height:8),
+     OutlinedButton(onPressed:valid?()=>Navigator.pop(ctx,'declined'):null,child:const Text('Ne pas retenir')),
+     TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),
+    ])));
+   }));
+  final text=note.text.trim();
+  WidgetsBinding.instance.addPostFrameCallback((_)=>note.dispose());
+  if(choice==null||!mounted||owner!=sheetOwner)return;
+  await act('application_outcome',{'outcome':choice,if(text.isNotEmpty)'text':text});
+ }
  Future<void> guideAction(String action)async{
   final r=room;if(r==null||!roomGuideActions.contains(action))return;
   final account=owner,a=r['agreement'] as Map?,version=r['current_offer_version'];
@@ -233,6 +258,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   if(action=='propose'){await propose();return;}
   if(action=='message'){final p=await form('Votre message',{'text':message.text});if(p!=null)await act('message',{'text':p['text']});return;}
   if(action=='receipt'){await receiptPanel();return;}
+  if(action=='application_outcome'){await outcomePanel();return;}
   if(action=='review'&&a!=null){
    final allowed=r['allowed_actions'] as List? ?? [];
    final decision=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Relire les conditions · Version $version'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Padding(padding:const EdgeInsets.only(bottom:10),child:Text('${{'amount':'Prix · F','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement'}[entry.key]??entry.key} : ${entry.value}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),if(allowed.contains('reject'))TextButton(onPressed:()=>Navigator.pop(ctx,'reject'),child:const Text('Refuser cette version')),if(allowed.contains('accept'))FilledButton(onPressed:()=>Navigator.pop(ctx,'accept'),child:const Text('Confirmer ces conditions'))]));
@@ -265,13 +291,15 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     ]),
     if(r['is_owner']==true&&r['expires_at']!=null)Text('Plafond privé : ${money((r['mandate'] as Map?)?['budget_max'])} · Mandat jusqu’au ${when(r['expires_at'])}',style:const TextStyle(fontSize:12)),
     if(r['is_owner']==true&&(((r['mandate'] as Map?)?['cascade_step'] as num?)??1)>1)Padding(padding:const EdgeInsets.only(top:4),child:Text('Piste ${(r['mandate'] as Map)['cascade_step']}/${(r['mandate'] as Map)['cascade_max_steps']} · Bot a choisi cette offre après l’absence de réponse de la précédente.',style:const TextStyle(fontSize:12))),
-    if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),
+    if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée','application_prepare':'Dossier préparé','application_submit':'Dossier transmis','application_outcome':'Réponse au dossier enregistrée'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),
     if(r['message_cursor']!=null)button('Messages précédents',()async{final v=generation;try{final older=await api.call('get',{'deal_room_id':roomId,'before_message':r['message_cursor']});if(mounted&&v==generation)setState(()=>room={...room!,'message_cursor':older['message_cursor'],'messages':mergeRoomMessages(older['messages'] as List,room!['messages'] as List)});}catch(_){if(mounted)setState(()=>error='Historique momentanément indisponible.');}}),
     for(final m in (r['messages'] as List? ?? []))Align(alignment:m['mine']==true?Alignment.centerRight:Alignment.centerLeft,child:Card(color:m['mine']==true?WaouhColors.sky:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(m['author_kind']=='bot'?'Bot · représente le demandeur':m['mine']==true?'Vous':'Interlocuteur',style:const TextStyle(fontSize:11)),Text('${m['text']}')])))),
     if(allowed.contains('message')&&(!bot||r['is_owner']!=true))card([field('Votre message',message),button('Envoyer',()async{final d=await act('message',{'text':message.text});if(d!=null){message.clear();final prefs=await SharedPreferences.getInstance();await prefs.remove('waouh.room.draft.$owner.$roomId');}},primary:true,enabled:true)]),
     if(allowed.contains('application_prepare')&&guide?['action']!='application_prepare')button('Préparer ma démarche',()=>act('application_prepare')),
     if(allowed.contains('application_submit')&&guide?['action']!='application_submit')button('Je confirme avoir transmis mon dossier',()=>act('application_submit',{'confirmation':'submitted'})),
-    if(r['evidence'] is Map&&r['evidence']['application_submitted_at']!=null)const Text('Démarche déclarée transmise. Réponse attendue.'),
+    if(allowed.contains('application_outcome')&&guide?['action']!='application_outcome')button('Répondre au dossier',outcomePanel,primary:true),
+    if(r['evidence'] is Map&&r['evidence']['application_outcome']!=null)Container(margin:const EdgeInsets.only(top:8),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:r['evidence']['application_outcome']=='retained'?const Color(0xFFECFDF5):const Color(0xFFF8FAFC),borderRadius:BorderRadius.circular(12)),child:Text('${r['evidence']['application_outcome']=='retained'?'✓ Candidature retenue':'Candidature non retenue'}${(r['evidence']['application_outcome_note']??'').toString().isNotEmpty?' — ${r['evidence']['application_outcome_note']}':''}',style:TextStyle(fontWeight:FontWeight.w600,color:r['evidence']['application_outcome']=='retained'?const Color(0xFF047857):const Color(0xFF475569))))
+    else if(r['evidence'] is Map&&r['evidence']['application_submitted_at']!=null)const Text('Démarche déclarée transmise. Réponse attendue.'),
     if((!bot||r['is_owner']!=true)&&allowed.contains('propose')&&guide?['action']!='propose')button('Proposer un prix / des conditions',propose),
     if(r['provider_joined']!=true&&r['is_owner']==true)...[button('Confirmer la prise de contact',()=>act('contact',{'confirmed':true})),if(guide?['action']!='invite')button('Préparer et copier l’invitation',copyInvite),button('Révoquer l’invitation',()=>act('revoke_invite'))],
     if(a==null&&r['initial_price_proposal'] is Map&&r['initial_price_proposal']['amount']!=null)card([const Text('Prix proposé par Bot'),Text(money(r['initial_price_proposal']['amount'])),Text('Proposition ${r['initial_price_proposal']['revision']} · Conditions à préciser avant l’accord.')]),

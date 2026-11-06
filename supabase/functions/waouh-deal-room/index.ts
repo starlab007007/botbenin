@@ -4,7 +4,7 @@ import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
-const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit']);
+const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit','application_outcome']);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);

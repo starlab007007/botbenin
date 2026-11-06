@@ -41,6 +41,18 @@ void main(){
   expect(rules['cascade_max_steps'],4);
   await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));
+ testWidgets('publisher answers a transmitted application from the room',(tester)async{
+  final api=await serviceFor(tester,owner:false);
+  api.data={...api.data,'kind':'announcement','control_mode':'manual','agreement':null,'current_offer_version':0,'allowed_actions':['message','application_outcome'],'evidence':{'application_prepared_at':'ok','application_submitted_at':'ok'}};
+  await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Répondre au dossier'));await tester.tap(find.text('Répondre au dossier'));await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextField).last,'Entretien lundi');await tester.pump();
+  await tester.tap(find.text('Retenir ce dossier'));await tester.pumpAndSettle();
+  expect(api.calls,contains('application_outcome'));
+  final sent=api.requests.lastWhere((r)=>r['action']=='application_outcome');
+  expect(sent['outcome'],'retained');expect(sent['text'],'Entretien lundi');
+  await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
+ },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('manual takeover keeps the same room and its history',(tester)async{
   final api=await serviceFor(tester);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
   expect(find.text('Historique conservé'),findsOneWidget);expect(find.text('Bot mène l’échange'),findsOneWidget);

@@ -1912,8 +1912,8 @@
           "state": "upcoming"
         },
         {
-          "id": "followup",
-          "label": "Suivi",
+          "id": "outcome",
+          "label": "Réponse",
           "state": "upcoming"
         }
       ],
@@ -1976,8 +1976,8 @@
           "state": "current"
         },
         {
-          "id": "followup",
-          "label": "Suivi",
+          "id": "outcome",
+          "label": "Réponse",
           "state": "upcoming"
         }
       ],
@@ -2013,7 +2013,7 @@
       "messages": []
     },
     "expected": {
-      "phase": "followup",
+      "phase": "outcome",
       "action": null,
       "actor": "counterparty",
       "status": "active"
@@ -2021,7 +2021,7 @@
     "guidance": {
       "step": 4,
       "actor": "counterparty",
-      "phase": "followup",
+      "phase": "outcome",
       "steps": [
         {
           "id": "search",
@@ -2039,8 +2039,8 @@
           "state": "complete"
         },
         {
-          "id": "followup",
-          "label": "Suivi",
+          "id": "outcome",
+          "label": "Réponse",
           "state": "current"
         }
       ],
@@ -2052,7 +2052,7 @@
       "status": "active",
       "checklist": [],
       "actor_label": "Réponse attendue",
-      "phase_label": "Suivi",
+      "phase_label": "Réponse",
       "action_label": null,
       "alternatives": [],
       "offer_version": 0
