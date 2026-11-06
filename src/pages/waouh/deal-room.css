@@ -5,3 +5,5 @@
 .wr-notice{padding:12px 16px;border:1px solid #a7f3d0;border-radius:14px;background:#ecfdf5;color:#047857;overflow-wrap:anywhere}.wr #wr-agreement:focus,.wr #wr-rating:focus{outline:3px solid #2563eb44;outline-offset:3px}
 
 .wr-guide-alternatives{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.wr-guide-alternatives button{font-size:12px;color:#475569}
+
+.wr-receipt-status{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:#f8fafc}.wr-receipt-status p{margin:0 0 6px;font-size:13px}.wr-receipt-status p:last-of-type{margin-bottom:0}.wr-receipt-photo{display:block;max-width:160px;max-height:160px;width:auto;border-radius:12px;margin:6px 0 10px;object-fit:cover;border:1px solid var(--line)}
