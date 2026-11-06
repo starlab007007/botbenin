@@ -89,6 +89,14 @@ Color _readinessFg(String tone) => switch (tone) {
   _ => const Color(0xFF69758B),
 };
 
+/// Verbe de l'action principale d'une offre, selon le type de recherche (comme sur le web).
+String livePrimaryOfferLabel(String missionKind, String mode, String? level) {
+  if (missionKind == 'sale' || mode == 'sell') return liveContactabilityActionLabel(level);
+  if (missionKind == 'service' || missionKind == 'project') return 'Demander un devis';
+  if (missionKind == 'opportunity') return 'Postuler';
+  return 'Intéressé';
+}
+
 class LiveAutomaticOffers extends StatefulWidget {
   const LiveAutomaticOffers({
     super.key,
@@ -109,6 +117,7 @@ class LiveAutomaticOffers extends StatefulWidget {
     this.missionKind = 'purchase',
     this.missionContext,
     this.ownArticle,
+    this.onDelegateAll,
   });
   final ValueChanged<String>? onPriorityChanged;
   final List<NexusDiscoveryItem> items;
@@ -120,6 +129,8 @@ class LiveAutomaticOffers extends StatefulWidget {
   final bool actionBusy, manualChoice;
   final VoidCallback onAction;
   final ValueChanged<NexusDiscoveryItem> onContact, onDelegate, onFollow;
+  /// Bandeau « Confier les N à Bot » : reçoit les offres affichées, la meilleure en premier.
+  final ValueChanged<List<NexusDiscoveryItem>>? onDelegateAll;
   @override
   State<LiveAutomaticOffers> createState() => _LiveAutomaticOffersState();
 }
@@ -627,24 +638,25 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
-                    if (widget.missionKind != 'opportunity')
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        initiallyExpanded: widget.manualChoice,
-                        title: const Text(
-                          'Agir sur cette piste',
-                          style: TextStyle(fontSize: 13),
-                        ),
+                    // Actions visibles (plus repliées) : même ordre que sur la carte.
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, 'delegate'),
-                            child: const Text(
-                              'Confier cette piste à mon avatar',
-                            ),
-                          ),
-                          TextButton(
+                          FilledButton(
                             onPressed: () => Navigator.pop(ctx, 'contact'),
-                            child: const Text('Préparer un contact'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: avatarPremiumInk,
+                              minimumSize: const Size.fromHeight(46),
+                            ),
+                            child: Text(livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx, 'delegate'),
+                            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                            child: const Text('Confier à Bot'),
                           ),
                           TextButton(
                             onPressed: () => Navigator.pop(ctx, 'watch'),
@@ -652,6 +664,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                           ),
                         ],
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -776,44 +789,154 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
   // écrire au vendeur » (bouton de contact, libellé selon la contactabilité) et
   // « laisser le bot agir » (délégation), sans passer par le détail de la piste.
   Widget _directActions(NexusDiscoveryItem o) => Padding(
-    padding: const EdgeInsets.fromLTRB(11, 0, 11, 13),
+    padding: const EdgeInsets.fromLTRB(11, 0, 11, 12),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: 36,
+          height: 40,
           child: FilledButton(
             onPressed: widget.actionBusy ? null : () => widget.onContact(o),
             style: FilledButton.styleFrom(
+              backgroundColor: avatarPremiumInk,
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
             ),
-            child: Text(
-              liveContactabilityActionLabel(o.contactPolicy.level),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: _fit(Icons.volunteer_activism_outlined, livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)),
           ),
         ),
         const SizedBox(height: 6),
-        SizedBox(
-          height: 34,
-          child: OutlinedButton(
-            onPressed: widget.actionBusy ? null : () => widget.onDelegate(o),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 36,
+                child: OutlinedButton(
+                  onPressed: widget.actionBusy ? null : () => widget.onDelegate(o),
+                  style: _secondaryStyle,
+                  child: _fit(Icons.handshake_outlined, 'Bot'),
+                ),
+              ),
             ),
-            child: const Text(
-              'Confier à Bot',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 6),
+            Expanded(
+              child: SizedBox(
+                height: 36,
+                child: OutlinedButton(
+                  onPressed: () => _detail(o),
+                  style: _secondaryStyle,
+                  child: _fit(Icons.visibility_outlined, 'Détails'),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     ),
   );
+  // Icône + libellé réduits si la carte est étroite : jamais de débordement.
+  Widget _fit(IconData icon, String label) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [Icon(icon, size: 15), const SizedBox(width: 5), Text(label, maxLines: 1)],
+    ),
+  );
+  ButtonStyle get _secondaryStyle => OutlinedButton.styleFrom(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    foregroundColor: avatarPremiumInk,
+    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  );
+  // Bandeau en tête des résultats : confier d'un geste les meilleures offres à Bot
+  // (Deal Room de la n°1, reprise automatique sur les suivantes sans réponse).
+  Widget _botBanner(List<NexusDiscoveryItem> shown) {
+    final count = shown.length;
+    final cap = widget.budget == null
+        ? null
+        : '${widget.budget!.round()}'.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ' ');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F7FF),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFC7D4FB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Image.asset('assets/bot/bot_avatar.png', width: 38, height: 38),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      count > 1 ? '$count offres · Bot recommande la n°1' : 'Bot recommande cette offre',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: avatarPremiumInk),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      count > 1
+                          ? 'Il négocie dans votre plafond et passe à la suivante sans réponse sous 48 h.'
+                          : 'Il négocie dans votre plafond. Vous confirmez l’accord final.',
+                      style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                    ),
+                    if (cap != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Plafond · $cap F',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: avatarPremiumBlue),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: widget.actionBusy ? null : () => widget.onDelegateAll!(shown),
+            icon: const Icon(Icons.handshake_outlined, size: 18),
+            label: Text(count > 1 ? 'Confier les $count à Bot' : 'Confier à Bot'),
+            style: FilledButton.styleFrom(
+              backgroundColor: avatarPremiumBlue,
+              minimumSize: const Size.fromHeight(46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+          const Divider(height: 20),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: widget.actionBusy
+                  ? null
+                  : widget.manualChoice
+                  ? () => _detail(shown.first)
+                  : widget.onAction,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                widget.actionLabel,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
+              ),
+            ),
+          ),
+          if (widget.tracking != null)
+            Text(widget.tracking!, style: const TextStyle(fontSize: 12, color: avatarPremiumMuted)),
+        ],
+      ),
+    );
+  }
   Widget _tile(NexusDiscoveryItem o, bool first, bool tall) => Material(
     color: Colors.white,
     borderRadius: BorderRadius.circular(17),
@@ -972,6 +1095,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
             label: 'Mon article à vendre',
           ),
         if (rows.isNotEmpty) ...[
+          if (widget.onDelegateAll != null) _botBanner(shown),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1126,20 +1250,22 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 ),
             ],
           ),
-        const SizedBox(height: 16),
-        primary(
-          onTap: widget.manualChoice && rows.isNotEmpty
-              ? () => _detail(rows.first)
-              : widget.onAction,
-        ),
-        if (widget.tracking != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 9),
-            child: Text(
-              widget.tracking!,
-              style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
-            ),
+        if (widget.onDelegateAll == null || rows.isEmpty) ...[
+          const SizedBox(height: 16),
+          primary(
+            onTap: widget.manualChoice && rows.isNotEmpty
+                ? () => _detail(rows.first)
+                : widget.onAction,
           ),
+          if (widget.tracking != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 9),
+              child: Text(
+                widget.tracking!,
+                style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
+              ),
+            ),
+        ],
       ],
     );
   }

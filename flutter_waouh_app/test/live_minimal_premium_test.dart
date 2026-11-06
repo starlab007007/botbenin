@@ -47,6 +47,47 @@ void main() {
       );
     });
   }
+  testWidgets('results: Bot banner hands over the best offers, cards open the Deal Room or the details', (tester) async {
+    tester.view.physicalSize = const Size(390, 2200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final rows = (cases.first['offers'] as List)
+        .map((r) => NexusDiscoveryItem.fromJson(Map<String, dynamic>.from(r as Map)))
+        .toList();
+    List<NexusDiscoveryItem>? handed;
+    NexusDiscoveryItem? interested;
+    var follow = false;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: LiveAutomaticOffers(
+        items: rows, query: 'iPhone 13', city: 'Cotonou', budget: 220000,
+        actionLabel: 'Continuer à chercher de nouvelles offres',
+        onAction: () => follow = true,
+        onContact: (o) => interested = o, onDelegate: (_) {}, onFollow: (_) {},
+        onDelegateAll: (top) => handed = top,
+      ),
+    )))));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Bot recommande'), findsOneWidget);
+    expect(find.text('Plafond · 220 000 F'), findsOneWidget);
+    final cta = find.textContaining(RegExp(r'^Confier (les \d+ )?à Bot$'));
+    expect(cta, findsOneWidget);
+    await tester.tap(cta);
+    expect(handed, isNotEmpty);
+    await tester.tap(find.text('Continuer à chercher de nouvelles offres'));
+    expect(follow, isTrue);
+    await tester.ensureVisible(find.text('Intéressé').first);
+    await tester.tap(find.text('Intéressé').first);
+    expect(interested, isNotNull);
+    await tester.ensureVisible(find.text('Détails').first);
+    await tester.tap(find.text('Détails').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Confier à Bot'), findsWidgets);
+    expect(find.text('Surveiller cette piste'), findsOneWidget);
+    expect(find.text('Agir sur cette piste'), findsNothing);
+  });
   testWidgets(
     'compact mission and automatic recommendation fit 320px without selection boxes',
     (tester) async {

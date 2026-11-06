@@ -485,7 +485,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       ? 'Choisir mon article'
       : legacy.supabase.auth.currentUser == null
       ? 'Connexion pour le suivi'
-      : 'Confier cette recherche';
+      : 'Continuer à chercher de nouvelles offres';
   String? get _tracking =>
       _automaticError ??
       (_automatic?['skipped'] == 'paused'
@@ -809,7 +809,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> prepareContact(NexusDiscoveryItem item) async {
-    if(_activeKind!='sale'){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}');}catch(e){if(mounted)notice(errorText(e));}return;}
+    // « Intéressé » : ouvre le Deal Room et son panneau de proposition de prix (dossier pour une opportunité).
+    if(_activeKind!='sale'){if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'ouvrir cet échange'))return;if(!mounted)return;try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${_activeKind=='opportunity'?'':'&propose=1'}');}catch(e){if(mounted)notice(roomError(e));}return;}
 
     if (!await requireLiveAuthentication(
       context,
@@ -1143,15 +1144,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       ],
     ],
   );
-  Future<void> _delegateOne(NexusDiscoveryItem item) async {
+  Future<void> _delegateOne(NexusDiscoveryItem item, {List<NexusDiscoveryItem>? alternates}) async {
     // Achat, demande, opportunité : Bot ouvre le Deal Room et négocie directement,
     // avec jusqu’à 3 autres offres en repli si la piste ne répond pas (comme le web).
     if(_activeKind!='sale'){
       if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'confier cette piste à Bot'))return;
       if(!mounted)return;
-      final alternates=(discovery?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId).take(3).toList();
-      if(!await confirmBotDelegation(context,alternates:alternates.length)||!mounted)return;
-      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_lastCity,budgetMax:_lastBudget,alternates:alternates);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)notice(roomError(e));}
+      final fallbacks=(alternates??discovery?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId).take(3).toList();
+      if(!await confirmBotDelegation(context,alternates:fallbacks.length)||!mounted)return;
+      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_lastCity,budgetMax:_lastBudget,alternates:fallbacks);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)notice(roomError(e));}
       return;
     }
 
@@ -1367,6 +1368,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             onAction: _automaticAction,
             onContact: prepareContact,
             onDelegate: _delegateOne,
+            onDelegateAll: (top) => _delegateOne(top.first, alternates: top.skip(1).toList()),
             onFollow: _watchOne,
             onPriorityChanged: (v) {
               setState(() => _priority = v);
