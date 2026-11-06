@@ -37,7 +37,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release download waouh-android-latest -R "$GITHUB_REPOSITORY" -p waouh-android.apk -p waouh-android.json -D apk
+          for i in 1 2 3 4 5; do
+            gh release download waouh-android-latest -R "$GITHUB_REPOSITORY" -p waouh-android.apk -p waouh-android.json -D apk --clobber && break
+            echo "Nouvel essai de téléchargement ($i)"; sleep $((i * 10))
+          done
+          test -s apk/waouh-android.apk
           cat apk/waouh-android.json
           sha256sum apk/waouh-android.apk
 
