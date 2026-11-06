@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   emulator:
@@ -105,6 +105,18 @@ jobs:
           name: waouh-android-emulator
           path: emulator-out
           retention-days: 14
+
+      - name: Publish results (release waouh-android-emulator-latest)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -d emulator-out || exit 0
+          (cd emulator-out && zip -qr ../waouh-android-emulator.zip .)
+          TAG=waouh-android-emulator-latest
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "WAOUH Android — test émulateur" --notes "Dernier test sur émulateur" --latest=false --prerelease
+          gh release edit "$TAG" --notes "Test émulateur — exécution ${GITHUB_RUN_ID}, commit ${GITHUB_SHA::8}" --latest=false
+          gh release upload "$TAG" waouh-android-emulator.zip --clobber
 
       - name: Delete test account
         if: always() && steps.account.outputs.user_id != ''

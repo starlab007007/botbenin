@@ -110,7 +110,7 @@ def wait_for(pattern, timeout=60, name=None):
     root = None
     while time.time() < end:
         root = dump()
-        if root is not None and find(root, pattern):
+        if root is not None and find(root, pattern) is not None:
             break
         time.sleep(3)
     if name:
@@ -217,11 +217,16 @@ def finish():
     log = sh("logcat", "-d", timeout=120)
     with open(os.path.join(OUT, "logcat.txt"), "w") as f:
         f.write(log)
-    crashes = [l for l in log.splitlines() if "FATAL EXCEPTION" in l or ("AndroidRuntime" in l and PKG in l)]
+    lines_all = log.splitlines()
+    crashes = [l for l in lines_all if "FATAL EXCEPTION" in l or ("AndroidRuntime" in l and PKG in l)]
+    # Cause du plantage : lignes AndroidRuntime / natives / chargeur de bibliothèques.
+    cause = [l for l in lines_all if re.search(r"AndroidRuntime|DEBUG   :|libflutter|UnsatisfiedLink|dlopen|native_bridge|houdini|ndk_translation|Abort message|signal \d+ \(SIG", l)][:60]
+    with open(os.path.join(OUT, "crash.txt"), "w") as f:
+        f.write("\n".join(cause))
     flutter_errors = [l for l in log.splitlines() if re.search(r"flutter.*(Exception|Error|══╡)", l)]
     anr = [l for l in log.splitlines() if "ANR in " + PKG in l]
     ok = all(s["ok"] for s in steps if s.get("critical")) and not crashes and not anr
-    report = {"ok": ok, "steps": steps, "crashes": crashes[:20], "anr": anr[:5],
+    report = {"ok": ok, "steps": steps, "crashes": crashes[:20], "crash_cause": cause, "anr": anr[:5],
               "flutter_errors": flutter_errors[:40]}
     with open(os.path.join(OUT, "report.json"), "w") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
@@ -232,6 +237,9 @@ def finish():
     with open(os.path.join(OUT, "summary.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
     print("\n".join(lines))
+    if cause:
+        print("--- Cause du plantage (extrait du journal) ---")
+        print("\n".join(l[-260:] for l in cause[:40]))
     return 0 if ok else 1
 
 
