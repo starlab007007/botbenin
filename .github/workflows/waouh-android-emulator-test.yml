@@ -31,6 +31,8 @@ jobs:
       OUT_DIR: ${{ github.workspace }}/emulator-out
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download published APK
         env:
@@ -44,6 +46,42 @@ jobs:
           test -s apk/waouh-android.apk
           cat apk/waouh-android.json
           sha256sum apk/waouh-android.apk
+
+      # L'APK publié ne contient que le code des téléphones (ARM). L'émulateur des
+      # serveurs GitHub est en x86_64 : on recompile exactement la même version
+      # (même commit, même cible, même numéro de build) pour ce processeur.
+      - name: Same version for the emulator CPU
+        run: |
+          set -euo pipefail
+          COMMIT="$(python3 -c "import json;print(json.load(open('apk/waouh-android.json'))['commit'])")"
+          echo "Version publiée construite depuis $COMMIT"
+          git checkout "$COMMIT" -- flutter_waouh_app
+          echo "APK_COMMIT=$COMMIT" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build x86_64 APK (test only)
+        working-directory: flutter_waouh_app
+        env:
+          WAOUH_TEST_RELEASE: "1"
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" >/dev/null
+          flutter pub get
+          BUILD_NUMBER="$(sed -n 's/^version: [0-9.]*+\([0-9]*\)$/\1/p' pubspec.yaml)"
+          flutter build apk --release --build-number="$BUILD_NUMBER" --target lib/live/live_app_production.dart --target-platform android-x64
+          cp build/app/outputs/flutter-apk/app-release.apk ../apk/waouh-android-x64.apk
+          ls -la ../apk
 
       - name: Create disposable test account
         id: account
@@ -92,7 +130,7 @@ jobs:
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: bash scripts/android-emulator-run.sh apk/waouh-android.apk
+          script: bash scripts/android-emulator-run.sh apk/waouh-android-x64.apk
 
       - name: Summary
         if: always()
