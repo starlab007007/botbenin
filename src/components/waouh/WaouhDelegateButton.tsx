@@ -11,7 +11,7 @@ import { roomCall, roomErrorText } from "@/lib/waouh/dealRoom";
 /** Candidature alternative pour la cascade automatique (offre suivante si pas de réponse). */
 export type WaouhDelegateAlternate = { fabric_id: string; city?: string | null };
 
-const DEFAULT_RULES = { mode: "semi_autonomous", duration_hours: 72, max_followups: 1, active_start: "08:00", active_end: "21:00" } as const;
+const DEFAULT_RULES = { mode: "autonomous", duration_hours: 72, max_followups: 1, active_start: "08:00", active_end: "21:00" } as const;
 
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation.
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
