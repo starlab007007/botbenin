@@ -11,3 +11,28 @@
 
 .wgd-heading-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}.wgd-sort select{font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--gd-line);border-radius:9px;background:var(--gd-paper);color:var(--gd-ink)}
 .wgd-readiness{display:inline-flex;align-items:center;width:fit-content;margin-top:6px;padding:3px 8px;border-radius:7px;font-size:10px;font-weight:600;letter-spacing:.2px}.wgd-readiness--ready{background:#eaf7f1;color:var(--gd-green)}.wgd-readiness--progress{background:#edf1ff;color:var(--gd-blue)}.wgd-readiness--review{background:#fbf2e3;color:#9a6419}.wgd-readiness--wait{background:var(--gd-soft);color:var(--gd-sub)}.wgd-readiness--detail{margin:4px 0 14px;font-size:12px;padding:5px 10px}
+
+/* Résultats : une carte = une offre. Une action principale (Intéressé → Deal Room), deux discrètes (Bot, Détails). */
+.wgd-gallery>.wgd-offer-card{display:flex;flex-direction:column;min-width:0;background:var(--gd-paper);border:1px solid var(--gd-line);border-radius:17px;overflow:hidden}
+.wgd-gallery>.wgd-offer-card>.wgd-tile{width:100%;border-radius:0;box-shadow:none;margin-top:0}
+.wgd-gallery>.wgd-offer-card .wgd-card-actions{padding:0 11px 12px;margin-top:auto}
+.wgd-offer-actions{display:flex;flex-direction:column;gap:7px;width:100%}
+.wgd-offer-actions>button.wgd-offer-primary,.wgd-detail-actions .wgd-offer-primary{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:42px;border:0;border-radius:13px;background:var(--gd-ink);color:#fff;font-size:14px;font-weight:700}
+.wgd-offer-primary:active{transform:scale(.98)}
+.wgd-offer-secondary{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.wgd-offer-secondary .h-10{font-size:13px;border-radius:12px}
+.wgd-offer-ghost{display:flex;align-items:center;justify-content:center;gap:5px;min-height:40px;border:1px solid var(--gd-line);border-radius:12px;background:var(--gd-paper);color:var(--gd-ink);font-size:13px;font-weight:700}
+.wgd-detail-actions{margin:14px 0 6px}
+.wgd-detail-actions .wgd-offer-secondary{grid-template-columns:1fr}
+.wgd-bot-banner{margin:0 0 16px;padding:13px 14px;border:1px solid #c7d4fb;border-radius:17px;background:#f4f7ff}
+.wgd-bot-banner-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.wgd-bot-banner-copy{flex:1;min-width:190px}
+.wgd-bot-banner-copy strong{display:block;font-size:15px;color:var(--gd-ink)}
+.wgd-bot-banner-copy p{margin:2px 0 0;font-size:13px;color:var(--gd-sub)}
+.wgd-bot-banner-copy small{display:inline-block;margin-top:4px;font-size:12px;font-weight:700;color:var(--gd-blue)}
+.wgd-bot-banner-cta{min-width:190px}
+.wgd-bot-banner-follow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid #dbe3fb;font-size:12px;color:var(--gd-sub)}
+.wgd-bot-banner-follow .wmn-primary{width:auto;min-height:0;padding:0;border:0;background:none;color:var(--gd-blue);font-size:12px;font-weight:700;text-decoration:underline;box-shadow:none}
+.wgd-bot-banner-follow [role=status]{flex-basis:100%}
+@media(max-width:520px){.wgd-bot-banner-cta{flex-basis:100%}}
+@media(max-width:520px){.wgd-heading{flex-direction:column;align-items:stretch;gap:8px}.wgd-heading-actions{justify-content:space-between}}

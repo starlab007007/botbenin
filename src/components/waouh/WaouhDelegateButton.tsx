@@ -16,7 +16,7 @@ const DEFAULT_RULES = { mode: "autonomous", duration_hours: 72, max_followups: 1
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation.
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
  *  alternatives sont fournies — reprend automatiquement avec la suivante en l’absence de réponse. */
-export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, discoveryKind, missionContext, alternates, city, budgetMax }: {
+export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, discoveryKind, missionContext, alternates, city, budgetMax, label = "Confier à Bot", variant = "primary" }: {
   result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
@@ -25,6 +25,10 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
   alternates?: WaouhDelegateAlternate[];
   city?: string | null;
   budgetMax?: number | null;
+  /** Libellé du bouton (ex. « Confier les 4 à Bot » dans le bandeau des résultats). */
+  label?: string;
+  /** « secondary » : bouton discret, pour les cartes de résultats où « Intéressé » est l'action principale. */
+  variant?: "primary" | "secondary";
   className?: string;
   onHandled?: () => void;
 }) {
@@ -101,12 +105,15 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
       </button>
     );
   }
+  const tone = variant === "secondary"
+    ? (confirm ? "border border-emerald-600 bg-emerald-50 text-emerald-800" : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50")
+    : `text-white shadow-md ${confirm ? "bg-gradient-to-r from-emerald-600 to-teal-600" : "bg-gradient-to-r from-blue-600 to-indigo-600"}`;
   return (
     <div className="w-full">
       <button type="button" onClick={() => void run()} disabled={busy}
-        className={`flex w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-black text-white shadow-md active:scale-[.98] ${className} ${confirm ? "bg-gradient-to-r from-emerald-600 to-teal-600" : "bg-gradient-to-r from-blue-600 to-indigo-600"}`}>
+        className={`flex w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-black active:scale-[.98] ${className} ${tone}`}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
-        {confirm ? "Confirmer" : "Confier à Bot"}
+        {confirm ? "Confirmer" : label}
       </button>
       {error && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{error}</p>}
     </div>

@@ -97,6 +97,17 @@ it('lets the publisher answer a transmitted application once, which concludes th
  expect([...host.querySelectorAll('button')].some(b=>b.textContent?.trim()==='Répondre au dossier')).toBe(false);
 });
 
+it('opens the price proposal on arrival from “Intéressé”, only when the other party can receive it',async()=>{
+ mocks.call.mockResolvedValue({...base,control_mode:'manual',agreement:null,current_offer_version:0});
+ await mount('/?room_id=room&offer=145000');
+ expect(host.querySelector('[role=dialog]')?.getAttribute('aria-label')).toBe('Proposition');
+ expect((host.querySelector('.wr-sheet input[type=number]') as HTMLInputElement).value).toBe('145000');
+ await act(async()=>root.unmount());root=createRoot(host);
+ mocks.call.mockResolvedValue({...base,control_mode:'manual',agreement:null,current_offer_version:0,provider_joined:false,allowed_actions:['invite']});
+ await mount('/?room_id=room&propose=1');
+ expect(host.querySelector('[role=dialog]')).toBeNull();
+});
+
 it('shows one primary task at a time from the server receipt and closure snapshots',async()=>{
  const state=(name:string)=>{const f=guideCases.find(f=>f.name===name)!;return {...base,buyer:true,...f.room,title:'Téléphone',current_offer_version:(f.room as any).agreement?.version??0,guidance:f.guidance};};
  let current=state('receipt');
