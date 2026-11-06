@@ -10,6 +10,84 @@ import 'live_essential_offer_data.dart';
 import 'live_essential_offers.dart';
 import 'live_offer_choice.dart';
 
+/// Statut d'avancement d'une piste, dérivé de next_best_action / readiness_level,
+/// traduit en français pour l'affichage (jamais le code interne).
+class OfferReadiness {
+  const OfferReadiness(this.label, this.tone);
+  final String label;
+  final String tone; // ready | progress | review | wait
+}
+
+OfferReadiness? offerReadiness(NexusDiscoveryItem o) {
+  final action = (o.nextBestAction ?? o.contactPack?.nextBestAction ?? '')
+      .toUpperCase();
+  switch (action) {
+    case 'CONTACT_NOW':
+      return const OfferReadiness('Contact direct possible', 'ready');
+    case 'OPEN_DEAL_ROOM':
+      return const OfferReadiness('Prêt pour le Deal Room', 'ready');
+    case 'EXECUTE':
+      return const OfferReadiness('Prêt à conclure', 'ready');
+    case 'COMPLETE':
+      return const OfferReadiness('Échange conclu', 'ready');
+    case 'NEGOTIATE':
+      return const OfferReadiness('Prêt à négocier', 'progress');
+    case 'REQUEST_APPROVAL':
+      return const OfferReadiness('Validation à donner avant contact', 'review');
+    case 'FOLLOW_UP':
+      return const OfferReadiness('Relance à prévoir', 'review');
+    case 'WAIT_REPLY':
+      return const OfferReadiness('En attente de réponse', 'wait');
+    case 'ENRICH':
+      return const OfferReadiness('Informations à compléter', 'wait');
+    case 'DROP_LOW_QUALITY':
+      return null;
+  }
+  // Repli : aucun next_best_action fourni, on se base sur le niveau de préparation annoncé.
+  final readiness = (o.readinessLevel ?? o.contactPack?.readiness ?? '')
+      .toUpperCase();
+  if (readiness == 'R4' || readiness == 'R5')
+    return const OfferReadiness('Contact direct possible', 'ready');
+  if (readiness == 'R2' || readiness == 'R3')
+    return const OfferReadiness('Informations à compléter', 'wait');
+  return null;
+}
+
+const Map<String, int> _nextActionRank = {
+  'CONTACT_NOW': 0,
+  'OPEN_DEAL_ROOM': 1,
+  'NEGOTIATE': 2,
+  'EXECUTE': 3,
+  'REQUEST_APPROVAL': 4,
+  'FOLLOW_UP': 5,
+  'WAIT_REPLY': 6,
+  'ENRICH': 7,
+  'COMPLETE': 8,
+  'DROP_LOW_QUALITY': 9,
+};
+
+/// Rang pour un tri d'affichage « contact le plus rapide d'abord ». N'affecte
+/// jamais rankLiveOfferChoices (partagé avec le choix réel de l'avatar) : ce
+/// tri est purement visuel, en complément du classement de l'avatar.
+int offerActionRank(NexusDiscoveryItem o) {
+  final action = (o.nextBestAction ?? o.contactPack?.nextBestAction ?? '')
+      .toUpperCase();
+  return _nextActionRank[action] ?? 10;
+}
+
+Color _readinessBg(String tone) => switch (tone) {
+  'ready' => const Color(0xFFEAF7F1),
+  'progress' => const Color(0xFFEDF1FF),
+  'review' => const Color(0xFFFBF2E3),
+  _ => const Color(0xFFEDF1F8),
+};
+Color _readinessFg(String tone) => switch (tone) {
+  'ready' => const Color(0xFF117B68),
+  'progress' => const Color(0xFF4C6CF4),
+  'review' => const Color(0xFF9A6419),
+  _ => const Color(0xFF69758B),
+};
+
 class LiveAutomaticOffers extends StatefulWidget {
   const LiveAutomaticOffers({
     super.key,
@@ -47,6 +125,7 @@ class LiveAutomaticOffers extends StatefulWidget {
 
 class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
   String _priority = 'price';
+  String _displayOrder = 'avatar';
   Timer? _clockTimer;
   DateTime _clock = DateTime.now();
   Map<String, dynamic> get contextRules => normalizeMissionContext(
@@ -91,6 +170,20 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     priceFloor: contextNumber('price_floor'),
     now: _clock,
   );
+
+  /// Affichage seul : ne modifie jamais `ranked` (le choix réel de l'avatar,
+  /// partagé avec rankLiveOfferChoices). Permet simplement de réordonner les
+  /// cartes visibles selon le contact le plus rapide.
+  List<NexusDiscoveryItem> get displayed {
+    final rows = ranked;
+    if (_displayOrder != 'fastest') return rows;
+    final sorted = List<NexusDiscoveryItem>.from(rows);
+    sorted.sort(
+      (a, b) => offerActionRank(a).compareTo(offerActionRank(b)),
+    );
+    return sorted;
+  }
+
   String money(double n) =>
       '${n.round().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]} ')} F CFA';
   String text(NexusDiscoveryItem o, String key) =>
@@ -176,7 +269,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 14),
-              for (final o in ranked.take(4))
+              for (final o in displayed.take(4))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   child: Column(
@@ -229,6 +322,10 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                           color: avatarPremiumMuted,
                         ),
                       ),
+                      if (_readinessPill(o) != null) ...[
+                        const SizedBox(height: 6),
+                        _readinessPill(o)!,
+                      ],
                       const Divider(color: avatarPremiumLine),
                     ],
                   ),
@@ -431,6 +528,10 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         color: avatarPremiumMuted,
                       ),
                     ),
+                    if (_readinessPill(o, fontSize: 12) != null) ...[
+                      const SizedBox(height: 8),
+                      _readinessPill(o, fontSize: 12)!,
+                    ],
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 18),
                       padding: const EdgeInsets.all(15),
@@ -564,6 +665,26 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     if (action == 'delegate') widget.onDelegate(o);
     if (action == 'contact') widget.onContact(o);
     if (action == 'watch') widget.onFollow(o);
+  }
+
+  Widget? _readinessPill(NexusDiscoveryItem o, {double fontSize = 11}) {
+    final r = offerReadiness(o);
+    if (r == null) return null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _readinessBg(r.tone),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        r.label,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w600,
+          color: _readinessFg(r.tone),
+        ),
+      ),
+    );
   }
 
   Widget _fact(String line, bool pending) => Padding(
@@ -743,6 +864,10 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                     color: avatarPremiumBlue,
                   ),
                 ),
+                if (_readinessPill(o) != null) ...[
+                  const SizedBox(height: 6),
+                  _readinessPill(o)!,
+                ],
               ],
             ),
           ),
@@ -777,7 +902,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                     : eligible)
                 .where((o) => choicePriceNeedsReview(o, eligible))
                 .toList(),
-        shown = rows.take(4).toList();
+        shown = displayed.take(4).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -831,9 +956,36 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
               ),
             ],
           ),
+          if (rows.length > 1)
+            Align(
+              alignment: Alignment.centerRight,
+              child: DropdownButton<String>(
+                value: _displayOrder,
+                isDense: true,
+                underline: const SizedBox.shrink(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: avatarPremiumInk,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'avatar',
+                    child: Text('Choix de mon avatar'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'fastest',
+                    child: Text('Contact le plus rapide'),
+                  ),
+                ],
+                onChanged: (v) {
+                  if (v == null || !mounted) return;
+                  setState(() => _displayOrder = v);
+                },
+              ),
+            ),
           const SizedBox(height: 12),
           if (shown.length == 1)
-            _tile(shown.first, true, true)
+            _tile(shown.first, shown.first.fabricId == rows.first.fabricId, true)
           else
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -844,7 +996,11 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       for (var i = 0; i < shown.length; i += 2)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _tile(shown[i], i == 0, false),
+                          child: _tile(
+                            shown[i],
+                            shown[i].fabricId == rows.first.fabricId,
+                            false,
+                          ),
                         ),
                     ],
                   ),
@@ -858,7 +1014,11 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         for (var i = 1; i < shown.length; i += 2)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _tile(shown[i], false, true),
+                            child: _tile(
+                              shown[i],
+                              shown[i].fabricId == rows.first.fabricId,
+                              true,
+                            ),
                           ),
                       ],
                     ),
@@ -874,7 +1034,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                 style: const TextStyle(fontSize: 13),
               ),
               children: [
-                for (final o in rows.skip(4))
+                for (final o in displayed.skip(4))
                   ListTile(
                     title: Text(o.title, style: const TextStyle(fontSize: 13)),
                     subtitle: Text(essentialPrice(o)),

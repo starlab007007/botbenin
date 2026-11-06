@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -94,6 +95,68 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   if(values!=null)await act('propose',{'version':r['current_offer_version'],'terms':{...values,'amount':num.tryParse(values['amount']!),'quantity':int.tryParse(values['quantity']!)}});
  }
  Future<void> copyInvite()async{final d=await act('invite');if(d?['token']==null)return;try{await Clipboard.setData(ClipboardData(text:'https://bot.bj/app/premium#invite=${d!['token']}'));if(mounted)setState(()=>notice='Invitation copiée. Partagez-la pour que l’interlocuteur rejoigne cet échange.');}catch(_){if(mounted)setState(()=>notice='Invitation préparée : https://bot.bj/app/premium#invite=${d!['token']}');}}
+ // Réception honnête : confirmation mutuelle (demandeur et interlocuteur), avec note/photo
+ // facultatives. Jamais de vocabulaire de suivi coursier — seule une remise de la main à la main est décrite.
+ Future<void> receiptPanel() async {
+  final r=room;if(r==null)return;
+  final buyer=r['buyer']==true;
+  final version=r['current_offer_version'];
+  final note=TextEditingController();
+  String? photoUrl;bool uploading=false;
+  final confirmed=await showModalBottomSheet<bool>(context:context,isScrollControlled:true,useSafeArea:true,backgroundColor:Colors.white,
+   builder:(ctx)=>StatefulBuilder(builder:(ctx,update)=>Padding(
+    padding:EdgeInsets.fromLTRB(20,22,20,20+MediaQuery.of(ctx).viewInsets.bottom),
+    child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Text(buyer?'Confirmer la réception':'Confirmer la remise',style:const TextStyle(fontSize:19,fontWeight:FontWeight.w600)),
+     const SizedBox(height:8),
+     Text(buyer?'Vous confirmez avoir reçu l’article ou le service convenu. Une note ou une photo sont facultatives.':'Vous confirmez avoir remis l’article ou le service convenu à l’autre partie. Une note ou une photo sont facultatives.',style:const TextStyle(fontSize:13,color:Colors.black54)),
+     const SizedBox(height:16),
+     TextField(controller:note,maxLength:500,maxLines:3,decoration:const InputDecoration(labelText:'Note (facultatif)',border:OutlineInputBorder())),
+     const SizedBox(height:8),
+     if(photoUrl!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Image.network(photoUrl!,height:150,fit:BoxFit.cover))),
+     OutlinedButton.icon(
+      onPressed:uploading?null:()async{
+       final file=await ImagePicker().pickImage(source:ImageSource.gallery,imageQuality:82,maxWidth:1600);
+       if(file==null)return;
+       update(()=>uploading=true);
+       try{final url=await nexus.uploadSharedImage(file);update((){photoUrl=url;uploading=false;});}
+       catch(_){update(()=>uploading=false);if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('Photo non ajoutée. Réessayez.')));}
+      },
+      icon:uploading?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.add_a_photo_outlined,size:18),
+      label:Text(photoUrl!=null?'Changer la photo':'Ajouter une photo (facultatif)'),
+     ),
+     const SizedBox(height:18),
+     FilledButton(onPressed:uploading?null:()=>Navigator.pop(ctx,true),child:Text(buyer?'Confirmer la réception':'Confirmer la remise')),
+     TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),
+    ])),
+   )),
+  );
+  if(confirmed==true&&mounted){
+   await act('receipt',{'version':version,if(note.text.trim().isNotEmpty)'text':note.text.trim(),if(photoUrl!=null)'photo_url':photoUrl});
+  }
+  note.dispose();
+ }
+ Widget _receiptRow(String label,dynamic at,String note,dynamic photo)=>Padding(
+  padding:const EdgeInsets.only(bottom:8),
+  child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Text('${at!=null?'✓':'○'} $label',style:TextStyle(fontSize:13,fontWeight:FontWeight.w600,color:at!=null?const Color(0xFF087E70):Colors.black54)),
+   if(note.trim().isNotEmpty)Padding(padding:const EdgeInsets.only(top:3),child:Text(note.trim(),style:const TextStyle(fontSize:12,color:Colors.black87))),
+   if(photo is String&&photo.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.network(photo,height:90,width:90,fit:BoxFit.cover))),
+  ]),
+ );
+ Widget _receiptStatus(Map evidence){
+  final hasAny=evidence['receipt_at']!=null||evidence['receipt_handover_at']!=null;
+  if(!hasAny)return const SizedBox.shrink();
+  return Container(
+   margin:const EdgeInsets.only(bottom:10),
+   padding:const EdgeInsets.all(12),
+   decoration:BoxDecoration(color:const Color(0xFFF8FAFC),borderRadius:BorderRadius.circular(14),border:Border.all(color:const Color(0xFFE2E8F0))),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    _receiptRow('Demandeur · réception',evidence['receipt_at'],'${evidence['receipt_note']??''}',evidence['receipt_photo_url']),
+    _receiptRow('Interlocuteur · remise',evidence['receipt_handover_at'],'${evidence['receipt_handover_note']??''}',evidence['receipt_handover_photo_url']),
+   ]),
+  );
+ }
  Future<void> guideAction(String action)async{
   final r=room;if(r==null||!roomGuideActions.contains(action))return;
   final account=owner,a=r['agreement'] as Map?,version=r['current_offer_version'];
@@ -101,6 +164,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   if(action=='invite'){await copyInvite();return;}
   if(action=='propose'){await propose();return;}
   if(action=='message'){final p=await form('Votre message',{'text':message.text});if(p!=null)await act('message',{'text':p['text']});return;}
+  if(action=='receipt'){await receiptPanel();return;}
   if(action=='review'&&a!=null){
    final allowed=r['allowed_actions'] as List? ?? [];
    final decision=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Relire les conditions · Version $version'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Padding(padding:const EdgeInsets.only(bottom:10),child:Text('${{'amount':'Prix · F','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement'}[entry.key]??entry.key} : ${entry.value}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),if(allowed.contains('reject'))TextButton(onPressed:()=>Navigator.pop(ctx,'reject'),child:const Text('Refuser cette version')),if(allowed.contains('accept'))FilledButton(onPressed:()=>Navigator.pop(ctx,'accept'),child:const Text('Confirmer ces conditions'))]));
@@ -108,7 +172,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   }
   if(action=='rating'){final score=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Évaluer cet échange'),content:Wrap(spacing:8,children:[for(var n=1;n<=5;n++)OutlinedButton(onPressed:()=>Navigator.pop(ctx,n),child:Text('$n ★'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Plus tard'))]));if(score!=null&&mounted&&owner==account)await act('rating',{'rating':score});return;}
   if(action=='issue'){await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Problème signalé'),content:Text('${(r['evidence'] as Map?)?['issue']??'La clôture est suspendue.'}'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer'))]));return;}
-  await act(action,{if(['receipt','payment_report','payment_receive','complete','approve_step'].contains(action))'version':version,if(['takeover','resume_bot','approve_step'].contains(action))'mandate_revision':r['mandate_revision'],if(action=='resume_bot')'confirmed':true,if(action=='application_submit')'confirmation':'submitted'});
+  await act(action,{if(['payment_report','payment_receive','complete','approve_step'].contains(action))'version':version,if(['takeover','resume_bot','approve_step'].contains(action))'mandate_revision':r['mandate_revision'],if(action=='resume_bot')'confirmed':true,if(action=='application_submit')'confirmation':'submitted'});
  }
  @override Widget build(BuildContext context){
   final r=room,a=r?['agreement'] as Map?,allowed=(r?['allowed_actions'] as List? ?? []),bot=r?['control_mode']=='bot';
@@ -147,8 +211,9 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
      if(guide==null&&allowed.contains('accept'))button('Confirmer ces conditions',()=>act('accept',{'version':a['version']}),primary:true),if(guide==null&&allowed.contains('reject'))button('Refuser cette version',()=>act('reject',{'version':a['version']})),
      if(a['status']=='accepted')...[
       if(guide==null)const Text('Réception et paiement à confirmer ensuite.'),
+      if(r['evidence'] is Map)_receiptStatus(r['evidence'] as Map),
       if(allowed.contains('issue'))button('Signaler un problème',()async{final p=await form('Signaler un problème',{'text':''});if(p!=null)await act('issue',{'version':a['version'],'text':p['text']});}),
-      if(guide==null)for(final e in {'receipt':'Confirmer la réception','payment_report':'J’ai effectué le paiement','payment_receive':'J’ai reçu le paiement','complete':'Confirmer la clôture'}.entries)if(allowed.contains(e.key))button(e.value,()=>act(e.key,{'version':a['version']})),
+      if(guide==null)for(final e in {'receipt':r['buyer']==true?'Confirmer la réception':'Confirmer la remise','payment_report':'J’ai effectué le paiement','payment_receive':'J’ai reçu le paiement','complete':'Confirmer la clôture'}.entries)if(allowed.contains(e.key))button(e.value,()=>e.key=='receipt'?receiptPanel():act(e.key,{'version':a['version']})),
      ]
     ]),
    ]

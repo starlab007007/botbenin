@@ -1110,6 +1110,19 @@ List<LiveAttachment> _attachmentsForProduct(
   return matched;
 }
 
+String _readinessLabel(String? level) {
+  switch ((level ?? '').toUpperCase()) {
+    case 'R4':
+    case 'R5':
+      return 'Contact direct possible';
+    case 'R2':
+    case 'R3':
+      return 'Informations à compléter';
+    default:
+      return 'Profil à qualifier';
+  }
+}
+
 String _opportunityActionLabel(String? action) {
   switch ((action ?? '').toUpperCase()) {
     case 'CONTACT_NOW':
@@ -2664,7 +2677,9 @@ class _PremiumNexusContactSheetState
               runSpacing: 6,
               children: [
                 _PremiumBadge(
-                  current?.readinessLevel ?? prepared?.readinessLevel ?? widget.product.readiness ?? 'R0',
+                  _readinessLabel(
+                    current?.readinessLevel ?? prepared?.readinessLevel ?? widget.product.readiness,
+                  ),
                   const Color(0xFFE8F8FA),
                   const Color(0xFF087A9B),
                 ),
