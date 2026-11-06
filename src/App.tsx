@@ -105,7 +105,7 @@ import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge"
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhDealRoomPage = lazy(() => import("./pages/waouh/WaouhDealRoomPage"));
-function WaouhSearchEntry(){const {search}=useLocation();const p=new URLSearchParams(search);return ['sell','find_buyers'].includes(p.get('mode')||'')||p.get('kind')==='sale'?<WaouhNexusPage/>:<WaouhDealRoomPage/>;}
+function WaouhSearchEntry(){const {search}=useLocation();const p=new URLSearchParams(search);const hasRoomContext=p.has('room_id')||p.has('fabric_id')||p.has('component_id');return hasRoomContext?<WaouhDealRoomPage/>:<WaouhNexusPage/>;}
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 const WaouhPremiumJourneyPage = lazy(() => import("./pages/waouh/WaouhPremiumJourneyPage"));

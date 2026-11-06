@@ -108,6 +108,8 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
     return false;
   };
   const shareImageInput = useRef<HTMLInputElement>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
+  const [queryHint,setQueryHint]=useState('');
   const searchVersion = useRef(0);
   useEffect(() => () => { searchVersion.current += 1; }, []);
   const [urlParams] = useSearchParams();
@@ -205,7 +207,9 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
     const sale=searchKind==='sale'&&seed&&seed.article.title===goal?seed:null;
     const articleId=searchKind==='sale'?(sale?.article.article_id??urlParams.get('article_id')??undefined):undefined;
     const inputContext=sale?{...draftContext,brief:sale.draft.description,quantity:sale.draft.quantity,unit:sale.draft.unit}:draftContext;
-    if(!goal||busy)return;
+    if(busy)return;
+    if(!goal){setQueryHint('Décrivez votre besoin avant de lancer la recherche.');queryInputRef.current?.focus();return;}
+    setQueryHint('');
     const version=++searchVersion.current;
     setBusy(true);setStarted(true);setDiscoveryPhase('understanding');setPeekResults(false);setPaused(false);setRefreshing(false);setLiveError('');setCompleteSearch(null);setResults([]);setContact(null);setContactJourney(null);
     setLastSearch({goal,city:requestedCity,article_id:articleId,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:inputContext,budget_max:searchKind==='opportunity'||searchKind==='sale'?undefined:Number(budget)||undefined});
@@ -375,9 +379,11 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
             {selectedKind==='sale'?<details className="wap-mobile-editor" open={!started}><summary>Mon article</summary><div className="wss-embedded"><WaouhSmartSale key={`${user?.id??'guest'}:${salePreview?.article.article_id??'new'}`} initial={{...salePreview?.draft,title:query,city}} onConnect={()=>requireAuth('/app/nexus?kind=vendre')} onPublished={sale=>{saleSeed.current=sale;setSalePreview(sale);setQuery(sale.article.title);setCity(sale.draft.city);setBrief(sale.draft.description);setQuantity(String(sale.draft.quantity??''));setUnit(sale.draft.unit);if(user)navigate(saleSearchPath(user.id,sale),{replace:true});}}/></div></details>:<><details className="wap-mobile-editor" open={!started}><summary>Modifier mon besoin</summary><div className="rounded-3xl border border-blue-100 bg-white p-3 sm:p-4">{started&&kindPicker}
               <div className="mt-3 flex gap-2">
                 <Input
+                  ref={queryInputRef}
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => {setQuery(event.target.value);if(queryHint)setQueryHint('');}}
                   onKeyDown={(event) => event.key === "Enter" && void searchEverywhere()}
+                  aria-invalid={!!queryHint}
                   aria-label="Votre besoin"
                   className="h-12 rounded-2xl border-blue-100 bg-white"
                   placeholder={missionCopy[selectedKind].placeholder}
@@ -417,7 +423,8 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
               )}
 
               <div className="mt-3 grid gap-2">
-                <Button className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-black text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
+                {queryHint && <p role="alert" className="text-[12px] font-semibold text-red-600">{queryHint}</p>}
+                <Button className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-black text-white shadow-lg shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60" onClick={() => void searchEverywhere()} disabled={busy}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                   Rechercher
                 </Button>
