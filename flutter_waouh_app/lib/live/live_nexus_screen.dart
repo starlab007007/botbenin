@@ -1204,7 +1204,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         missionContext: _lastContext,
         goal: item.title,
         articleId: article,
-        maxContacts: 1,
+        maxContacts: 4,
         allowWhatsapp: item.bestChannel == 'whatsapp',
       );
       if (!mounted || legacy.supabase.auth.currentUser?.id != owner) return;

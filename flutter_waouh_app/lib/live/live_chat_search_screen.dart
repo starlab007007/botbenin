@@ -281,7 +281,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         mode: mode,
         goal: _rowTitle(row),
         articleId: article,
-        maxContacts: 1,
+        maxContacts: 4,
         allowPublicBusiness: true,
         allowBlindMessage: true,
       );

@@ -1124,7 +1124,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         mode: mode,
         goal: item.title,
         articleId: mode == 'sell' ? article : null,
-        maxContacts: 1,
+        maxContacts: 4,
         allowPublicBusiness: true,
         allowBlindMessage: true,
         allowWhatsapp: item.bestChannel == 'whatsapp',
