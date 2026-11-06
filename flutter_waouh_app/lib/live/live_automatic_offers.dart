@@ -9,6 +9,7 @@ import 'live_nexus_service.dart';
 import 'live_essential_offer_data.dart';
 import 'live_essential_offers.dart';
 import 'live_offer_choice.dart';
+import 'live_hot_labels.dart';
 
 /// Statut d'avancement d'une piste, dérivé de next_best_action / readiness_level,
 /// traduit en français pour l'affichage (jamais le code interne).
@@ -771,15 +772,60 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     );
   }
 
+  // Rend visibles, directement sur la carte de résultat, les choix « intéressé /
+  // écrire au vendeur » (bouton de contact, libellé selon la contactabilité) et
+  // « laisser le bot agir » (délégation), sans passer par le détail de la piste.
+  Widget _directActions(NexusDiscoveryItem o) => Padding(
+    padding: const EdgeInsets.fromLTRB(11, 0, 11, 13),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 36,
+          child: FilledButton(
+            onPressed: widget.actionBusy ? null : () => widget.onContact(o),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            child: Text(
+              liveContactabilityActionLabel(o.contactPolicy.level),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 34,
+          child: OutlinedButton(
+            onPressed: widget.actionBusy ? null : () => widget.onDelegate(o),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            child: const Text(
+              'Confier à Bot',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
   Widget _tile(NexusDiscoveryItem o, bool first, bool tall) => Material(
     color: Colors.white,
     borderRadius: BorderRadius.circular(17),
     clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: () => _detail(o),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => _detail(o),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           LayoutBuilder(
             builder: (ctx, c) => Stack(
               children: [
@@ -871,8 +917,11 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
               ],
             ),
           ),
-        ],
-      ),
+            ],
+          ),
+        ),
+        _directActions(o),
+      ],
     ),
   );
   @override
