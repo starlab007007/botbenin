@@ -967,6 +967,12 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                   fontSize: 12,
                   color: avatarPremiumInk,
                 ),
+                // Libellé court en état fermé (évite tout débordement sur petit écran) ;
+                // le menu déroulant garde les libellés complets ci-dessous.
+                selectedItemBuilder: (context) => const [
+                  Text('Avatar', overflow: TextOverflow.ellipsis),
+                  Text('Plus rapide', overflow: TextOverflow.ellipsis),
+                ],
                 items: const [
                   DropdownMenuItem(
                     value: 'avatar',
