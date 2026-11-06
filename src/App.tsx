@@ -20,6 +20,7 @@ import { LoadingSpinner, DeferredRouteFallback } from "./components/LoadingSpinn
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 
 const WaouhGuestExchangePage = lazy(() => import('./pages/waouh/WaouhGuestExchangePage'));
+const WaouhDealRoomGuestPage = lazy(() => import('./pages/waouh/WaouhDealRoomGuestPage'));
 const Index = lazy(() => import("./pages/Index"));
 
 
@@ -250,6 +251,7 @@ const AppContent = () => {
       <WaouhQuickReplyBridge />
       <FrontendModulesProvider><WaouhModuleAccessGate><Routes>
         <Route path="/exchange" element={<WaouhGuestExchangePage />} />
+        <Route path="/echange-deal" element={<WaouhDealRoomGuestPage />} />
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}

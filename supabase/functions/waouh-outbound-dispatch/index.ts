@@ -843,6 +843,13 @@ Deno.serve(async (req) => {
       }
 
       // A queued message is not an irrevocable permission: recheck immediately before dispatch.
+      if (it.template === "deal_room_guest_outreach" && it.payload?.room_id) {
+        const { data: guest } = await sb.from("waouh_room_guests").select("status").eq("room_id", it.payload.room_id).maybeSingle();
+        if (!guest || guest.status === "stopped") {
+          await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "contact_permission_unavailable", next_attempt_at: null }).eq("id", it.id).eq("status", "sending");
+          skipped++; continue;
+        }
+      }
       if (it.template === "nexus_discovery_outreach") {
         let blocked: string | null = null;
         if (it.payload?.contact_id) {

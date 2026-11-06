@@ -4,14 +4,22 @@ import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
+import {handleRoomGuestRequest,reachRoomOwner,relayRoomGuests} from '../_shared/waouh-room-guest.ts';
 const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit','application_outcome']);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);
+ const raw=await req.text();if(raw.length>32000)return jsonResponse({ok:false,error:'payload_too_large'},413);
+ let input:any;try{input=JSON.parse(raw);}catch{return jsonResponse({ok:false,error:'request_failed'},400);}
+ // Propriétaire sans compte : accès par lien, limité à son propre échange.
+ if(typeof input?.guest_token==='string'){
+  const sbGuest=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+  try{const r=await handleRoomGuestRequest(sbGuest,input.guest_token,String(input.action||''),{...(input.payload||{})});return jsonResponse(r.body,r.status);}
+  catch(error){console.error('[deal-room] guest',error instanceof Error?error.message:'failed');return jsonResponse({ok:false,error:'request_failed'},400);}
+ }
  const user=await getRequestUser(req);if(!user)return jsonResponse({ok:false,error:'authentication_required'},401);
  try {
- const raw=await req.text();if(raw.length>32000)return jsonResponse({ok:false,error:'payload_too_large'},413);
- const input=JSON.parse(raw),action=String(input.action||'').replace(/^room\./,''),p={...(input.payload||{})};
+ const action=String(input.action||'').replace(/^room\./,''),p={...(input.payload||{})};
  if(!actions.has(action))return jsonResponse({ok:false,error:'unknown_action'},400);
  const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
  const automatic=['delegate','resume_bot','approve_step'].includes(action);
@@ -29,6 +37,11 @@ Deno.serve(async req=>{
  }
  const {data,error}=await sb.rpc('waouh_room_command',{p_actor:user.id,p_action:action,p});
  if(error)return jsonResponse({ok:false,error:error.code==='42501'?'forbidden':error.message},error.code==='42501'?403:409);
+ // Propriétaire hors WAOUH : Bot le joint (WhatsApp + lien sans compte) dès que l'échange lui est confié ou que l'utilisateur se déclare intéressé.
+ if(data?.deal_room_id&&data.is_owner&&!data.provider_joined&&(action==='delegate'||action==='contact'||(action==='open'&&p.confirmed===true))){
+  try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});}}
+  catch(e){console.warn('[deal-room] reach',e instanceof Error?e.message:'failed');}
+ }
  // Link the existing canonical thread without creating an offer or sending another opener.
  if(data?.deal_room_id&&!data.thread_id&&data.provider_joined&&['open','contact','delegate','adopt'].includes(action)){
   const {data:component}=await sb.from('waouh_convergence_components').select('source_ref,provider_id').eq('id',data.deal_room_id).single();
@@ -47,9 +60,11 @@ Deno.serve(async req=>{
  if(data?.deal_room_id&&['delegate','resume_bot','approve_step','propose','contact'].includes(action)){
  const tick=await sb.rpc('waouh_room_tick',{p_limit:1,p_room_id:data.deal_room_id});
  if(tick.error)console.warn('[deal-room] scheduled retry',tick.error.code);
+ await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});
  if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});
  }
+ if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  return jsonResponse({ok:true,data});
  }catch(error){console.error('[deal-room]',error instanceof Error?error.message:'request_failed');return jsonResponse({ok:false,error:'request_failed'},400);}
 });

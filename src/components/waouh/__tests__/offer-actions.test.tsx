@@ -8,7 +8,7 @@ vi.mock('../WaouhDelegateButton', () => ({
   WaouhDelegateButton: (p: { label?: string; result: { fabric_id: string }; alternates?: { fabric_id: string }[] }) =>
     <button type="button" data-best={p.result.fabric_id} data-alternates={(p.alternates ?? []).map(a => a.fabric_id).join(',')}>{p.label}</button>,
 }));
-import { WaouhBotBanner, WaouhOfferActions, offerDealRoomPath, offerPrimaryLabel } from '../WaouhOfferActions';
+import { WaouhBotBanner, WaouhOfferActions, offerDealRoomPath, offerPrimaryLabel, offerReachable } from '../WaouhOfferActions';
 
 const offer = (id: string, price: number | null = 50000) => ({ fabric_id: id, subject: 'S25', city: 'Abomey-Calavi', price_min: price, price_max: price } as never);
 let host: HTMLDivElement, root: Root;
@@ -53,9 +53,36 @@ it('asks to sign in instead of opening the Deal Room when signed out', async () 
 });
 
 it('banner hands the best offer and the next three to Bot in one action', async () => {
-  await act(async () => root.render(<MemoryRouter><WaouhBotBanner top={[offer('a'), offer('b'), offer('c'), offer('d')]} mode="buy" kind="purchase" budgetMax={50000} requireAuth={() => true} /></MemoryRouter>));
+  await act(async () => root.render(<MemoryRouter><WaouhBotBanner top={[offer('article:a'), offer('article:b'), offer('article:c'), offer('article:d')]} mode="buy" kind="purchase" budgetMax={50000} requireAuth={() => true} /></MemoryRouter>));
   const cta = button('Confier les 4 à Bot');
-  expect(cta.dataset.best).toBe('a'); expect(cta.dataset.alternates).toBe('b,c,d');
+  expect(cta.dataset.best).toBe('article:a'); expect(cta.dataset.alternates).toBe('article:b,article:c,article:d');
   expect(host.textContent).toContain('4 offres · Bot recommande la n°1');
   expect(host.textContent).toContain('Plafond · 50');
+});
+
+const ad = (id: string, extra: Record<string, unknown> = {}) => ({ ...offer(id) as object, contact_policy: { can_auto_contact: false }, ...extra } as never);
+
+it('only members, partners and allowed public businesses are reachable', () => {
+  expect(offerReachable(ad('article:a'))).toBe(true);
+  expect(offerReachable(ad('catalog:p', { evidence: { source: 'partner' } }))).toBe(true);
+  expect(offerReachable(ad('external:x', { contact_policy: { can_auto_contact: true } }))).toBe(true);
+  expect(offerReachable(ad('external:y'))).toBe(false);
+  expect(offerReachable(ad('catalog:z'))).toBe(false);
+});
+
+it('an ad without reachable contact shows the original listing and never offers Bot', async () => {
+  await act(async () => root.render(<MemoryRouter><WaouhOfferActions result={ad('external:y', { source_url: 'https://example.org/annonce' })} alternates={[]} onDetails={() => undefined} mode="buy" kind="purchase" requireAuth={() => true} /></MemoryRouter>));
+  expect(host.querySelector('a')?.textContent).toContain('Voir l’annonce d’origine');
+  expect(host.textContent).toContain('Contact non disponible');
+  expect(host.textContent).not.toContain('Bot');
+  expect(host.textContent).not.toContain('Intéressé');
+});
+
+it('the banner hands Bot only reachable offers, and says so when none is', async () => {
+  await act(async () => root.render(<MemoryRouter><WaouhBotBanner top={[ad('external:y'), ad('article:a'), ad('external:z'), ad('article:b')]} mode="buy" kind="purchase" requireAuth={() => true} /></MemoryRouter>));
+  expect(button('Confier les 2 à Bot').dataset.best).toBe('article:a');
+  expect(button('Confier les 2 à Bot').dataset.alternates).toBe('article:b');
+  await act(async () => root.render(<MemoryRouter><WaouhBotBanner top={[ad('external:y')]} mode="buy" kind="purchase" requireAuth={() => true} /></MemoryRouter>));
+  expect(host.textContent).toContain('Aucun vendeur joignable');
+  expect(host.querySelector('button')).toBeNull();
 });

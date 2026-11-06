@@ -2,6 +2,7 @@ import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
+import { reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1189,6 +1190,15 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
           }
         }
       }
+      if (exhausted && room.control_mode === "bot") {
+        // Un interlocuteur qui a écrit dans l'échange a répondu : pas de passage à l'offre suivante
+        // (un arrêt demandé — STOP — ou un mandat échu laissent, eux, passer à la suivante).
+        const { data: comp } = await sb.from("waouh_convergence_components").select("provider_id").eq("id", room.id).maybeSingle();
+        if (comp?.provider_id) {
+          const { data: wrote } = await sb.from("waouh_business_messages").select("id").eq("component_id", room.id).eq("actor_id", comp.provider_id).limit(1);
+          if (wrote?.length) exhausted = false;
+        }
+      }
       if (!exhausted) continue;
 
       const { data: agreement } = await sb.from("waouh_convergence_agreements")
@@ -1218,6 +1228,8 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
         await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id);
       };
       if (!sourceRef) { await dropCandidate(); continue; }
+      // Bot ne retient que des offres dont le propriétaire peut être joint.
+      if (!await sourceReachable(sb, sourceRef)) { await dropCandidate(); continue; }
 
       const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", sourceRef).maybeSingle();
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
@@ -1276,6 +1288,26 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       result.errors++;
     }
   }
+  return result;
+}
+
+// Échanges confiés à Bot sans interlocuteur (ex. ouverts par la reprise automatique) :
+// joindre le propriétaire s'il est joignable, puis relayer les nouveautés par WhatsApp.
+async function reachAndRelayRoomGuests(sb: SupabaseClient) {
+  const result = { reached: 0, relayed: 0, errors: 0 };
+  const { data: rooms } = await sb.from("waouh_deal_room_links").select("id").eq("active", true).eq("control_mode", "bot").limit(100);
+  const ids = (rooms ?? []).map((r: any) => r.id);
+  if (ids.length) {
+    const [{ data: comps }, { data: known }] = await Promise.all([
+      sb.from("waouh_convergence_components").select("id").in("id", ids).is("provider_id", null),
+      sb.from("waouh_room_guests").select("room_id").in("room_id", ids),
+    ]);
+    const done = new Set((known ?? []).map((g: any) => g.room_id));
+    for (const c of (comps ?? []).filter((c: any) => !done.has(c.id)).slice(0, 20)) {
+      try { if (await reachRoomOwner(sb, c.id) === "contacted") result.reached++; } catch (e) { console.warn("[waouh-opportunity-worker][room-guest]", e); result.errors++; }
+    }
+  }
+  try { result.relayed = (await relayRoomGuests(sb)).sent; } catch (e) { console.warn("[waouh-opportunity-worker][room-relay]", e); result.errors++; }
   return result;
 }
 
@@ -1593,6 +1625,7 @@ Deno.serve(async (req) => {
 
   const followups = await runBoundedFollowUps(sb, Math.min(50, limit * 2));
   const cascaded = await advanceCascadeRooms(sb, Math.min(50, limit * 2));
+  const guests = await reachAndRelayRoomGuests(sb);
   if (result.contacted > 0 || followups.sent > 0) {
     fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
       method: "POST",
@@ -1600,7 +1633,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result, followups, cascaded, lifecycle, maintenance });
+  return json({ ok: true, ...result, followups, cascaded, guests, lifecycle, maintenance });
   } finally {
     await sb.rpc("waouh_avatar_release_worker", { p_token: lease });
   }

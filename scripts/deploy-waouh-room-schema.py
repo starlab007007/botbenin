@@ -11,6 +11,7 @@ migrations = [
     ('20261104105439', 'waouh_room_followup_resume_cooldown'),
     ('20261104111700', 'waouh_room_progressive_guidance'),
     ('20261106200000', 'waouh_opportunity_outcome'),
+    ('20261106220000', 'waouh_room_external_owner'),
 ]
 for version, name in migrations:
     sql = Path(f'supabase/migrations/{version}_{name}.sql').read_text()

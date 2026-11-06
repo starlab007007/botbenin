@@ -1,5 +1,6 @@
 import { CENTRAL_WAHA_SESSION, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
 import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
+import { handleRoomGuestInbound } from "../_shared/waouh-room-guest.ts";
 import { isServiceRoleRequest } from '../_shared/waouh-auth.ts';
 import { appendExternalReply, createExchangeInvite, handleExternalExchange, wakeExternalAvatar } from '../_shared/waouh-external-exchange.ts';
 import { classifyAvatarReply, selectReplyJourney } from "../_shared/waouh-avatar-lifecycle.ts";
@@ -613,6 +614,9 @@ Deno.serve(async (req) => {
       try {
         const normalizedReplyPhone = String(phone).replace(/\D/g, "");
         const phoneCandidates = whatsAppPhoneCandidates(normalizedReplyPhone);
+        // Propriétaire joint par Bot pour un Deal Room : sa réponse WhatsApp entre dans l'échange (ou STOP).
+        const roomGuestReply = await handleRoomGuestInbound(sb, phoneCandidates.length ? phoneCandidates : [normalizedReplyPhone], String(text || ""), String(inboundMessageRef || crypto.randomUUID()));
+        if (roomGuestReply) return new Response(JSON.stringify({ ok: true, handled: "deal_room_guest", reply: roomGuestReply }), { headers: { "Content-Type": "application/json" } });
         const outreachBase = () => sb.from("waouh_outbound_queue").select("id,to_phone,payload,created_at,status", {count:"exact"})
           .eq("template", "nexus_discovery_outreach")
           .in("to_phone",phoneCandidates.length ? phoneCandidates : [normalizedReplyPhone])

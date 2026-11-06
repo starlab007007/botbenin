@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, Eye, HeartHandshake } from "lucide-react";
+import { Bot, ExternalLink, Eye, HeartHandshake } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import type { MissionContext, MissionKind } from "@/lib/waouh/guidedDiscovery";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
@@ -30,6 +30,19 @@ export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id"
   return `/app/deal-room?${params}`;
 }
 
+/**
+ * Offre joignable : membre WAOUH, partenaire, ou commerce dont le contact est connu
+ * et autorisé. Seules ces offres peuvent être confiées à Bot ; les autres renvoient
+ * vers l'annonce d'origine.
+ */
+export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | "evidence" | "contact_policy">): boolean {
+  const id = result.fabric_id || "";
+  if (id.startsWith("article:")) return true;
+  const evidence = (result.evidence || {}) as Record<string, unknown>;
+  if (id.startsWith("catalog:") && (evidence.source === "partner" || evidence.has_contact === true || evidence.has_contact === "true")) return true;
+  return result.contact_policy?.can_auto_contact === true;
+}
+
 type Shared = {
   mode: Mode;
   kind?: MissionKind;
@@ -57,7 +70,12 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
 }) {
   const navigate = useNavigate();
   const { mode, kind, requireAuth } = shared;
-  const primary = mode === "sell" && saleAction ? saleAction : (
+  const reachable = offerReachable(result);
+  const primary = mode === "sell" && saleAction ? saleAction : !reachable ? (
+    result.source_url
+      ? <a className="wgd-offer-primary" href={result.source_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden="true" />Voir l’annonce d’origine</a>
+      : <span className="wgd-offer-unreachable">Contact non disponible</span>
+  ) : (
     <button type="button" className="wgd-offer-primary" onClick={() => {
       const path = offerDealRoomPath(result, kind);
       if (requireAuth(path)) navigate(path);
@@ -69,9 +87,10 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
     <div className="wgd-offer-actions">
       {primary}
       <div className="wgd-offer-secondary">
-        <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
+        {!reachable && result.source_url && <span className="wgd-offer-unreachable">Contact non disponible</span>}
+        {reachable && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
           city={shared.city} budgetMax={shared.budgetMax} variant="secondary" label="Bot" className="h-10"
-          alternates={alternates.filter(a => a.fabric_id !== result.fabric_id).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />
+          alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}
         {onDetails && <button type="button" className="wgd-offer-ghost" onClick={onDetails}><Eye size={15} aria-hidden="true" />Détails</button>}
       </div>
       {!onDetails && contactAction && <details className="wgd-disclosure"><summary>Autres moyens de contact</summary><div className="pb-3">{contactAction}</div></details>}
@@ -86,9 +105,22 @@ export function WaouhBotBanner({ top, followAction, tracking, ...shared }: Share
   followAction?: ReactNode;
   tracking?: string;
 }) {
-  const best = top[0];
-  if (!best) return null;
-  const count = Math.min(4, top.length);
+  const reachable = top.filter(offerReachable);
+  const best = reachable[0];
+  if (!top.length) return null;
+  if (!best) return (
+    <section className="wgd-bot-banner" aria-label="Confier la recherche à Bot">
+      <div className="wgd-bot-banner-main">
+        <BotLiveAvatar size={40} />
+        <div className="wgd-bot-banner-copy">
+          <strong>Aucun vendeur joignable pour l’instant</strong>
+          <p>Consultez les annonces d’origine ou laissez Bot surveiller les nouvelles offres.</p>
+        </div>
+      </div>
+      {(followAction || tracking) && <div className="wgd-bot-banner-follow"><Bot size={14} aria-hidden="true" />{followAction}{tracking && <span role="status">{tracking}</span>}</div>}
+    </section>
+  );
+  const count = Math.min(4, reachable.length);
   return (
     <section className="wgd-bot-banner" aria-label="Confier la recherche à Bot">
       <div className="wgd-bot-banner-main">
@@ -101,7 +133,7 @@ export function WaouhBotBanner({ top, followAction, tracking, ...shared }: Share
         <div className="wgd-bot-banner-cta">
           <WaouhDelegateButton result={best} mode={shared.mode} articleId={shared.articleId} discoveryKind={shared.kind} missionContext={shared.missionContext}
             city={shared.city} budgetMax={shared.budgetMax} className="h-11 px-4" label={count > 1 ? `Confier les ${count} à Bot` : "Confier à Bot"}
-            alternates={top.slice(1, 4).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />
+            alternates={reachable.slice(1, 4).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />
         </div>
       </div>
       {(followAction || tracking) && <div className="wgd-bot-banner-follow"><Bot size={14} aria-hidden="true" />{followAction}{tracking && <span role="status">{tracking}</span>}</div>}

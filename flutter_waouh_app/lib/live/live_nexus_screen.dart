@@ -1150,7 +1150,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     if(_activeKind!='sale'){
       if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'confier cette piste à Bot'))return;
       if(!mounted)return;
-      final fallbacks=(alternates??discovery?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId).take(3).toList();
+      final fallbacks=(alternates??discovery?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId&&liveOfferReachable(r)).take(3).toList();
       if(!await confirmBotDelegation(context,alternates:fallbacks.length)||!mounted)return;
       try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_lastCity,budgetMax:_lastBudget,alternates:fallbacks);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)notice(roomError(e));}
       return;

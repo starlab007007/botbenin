@@ -10,6 +10,8 @@ export function governorKindFor(template: string | null | undefined, payload?: a
   const t = String(template || "");
   if (t === "nexus_discovery_outreach") return payload?.request_id ? "transactional" : "cold";
   if (t.startsWith("radar_")) return "cold";
+  // Deal Room : le premier message à un propriétaire hors WAOUH est un contact à froid.
+  if (t === "deal_room_guest_outreach") return payload?.first_contact ? "cold" : "transactional";
   return "transactional";
 }
 

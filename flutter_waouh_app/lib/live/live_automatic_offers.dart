@@ -90,6 +90,20 @@ Color _readinessFg(String tone) => switch (tone) {
 };
 
 /// Verbe de l'action principale d'une offre, selon le type de recherche (comme sur le web).
+/// Offre joignable : membre WAOUH, partenaire, ou commerce dont le contact est
+/// connu et autorisé. Seules ces offres peuvent être confiées à Bot ; les autres
+/// renvoient vers l'annonce d'origine (même règle que le web).
+bool liveOfferReachable(NexusDiscoveryItem o) {
+  final id = o.fabricId;
+  if (id.startsWith('article:')) return true;
+  final hasContact = o.evidence['has_contact'];
+  if (id.startsWith('catalog:') &&
+      (o.evidence['source'] == 'partner' || hasContact == true || hasContact == 'true')) {
+    return true;
+  }
+  return o.contactPolicy.canAutoContact;
+}
+
 String livePrimaryOfferLabel(String missionKind, String mode, String? level) {
   if (missionKind == 'sale' || mode == 'sell') return liveContactabilityActionLabel(level);
   if (missionKind == 'service' || missionKind == 'project') return 'Demander un devis';
@@ -644,6 +658,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (liveOfferReachable(o)) ...[
                           FilledButton(
                             onPressed: () => Navigator.pop(ctx, 'contact'),
                             style: FilledButton.styleFrom(
@@ -658,6 +673,13 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                             child: const Text('Confier à Bot'),
                           ),
+                          ] else
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text('Contact non disponible : consultez l’annonce d’origine.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 12, color: avatarPremiumMuted)),
+                            ),
                           TextButton(
                             onPressed: () => Navigator.pop(ctx, 'watch'),
                             child: const Text('Surveiller cette piste'),
@@ -793,6 +815,21 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (!liveOfferReachable(o))
+          SizedBox(
+            height: 40,
+            child: _hasSource(o)
+                ? OutlinedButton(
+                    onPressed: () => _openSource(o),
+                    style: _secondaryStyle,
+                    child: _fit(Icons.open_in_new, 'Voir l’annonce d’origine'),
+                  )
+                : const Center(
+                    child: Text('Contact non disponible',
+                        style: TextStyle(fontSize: 12, color: avatarPremiumMuted)),
+                  ),
+          )
+        else
         SizedBox(
           height: 40,
           child: FilledButton(
@@ -809,6 +846,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
         const SizedBox(height: 6),
         Row(
           children: [
+            if (liveOfferReachable(o)) ...[
             Expanded(
               child: SizedBox(
                 height: 36,
@@ -820,6 +858,15 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
               ),
             ),
             const SizedBox(width: 6),
+            ] else if (_hasSource(o)) ...[
+            const Expanded(
+              child: Center(
+                child: Text('Contact non disponible',
+                    style: TextStyle(fontSize: 11, color: avatarPremiumMuted)),
+              ),
+            ),
+            const SizedBox(width: 6),
+            ],
             Expanded(
               child: SizedBox(
                 height: 36,
@@ -835,6 +882,10 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
       ],
     ),
   );
+  bool _hasSource(NexusDiscoveryItem o) =>
+      o.sourceUrl != null && ['http', 'https'].contains(Uri.tryParse(o.sourceUrl!)?.scheme);
+  void _openSource(NexusDiscoveryItem o) =>
+      launchUrl(Uri.parse(o.sourceUrl!), mode: LaunchMode.externalApplication);
   // Icône + libellé réduits si la carte est étroite : jamais de débordement.
   Widget _fit(IconData icon, String label) => FittedBox(
     fit: BoxFit.scaleDown,
@@ -851,8 +902,38 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
   );
   // Bandeau en tête des résultats : confier d'un geste les meilleures offres à Bot
   // (Deal Room de la n°1, reprise automatique sur les suivantes sans réponse).
-  Widget _botBanner(List<NexusDiscoveryItem> shown) {
+  Widget _botBanner(List<NexusDiscoveryItem> all) {
+    final shown = all.where(liveOfferReachable).take(4).toList();
     final count = shown.length;
+    if (count == 0) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F7FF),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: const Color(0xFFC7D4FB)),
+        ),
+        child: Row(
+          children: [
+            Image.asset('assets/bot/bot_avatar.png', width: 38, height: 38),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Aucun vendeur joignable pour l’instant',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: avatarPremiumInk)),
+                  SizedBox(height: 2),
+                  Text('Consultez les annonces d’origine ou laissez Bot surveiller les nouvelles offres.',
+                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final cap = widget.budget == null
         ? null
         : '${widget.budget!.round()}'.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ' ');
@@ -1095,7 +1176,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
             label: 'Mon article à vendre',
           ),
         if (rows.isNotEmpty) ...[
-          if (widget.onDelegateAll != null) _botBanner(shown),
+          if (widget.onDelegateAll != null) _botBanner(displayed),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
