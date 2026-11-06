@@ -126,9 +126,23 @@ def step(name, ok, detail, root=None, critical=False):
     print(("OK   " if ok else "FAIL ") + f"{name}: {detail}", flush=True)
 
 
+def skip_intro():
+    """Écran d'accueil (3 pages) affiché au premier lancement : « Passer »."""
+    for _ in range(3):
+        root = dump()
+        btn = find(root, r"^\s*Passer\s*$") if root is not None else None
+        if btn is None:
+            return root
+        tap(btn)
+        time.sleep(3)
+    return dump()
+
+
 def deep_link(path):
     sh("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW",
        "-d", f"https://bot.bj{path}", PKG, timeout=90)
+    time.sleep(3)
+    skip_intro()
 
 
 def main():
@@ -142,12 +156,16 @@ def main():
         return finish()
 
     sh("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity", timeout=120)
-    root = wait_for(r"WaouhApp|Continuer|Avatar|Bot", 120, "launch")
+    root = wait_for(r"WaouhApp|Continuer|Avatar|Bot|Passer", 120, "launch")
     step("lancement", alive() and root is not None and len(visible_text(root)) > 0,
          "Application ouverte, premier écran affiché" if alive() else "L'application s'est fermée au lancement",
          root, critical=True)
     if not alive():
         return finish()
+
+    root = skip_intro()
+    step("accueil_passe", root is not None and find(root, r"^\s*Passer\s*$") is None,
+         "Écran de bienvenue passé", root)
 
     # Connexion e-mail avec le compte de test jetable.
     if EMAIL and PASSWORD:
