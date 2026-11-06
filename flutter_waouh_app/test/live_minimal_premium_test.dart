@@ -52,8 +52,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    // Offres de membres WAOUH : joignables, donc confiables à Bot.
     final rows = (cases.first['offers'] as List)
-        .map((r) => NexusDiscoveryItem.fromJson(Map<String, dynamic>.from(r as Map)))
+        .map((r) => NexusDiscoveryItem.fromJson({...Map<String, dynamic>.from(r as Map), 'fabric_id': 'article:${(r as Map)['fabric_id']}'}))
         .toList();
     List<NexusDiscoveryItem>? handed;
     NexusDiscoveryItem? interested;
@@ -87,6 +88,28 @@ void main() {
     expect(find.text('Confier à Bot'), findsWidgets);
     expect(find.text('Surveiller cette piste'), findsOneWidget);
     expect(find.text('Agir sur cette piste'), findsNothing);
+  });
+  testWidgets('results: ads without a reachable seller are never handed to Bot', (tester) async {
+    tester.view.physicalSize = const Size(390, 2200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final rows = (cases.first['offers'] as List)
+        .map((r) => NexusDiscoveryItem.fromJson({...Map<String, dynamic>.from(r as Map), 'fabric_id': 'external:${(r as Map)['fabric_id']}', 'contact_policy': {'level': 'C0', 'label': '', 'can_auto_contact': false}}))
+        .toList();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: LiveAutomaticOffers(
+        items: rows, query: 'iPhone 13', city: 'Cotonou', budget: 220000,
+        actionLabel: 'Continuer à chercher de nouvelles offres', onAction: () {},
+        onContact: (_) {}, onDelegate: (_) {}, onFollow: (_) {}, onDelegateAll: (_) {},
+      ),
+    )))));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Aucun vendeur joignable pour l’instant'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^Confier (les \d+ )?à Bot$')), findsNothing);
+    expect(find.text('Intéressé'), findsNothing);
   });
   testWidgets(
     'compact mission and automatic recommendation fit 320px without selection boxes',
