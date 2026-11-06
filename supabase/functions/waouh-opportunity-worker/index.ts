@@ -1175,6 +1175,18 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
             .select("created_at").eq("room_id", room.id).eq("actor_kind", "bot").eq("event_type", "bot_step")
             .order("created_at", { ascending: false }).limit(1).maybeSingle();
           exhausted = !!lastStep && Date.now() - new Date(lastStep.created_at as string).getTime() >= 24 * 3600 * 1000;
+        } else if (!room.initial_sent) {
+          // Interlocuteur hors WAOUH : Bot ne peut écrire qu'après qu'il a rejoint l'échange.
+          // Sans arrivée 48h après la délégation, on passe à l'offre suivante (même délai
+          // qu'un contact resté sans réponse) au lieu d'attendre la fin du mandat.
+          const { data: component } = await sb.from("waouh_convergence_components")
+            .select("provider_id").eq("id", room.id).maybeSingle();
+          if (component && !component.provider_id) {
+            const { data: delegated } = await sb.from("waouh_room_events")
+              .select("created_at").eq("room_id", room.id).eq("event_type", "delegate")
+              .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            exhausted = !!delegated && Date.now() - new Date(delegated.created_at as string).getTime() >= 48 * 3600 * 1000;
+          }
         }
       }
       if (!exhausted) continue;
@@ -1191,7 +1203,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
           control_mode: "paused", next_run_at: null,
           mandate: { ...mandate, cascade_done: true },
         }).eq("id", room.id);
-        await avatarNotice(sb, ownerId, "cascade_exhausted",
+        await avatarNotice(sb, ownerId, `cascade_exhausted:${room.id}`,
           "Aucune des offres contactées n'a répondu. La négociation repasse en gestion manuelle.",
           { room_id: room.id });
         result.abandoned++;
@@ -1255,7 +1267,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
         mandate: { ...mandate, cascade_candidates: [], cascade_done: true, cascade_handed_off_to: newRoomId },
       }).eq("id", room.id);
 
-      await avatarNotice(sb, ownerId, "cascade_next_candidate",
+      await avatarNotice(sb, ownerId, `cascade_next_candidate:${room.id}:${newRoomId}`,
         `Pas de réponse : le bot négocie maintenant avec l'offre suivante (${Math.min(step, maxSteps)}/${maxSteps}).`,
         { previous_room_id: room.id, next_room_id: newRoomId, source_ref: sourceRef });
       result.advanced++;
