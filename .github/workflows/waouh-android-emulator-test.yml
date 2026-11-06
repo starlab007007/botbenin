@@ -45,7 +45,7 @@ jobs:
         id: account
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -106,7 +106,7 @@ jobs:
         if: always() && steps.account.outputs.user_id != ''
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
           TEST_USER_ID: ${{ steps.account.outputs.user_id }}
         run: |
           python3 - <<'PY'
