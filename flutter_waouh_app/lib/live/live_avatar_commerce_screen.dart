@@ -1080,7 +1080,12 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _delegateToBot(NexusDiscoveryItem item) async {
-    if(widget.mode!=LiveAvatarCommerceMode.sell){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':false});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}&delegate=1');}catch(e){if(mounted)setState(()=>_error='$e');}return;}
+    if(widget.mode!=LiveAvatarCommerceMode.sell){
+      final alternates=essentialUnique(_response?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId).take(3).toList();
+      if(!await confirmBotDelegation(context,alternates:alternates.length)||!mounted)return;
+      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_city.text,budgetMax:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),alternates:alternates);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)setState(()=>_error=roomError(e));}
+      return;
+    }
 
     final mode = widget.mode == LiveAvatarCommerceMode.sell
         ? 'sell'

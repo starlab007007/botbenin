@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:waouh_app_native/live/live_deal_room.dart';
+import 'package:waouh_app_native/live/live_nexus_service.dart';
 class _Service extends LiveDealRoomService {
  _Service({bool owner=true}):super(SupabaseClient('https://example.supabase.co','test-anon',authOptions:const AuthClientOptions(autoRefreshToken:false))){data['is_owner']=owner;}
  final calls=<String>[];final requests=<Map<String,dynamic>>[];
@@ -26,6 +27,20 @@ void main(){
  final result=mergeRoomMessages([{'id':'b','created_at':'2026-11-04T09:00:00Z'}],[{'id':'a','created_at':'2026-11-04T08:00:00Z'},{'id':'b','created_at':'2026-11-04T09:00:00Z'}]);
  expect(result.map((m)=>m['id']).toList(),['a','b']);
  });
+ testWidgets('Confier à Bot opens without contacting, then delegates with up to 3 fallback offers',(tester)async{
+  final api=await serviceFor(tester);
+  NexusDiscoveryItem offer(String id)=>NexusDiscoveryItem.fromJson({'fabric_id':id,'subject':'Stylos','city':'Cotonou'});
+  final id=await tester.runAsync(()=>delegateRoomToBot(api,fabricId:'a',city:'Cotonou',budgetMax:5000,alternates:[offer('a'),offer('b'),offer('c'),offer('d'),offer('e')]));
+  expect(id,'room');expect(api.calls,['open','delegate']);
+  expect(api.requests.first['confirmed'],false);
+  final delegate=api.requests.last;
+  expect(delegate['confirmed'],true);expect(delegate['mandate_revision'],2);
+  final rules=delegate['rules'] as Map;
+  expect(rules['mode'],'autonomous');expect(rules['budget_max'],5000);
+  expect((rules['cascade_candidates'] as List).map((c)=>c['fabric_id']).toList(),['b','c','d']);
+  expect(rules['cascade_max_steps'],4);
+  await tester.runAsync(()=>api.client.dispose());
+ },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('manual takeover keeps the same room and its history',(tester)async{
   final api=await serviceFor(tester);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
   expect(find.text('Historique conservé'),findsOneWidget);expect(find.text('Bot mène l’échange'),findsOneWidget);

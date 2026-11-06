@@ -18,7 +18,31 @@ String roomError(Object error){
  dynamic detail;String code='';
  if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(error.status==401)return 'Reconnectez-vous pour retrouver cet échange.';if(error.status==404)return 'Le service des échanges est momentanément indisponible. Réessayez.';}
  if(code.isEmpty)code=error is StateError?'${error.message}':error.toString();
- return {'offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+ return {'offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+}
+
+/// Règles par défaut de « Confier à Bot » — identiques au web.
+const Map<String,dynamic> botRoomDefaultRules={'mode':'autonomous','duration_hours':72,'max_followups':1,'active_start':'08:00','active_end':'21:00'};
+
+/// Confirmation courte avant de confier une piste à Bot (même message que le web).
+Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0}) async =>
+ await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+  title:const Text('Confier à Bot'),
+  content:Text(alternates>0
+   ?'Bot ouvre l’échange et négocie pour vous. Sans réponse, il passe à l’offre suivante (jusqu’à ${alternates+1} pistes). Vous confirmez l’accord final.'
+   :'Bot ouvre l’échange et négocie pour vous. Vous confirmez l’accord final.'),
+  actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Confirmer'))],
+ ))==true;
+
+/// « Confier à Bot » en un geste : ouvre le Deal Room, délègue la négociation avec les
+/// règles par défaut et transmet jusqu’à 3 pistes de repli (reprise automatique si pas de réponse).
+Future<String> delegateRoomToBot(LiveDealRoomService api,{required String fabricId,String? city,num? budgetMax,Iterable<NexusDiscoveryItem> alternates=const []}) async {
+ final opened=await api.call('open',{'fabric_id':fabricId,if(city!=null&&city.trim().isNotEmpty)'city':city.trim(),'budget_max':budgetMax,'confirmed':false});
+ final id='${opened['deal_room_id']}';
+ final cascade=alternates.where((a)=>a.fabricId.isNotEmpty&&a.fabricId!=fabricId).take(3).map((a)=><String,dynamic>{'fabric_id':a.fabricId,if(a.city!=null)'city':a.city}).toList();
+ final rules=<String,dynamic>{...botRoomDefaultRules,'budget_max':budgetMax,if(cascade.isNotEmpty)...{'cascade_candidates':cascade,'cascade_step':1,'cascade_max_steps':1+cascade.length}};
+ await api.call('delegate',{'deal_room_id':id,'mandate_revision':opened['mandate_revision']??0,'confirmed':true,'rules':rules});
+ return id;
 }
 
 class LiveDealRoomService {
@@ -83,11 +107,55 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   final result=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(title:Text(title),content:SizedBox(width:450,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:controls.entries.map((e)=>e.key=='mode'?DropdownButtonFormField<String>(initialValue:e.value.text,decoration:const InputDecoration(labelText:'Mode'),items:const [DropdownMenuItem(value:'assisted',child:Text('Assisté')),DropdownMenuItem(value:'semi_autonomous',child:Text('Semi-auto')),DropdownMenuItem(value:'autonomous',child:Text('Autonome'))],onChanged:(v)=>e.value.text=v!):field(labels[e.key]??e.key,e.value,number:numeric.contains(e.key))).toList()))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,controls.map((k,c)=>MapEntry(k,c.text.trim()))),child:const Text('Confirmer'))]));
   WidgetsBinding.instance.addPostFrameCallback((_){for(final c in controls.values){c.dispose();}});return mounted&&owner==formOwner?result:null;
  }
+ // Mandat en un geste : seul le plafond est visible ; le reste est rangé dans « Personnaliser ».
  Future<void> mandate() async {
   final r=room;if(r==null)return;
-  final p=await form('Confier à Bot',{'mode':'autonomous','budget_max':budget.text,'initial_offer':'','duration_hours':'72','max_followups':'1','active_start':'08:00','active_end':'20:00'},numeric:{'budget_max','initial_offer','duration_hours','max_followups'});
-  if(p==null)return;
-  await act('delegate',{'mandate_revision':r['mandate_revision'],'confirmed':true,'rules':{...p,'budget_max':num.tryParse(p['budget_max']!), 'initial_offer':num.tryParse(p['initial_offer']!),'duration_hours':int.tryParse(p['duration_hours']!),'max_followups':int.tryParse(p['max_followups']!)}});
+  final sheetOwner=owner,revision=r['mandate_revision'];
+  final cap=TextEditingController(text:budget.text),initial=TextEditingController(),start=TextEditingController(text:'${botRoomDefaultRules['active_start']}'),end=TextEditingController(text:'${botRoomDefaultRules['active_end']}');
+  String mode='${botRoomDefaultRules['mode']}';int hours=botRoomDefaultRules['duration_hours'] as int,followups=botRoomDefaultRules['max_followups'] as int;
+  InputDecoration deco(String label)=>InputDecoration(labelText:label,border:const OutlineInputBorder());
+  final ok=await showModalBottomSheet<bool>(context:context,isScrollControlled:true,useSafeArea:true,backgroundColor:Colors.white,
+   builder:(ctx)=>StatefulBuilder(builder:(ctx,update)=>Padding(
+    padding:EdgeInsets.fromLTRB(20,22,20,20+MediaQuery.of(ctx).viewInsets.bottom),
+    child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Row(children:[Image.asset('assets/bot/bot_avatar.png',width:36),const SizedBox(width:10),const Expanded(child:Text('Confier à Bot',style:TextStyle(fontSize:19,fontWeight:FontWeight.w600)))]),
+     const SizedBox(height:8),
+     const Text('Bot choisit la meilleure offre, négocie dans votre plafond et revient si besoin.',style:TextStyle(fontSize:13,color:Colors.black54)),
+     const SizedBox(height:16),
+     TextField(controller:cap,keyboardType:TextInputType.number,decoration:deco('Plafond · F (facultatif)')),
+     Theme(data:Theme.of(ctx).copyWith(dividerColor:Colors.transparent),child:ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Personnaliser',style:TextStyle(fontSize:13,fontWeight:FontWeight.w600)),children:[
+      DropdownButtonFormField<String>(initialValue:mode,decoration:deco('Mode'),items:const [DropdownMenuItem(value:'assisted',child:Text('Assisté')),DropdownMenuItem(value:'semi_autonomous',child:Text('Semi-auto')),DropdownMenuItem(value:'autonomous',child:Text('Autonome'))],onChanged:(v)=>update(()=>mode=v??mode)),
+      const SizedBox(height:10),
+      TextField(controller:initial,keyboardType:TextInputType.number,decoration:deco('Offre de départ · F (facultatif)')),
+      const SizedBox(height:10),
+      DropdownButtonFormField<int>(initialValue:hours,decoration:deco('Durée'),items:const [DropdownMenuItem(value:24,child:Text('24 h')),DropdownMenuItem(value:72,child:Text('72 h')),DropdownMenuItem(value:168,child:Text('7 jours'))],onChanged:(v)=>update(()=>hours=v??hours)),
+      const SizedBox(height:10),
+      DropdownButtonFormField<int>(initialValue:followups,decoration:deco('Relances'),items:const [DropdownMenuItem(value:0,child:Text('0')),DropdownMenuItem(value:1,child:Text('1')),DropdownMenuItem(value:2,child:Text('2'))],onChanged:(v)=>update(()=>followups=v??followups)),
+      const SizedBox(height:10),
+      Row(children:[Expanded(child:TextField(controller:start,decoration:deco('Début · Bénin'))),const SizedBox(width:10),Expanded(child:TextField(controller:end,decoration:deco('Fin · Bénin')))]),
+      const SizedBox(height:8),
+     ])),
+     const SizedBox(height:12),
+     FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Confier à Bot')),
+     TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),
+    ])),
+   )),
+  );
+  final rules={'mode':mode,'budget_max':num.tryParse(cap.text.replaceAll(RegExp(r'[^0-9.]'),'')),'initial_offer':num.tryParse(initial.text.replaceAll(RegExp(r'[^0-9.]'),'')),'duration_hours':hours,'max_followups':followups,'active_start':start.text.trim(),'active_end':end.text.trim()};
+  WidgetsBinding.instance.addPostFrameCallback((_){for(final c in [cap,initial,start,end]){c.dispose();}});
+  if(ok!=true||!mounted||owner!=sheetOwner)return;
+  await act('delegate',{'mandate_revision':revision,'confirmed':true,'rules':rules});
+ }
+ // « Confier à Bot » depuis la recherche de cet écran : un geste, avec les autres offres en repli.
+ Future<void> delegateFromSearch(NexusDiscoveryItem item) async {
+  if(busy)return;
+  final alternates=offers.where((o)=>o.fabricId!=item.fabricId).take(3).toList();
+  if(!await confirmBotDelegation(context,alternates:alternates.length)||!mounted)return;
+  final v=++generation;setState((){busy=true;error='';notice='';});
+  try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:num.tryParse(budget.text),alternates:alternates);if(mounted&&v==generation)setState(()=>roomId=id);}
+  catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));}
+  finally{if(mounted&&v==generation)setState(()=>busy=false);}
+  if(mounted&&v==generation&&roomId!=null)await load();
  }
  Future<void> propose() async {
   final r=room!;final a=r['agreement'] as Map?;final t=a?['terms'] as Map? ?? {};
@@ -184,7 +252,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     Row(children:[Image.asset('assets/bot/bot_avatar.png',width:64),const SizedBox(width:12),const Expanded(child:Text('Que cherchez-vous ?',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)))]),
     LiveDealGuidance(guide:searchRoomGuidance(searching,offers.isNotEmpty)),
     card([field('Votre besoin',query),field('Ville',city),field('Budget max · F',budget,number:true),DropdownButtonFormField<String>(initialValue:kind,items:const [DropdownMenuItem(value:'purchase',child:Text('Produit')),DropdownMenuItem(value:'service',child:Text('Service')),DropdownMenuItem(value:'opportunity',child:Text('Opportunité'))],onChanged:(v)=>setState(()=>kind=v!)),button('Rechercher',search,primary:true)]),
-    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>open(item,delegate:true))]),
+    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>delegateFromSearch(item))]),
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
     if(guide!=null)LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),
@@ -196,6 +264,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
      if(r['is_owner']==true&&r['control_mode']=='paused'&&!expired&&guide?['action']!='resume_bot')button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
     ]),
     if(r['is_owner']==true&&r['expires_at']!=null)Text('Plafond privé : ${money((r['mandate'] as Map?)?['budget_max'])} · Mandat jusqu’au ${when(r['expires_at'])}',style:const TextStyle(fontSize:12)),
+    if(r['is_owner']==true&&(((r['mandate'] as Map?)?['cascade_step'] as num?)??1)>1)Padding(padding:const EdgeInsets.only(top:4),child:Text('Piste ${(r['mandate'] as Map)['cascade_step']}/${(r['mandate'] as Map)['cascade_max_steps']} · Bot a choisi cette offre après l’absence de réponse de la précédente.',style:const TextStyle(fontSize:12))),
     if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),
     if(r['message_cursor']!=null)button('Messages précédents',()async{final v=generation;try{final older=await api.call('get',{'deal_room_id':roomId,'before_message':r['message_cursor']});if(mounted&&v==generation)setState(()=>room={...room!,'message_cursor':older['message_cursor'],'messages':mergeRoomMessages(older['messages'] as List,room!['messages'] as List)});}catch(_){if(mounted)setState(()=>error='Historique momentanément indisponible.');}}),
     for(final m in (r['messages'] as List? ?? []))Align(alignment:m['mine']==true?Alignment.centerRight:Alignment.centerLeft,child:Card(color:m['mine']==true?WaouhColors.sky:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(m['author_kind']=='bot'?'Bot · représente le demandeur':m['mine']==true?'Vous':'Interlocuteur',style:const TextStyle(fontSize:11)),Text('${m['text']}')])))),
