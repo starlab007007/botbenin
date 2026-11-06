@@ -17,6 +17,9 @@ beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;mocks.call.mockReset();
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
 async function mount(path='/?room_id=room'){await act(async()=>root.render(<MemoryRouter initialEntries={[path]}><Page/></MemoryRouter>));}
 async function click(text:string){const button=[...host.querySelectorAll('button')].find(b=>b.textContent?.trim()===text);expect(button).toBeTruthy();await act(async()=>button!.click());}
+// The receipt confirmation opens a small panel (optional note/photo) before submitting,
+// so its submit button shares the same label as the button that opened the panel.
+async function confirmReceiptPanel(text:string){const sheet=host.querySelector('.wr-sheet');expect(sheet).toBeTruthy();const button=[...sheet!.querySelectorAll('button')].find(b=>b.textContent?.trim()===text);expect(button).toBeTruthy();await act(async()=>button!.click());}
 it('takes over the same room before allowing a manual message, keeping the history',async()=>{
  let current={...base};mocks.call.mockImplementation(async(action)=>{if(action==='takeover')current={...current,control_mode:'manual',mandate_revision:3};return current;});
  await mount();expect(host.querySelector('textarea')).toBeNull();
@@ -52,7 +55,7 @@ it('opens a new room without an agreement or invented confirmation',async()=>{
 });
 
 it('keeps buyer closure pending until evidence and the other participant confirm',async()=>{
- let current:any={...base,control_mode:'manual',allowed_actions:['receipt','payment_report'],evidence:{},agreement:{...base.agreement,status:'accepted',owner_accepted_at:'ok',provider_accepted_at:'ok'}};
+ let current:any={...base,buyer:true,control_mode:'manual',allowed_actions:['receipt','payment_report'],evidence:{},agreement:{...base.agreement,status:'accepted',owner_accepted_at:'ok',provider_accepted_at:'ok'}};
  mocks.call.mockImplementation(async(action)=>{
   if(action==='receipt')current={...current,evidence:{...current.evidence,receipt_at:'ok'},allowed_actions:['payment_report']};
   if(action==='payment_report')current={...current,evidence:{...current.evidence,payment_reported_at:'ok'},allowed_actions:[]};
@@ -60,7 +63,7 @@ it('keeps buyer closure pending until evidence and the other participant confirm
   return current;
  });
  await mount();expect(host.textContent).not.toContain('Confirmer la clôture');
- await click('Confirmer la réception');await click('J’ai effectué le paiement');
+ await click('Confirmer la réception');await confirmReceiptPanel('Confirmer la réception');await click('J’ai effectué le paiement');
  expect(host.textContent).not.toContain('Confirmer la clôture');
  current={...current,evidence:{...current.evidence,payment_received_at:'ok'},allowed_actions:['complete']};
  await click('Actualiser');await click('Confirmer la clôture');
@@ -83,12 +86,12 @@ it('lets the seller confirm receipt of the declared payment and finish bilateral
 });
 
 it('shows one primary task at a time from the server receipt and closure snapshots',async()=>{
- const state=(name:string)=>{const f=guideCases.find(f=>f.name===name)!;return {...base,...f.room,title:'Téléphone',current_offer_version:(f.room as any).agreement?.version??0,guidance:f.guidance};};
+ const state=(name:string)=>{const f=guideCases.find(f=>f.name===name)!;return {...base,buyer:true,...f.room,title:'Téléphone',current_offer_version:(f.room as any).agreement?.version??0,guidance:f.guidance};};
  let current=state('receipt');
  mocks.call.mockImplementation(async(action)=>{if(action==='receipt')current=state('payment_report');if(action==='payment_report')current=state('wait_payment');return current;});
  await mount();expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Confirmer la réception');
  expect([...host.querySelectorAll('button')].filter(b=>b.textContent?.trim()==='Confirmer la réception')).toHaveLength(1);
- await click('Confirmer la réception');expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Déclarer le paiement effectué');
+ await click('Confirmer la réception');await confirmReceiptPanel('Confirmer la réception');expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Déclarer le paiement effectué');
  await click('J’ai effectué le paiement');expect(host.querySelector('.wr-guide-task')?.textContent).toContain('Confirmation du paiement attendue');
  expect(host.querySelector('.wr-guide-action')).toBeNull();expect(host.textContent).not.toContain('Parcours terminé');
  current=state('completed');await click('Actualiser');expect(host.textContent).toContain('Parcours terminé');
