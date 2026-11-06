@@ -1,0 +1,124 @@
+name: WAOUH Android emulator test
+
+# Installe l'APK publié (bot.bj/android) sur un émulateur Android et parcourt
+# l'application : lancement, connexion, recherche, résultats, onglets principaux.
+# Captures, vidéo, journaux et rapport sont joints à l'exécution.
+on:
+  workflow_dispatch:
+    inputs:
+      api_level:
+        description: "Version Android de l'émulateur (API)"
+        default: "34"
+  workflow_run:
+    workflows: ["WAOUH Flutter Muse NEXUS CI"]
+    types: [completed]
+    branches: [prod]
+
+concurrency:
+  group: waouh-android-emulator
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  emulator:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OUT_DIR: ${{ github.workspace }}/emulator-out
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download published APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download waouh-android-latest -R "$GITHUB_REPOSITORY" -p waouh-android.apk -p waouh-android.json -D apk
+          cat apk/waouh-android.json
+          sha256sum apk/waouh-android.apk
+
+      - name: Create disposable test account
+        id: account
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, secrets, urllib.request
+          ref = os.environ["SUPABASE_PROJECT_REF"]
+          req = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/api-keys",
+              headers={"Authorization": "Bearer " + os.environ["SUPABASE_ACCESS_TOKEN"]})
+          service = next(k["api_key"] for k in json.load(urllib.request.urlopen(req, timeout=60)) if k["name"] == "service_role")
+          print("::add-mask::" + service)
+          email = f"android-ci-{os.environ['GITHUB_RUN_ID']}@waouh.test"
+          password = "Ci-" + secrets.token_urlsafe(18).replace("-", "x").replace("_", "y")
+          print("::add-mask::" + password)
+          body = json.dumps({"email": email, "password": password, "email_confirm": True,
+                             "user_metadata": {"full_name": "Test Android CI"}}).encode()
+          req = urllib.request.Request(f"https://{ref}.supabase.co/auth/v1/admin/users", data=body, method="POST",
+              headers={"Authorization": "Bearer " + service, "apikey": service, "Content-Type": "application/json"})
+          user = json.load(urllib.request.urlopen(req, timeout=60))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"email={email}\npassword={password}\nuser_id={user['id']}\n")
+          print("Compte de test créé :", email)
+          PY
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run app on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          TEST_EMAIL: ${{ steps.account.outputs.email }}
+          TEST_PASSWORD: ${{ steps.account.outputs.password }}
+        with:
+          api-level: ${{ github.event.inputs.api_level || '34' }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: bash scripts/android-emulator-run.sh apk/waouh-android.apk
+
+      - name: Summary
+        if: always()
+        run: test -f "$OUT_DIR/summary.md" && cat "$OUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload screenshots, video and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-android-emulator
+          path: emulator-out
+          retention-days: 14
+
+      - name: Delete test account
+        if: always() && steps.account.outputs.user_id != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          TEST_USER_ID: ${{ steps.account.outputs.user_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          ref = os.environ["SUPABASE_PROJECT_REF"]
+          req = urllib.request.Request(f"https://api.supabase.com/v1/projects/{ref}/api-keys",
+              headers={"Authorization": "Bearer " + os.environ["SUPABASE_ACCESS_TOKEN"]})
+          service = next(k["api_key"] for k in json.load(urllib.request.urlopen(req, timeout=60)) if k["name"] == "service_role")
+          print("::add-mask::" + service)
+          req = urllib.request.Request(f"https://{ref}.supabase.co/auth/v1/admin/users/{os.environ['TEST_USER_ID']}", method="DELETE",
+              headers={"Authorization": "Bearer " + service, "apikey": service})
+          try:
+              urllib.request.urlopen(req, timeout=60); print("Compte de test supprimé")
+          except Exception as e:
+              print("::warning::Suppression du compte de test à refaire :", type(e).__name__)
+          PY
