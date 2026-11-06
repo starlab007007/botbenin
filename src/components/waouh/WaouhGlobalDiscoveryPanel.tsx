@@ -2,7 +2,6 @@ import {WaouhSmartSale} from './WaouhSmartSale';
 import {saleHandoff,saleSearchPath,type PublishedSale} from '@/lib/waouh/smartSale';
 import {productSnapshot,WaouhProductPresentation} from './WaouhProductPresentation';
 import {missionCopy,normalizeMissionKind,normalizeMissionContext,missionCriteria,type MissionContext} from '@/lib/waouh/guidedDiscovery';
-import {WaouhGuidedProgress} from './WaouhGuidedProgress';
 import type {GuidedPhase} from '@/lib/waouh/guidedDiscovery';
 import {WaouhAutomaticOffers} from './WaouhAutomaticOffers';
 import {followAutomaticSearch,automaticFollowRetryable,automaticMissionMessage,type AutomaticMission,type AutomaticSearch} from '@/lib/waouh/automaticMission';
@@ -21,7 +20,7 @@ import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhBotNextStep } from "./WaouhBotNextStep";
 import { WaouhNexusResultCard } from "./WaouhNexusResultCard";
 import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
-import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
+import { buildSummary, externalSteps, externalUnavailableStep, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -215,6 +214,9 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
     setLastSearch({goal,city:requestedCity,article_id:articleId,mode:searchKind==='sale'?'sell':searchKind==='purchase'?'buy':'ask',discovery_kind:searchKind,mission_context:inputContext,budget_max:searchKind==='opportunity'||searchKind==='sale'?undefined:Number(budget)||undefined});
     let received=0,indexedReceived=false,followRequest:AutomaticSearch|null=null;
     setEvents([{id:++eventId.current,at:new Date().toISOString(),text:'Recherche lancée selon votre besoin.'}]);
+    setReasonSummary(null);
+    feed.reset();
+    feed.push(planSteps({query:goal,city:requestedCity||undefined,budget:Number(budget)||null}));
     let preferred:Awaited<ReturnType<typeof loadAvatarAutonomy>>|null=null;
     try{
       if(user){try{preferred=await loadAvatarAutonomy();}catch{/* Public discovery remains available; the authenticated follow-up rechecks its own rules. */}}
@@ -230,6 +232,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
         if(version!==searchVersion.current)return;
         indexedReceived=true;received=indexed.results.length;setResults(indexed.results);setResolvedMode(indexed.mode);setRefreshing(!!user);
         record(indexed.results.length?`${indexed.results.length} premières offres reçues.`:'Recherche de nouvelles pistes.');
+        feed.push([{id:'partial',tone:'search',text:indexed.results.length?`${indexed.results.length} ${indexed.results.length>1?'premières pistes repérées':'première piste repérée'}.`:'Je continue d’explorer les sources.'}]);
       });
       if(version!==searchVersion.current)return;
       setResults(response.results);setResolvedMode(response.mode);setSourceMix(response.source_mix);setRefreshState(response.refresh??{});setIntelligence(response.intelligence??null);
@@ -239,8 +242,13 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       if(!city.trim()&&final.city)setCity(final.city);
       if(!budget&&final.budget_max)setBudget(String(Math.round(final.budget_max)));
       record(response.results.length?`${response.results.length} offres reçues. Comparaison mise à jour.`:'Aucune piste compatible pour le moment.');
+      const reasonCtx={query:goal,city:zone||response.intelligence?.city||undefined,budget:smartBudget??requestedBudget??undefined};
+      const discoveryForReason={results:response.results,source_mix:response.source_mix,refresh:response.refresh};
+      const reasonSummaryResult=buildSummary(null,discoveryForReason,reasonCtx);
+      setReasonSummary(reasonSummaryResult);
+      feed.push([...methodSteps(response.intelligence),...externalSteps(discoveryForReason,reasonCtx),summaryStep(reasonSummaryResult,reasonCtx)]);
       void loadSources();
-    }catch(error){if(version!==searchVersion.current)return;setDiscoveryPhase(indexedReceived?'partial':'error');setLiveError(indexedReceived?'Recherche externe indisponible. Vos premières pistes sont conservées.':'Recherche interrompue. Réessayez.');setRefreshing(false);record('Recherche interrompue. Les premières pistes restent accessibles.');if(indexedReceived&&automaticFollowRetryable(error))setCompleteSearch(followRequest);}
+    }catch(error){if(version!==searchVersion.current)return;setDiscoveryPhase(indexedReceived?'partial':'error');setLiveError(indexedReceived?'Recherche externe indisponible. Vos premières pistes sont conservées.':'Recherche interrompue. Réessayez.');setRefreshing(false);record('Recherche interrompue. Les premières pistes restent accessibles.');feed.push([indexedReceived?externalUnavailableStep():{id:'error',tone:'warn',text:'Recherche interrompue. Réessayez.'}]);if(indexedReceived&&automaticFollowRetryable(error))setCompleteSearch(followRequest);}
     finally{if(version===searchVersion.current)setBusy(false);}
   };
 
@@ -431,7 +439,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
 
               </div>
             </div></details></>}
-            {started&&<>{activeKind==='sale'&&selectedArticle&&(['understanding','collecting'].includes(discoveryPhase)||!results.length)&&<WaouhProductPresentation value={selectedArticle} label="Mon article à vendre"/>}{(['understanding','collecting'].includes(discoveryPhase)||paused)&&<WaouhGuidedProgress missionKind={activeKind} phase={discoveryPhase} count={results.length} refreshing={refreshing} onActivity={()=>setActivityOpen(true)}/>}{!['understanding','collecting'].includes(discoveryPhase)&&!paused&&<button type="button" className="wmn-text" onClick={()=>setActivityOpen(true)}><ListChecks size={15}/>Voir le déroulé de ma recherche</button>}{['understanding','collecting'].includes(discoveryPhase)&&results.length>0&&!peekResults&&<button type="button" className="wmn-secondary" onClick={()=>setPeekResults(true)}>Voir les premières pistes</button>}<Sheet open={activityOpen} onOpenChange={setActivityOpen}><SheetContent side="bottom" className="wmn-sheet" aria-describedby="wmn-search-log"><SheetTitle>Le travail de Bot</SheetTitle><SheetDescription id="wmn-search-log" className="sr-only">Étapes réelles de cette recherche.</SheetDescription><WaouhLiveMission busy={busy} paused={paused} count={results.length} refreshing={refreshing} error={liveError} events={events} onPause={()=>{searchVersion.current++;setBusy(false);setPaused(true);setDiscoveryPhase('paused');setCompleteSearch(null);record('Recherche mise en pause.');}} onResume={()=>void searchEverywhere()}/></SheetContent></Sheet></>}
+            {started&&<>{activeKind==='sale'&&selectedArticle&&(['understanding','collecting'].includes(discoveryPhase)||!results.length)&&<WaouhProductPresentation value={selectedArticle} label="Mon article à vendre"/>}{feed.shown.length>0&&<WaouhReasoningFeed steps={feed.shown} running={busy} pending={feed.pending} summary={reasonSummary} onSkip={feed.skip}/>}{!['understanding','collecting'].includes(discoveryPhase)&&!paused&&<button type="button" className="wmn-text" onClick={()=>setActivityOpen(true)}><ListChecks size={15}/>Voir le déroulé de ma recherche</button>}{['understanding','collecting'].includes(discoveryPhase)&&results.length>0&&!peekResults&&<button type="button" className="wmn-secondary" onClick={()=>setPeekResults(true)}>Voir les premières pistes</button>}<Sheet open={activityOpen} onOpenChange={setActivityOpen}><SheetContent side="bottom" className="wmn-sheet" aria-describedby="wmn-search-log"><SheetTitle>Le travail de Bot</SheetTitle><SheetDescription id="wmn-search-log" className="sr-only">Étapes réelles de cette recherche.</SheetDescription><WaouhLiveMission busy={busy} paused={paused} count={results.length} refreshing={refreshing} error={liveError} events={events} onPause={()=>{searchVersion.current++;setBusy(false);setPaused(true);setDiscoveryPhase('paused');setCompleteSearch(null);record('Recherche mise en pause.');feed.skip();}} onResume={()=>void searchEverywhere()}/></SheetContent></Sheet></>}
             {liveError&&<p role="alert" className="wmn-error">{liveError}<button type="button" className="wmn-text" onClick={()=>void searchEverywhere()}>Réessayer</button></p>}
             {started&&!busy&&results.length===0&&<div className="wmn-screen-empty"><h2>{paused?'Recherche en pause':'Aucune piste pour le moment'}</h2><p>{automatic?.mandate?'Bot poursuit le suivi dans vos limites.':'Ajustez votre besoin ou relancez la recherche.'}</p><button type="button" className="wmn-primary" onClick={()=>automatic?.mandate?navigate(`/app/missions?mandate=${automatic.mandate.id}`):void searchEverywhere()}>{automatic?.mandate?missionCopy[activeKind].cta:'Réessayer'}</button></div>}
             {results.length>0&&(!['understanding','collecting'].includes(discoveryPhase)||peekResults)&&<WaouhAutomaticOffers results={results} criteria={{query:lastSearch?.goal||query,city:lastSearch?.city||city,budget:automatic?.mandate?.budget_max??lastSearch?.budget_max??(Number(budget)||null),mode:lastSearch?.mode||'buy',...missionCriteria(activeContext)}} ownArticle={selectedArticle?{...selectedArticle,title:String(selectedArticle.title),quantity:activeContext.quantity,priceFloor:activeContext.price_floor}:undefined} tracking={automaticError||(automatic?.skipped==='paused'?'Bot est en pause.':automatic?.skipped==='article_required'?'Sélectionnez l’article à vendre pour activer le suivi.':automatic?.skipped==='approval_required'?'Votre mode actuel demande une validation des actions.':automatic?.mandate?automaticMissionMessage(automatic.mandate):undefined)} actionLabel={busy?'Recherche en cours…':automaticBusy?'Préparation du suivi…':automatic?.mandate?'Suivre Bot':automaticError?'Réessayer le suivi':automatic?.skipped==='paused'?'Réactiver Bot':automatic?.skipped==='approval_required'?(activeKind==='opportunity'?'Activer la veille':'Choisir cette piste'):automatic?.skipped==='article_required'?'Choisir mon article':user?'Confier cette recherche':'Connexion pour le suivi'} onAction={()=>{if(busy)return; if(automatic?.mandate)navigate(`/app/missions?mandate=${automatic.mandate.id}`);else if(!user)requireAuth(window.location.pathname+window.location.search);else if(automatic?.skipped==='paused')navigate('/app/avatar');else if(automatic?.skipped==='article_required'){void chooseArticle();}else if(automatic?.skipped==='approval_required'){if(activeKind==='opportunity')setCompleteSearch(current=>current?{...current,confirmed_watch:true}:null);else navigate('/app/missions?view=suivi');}else if(!completeSearch&&lastSearch)setCompleteSearch(lastSearch);else setAutomaticRetry(v=>v+1);}} manualChoice={activeKind!=='opportunity'&&automatic?.skipped==='approval_required'} onPriorityChange={value=>setCompleteSearch(current=>current?{...current,comparison_priority:value}:null)} renderActions={result=><><WaouhDelegateButton result={result} mode={lastSearch?.mode||'buy'} articleId={completeSearch?.article_id} discoveryKind={activeKind} missionContext={activeContext}/><WaouhNexusContactSheet fabricId={result.fabric_id} title={result.subject||'Offre'} sourceUrl={result.source_url} contactabilityLevel={result.contact_policy.level} mode={lastSearch?.mode||'buy'} purpose={['service','project'].includes(activeKind)?'service':activeKind==='opportunity'?'announcement':'product'}/></>}/>}
