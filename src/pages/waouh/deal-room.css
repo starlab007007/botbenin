@@ -11,3 +11,6 @@
 .wr-mandate-more{margin:4px 0 14px;border-top:1px solid var(--line);padding-top:10px}.wr-mandate-more summary{cursor:pointer;color:#475569;font-size:13px;font-weight:600;min-height:28px}.wr-mandate-more label:first-of-type{margin-top:12px}
 
 .wr-outcome{padding:10px 12px;border-radius:12px;font-weight:600;background:#ecfdf5;color:#047857}.wr-outcome[data-outcome=declined]{background:#f8fafc;color:#475569}.wr-sheet .wr-primary+button{margin-top:8px;width:100%}
+
+a.wr-primary{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;text-decoration:none;text-align:center}
+.wr-muted{color:#64748b;font-size:13px}

@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -109,9 +110,10 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
   if(busy)return null;final v=++generation;setState((){busy=true;error='';notice='';});
   try{final d=await api.call(action,{if(roomId!=null)'deal_room_id':roomId,...p});if(!mounted||v!=generation)return null;setState((){if(d['deal_room_id']!=null){room={...d,'messages':mergeRoomMessages(room?['deal_room_id']==d['deal_room_id']?(room?['messages'] as List? ?? []):[],d['messages'] as List? ?? [])};roomId='${d['deal_room_id']}';}});return d;}
-  catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));return null;}
+  catch(e){if(mounted&&v==generation){setState(()=>error=roomError(e));showError();}return null;}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
  }
+ void showError(){if(!mounted||error.isEmpty)return;final m=ScaffoldMessenger.maybeOf(context);m?.hideCurrentSnackBar();m?.showSnackBar(SnackBar(content:Text(error)));}
  Future<void> search() async {if(searching||query.text.trim().length<3)return;final v=++generation;final ctx=ReasonContext(query:query.text,city:city.text.trim().isEmpty?null:city.text.trim(),budget:double.tryParse(budget.text));
   reasonTimer?.cancel();reasonTimer=null;reasonQueue.clear();FocusManager.instance.primaryFocus?.unfocus();
   setState((){searching=true;error='';reasonShown.clear();reasonSummary=null;});pushReason(planSteps(ctx));
@@ -120,7 +122,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
-  if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted)setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}finally{if(mounted)setState(()=>busy=false);}return;}
+  if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted){setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');showError();}}finally{if(mounted)setState(()=>busy=false);}return;}
   final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
@@ -306,7 +308,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     LiveDealGuidance(guide:searchRoomGuidance(searching,offers.isNotEmpty)),
     card([field('Votre besoin',query),field('Ville',city),field('Budget max · F',budget,number:true),DropdownButtonFormField<String>(initialValue:kind,items:const [DropdownMenuItem(value:'purchase',child:Text('Produit')),DropdownMenuItem(value:'service',child:Text('Service')),DropdownMenuItem(value:'opportunity',child:Text('Opportunité'))],onChanged:(v)=>setState(()=>kind=v!)),button('Rechercher',search,primary:true)]),
     if(reasonShown.isNotEmpty)KeyedSubtree(key:reasonKey,child:LiveReasoningFeed(steps:reasonShown,running:searching||reasonQueue.isNotEmpty,summary:!searching&&reasonQueue.isEmpty?reasonSummary:null,onSkip:skipReason,showActions:false)),
-    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>delegateFromSearch(item))]),
+    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),if(liveOfferReachable(item))...[button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>delegateFromSearch(item))]else if((item.sourceUrl??'').isNotEmpty)button('Voir l’annonce d’origine',()=>unawaited(launchUrl(Uri.parse(item.sourceUrl!),mode:LaunchMode.externalApplication)),primary:true)else const Padding(padding:EdgeInsets.only(top:8),child:Text('Contact non disponible',style:TextStyle(color:Color(0xFF64748B))))]),
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
     if(guide!=null)LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),

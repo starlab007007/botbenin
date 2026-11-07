@@ -2,6 +2,7 @@ import {ProductGallery} from './WaouhProductPresentation';
 import { useState } from "react";
 import {Link, useNavigate} from "react-router-dom";
 import { legacyDealCandidate, LegacyInterestError, openLegacyInterest } from "@/lib/waouh/legacyInterest";
+import { offerReachable } from "@/components/waouh/WaouhOfferActions";
 import { toast } from "@/hooks/use-toast";
 import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
@@ -69,7 +70,11 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
           <div className="[&_button]:h-12 [&_button]:w-full [&_button]:rounded-2xl">
             {legacyDealCandidate(result)
               ? <LegacyInterestButton result={result} />
-              : <Link className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" to={`/app/deal-room?${new URLSearchParams({fabric_id:result.fabric_id})}`}>Intéressé</Link>}
+              : offerReachable(result)
+                ? <Link className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" to={`/app/deal-room?${new URLSearchParams({fabric_id:result.fabric_id})}`}>Intéressé</Link>
+                : result.source_url
+                  ? <a className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" href={result.source_url} target="_blank" rel="noopener noreferrer">Voir l’annonce</a>
+                  : <span className="flex h-12 items-center justify-center rounded-2xl border border-slate-200 text-xs font-semibold text-slate-500">Contact non disponible</span>}
           </div>
         </div>
       </div>

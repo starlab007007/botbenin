@@ -114,3 +114,9 @@ it('an opportunity keeps its application process in the Deal Room', async () => 
   expect(legacy.open).not.toHaveBeenCalled();
   expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Ao');
 });
+
+describe("offre d'un site marchand sans contact", () => {
+  it("n'est pas joignable : pas d'« Intéressé » possible", () => {
+    expect(offerReachable({ fabric_id: "external:58e486ad-cf6f-4dad-b0b1-d5f39d9fe006", evidence: { has_whatsapp: false }, contact_policy: undefined } as never)).toBe(false);
+  });
+});
