@@ -106,7 +106,7 @@ function numbersOk(text: string, allowed: Set<number>): boolean {
 
 function validPoint(raw: any, sources: Source[], allowed: Set<number>): Point | null {
   const text = clean(raw?.text, 260);
-  const cites = Array.isArray(raw?.cites) ? [...new Set(raw.cites.map(Number))].filter((n: number) => Number.isInteger(n) && n >= 1 && n <= sources.length) as number[] : [];
+  const cites: number[] = Array.isArray(raw?.cites) ? [...new Set<number>((raw.cites as unknown[]).map((v) => Number(v)))].filter((n) => Number.isInteger(n) && n >= 1 && n <= sources.length) : [];
   if (!text || !cites.length || !numbersOk(text, allowed)) return null;
   return { text, cites: cites.slice(0, 8) };
 }
