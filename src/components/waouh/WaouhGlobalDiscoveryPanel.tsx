@@ -1,6 +1,7 @@
 import {WaouhSmartSale} from './WaouhSmartSale';
 import {saleHandoff,saleSearchPath,type PublishedSale} from '@/lib/waouh/smartSale';
 import {productSnapshot,WaouhProductPresentation} from './WaouhProductPresentation';
+import {joinableFirst} from '@/components/waouh/WaouhOfferActions';
 import {missionCopy,normalizeMissionKind,normalizeMissionContext,missionCriteria,type MissionContext} from '@/lib/waouh/guidedDiscovery';
 import type {GuidedPhase} from '@/lib/waouh/guidedDiscovery';
 import {WaouhAutomaticOffers} from './WaouhAutomaticOffers';
@@ -232,12 +233,12 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
       setLastSearch(request);setDiscoveryPhase('collecting');
       const response=await progressiveNexusDiscovery({query:request.goal,mode:searchKind==='sale'?'find_buyers':'find_sellers',discovery_kind:searchKind,mission_context:context,city:zone||undefined,budget_max:request.budget_max,limit:24,refresh_external:!!user,smart:!!user},indexed=>{
         if(version!==searchVersion.current)return;
-        indexedReceived=true;received=indexed.results.length;setResults(indexed.results);setResolvedMode(indexed.mode);setRefreshing(!!user);
+        indexedReceived=true;received=indexed.results.length;setResults(joinableFirst(indexed.results));setResolvedMode(indexed.mode);setRefreshing(!!user);
         record(indexed.results.length?`${indexed.results.length} premières offres reçues.`:'Recherche de nouvelles pistes.');
         feed.push([{id:'partial',tone:'search',text:indexed.results.length?`${indexed.results.length} ${indexed.results.length>1?'premières pistes repérées':'première piste repérée'}.`:'Je continue d’explorer les sources.'}]);
       });
       if(version!==searchVersion.current)return;
-      setResults(response.results);setResolvedMode(response.mode);setSourceMix(response.source_mix);setRefreshState(response.refresh??{});setIntelligence(response.intelligence??null);
+      setResults(joinableFirst(response.results));setResolvedMode(response.mode);setSourceMix(response.source_mix);setRefreshState(response.refresh??{});setIntelligence(response.intelligence??null);
       const smartBudget=response.intelligence?.budget_max??undefined;
       const final:AutomaticSearch={...request,mode:request.mode,city:zone||response.intelligence?.city||undefined,budget_max:['sale','opportunity'].includes(searchKind)?undefined:request.budget_max??(preferred?.budget_max&&smartBudget?Math.min(preferred.budget_max,smartBudget):smartBudget)};
       setLastSearch(final);setCompleteSearch(final);setDiscoveryPhase('ready');setRefreshing(false);

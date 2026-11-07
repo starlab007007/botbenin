@@ -1,4 +1,5 @@
 import 'live_product_data.dart';
+import 'live_automatic_offers.dart' show liveJoinableFirst;
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
@@ -505,10 +506,10 @@ class NexusDiscoveryResponse {
       intelligence: intelligenceJson.isEmpty
           ? null
           : NexusSmartDiscoveryPlan.fromJson(intelligenceJson),
-      results: _list(json['results'])
+      results: liveJoinableFirst(_list(json['results'])
           .map((value) => NexusDiscoveryItem.fromJson(_map(value)))
           .where((item) => item.fabricId.isNotEmpty)
-          .toList(growable: false),
+          .toList(growable: false)),
       sourceMix: _map(
         json['source_mix'],
       ).map((key, value) => MapEntry(key, _number(value).round())),

@@ -50,6 +50,13 @@ export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | 
   return offerChannels(result as never).includes("whatsapp");
 }
 
+/** Les offres dont le vendeur est joignable passent devant, l'ordre de pertinence est conservé à l'intérieur de chaque groupe. */
+export function joinableFirst<T extends Pick<NexusDiscoveryResult, "fabric_id" | "evidence" | "contact_policy">>(results: T[]): T[] {
+  const joinable: T[] = [], other: T[] = [];
+  for (const r of results) (offerReachable(r) ? joinable : other).push(r);
+  return [...joinable, ...other];
+}
+
 type Shared = {
   mode: Mode;
   kind?: MissionKind;

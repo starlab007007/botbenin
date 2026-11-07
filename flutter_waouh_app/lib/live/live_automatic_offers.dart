@@ -107,6 +107,10 @@ bool liveOfferReachable(NexusDiscoveryItem o) {
   return liveOfferChannels(o).contains(LiveOfferChannel.whatsapp);
 }
 
+/// Les offres dont le vendeur est joignable passent devant ; l'ordre de pertinence est conservé dans chaque groupe.
+List<NexusDiscoveryItem> liveJoinableFirst(List<NexusDiscoveryItem> items) =>
+    [...items.where(liveOfferReachable), ...items.where((o) => !liveOfferReachable(o))];
+
 String livePrimaryOfferLabel(String missionKind, String mode, String? level) {
   if (missionKind == 'sale' || mode == 'sell') return liveContactabilityActionLabel(level);
   if (missionKind == 'service' || missionKind == 'project') return 'Demander un devis';

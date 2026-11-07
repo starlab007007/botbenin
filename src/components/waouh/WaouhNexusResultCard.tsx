@@ -65,6 +65,7 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
           <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-violet-800"><Sparkles className="mt-0.5 h-3 w-3 shrink-0" />{result.scores.reasons.slice(0, 2).join(" · ")}</p>
         )}
 
+        {offerReachable(result) && String(result.fabric_id).startsWith("external:") && <p className="text-xs font-semibold text-emerald-700">Contact WhatsApp disponible</p>}
         <div className="grid grid-cols-[1.4fr_1fr] gap-2">
           <WaouhDelegateButton result={result} mode={mode} articleId={articleId} onHandled={onHandled} />
           <div className="[&_button]:h-12 [&_button]:w-full [&_button]:rounded-2xl">

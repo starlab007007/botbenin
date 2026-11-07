@@ -117,8 +117,8 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (!comp) return "unreachable";
   const pendingGuest = comp.provider_id === ROOM_GUEST_ACTOR;
   if (comp.provider_id && !pendingGuest) return "joined";
-  const { data: existing } = await sb.from("waouh_room_guests").select("room_id").eq("room_id", roomId).maybeSingle();
-  if (existing) return "already";
+  const { data: existing } = await sb.from("waouh_room_guests").select("room_id,phone_encrypted,token_encrypted,reference").eq("room_id", roomId).maybeSingle();
+  if (existing?.phone_encrypted) return "already";
   // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
   const waitForContact = async () => {
     if (pendingGuest || !String(comp.source_ref || "").startsWith("external:")) return "unreachable" as const;
@@ -137,9 +137,14 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
     const { data: ev } = await sb.from("waouh_room_events").select("created_at").eq("room_id", roomId).eq("event_type", "seller_pending").order("id").limit(1).maybeSingle();
     since = ev?.created_at ? new Date(Date.parse(ev.created_at) - 1000).toISOString() : null;
   }
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join("");
-  const reference = roomGuestReference(roomId);
-  const { error } = await sb.from("waouh_room_guests").insert({
+  // Un lien partagé à la main existe déjà : on lui ajoute le numéro trouvé, sans changer le lien.
+  const upgrade = !!existing;
+  const token = upgrade ? await decryptPhone(existing.token_encrypted) : Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join("");
+  const reference = upgrade ? String(existing.reference) : roomGuestReference(roomId);
+  const { error } = upgrade ? await sb.from("waouh_room_guests").update({
+    display_name: contact.name, channel: "whatsapp", phone_encrypted: await encryptPhone(contact.phone), phone_hash: phoneHash,
+    phone_last4: phoneLast4(contact.phone), consent_basis: contact.basis, contact_id: contact.contactId,
+  }).eq("room_id", roomId) : await sb.from("waouh_room_guests").insert({
     room_id: roomId, reference, display_name: contact.name, phone_encrypted: await encryptPhone(contact.phone), phone_hash: phoneHash,
     phone_last4: phoneLast4(contact.phone), consent_basis: contact.basis, contact_id: contact.contactId,
     token_hash: await sha256Hex(token), token_encrypted: await encryptPhone(token), token_expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
@@ -147,7 +152,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   });
   if (error) { if (error.code === "23505") return "already"; throw error; }
   const { data: attached, error: attachError } = pendingGuest ? { data: true, error: null } : await sb.rpc("waouh_room_attach_guest", { p_room: roomId });
-  if (attachError || attached !== true) { await sb.from("waouh_room_guests").delete().eq("room_id", roomId); return attached === false ? "joined" : "unreachable"; }
+  if (attachError || attached !== true) { if (!upgrade) await sb.from("waouh_room_guests").delete().eq("room_id", roomId); return attached === false ? "joined" : "unreachable"; }
   const who = comp.kind === "announcement" ? "un candidat" : "un client";
   const what = comp.kind === "announcement" ? "votre annonce" : "votre offre";
   await enqueue(sb, contact.phone,
@@ -163,7 +168,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
 
 /** Relaie par WhatsApp ce qui est nouveau dans l'échange (messages, proposition, accord). */
 export async function relayRoomGuests(sb: any, roomId?: string) {
-  let query = sb.from("waouh_room_guests").select("*").in("status", ["contacted", "joined"]).gt("token_expires_at", new Date().toISOString());
+  let query = sb.from("waouh_room_guests").select("*").in("status", ["contacted", "joined"]).not("phone_encrypted", "is", null).gt("token_expires_at", new Date().toISOString());
   if (roomId) query = query.eq("room_id", roomId);
   const { data: guests } = await query.limit(100);
   let sent = 0;
@@ -281,6 +286,58 @@ export async function notifyRoomSilence(sb: any): Promise<number> {
     if (!guest || guest.last_inbound_at || guest.status === "stopped") continue;
     const { data: comp } = await sb.from("waouh_convergence_components").select("title").eq("id", link.id).maybeSingle();
     await notifyOwner(sb, link.id, `Pas de réponse du vendeur pour « ${comp?.title ?? "cette offre"} » après les relances. Votre démarche reste en veille ; vous pouvez choisir une autre offre ou relancer.`, `room-silent:${link.id}`);
+    sent++;
+  }
+  return sent;
+}
+
+
+/** Vendeur sans numéro : lien de contact sans compte, à envoyer à la main (Messenger, commentaire, SMS…). */
+export async function createShareLink(sb: any, roomId: string, userId: string): Promise<{ url: string; text: string; title: string; source_url: string | null } | null> {
+  const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,active").eq("id", roomId).maybeSingle();
+  if (!link || link.owner_id !== userId || link.active === false) return null;
+  const { data: comp } = await sb.from("waouh_convergence_components").select("id,title,provider_id,source_ref,source_url").eq("id", roomId).maybeSingle();
+  if (!comp || !String(comp.source_ref || "").startsWith("external:")) return null;
+  if (comp.provider_id && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
+  if (!comp.provider_id) {
+    const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
+    if (ok !== true) return null;
+  }
+  let { data: guest } = await sb.from("waouh_room_guests").select("token_encrypted,status,token_expires_at").eq("room_id", roomId).maybeSingle();
+  let token: string;
+  if (guest && guest.status !== "stopped") {
+    token = await decryptPhone(guest.token_encrypted);
+    if (Date.parse(guest.token_expires_at) <= Date.now()) await sb.from("waouh_room_guests").update({ token_expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }).eq("room_id", roomId);
+  } else if (guest) return null;
+  else {
+    token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join("");
+    const { data: ev } = await sb.from("waouh_room_events").select("created_at").eq("room_id", roomId).eq("event_type", "seller_pending").order("id").limit(1).maybeSingle();
+    const { error } = await sb.from("waouh_room_guests").insert({
+      room_id: roomId, reference: roomGuestReference(roomId), channel: "link", consent_basis: "shared_link",
+      token_hash: await sha256Hex(token), token_encrypted: await encryptPhone(token), token_expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
+      ...(ev?.created_at ? { relayed_until: new Date(Date.parse(ev.created_at) - 1000).toISOString() } : {}),
+    });
+    if (error && error.code !== "23505") throw error;
+  }
+  const url = guestLink(token);
+  const title = String(comp.title || "votre annonce");
+  return { url, title, source_url: comp.source_url ?? null,
+    text: `Bonjour, je suis intéressé par « ${title} ». Pour répondre et voir mon offre, sans compte ni application : ${url}` };
+}
+
+
+/**
+ * Messagerie centrale indisponible : l'acheteur est prévenu une fois par échange (au bout de 30 min)
+ * et peut joindre le vendeur lui-même, sans attendre le retour de la messagerie.
+ */
+export async function notifyRoomDeliveryDelay(sb: any): Promise<number> {
+  try { if ((await centralWhatsAppHealth()).working) return 0; } catch { /* considéré indisponible */ }
+  const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { data: guests } = await sb.from("waouh_room_guests").select("room_id,contacted_at,last_inbound_at")
+    .in("status", ["contacted", "joined"]).not("phone_encrypted", "is", null).is("last_inbound_at", null).lte("contacted_at", cutoff).limit(50);
+  let sent = 0;
+  for (const g of guests ?? []) {
+    await notifyOwner(sb, g.room_id, "Votre message n’a pas encore pu être remis au vendeur. Vous pouvez lui écrire vous-même depuis l’échange, ou patienter : tout part dès que la messagerie est de nouveau disponible.", `room-delay:${g.room_id}`);
     sent++;
   }
   return sent;

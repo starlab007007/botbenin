@@ -2,7 +2,7 @@ import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
-import { ROOM_GUEST_ACTOR, notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
+import { ROOM_GUEST_ACTOR, notifyRoomDeliveryDelay, notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1320,7 +1320,7 @@ async function reachAndRelayRoomGuests(sb: SupabaseClient) {
     }
   } catch (e) { console.warn("[waouh-opportunity-worker][room-pending]", e); result.errors++; }
   try { result.relayed = (await relayRoomGuests(sb)).sent; } catch (e) { console.warn("[waouh-opportunity-worker][room-relay]", e); result.errors++; }
-  try { await notifyRoomSilence(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-silence]", e); result.errors++; }
+  try { await notifyRoomSilence(sb); await notifyRoomDeliveryDelay(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-silence]", e); result.errors++; }
   return result;
 }
 

@@ -14,3 +14,6 @@
 
 a.wr-primary{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;text-decoration:none;text-align:center}
 .wr-muted{color:#64748b;font-size:13px}
+
+.wr-seller-reach{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;padding:10px 12px;border-radius:14px;background:#eff6ff}
+.wr-seller-reach p{flex-basis:100%;margin:0;font-size:13px;color:#1e3a8a}

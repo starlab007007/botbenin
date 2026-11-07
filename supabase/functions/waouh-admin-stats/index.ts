@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { centralWhatsAppHealth } from "../_shared/waouh-central-whatsapp.ts";
 import { handleAdminContactHub } from "../_shared/waouh-admin-contact-hub.ts";
 
 const corsHeaders = {
@@ -360,6 +361,8 @@ serve(async (req) => {
     const addAlert = (severity: "critical"|"warning"|"info", code: string, title: string, detail: string, target?: string) =>
       alerts.push({ severity, code, title, detail, target: target ?? null });
 
+    const messagingHealth = await centralWhatsAppHealth().catch(() => ({ working: false, status: "UNAVAILABLE" }));
+    if (!messagingHealth.working) addAlert("critical", "messaging_down", "Messagerie déconnectée", "Les contacts automatiques sont suspendus. Reconnectez la messagerie centrale pour les reprendre.", "/admin/waouh");
     const mutedSources = sourceHealth.filter((row: any) => ["serpapi", "facebook_public", "google_places"].includes(String(row.source_key)) && Number(row.hours_since_last) > 72);
     if (mutedSources.length > 0) addAlert("warning", "sources_muted", "Collecte en retard", `${mutedSources.map((row: any) => row.label).join(", ")} : aucune nouvelle annonce depuis plus de 3 jours.`, "/admin/waouh?tab=radar");
 
