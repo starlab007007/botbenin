@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'live_nexus_service.dart';
+import 'live_market_reference.dart';
 import 'live_offer_channels.dart';
 
 class LiveMarketRow {
@@ -299,6 +300,7 @@ class LiveMarketAnalysisCard extends StatelessWidget {
               ]),
             ),
         ],
+        LiveMarketReferenceSection(client: nexus.client, results: results, city: city),
       ]),
     );
   }

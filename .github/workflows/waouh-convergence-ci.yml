@@ -2,10 +2,10 @@ name: WAOUH Convergence contracts
 on:
   pull_request:
     branches: [prod]
-    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'supabase/migrations/*waouh_room*', 'scripts/deploy-waouh-room-schema.py', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
+    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/functions/waouh-market-reference/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'supabase/migrations/*waouh_room*', 'scripts/deploy-waouh-room-schema.py', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
   push:
     branches: [prod]
-    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'supabase/migrations/*waouh_room*', 'scripts/deploy-waouh-room-schema.py', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
+    paths: ['src/**', 'supabase/functions/_shared/**', 'supabase/functions/waouh-convergence/**', 'supabase/functions/waouh-deal-room/**', 'supabase/functions/waouh-opportunity-worker/**', 'supabase/functions/waouh-market-reference/**', 'supabase/migrations/*waouh_unified_deal_rooms*', 'supabase/migrations/*waouh_room*', 'scripts/deploy-waouh-room-schema.py', 'scripts/tests/waouh-deal-room-db.mjs', 'supabase/migrations/*waouh_convergence*', 'scripts/tests/waouh-convergence-db.mjs', 'tests/fixtures/**', 'package*.json', '.github/workflows/waouh-convergence-ci.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -40,6 +40,7 @@ jobs:
       - run: deno test --no-config --allow-env --allow-read supabase/functions/_shared/waouh-deal-open-test.ts
       - run: deno check --config supabase/functions/waouh-convergence/deno.json supabase/functions/waouh-convergence/index.ts
       - run: deno check --node-modules-dir=none supabase/functions/waouh-deal-room/index.ts
+      - run: deno check --node-modules-dir=none supabase/functions/waouh-market-reference/index.ts
 
   deploy-edge:
     needs: contracts
@@ -72,6 +73,7 @@ jobs:
         run: |
           supabase functions deploy waouh-deal-room --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
           supabase functions deploy waouh-opportunity-worker --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
+          supabase functions deploy waouh-market-reference --project-ref mvynepqulhflxtyymtzs --use-api --no-verify-jwt
       - name: Deploy the authenticated Convergence function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

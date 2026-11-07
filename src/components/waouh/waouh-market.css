@@ -9,3 +9,20 @@
 .wmk-compare{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}.wmk-compare li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:#fff;border:1px solid #e3eee9}.wmk-compare li[data-best]{border-color:#0f9f81}.wmk-compare strong{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wmk-compare small{display:block;font-size:11px;color:#6b7c78}.wmk-compare-price{text-align:right}.wmk-compare-price b{font-size:14px}.wmk-compare-price small[data-sign=down]{color:#0a7a4a;font-weight:700}.wmk-compare-price small[data-sign=up]{color:#b45309;font-weight:700}.wmk-compare button{min-height:36px;padding:0 12px;border-radius:10px;border:1px solid #cfe3db;font-size:12px;font-weight:700;color:#0b5d4d;background:#f4fbf8}
 .wmk-none{margin:12px 0 0;font-size:13px;color:#5b6f6a}
 @media (max-width:420px){.wmk-stats{grid-template-columns:1fr}.wmk-pick-actions{grid-template-columns:1fr}}
+
+.wmk-points{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px;font-size:13px;line-height:1.45}
+.wmk-points li{padding-left:14px;position:relative}
+.wmk-points li::before{content:"";position:absolute;left:0;top:.6em;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45}
+.wmk-cite{font-size:11px;font-weight:600;text-decoration:none;color:inherit;opacity:.75;margin-left:2px}
+.wmk-cite:hover{text-decoration:underline;opacity:1}
+.wmk-sources{margin-top:12px;border-top:1px solid rgba(128,128,128,.25);padding-top:10px}
+.wmk-sources summary{cursor:pointer;font-size:13px;font-weight:600}
+.wmk-sources ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.wmk-sources li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12px;scroll-margin-top:80px}
+.wmk-sources li:target{outline:2px solid rgba(128,128,128,.5);border-radius:8px}
+.wmk-sources li strong{display:block;font-size:13px}
+.wmk-sources li small{opacity:.7}
+.wmk-sources li a{display:inline-flex;align-items:center;gap:3px;font-weight:600;text-decoration:none;color:inherit;border:1px solid rgba(128,128,128,.35);border-radius:999px;padding:3px 9px}
+.wmk-sources li em{font-size:11px;opacity:.6}
+.wmk-src-n{font-weight:700;font-size:11px;opacity:.7}
+.wmk-src-note{margin:8px 0 0;font-size:11px;opacity:.65}
