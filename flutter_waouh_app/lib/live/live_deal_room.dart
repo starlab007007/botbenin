@@ -29,15 +29,15 @@ String roomError(Object error){
 }
 
 /// Règles par défaut de « Confier à Bot » — identiques au web.
-const Map<String,dynamic> botRoomDefaultRules={'mode':'autonomous','duration_hours':72,'max_followups':1,'active_start':'08:00','active_end':'21:00'};
+const Map<String,dynamic> botRoomDefaultRules={'mode':'autonomous','duration_hours':168,'max_followups':2,'active_start':'08:00','active_end':'21:00'};
 
 /// Confirmation courte avant de confier une piste à Bot (même message que le web).
-Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0}) async =>
+Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0,num? budgetMax}) async =>
  await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
   title:const Text('Confier à Bot'),
   content:Text(alternates>0
    ?'Bot ouvre l’échange et négocie pour vous. Sans réponse, il passe à l’offre suivante (jusqu’à ${alternates+1} pistes). Vous confirmez l’accord final.'
-   :'Bot ouvre l’échange et négocie pour vous. Vous confirmez l’accord final.'),
+   :'Bot peut écrire seul au vendeur, relancer 2 fois et négocier sans jamais dépasser ${budgetMax!=null&&budgetMax>0?'$budgetMax FCFA':'votre budget'}. Vous confirmez l’accord final.'),
   actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Confirmer'))],
  ))==true;
 
@@ -183,7 +183,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> delegateFromSearch(NexusDiscoveryItem item) async {
   if(busy)return;
   final alternates=offers.where((o)=>o.fabricId!=item.fabricId).take(3).toList();
-  if(!await confirmBotDelegation(context,alternates:alternates.length)||!mounted)return;
+  if(!await confirmBotDelegation(context,alternates:alternates.length,budgetMax:num.tryParse(budget.text))||!mounted)return;
   final v=++generation;setState((){busy=true;error='';notice='';});
   try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:num.tryParse(budget.text),alternates:alternates);if(mounted&&v==generation)setState((){roomId=id;botTakeover=true;notice='Bot a pris en charge votre démarche, de bout en bout. Vous êtes prévenu à chaque étape et vous gardez la main.';});}
   catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));}

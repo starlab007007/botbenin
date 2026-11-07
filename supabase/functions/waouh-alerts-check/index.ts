@@ -49,6 +49,14 @@ Deno.serve(async (req) => {
     if (buckets["5xx"].length >= cfg.threshold_5xx) triggered.push({ rule: "5xx_threshold", severity: "critical", count: buckets["5xx"].length, samples: buckets["5xx"].slice(0, 5) });
     if (globalPct >= cfg.threshold_global_pct && total >= 5) triggered.push({ rule: "global_failure_rate", severity: "critical", count: globalPct, samples: (failedRows || []).slice(0, 5) });
 
+    // Sources de collecte muettes alors que leur fournisseur est actif.
+    const { data: providers } = await sb.from("waouh_radar_api_configs").select("provider").eq("active", true);
+    const active = new Set((providers ?? []).map((p: any) => String(p.provider)));
+    const watched: Record<string, string> = { serpapi: "serpapi", apify: "apify", facebook_public: "apify", google_places: "google_places" };
+    const { data: health } = await sb.from("waouh_source_health").select("source_key,hours_since_last,last_seen");
+    const muted = (health ?? []).filter((h: any) => watched[h.source_key] && active.has(watched[h.source_key]) && Number(h.hours_since_last) > 72);
+    if (muted.length) triggered.push({ rule: "source_silent", severity: "warning", count: muted.length, samples: muted.slice(0, 5) });
+
     if (triggered.length === 0) return new Response(JSON.stringify({ ok: true, triggered: 0, globalPct, total, failedTotal }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Cooldown

@@ -11,7 +11,7 @@ import { roomCall, roomErrorText } from "@/lib/waouh/dealRoom";
 /** Candidature alternative pour la cascade automatique (offre suivante si pas de réponse). */
 export type WaouhDelegateAlternate = { fabric_id: string; city?: string | null };
 
-const DEFAULT_RULES = { mode: "autonomous", duration_hours: 72, max_followups: 1, active_start: "08:00", active_end: "21:00" } as const;
+const DEFAULT_RULES = { mode: "autonomous", duration_hours: 168, max_followups: 2, active_start: "08:00", active_end: "21:00" } as const;
 
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation.
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
@@ -115,6 +115,11 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
         {confirm ? "Confirmer" : label}
       </button>
+      {confirm && mode !== "sell" && (
+        <p className="mt-1.5 text-xs font-semibold text-slate-600">
+          L’avatar peut écrire seul au vendeur, relancer 2 fois et négocier sans jamais dépasser {budgetMax ? `${new Intl.NumberFormat("fr-FR").format(budgetMax)} FCFA` : "votre budget"}. Vous confirmez l’accord final.
+        </p>
+      )}
       {error && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{error}</p>}
     </div>
   );

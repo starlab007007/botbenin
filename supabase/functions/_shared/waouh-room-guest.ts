@@ -4,7 +4,7 @@
 // relaie les nouveautés de l'échange, et reçoit ses réponses (WhatsApp ou lien).
 // Règle prudente : seuls les partenaires, entreprises publiques et personnes ayant
 // elles-mêmes publié leur offre ou initié le contact sont joints automatiquement.
-import { CENTRAL_WAHA_SESSION } from "./waouh-central-whatsapp.ts";
+import { CENTRAL_WAHA_SESSION, centralWhatsAppHealth } from "./waouh-central-whatsapp.ts";
 import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "./waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "./waouh-tel/phone.ts";
 
@@ -18,10 +18,14 @@ export const roomGuestReference = (roomId: string) => `DR-${roomId.replace(/-/g,
 const guestLink = (token: string) => `${SITE}/echange-deal#${token}`;
 const money = (n: unknown) => new Intl.NumberFormat("fr-FR").format(Number(n) || 0);
 
-type RoomContact = { phone: string; name: string | null; basis: "partner" | "public_business" | "initiated" | "listing_owner"; contactId: string | null };
+type RoomContact = { phone: string; name: string | null; basis: "partner" | "public_business" | "initiated" | "listing_owner" | "listing_contact"; contactId: string | null };
 
 /** Contact joignable automatiquement pour une offre, ou null. */
-export async function resolveRoomContact(sb: any, sourceRef: string): Promise<RoomContact | null> {
+/** Plafonds du premier message automatique (numéro publié dans l'annonce, après « Confier à l'avatar »). */
+export const LISTING_CONTACT_DAILY_PER_BUYER = 10;
+export const LISTING_CONTACT_DAILY_GLOBAL = 60;
+
+export async function resolveRoomContact(sb: any, sourceRef: string, opts: { delegated?: boolean } = {}): Promise<RoomContact | null> {
   if (sourceRef.startsWith("catalog:")) {
     const { data: row } = await sb.from("waouh_unified_catalog")
       .select("source,vendeur_nom,vendeur_whatsapp,vendeur_phone,is_active").eq("id", sourceRef.slice(8)).maybeSingle();
@@ -38,26 +42,30 @@ export async function resolveRoomContact(sb: any, sourceRef: string): Promise<Ro
       .select("entity_id,actor_name").eq("id", sourceRef.slice(9)).maybeSingle();
     if (!signal?.entity_id) return null;
     const { data: rows } = await sb.from("waouh_entity_contacts")
-      .select("id,channel,value_encrypted,consent_state,is_public_business")
+      .select("id,channel,value_encrypted,consent_state,is_public_business,contactability_level,verification_status,is_whatsapp_reachable")
       .eq("entity_id", signal.entity_id).in("channel", ["whatsapp", "phone"]).limit(20);
     for (const row of rows ?? []) {
       if (!row.value_encrypted || row.consent_state === "revoked") continue;
-      if (!(row.is_public_business === true || ALLOWED_CONSENT.has(String(row.consent_state)))) continue;
+      const qualified = row.is_public_business === true || ALLOWED_CONSENT.has(String(row.consent_state));
+      // Numéro publié dans l'annonce : l'acheteur a confié la démarche à l'avatar, et le numéro est bien sur WhatsApp.
+      const listing = opts.delegated === true && row.is_whatsapp_reachable === true && row.verification_status === "reachable"
+        && /^C[1-5]$/.test(String(row.contactability_level));
+      if (!qualified && !listing) continue;
       let phone: string | null = null;
       try { phone = normalizeE164(await decryptPhone(row.value_encrypted)); } catch { phone = null; }
-      if (phone) return { phone, name: signal.actor_name ?? null, basis: row.is_public_business === true ? "public_business" : "initiated", contactId: row.id };
+      if (phone) return { phone, name: signal.actor_name ?? null, basis: row.is_public_business === true ? "public_business" : qualified ? "initiated" : "listing_contact", contactId: row.id };
     }
   }
   return null;
 }
 
 /** L'offre a-t-elle un interlocuteur joignable (membre WAOUH ou contact autorisé) ? */
-export async function sourceReachable(sb: any, sourceRef: string): Promise<boolean> {
+export async function sourceReachable(sb: any, sourceRef: string, delegated = false): Promise<boolean> {
   if (sourceRef.startsWith("article:")) {
     const { data } = await sb.from("waouh_articles").select("id").eq("id", sourceRef.slice(8)).eq("status", "active").maybeSingle();
     return !!data;
   }
-  return !!(await resolveRoomContact(sb, sourceRef));
+  return !!(await resolveRoomContact(sb, sourceRef, { delegated }));
 }
 
 async function enqueue(sb: any, phone: string, text: string, payload: Record<string, unknown>, dedupe: string) {
@@ -81,6 +89,25 @@ async function notifyOwner(sb: any, roomId: string, text: string, key: string) {
   if (error && error.code !== "23505") console.warn("[room-guest] notice", error.code);
 }
 
+/** Premier message automatique : session saine et plafonds quotidiens par acheteur et au total. */
+async function listingContactAllowed(sb: any, ownerId: string | null | undefined): Promise<boolean> {
+  try { if (!(await centralWhatsAppHealth()).working) return false; } catch { return false; }
+  const since = new Date(); since.setUTCHours(0, 0, 0, 0);
+  const { count: global } = await sb.from("waouh_room_guests").select("room_id", { count: "exact", head: true })
+    .eq("consent_basis", "listing_contact").gte("created_at", since.toISOString());
+  if ((global ?? 0) >= LISTING_CONTACT_DAILY_GLOBAL) return false;
+  if (ownerId) {
+    const { data: rooms } = await sb.from("waouh_deal_room_links").select("id").eq("owner_id", ownerId);
+    const ids = (rooms ?? []).map((r: any) => r.id);
+    if (ids.length) {
+      const { count: mine } = await sb.from("waouh_room_guests").select("room_id", { count: "exact", head: true })
+        .eq("consent_basis", "listing_contact").gte("created_at", since.toISOString()).in("room_id", ids);
+      if ((mine ?? 0) >= LISTING_CONTACT_DAILY_PER_BUYER) return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Joint le propriétaire d'un échange qui n'a pas encore d'interlocuteur.
  * Idempotent : un échange n'est contacté qu'une fois ; un numéro ayant répondu STOP ne l'est plus jamais.
@@ -91,8 +118,10 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (comp.provider_id) return comp.provider_id === ROOM_GUEST_ACTOR ? "already" : "joined";
   const { data: existing } = await sb.from("waouh_room_guests").select("room_id").eq("room_id", roomId).maybeSingle();
   if (existing) return "already";
-  const contact = await resolveRoomContact(sb, String(comp.source_ref || ""));
+  const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,control_mode").eq("id", roomId).maybeSingle();
+  const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated: link?.control_mode === "bot" });
   if (!contact) return "unreachable";
+  if (contact.basis === "listing_contact" && !(await listingContactAllowed(sb, link?.owner_id))) return "unreachable";
   const phoneHash = await hashPhone(contact.phone);
   const { data: refused } = await sb.from("waouh_room_guests").select("room_id").eq("phone_hash", phoneHash).eq("status", "stopped").limit(1);
   if (refused?.length) return "unreachable";
@@ -109,7 +138,9 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   const who = comp.kind === "announcement" ? "un candidat" : "un client";
   const what = comp.kind === "announcement" ? "votre annonce" : "votre offre";
   await enqueue(sb, contact.phone,
-    `Bonjour${contact.name ? ` ${contact.name}` : ""}, ${who} passe par WAOUH pour ${what} « ${comp.title} ». Son assistant va vous écrire pour en discuter. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`,
+    contact.basis === "listing_contact"
+      ? `Bonjour${contact.name ? ` ${contact.name}` : ""}, je suis l’assistant WAOUH d’${who === "un candidat" ? "un candidat" : "un acheteur"} intéressé par ${what} « ${comp.title} », publiée en ligne avec ce numéro. Il souhaite en discuter avec vous. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`
+      : `Bonjour${contact.name ? ` ${contact.name}` : ""}, ${who} passe par WAOUH pour ${what} « ${comp.title} ». Son assistant va vous écrire pour en discuter. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`,
     { room_id: roomId, reference, first_contact: true }, `dr-first:${roomId}`);
   // Bot écrit tout de suite (proposition initiale), puis ce message est relayé.
   await sb.rpc("waouh_room_tick", { p_limit: 1, p_room_id: roomId });
@@ -221,4 +252,23 @@ export async function handleRoomGuestRequest(sb: any, token: string, action: str
     if (!fresh.error) return { status: 200, body: { ok: true, data: { ...fresh.data, guest_name: guest.display_name } } };
   }
   return { status: 200, body: { ok: true, data: { ...data, guest_name: guest.display_name } } };
+}
+
+
+/**
+ * Un vendeur joint qui ne répond pas après les relances : l'acheteur est prévenu une seule fois,
+ * l'offre reste en veille et l'avatar continue à chercher une autre voie.
+ */
+export async function notifyRoomSilence(sb: any): Promise<number> {
+  const { data: links } = await sb.from("waouh_deal_room_links").select("id,owner_id,expires_at,followups,mandate")
+    .eq("control_mode", "bot").lte("expires_at", new Date().toISOString()).limit(50);
+  let sent = 0;
+  for (const link of links ?? []) {
+    const { data: guest } = await sb.from("waouh_room_guests").select("room_id,last_inbound_at,status").eq("room_id", link.id).maybeSingle();
+    if (!guest || guest.last_inbound_at || guest.status === "stopped") continue;
+    const { data: comp } = await sb.from("waouh_convergence_components").select("title").eq("id", link.id).maybeSingle();
+    await notifyOwner(sb, link.id, `Pas de réponse du vendeur pour « ${comp?.title ?? "cette offre"} » après les relances. Votre démarche reste en veille ; vous pouvez choisir une autre offre ou relancer.`, `room-silent:${link.id}`);
+    sent++;
+  }
+  return sent;
 }

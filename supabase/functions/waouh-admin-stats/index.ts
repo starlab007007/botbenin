@@ -344,9 +344,24 @@ serve(async (req) => {
       ["WORKING", "connected"].includes(String(row.status)) || row.waha_authenticated === true
     ).length;
 
+    const [sourceHealthRes, sourceFunnelRes] = await Promise.all([
+      sb.from("waouh_source_health").select("*"),
+      sb.from("waouh_source_funnel").select("*"),
+    ]);
+    const sourceLabel = (key: string) => ({
+      serpapi: "Recherche web", facebook_public: "Facebook", facebook_business: "Pages Facebook", instagram_public: "Instagram",
+      instagram_business: "Comptes Instagram", tiktok_public: "TikTok", google_places: "Lieux locaux", partner: "Partenaires",
+      waouh_app: "Application", whatsapp: "Groupes WhatsApp", linkedin_public: "LinkedIn", radar_ia: "Veille", apify: "Collecte réseaux",
+    } as Record<string, string>)[key] ?? "Autre source";
+    const sourceHealth = (sourceHealthRes.data ?? []).map((row: any) => ({ ...row, label: sourceLabel(String(row.source_key)) }));
+    const sourceFunnel = (sourceFunnelRes.data ?? []).map((row: any) => ({ ...row, label: sourceLabel(String(row.source_key)) }));
+
     const alerts: any[] = [];
     const addAlert = (severity: "critical"|"warning"|"info", code: string, title: string, detail: string, target?: string) =>
       alerts.push({ severity, code, title, detail, target: target ?? null });
+
+    const mutedSources = sourceHealth.filter((row: any) => ["serpapi", "facebook_public", "google_places"].includes(String(row.source_key)) && Number(row.hours_since_last) > 72);
+    if (mutedSources.length > 0) addAlert("warning", "sources_muted", "Collecte en retard", `${mutedSources.map((row: any) => row.label).join(", ")} : aucune nouvelle annonce depuis plus de 3 jours.`, "/admin/waouh?tab=radar");
 
     if (queueFailed24 > 0) addAlert("critical", "outbound_failed", "Échecs de sortie", `${queueFailed24} envoi(s) ont échoué sur les dernières 24 h.`, "/admin/waouh/historique");
     if ((queueStale.count ?? 0) > 0) addAlert("warning", "outbound_stale", "Queue en retard", `${queueStale.count ?? 0} élément(s) pending depuis plus de 15 min.`, "/admin/waouh/historique");
@@ -402,6 +417,8 @@ serve(async (req) => {
           fabric_by_contactability: countBy(fabric, "contactability_level"),
           fabric_by_source: countBy(fabric, "source_key"),
           fabric_by_intent: countBy(fabric, "intent"),
+          source_health: sourceHealth,
+          source_funnel: sourceFunnel,
           external_signals_24h: externalSignals.length,
           external_with_photo_24h: externalWithPhoto,
           external_with_whatsapp_24h: externalWithWhatsapp,

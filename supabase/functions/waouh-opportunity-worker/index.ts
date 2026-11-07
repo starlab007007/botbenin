@@ -2,7 +2,7 @@ import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
-import { reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
+import { notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1229,7 +1229,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       };
       if (!sourceRef) { await dropCandidate(); continue; }
       // Bot ne retient que des offres dont le propriétaire peut être joint.
-      if (!await sourceReachable(sb, sourceRef)) { await dropCandidate(); continue; }
+      if (!await sourceReachable(sb, sourceRef, true)) { await dropCandidate(); continue; }
 
       const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", sourceRef).maybeSingle();
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
@@ -1308,6 +1308,7 @@ async function reachAndRelayRoomGuests(sb: SupabaseClient) {
     }
   }
   try { result.relayed = (await relayRoomGuests(sb)).sent; } catch (e) { console.warn("[waouh-opportunity-worker][room-relay]", e); result.errors++; }
+  try { await notifyRoomSilence(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-silence]", e); result.errors++; }
   return result;
 }
 
