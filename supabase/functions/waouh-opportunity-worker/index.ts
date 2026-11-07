@@ -2,7 +2,7 @@ import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
-import { notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
+import { ROOM_GUEST_ACTOR, notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1307,6 +1307,18 @@ async function reachAndRelayRoomGuests(sb: SupabaseClient) {
       try { if (await reachRoomOwner(sb, c.id) === "contacted") result.reached++; } catch (e) { console.warn("[waouh-opportunity-worker][room-guest]", e); result.errors++; }
     }
   }
+  // Vendeurs en attente de contact (l'acheteur a déjà écrit ou proposé) : on réessaie dès qu'un contact existe.
+  try {
+    const { data: waiting } = await sb.from("waouh_convergence_components").select("id").eq("provider_id", ROOM_GUEST_ACTOR).limit(100);
+    const wIds = (waiting ?? []).map((c: any) => c.id);
+    if (wIds.length) {
+      const { data: has } = await sb.from("waouh_room_guests").select("room_id").in("room_id", wIds);
+      const hasSet = new Set((has ?? []).map((g: any) => g.room_id));
+      for (const id of wIds.filter((i: string) => !hasSet.has(i)).slice(0, 20)) {
+        try { if (await reachRoomOwner(sb, id) === "contacted") result.reached++; } catch (e) { console.warn("[waouh-opportunity-worker][room-pending]", e); result.errors++; }
+      }
+    }
+  } catch (e) { console.warn("[waouh-opportunity-worker][room-pending]", e); result.errors++; }
   try { result.relayed = (await relayRoomGuests(sb)).sent; } catch (e) { console.warn("[waouh-opportunity-worker][room-relay]", e); result.errors++; }
   try { await notifyRoomSilence(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-silence]", e); result.errors++; }
   return result;

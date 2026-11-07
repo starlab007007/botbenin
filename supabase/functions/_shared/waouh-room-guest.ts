@@ -112,28 +112,41 @@ async function listingContactAllowed(sb: any, ownerId: string | null | undefined
  * Joint le propriétaire d'un échange qui n'a pas encore d'interlocuteur.
  * Idempotent : un échange n'est contacté qu'une fois ; un numéro ayant répondu STOP ne l'est plus jamais.
  */
-export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" | "contacted" | "already" | "unreachable"> {
+export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" | "contacted" | "already" | "unreachable" | "pending"> {
   const { data: comp } = await sb.from("waouh_convergence_components").select("id,provider_id,title,kind,source_ref").eq("id", roomId).maybeSingle();
   if (!comp) return "unreachable";
-  if (comp.provider_id) return comp.provider_id === ROOM_GUEST_ACTOR ? "already" : "joined";
+  const pendingGuest = comp.provider_id === ROOM_GUEST_ACTOR;
+  if (comp.provider_id && !pendingGuest) return "joined";
   const { data: existing } = await sb.from("waouh_room_guests").select("room_id").eq("room_id", roomId).maybeSingle();
   if (existing) return "already";
+  // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
+  const waitForContact = async () => {
+    if (pendingGuest || !String(comp.source_ref || "").startsWith("external:")) return "unreachable" as const;
+    const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
+    return ok === true ? ("pending" as const) : ("unreachable" as const);
+  };
   const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,control_mode").eq("id", roomId).maybeSingle();
   const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated: link?.control_mode === "bot" });
-  if (!contact) return "unreachable";
-  if (contact.basis === "listing_contact" && !(await listingContactAllowed(sb, link?.owner_id))) return "unreachable";
+  if (!contact) return await waitForContact();
+  if (contact.basis === "listing_contact" && !(await listingContactAllowed(sb, link?.owner_id))) return await waitForContact();
   const phoneHash = await hashPhone(contact.phone);
   const { data: refused } = await sb.from("waouh_room_guests").select("room_id").eq("phone_hash", phoneHash).eq("status", "stopped").limit(1);
   if (refused?.length) return "unreachable";
+  let since: string | null = null;
+  if (pendingGuest) {
+    const { data: ev } = await sb.from("waouh_room_events").select("created_at").eq("room_id", roomId).eq("event_type", "seller_pending").order("id").limit(1).maybeSingle();
+    since = ev?.created_at ? new Date(Date.parse(ev.created_at) - 1000).toISOString() : null;
+  }
   const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join("");
   const reference = roomGuestReference(roomId);
   const { error } = await sb.from("waouh_room_guests").insert({
     room_id: roomId, reference, display_name: contact.name, phone_encrypted: await encryptPhone(contact.phone), phone_hash: phoneHash,
     phone_last4: phoneLast4(contact.phone), consent_basis: contact.basis, contact_id: contact.contactId,
     token_hash: await sha256Hex(token), token_encrypted: await encryptPhone(token), token_expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
+    ...(since ? { relayed_until: since } : {}),
   });
   if (error) { if (error.code === "23505") return "already"; throw error; }
-  const { data: attached, error: attachError } = await sb.rpc("waouh_room_attach_guest", { p_room: roomId });
+  const { data: attached, error: attachError } = pendingGuest ? { data: true, error: null } : await sb.rpc("waouh_room_attach_guest", { p_room: roomId });
   if (attachError || attached !== true) { await sb.from("waouh_room_guests").delete().eq("room_id", roomId); return attached === false ? "joined" : "unreachable"; }
   const who = comp.kind === "announcement" ? "un candidat" : "un client";
   const what = comp.kind === "announcement" ? "votre annonce" : "votre offre";

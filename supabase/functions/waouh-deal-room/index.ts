@@ -44,7 +44,7 @@ Deno.serve(async req=>{
  }
  // Propriétaire hors WAOUH : Bot le joint (WhatsApp + lien sans compte) dès que l'échange lui est confié ou que l'utilisateur se déclare intéressé.
  if(data?.deal_room_id&&data.is_owner&&!data.provider_joined&&(action==='delegate'||action==='contact'||(action==='open'&&p.confirmed===true))){
-  try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});}}
+  try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'||reached==='pending'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});}}
   catch(e){console.warn('[deal-room] reach',e instanceof Error?e.message:'failed');}
  }
  // Link the existing canonical thread without creating an offer or sending another opener.
