@@ -254,7 +254,7 @@ def main():
         go = find_lowest(dump(), r"^\s*Rechercher\s*$")
         if go is not None:
             tap(go)
-        time.sleep(5)
+        time.sleep(8)
         root = dump("reasoning_live")
         live = root is not None and find(root, r"Bot réfléchit|Mon raisonnement") is not None
         step("raisonnement_en_direct", live,
