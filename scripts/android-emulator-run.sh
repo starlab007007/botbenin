@@ -4,6 +4,7 @@ set -u
 APK="$1"
 OUT="${OUT_DIR:-emulator-out}"
 mkdir -p "$OUT"
+adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher >/dev/null 2>&1 || true
 adb shell getprop ro.build.version.release > "$OUT/android-version.txt"
 adb shell getprop ro.product.cpu.abilist >> "$OUT/android-version.txt"
 # Vidéo par segments de 3 minutes (limite d'Android).

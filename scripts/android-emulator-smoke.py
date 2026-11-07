@@ -46,11 +46,28 @@ def dump(name=None):
                 with open(os.path.join(OUT, f"{len(steps) + 1:02d}_{name}.xml"), "w") as f:
                     f.write(raw)
             try:
-                return ET.fromstring(raw)
+                parsed = ET.fromstring(raw)
             except ET.ParseError:
-                pass
+                parsed = None
+            if parsed is not None and dismiss_system_dialogs(parsed):
+                continue
+            if parsed is not None:
+                return parsed
         time.sleep(2)
     return None
+
+
+def dismiss_system_dialogs(root):
+    """Fenêtre système de l'émulateur (« … isn't responding ») : on attend, sans fermer l'app testée."""
+    if root is None or find(root, r"isn.t responding|ne répond pas") is None:
+        return False
+    btn = find(root, r"^\s*(Wait|Attendre)\s*$")
+    if btn is not None:
+        tap(btn)
+    else:
+        sh("shell", "input", "keyevent", "4")
+    time.sleep(2)
+    return True
 
 
 def nodes(root):
