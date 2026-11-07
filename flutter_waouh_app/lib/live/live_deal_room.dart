@@ -1,4 +1,6 @@
 import 'package:url_launcher/url_launcher.dart';
+import 'live_market_analysis.dart';
+import 'live_offer_channels.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -87,7 +89,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  late final TextEditingController query,city;final budget=TextEditingController(),message=TextEditingController();
  Map<String,dynamic>? room;List<Map<String,dynamic>> rooms=[];List<NexusDiscoveryItem> offers=[];
  bool delegationShown=false,proposalShown=false;String? draftRoom;
- String? roomId;String kind='purchase',error='',notice='';bool busy=false,searching=false,refreshing=false;int generation=0;
+ String? roomId;String kind='purchase',error='',notice='';bool busy=false,searching=false,refreshing=false,botTakeover=false;int generation=0;
  Timer? timer;StreamSubscription<AuthState>? auth;String? owner;
  // Raisonnement en direct pendant la recherche (même fil que le chat et le web).
  final reasonKey=GlobalKey();final List<ReasonStep> reasonShown=[],reasonQueue=[];Timer? reasonTimer;ReasonSummary? reasonSummary;
@@ -123,7 +125,9 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
   if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted){setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');showError();}}finally{if(mounted)setState(()=>busy=false);}return;}
-  final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();}
+  final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();
+  // « Intéressé » : la proposition d'offre s'ouvre aussitôt (prix de l'annonce prérempli), sans étape intermédiaire.
+  if(d!=null&&!delegate&&mounted&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose'))await propose(amount:item.priceMin??item.priceMax);}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
  Widget button(String text,VoidCallback fn,{bool primary=false,bool enabled=true})=>Padding(padding:const EdgeInsets.only(top:8),child:primary?FilledButton(onPressed:busy||!enabled?null:fn,child:Text(text)):OutlinedButton(onPressed:busy||!enabled?null:fn,child:Text(text)));
@@ -181,14 +185,14 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   final alternates=offers.where((o)=>o.fabricId!=item.fabricId).take(3).toList();
   if(!await confirmBotDelegation(context,alternates:alternates.length)||!mounted)return;
   final v=++generation;setState((){busy=true;error='';notice='';});
-  try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:num.tryParse(budget.text),alternates:alternates);if(mounted&&v==generation)setState(()=>roomId=id);}
+  try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:num.tryParse(budget.text),alternates:alternates);if(mounted&&v==generation)setState((){roomId=id;botTakeover=true;notice='Bot a pris en charge votre démarche, de bout en bout. Vous êtes prévenu à chaque étape et vous gardez la main.';});}
   catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
   if(mounted&&v==generation&&roomId!=null)await load();
  }
- Future<void> propose() async {
+ Future<void> propose({num? amount}) async {
   final r=room!;final a=r['agreement'] as Map?;final t=a?['terms'] as Map? ?? {};
-  final values=await form('Votre proposition',{'amount':'${t['amount']??r['price']??''}','quantity':'${t['quantity']??1}','scope':'${t['scope']??r['title']}','deadline':'${t['deadline']??''}','exclusions':'${t['exclusions']??'À préciser'}','expected_result':'${t['expected_result']??r['title']}','payment':'${t['payment']??''}'},numeric:{'amount','quantity'});
+  final values=await form('Votre proposition',{'amount':'${amount?.round()??t['amount']??r['price']??''}','quantity':'${t['quantity']??1}','scope':'${t['scope']??r['title']}','deadline':'${t['deadline']??''}','exclusions':'${t['exclusions']??'À préciser'}','expected_result':'${t['expected_result']??r['title']}','payment':'${t['payment']??''}'},numeric:{'amount','quantity'});
   if(values!=null)await act('propose',{'version':r['current_offer_version'],'terms':{...values,'amount':num.tryParse(values['amount']!),'quantity':int.tryParse(values['quantity']!)}});
  }
  Future<void> copyInvite()async{final d=await act('invite');if(d?['token']==null)return;try{await Clipboard.setData(ClipboardData(text:'https://bot.bj/app/premium#invite=${d!['token']}'));if(mounted)setState(()=>notice='Invitation copiée. Partagez-la pour que l’interlocuteur rejoigne cet échange.');}catch(_){if(mounted)setState(()=>notice='Invitation préparée : https://bot.bj/app/premium#invite=${d!['token']}');}}
@@ -308,7 +312,8 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     LiveDealGuidance(guide:searchRoomGuidance(searching,offers.isNotEmpty)),
     card([field('Votre besoin',query),field('Ville',city),field('Budget max · F',budget,number:true),DropdownButtonFormField<String>(initialValue:kind,items:const [DropdownMenuItem(value:'purchase',child:Text('Produit')),DropdownMenuItem(value:'service',child:Text('Service')),DropdownMenuItem(value:'opportunity',child:Text('Opportunité'))],onChanged:(v)=>setState(()=>kind=v!)),button('Rechercher',search,primary:true)]),
     if(reasonShown.isNotEmpty)KeyedSubtree(key:reasonKey,child:LiveReasoningFeed(steps:reasonShown,running:searching||reasonQueue.isNotEmpty,summary:!searching&&reasonQueue.isEmpty?reasonSummary:null,onSkip:skipReason,showActions:false)),
-    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),if(liveOfferReachable(item))...[button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>delegateFromSearch(item))]else if((item.sourceUrl??'').isNotEmpty)button('Voir l’annonce d’origine',()=>unawaited(launchUrl(Uri.parse(item.sourceUrl!),mode:LaunchMode.externalApplication)),primary:true)else const Padding(padding:EdgeInsets.only(top:8),child:Text('Contact non disponible',style:TextStyle(color:Color(0xFF64748B))))]),
+    if(offers.isNotEmpty)LiveMarketAnalysisCard(results:offers,city:city.text,nexus:nexus,busy:busy,handled:botTakeover,onInterested:(i)=>unawaited(open(i)),onDelegate:(i)=>unawaited(delegateFromSearch(i))),
+    for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),if(liveOfferReachable(item))...[button('Intéressé',()=>open(item),primary:true),button('Confier à l’avatar',()=>delegateFromSearch(item))]else if((item.sourceUrl??'').isNotEmpty)button('Voir l’annonce d’origine',()=>unawaited(launchUrl(Uri.parse(item.sourceUrl!),mode:LaunchMode.externalApplication)),primary:true)else const Padding(padding:EdgeInsets.only(top:8),child:Text('Contact non disponible',style:TextStyle(color:Color(0xFF64748B)))),LiveDirectContactBar(item:item,nexus:nexus)]),
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
     if(guide!=null)LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),

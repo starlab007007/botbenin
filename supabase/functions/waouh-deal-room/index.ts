@@ -1,4 +1,5 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.49.8';
+import {notifyInApp} from '../_shared/waouh-avatar-inapp.ts';
 import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-auth.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
@@ -37,6 +38,10 @@ Deno.serve(async req=>{
  }
  const {data,error}=await sb.rpc('waouh_room_command',{p_actor:user.id,p_action:action,p});
  if(error)return jsonResponse({ok:false,error:error.code==='42501'?'forbidden':error.message},error.code==='42501'?403:409);
+ // Prise en charge de bout en bout : l'utilisateur est prévenu dans l'application dès que Bot reprend la démarche.
+ if(action==='delegate'&&data?.deal_room_id&&p.confirmed===true){
+  try{await notifyInApp(sb,{userId:user.id,title:'Bot prend en charge votre démarche',text:`Bot s’occupe de « ${String(data.title||'votre recherche').slice(0,80)} » de bout en bout : contact, négociation et accord. Vous êtes prévenu à chaque étape et vous gardez la main.`,actions:[{id:'open_room',label:'Suivre'}],dedupeKey:`bot-takeover:${data.deal_room_id}:${Number(data.mandate_revision??0)}`});}catch(_e){/* la prise en charge ne dépend pas de la notification */}
+ }
  // Propriétaire hors WAOUH : Bot le joint (WhatsApp + lien sans compte) dès que l'échange lui est confié ou que l'utilisateur se déclare intéressé.
  if(data?.deal_room_id&&data.is_owner&&!data.provider_joined&&(action==='delegate'||action==='contact'||(action==='open'&&p.confirmed===true))){
   try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});}}

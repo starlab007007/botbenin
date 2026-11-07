@@ -5,6 +5,9 @@ import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import type { MissionContext, MissionKind } from "@/lib/waouh/guidedDiscovery";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
+import { WaouhDirectContact } from "./WaouhDirectContact";
+import "./waouh-market.css";
+import { offerChannels } from "@/lib/waouh/offerChannels";
 import { legacyDealCandidate, LegacyInterestError, openLegacyInterest } from "@/lib/waouh/legacyInterest";
 import { toast } from "@/hooks/use-toast";
 
@@ -42,7 +45,9 @@ export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | 
   if (id.startsWith("article:")) return true;
   const evidence = (result.evidence || {}) as Record<string, unknown>;
   if (id.startsWith("catalog:") && (evidence.source === "partner" || evidence.has_contact === true || evidence.has_contact === "true")) return true;
-  return result.contact_policy?.can_auto_contact === true;
+  if (result.contact_policy?.can_auto_contact === true) return true;
+  // Contact WhatsApp retrouvé par Nexus, Radar ou une autre source : Bot peut l'écrire.
+  return offerChannels(result as never).includes("whatsapp");
 }
 
 type Shared = {
@@ -99,6 +104,7 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   return (
     <div className="wgd-offer-actions">
       {primary}
+      <WaouhDirectContact result={result} requireAuth={requireAuth} />
       <div className="wgd-offer-secondary">
         {!reachable && result.source_url && <span className="wgd-offer-unreachable">Contact non disponible</span>}
         {reachable && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}

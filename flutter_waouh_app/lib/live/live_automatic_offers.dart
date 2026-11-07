@@ -3,6 +3,7 @@ import 'dart:async';
 import 'live_mission_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'live_offer_channels.dart';
 import 'avatar/bot_character.dart';
 import 'live_avatar_autonomy.dart';
 import 'live_nexus_service.dart';
@@ -101,7 +102,9 @@ bool liveOfferReachable(NexusDiscoveryItem o) {
       (o.evidence['source'] == 'partner' || hasContact == true || hasContact == 'true')) {
     return true;
   }
-  return o.contactPolicy.canAutoContact;
+  if (o.contactPolicy.canAutoContact) return true;
+  // Contact WhatsApp retrouvé par Nexus, Radar ou une autre source : Bot peut l'écrire.
+  return liveOfferChannels(o).contains(LiveOfferChannel.whatsapp);
 }
 
 String livePrimaryOfferLabel(String missionKind, String mode, String? level) {

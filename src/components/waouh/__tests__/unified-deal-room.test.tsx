@@ -16,6 +16,7 @@ const base={deal_room_id:'room',is_owner:true,title:'Téléphone',price:150000,c
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;mocks.call.mockReset();mocks.search.mockReset();host=document.createElement('div');document.body.append(host);root=createRoot(host);});
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();});
 async function mount(path='/?room_id=room'){await act(async()=>root.render(<MemoryRouter initialEntries={[path]}><Page/></MemoryRouter>));}
+async function clickLast(text:string){const all=[...host.querySelectorAll('button')].filter(b=>b.textContent?.trim()===text);expect(all.length).toBeGreaterThan(0);await act(async()=>all[all.length-1].click());}
 async function click(text:string){const button=[...host.querySelectorAll('button')].find(b=>b.textContent?.trim()===text);expect(button).toBeTruthy();await act(async()=>button!.click());}
 // The receipt confirmation opens a small panel (optional note/photo) before submitting,
 // so its submit button shares the same label as the button that opened the panel.
@@ -43,7 +44,7 @@ it('uses the selected search reference for delegation without contacting before 
  mocks.call.mockImplementation(async(action)=>action==='list'?{rooms:[]}:base);
  const offer={fabric_id:'article:selected',subject:'Téléphone',city:'Cotonou',price_min:150000};
  mocks.search.mockImplementation(async(_,indexed)=>{indexed({results:[offer]});return {results:[offer]};});
- await mount('/?q=Téléphone');await click('Rechercher');await click('Confier à Bot');
+ await mount('/?q=Téléphone');await click('Rechercher');await clickLast('Confier à l’avatar');
  expect(mocks.call).toHaveBeenCalledWith('open',expect.objectContaining({fabric_id:'article:selected',confirmed:false}));
  expect(mocks.call.mock.calls.some(c=>c[0]==='delegate')).toBe(false);
 });

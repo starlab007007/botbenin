@@ -16,7 +16,7 @@ const DEFAULT_RULES = { mode: "autonomous", duration_hours: 72, max_followups: 1
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation.
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
  *  alternatives sont fournies — reprend automatiquement avec la suivante en l’absence de réponse. */
-export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, discoveryKind, missionContext, alternates, city, budgetMax, label = "Confier à Bot", variant = "primary" }: {
+export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, discoveryKind, missionContext, alternates, city, budgetMax, label = "Confier à l’avatar", variant = "primary" }: {
   result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;

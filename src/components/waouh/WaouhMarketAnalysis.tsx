@@ -1,0 +1,73 @@
+import { useMemo, useState } from "react";
+import { BarChart3, CheckCircle2, MapPin, ShieldCheck, Sparkles } from "lucide-react";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { analyzeMarket } from "@/lib/waouh/marketAnalysis";
+import { channelName, offerChannels } from "@/lib/waouh/offerChannels";
+import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
+import type { MissionContext, MissionKind } from "@/lib/waouh/guidedDiscovery";
+import { WaouhDelegateButton } from "./WaouhDelegateButton";
+import { WaouhDirectContact } from "./WaouhDirectContact";
+import "./waouh-market.css";
+
+const money = (n: number | null) => (n === null ? "—" : `${Math.round(n).toLocaleString("fr-FR")} F`);
+
+/**
+ * Analyse du marché par l'avatar : repères de prix, choix de l'avatar, comparaison des meilleures offres,
+ * et « Confier à l'avatar » (prise en charge de bout en bout, avec notification).
+ */
+export function WaouhMarketAnalysis({ results, city, budgetMax, mode = "buy", kind, missionContext, articleId, onInterested }: {
+  results: NexusDiscoveryResult[];
+  city?: string | null;
+  budgetMax?: number | null;
+  mode?: "buy" | "sell" | "ask";
+  kind?: MissionKind;
+  missionContext?: MissionContext;
+  articleId?: string;
+  /** Ouvre le parcours « Intéressé » de l'offre choisie. */
+  onInterested: (item: NexusDiscoveryResult) => void;
+}) {
+  const analysis = useMemo(() => analyzeMarket(results, { city }), [results, city]);
+  const [handled, setHandled] = useState(false);
+  if (!results.length) return null;
+  const { pick, compare } = analysis;
+  return (
+    <section className="wmk" aria-label="Analyse du marché par votre avatar" data-testid="market-analysis">
+      <header className="wmk-head">
+        <BotLiveAvatar size={34} />
+        <div><strong>Analyse du marché</strong><span>Par votre avatar · {analysis.total} offre{analysis.total > 1 ? "s" : ""} comparée{analysis.total > 1 ? "s" : ""}</span></div>
+      </header>
+      <div className="wmk-stats">
+        <div><span><BarChart3 size={13} aria-hidden="true" />Prix</span><b>{money(analysis.low)}</b><small>à {money(analysis.high)} · médiane {money(analysis.median)}</small></div>
+        <div><span><ShieldCheck size={13} aria-hidden="true" />Joignables</span><b>{analysis.contactable}/{analysis.total}</b><small>{(["waouh", "whatsapp", "email", "phone"] as const).filter((c) => analysis.byChannel[c] > 0).map((c) => `${analysis.byChannel[c]} ${channelName(c)}`).join(" · ") || "aucun contact"}</small></div>
+        <div><span><MapPin size={13} aria-hidden="true" />Votre zone</span><b>{analysis.inZone}</b><small>{city || "toutes zones"}</small></div>
+      </div>
+      <p className="wmk-advice"><Sparkles size={14} aria-hidden="true" />{analysis.advice}</p>
+      {pick ? (
+        <div className="wmk-pick">
+          <div className="wmk-pick-top"><span className="wmk-badge">Choix de l’avatar</span><strong>{pick.item.subject || pick.item.raw_text || "Offre"}</strong><b>{money(pick.price)}</b></div>
+          <p>{pick.reason}</p>
+          <div className="wmk-pick-actions">
+            <button type="button" className="wmk-primary" onClick={() => onInterested(pick.item)}>Intéressé</button>
+            <WaouhDelegateButton result={pick.item} mode={mode} articleId={articleId} discoveryKind={kind} missionContext={missionContext} city={city} budgetMax={budgetMax} label="Confier à l’avatar" variant="secondary" className="h-11"
+              alternates={compare.slice(1).map((r) => ({ fabric_id: r.item.fabric_id, city: r.item.city }))} onHandled={() => setHandled(true)} />
+          </div>
+          <WaouhDirectContact result={pick.item} />
+          {handled && <p className="wmk-handled" role="status"><CheckCircle2 size={15} aria-hidden="true" />Bot a pris en charge votre démarche, de bout en bout. Vous êtes prévenu à chaque étape et vous gardez la main.</p>}
+        </div>
+      ) : <p className="wmk-none">Aucune offre avec un contact exploitable. Ouvrez les annonces d’origine ou laissez l’avatar surveiller les nouvelles offres.</p>}
+      {compare.length > 1 && (
+        <ul className="wmk-compare" aria-label="Comparaison des meilleures offres">
+          {compare.map((row, i) => (
+            <li key={row.item.fabric_id} data-best={i === 0 || undefined}>
+              <div><strong>{row.item.subject || "Offre"}</strong><small>{row.item.city || "Zone à préciser"} · {offerChannels(row.item).map(channelName).join(", ")}</small></div>
+              <div className="wmk-compare-price"><b>{money(row.price)}</b>{row.vsMedianPct !== null && <small data-sign={row.vsMedianPct <= 0 ? "down" : "up"}>{row.vsMedianPct > 0 ? "+" : ""}{row.vsMedianPct} %</small>}</div>
+              <button type="button" onClick={() => onInterested(row.item)}>{i === 0 ? "Retenu" : "Choisir"}</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export default WaouhMarketAnalysis;
