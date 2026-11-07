@@ -10,6 +10,8 @@ import {WaouhDealGuidance,searchGuidance} from '@/components/waouh/WaouhDealGuid
 import {WaouhReasoningFeed,useReasoningFeed} from '@/components/waouh/WaouhReasoningFeed';
 import {planSteps,discoveryResultSteps,buildSummary,summaryStep,type ReasonSummary} from '@/lib/waouh/liveReasoning';
 import {offerReachable} from '@/components/waouh/WaouhOfferActions';
+import {legacyDealCandidate,LegacyInterestError,openLegacyInterest} from '@/lib/waouh/legacyInterest';
+import {useNavigate} from 'react-router-dom';
 import {supabase} from '@/integrations/supabase/client';
 import {compressImage,uploadOptions} from '@/lib/imageOptimize';
 import {getWaouhSessionId} from '@/app-mobile/hooks/useWaouhIdentity';
@@ -21,7 +23,7 @@ const errors:Record<string,string>={application_not_submitted:'Le dossier doit d
 export const externalContactText=(c:any):string=>!c?'':c.status==='stopped'?'Ne souhaite pas être contacté':c.status==='joined'?`A répondu par WhatsApp${c.last4?` · •••• ${c.last4}`:''}`:`Contacté par WhatsApp${c.last4?` · •••• ${c.last4}`:''} · réponse attendue`;
 const roomError=(e:unknown)=>errors[(e as Error).message]||'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
 export default function WaouhDealRoomPage(){
- const {user}=useAuth(),[params,setParams]=useSearchParams(),id=params.get('room_id');
+ const {user}=useAuth(),[params,setParams]=useSearchParams(),id=params.get('room_id'),navigate=useNavigate();
  const [room,setRoom]=useState<DealRoom|null>(null),[rooms,setRooms]=useState<any[]>([]),[results,setResults]=useState<any[]>([]),[detail,setDetail]=useState<any>(null);
  const [query,setQuery]=useState(params.get('q')||''),[city,setCity]=useState(params.get('city')||'Cotonou'),[budget,setBudget]=useState(params.get('budget')||''),[kind,setKind]=useState('purchase');
  const [busy,setBusy]=useState(false),[searching,setSearching]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[panel,setPanel]=useState(''),[issue,setIssue]=useState(''),[notice,setNotice]=useState(''),[review,setReview]=useState<any>(null),[offerVersion,setOfferVersion]=useState(0),[mandateRevision,setMandateRevision]=useState(0);
@@ -49,7 +51,10 @@ export default function WaouhDealRoomPage(){
   try{const d=await progressiveNexusDiscovery({query,city,budget_max:budget?Number(budget):undefined,mode:'find_sellers',discovery_kind:kind as any,refresh_external:true},d=>{if(!current())return;setResults(d.results);feed.push([{id:'res-first',tone:d.results.length?'found':'search',text:d.results.length?`${d.results.length>1?`${d.results.length} premières offres`:'Une première offre'} dans WAOUH.`:'Rien encore dans WAOUH.'},{id:'res-more',tone:'search',text:'Je cherche aussi chez les partenaires et en ligne.'}]);});
    if(current()){setResults(d.results);const base=buildSummary(null,{results:d.results},ctx),reach=d.results.filter(offerReachable).length;const summary={...base,contactable:reach,nextSteps:[reach?'Choisissez une offre ou confiez-la à Bot : il écrit et négocie.':'Ouvrez l’annonce d’origine pour joindre le vendeur.',...base.nextSteps.filter(t=>!t.startsWith('Choisissez une offre')&&!t.startsWith('Je peux contacter'))].slice(0,3)};setReasonSummary(summary);feed.push([...discoveryResultSteps(d.results,ctx,offerReachable),summaryStep(summary,ctx)]);}}
   catch{if(current()){setError('Recherche partielle. Les résultats déjà reçus restent disponibles.');feed.push([{id:'res-partial',tone:'warn',text:'Une partie n’a pas répondu. Les offres reçues restent affichées.'}]);}}finally{setSearching(false);}};
- const open=async(item:any,delegate=false)=>{delegateIntent.current=delegate;const d=await act('open',{fabric_id:item.fabric_id,city,budget_max:budget?Number(budget):null,confirmed:!delegate});if(d){setDetail(null);setRules(r=>({...r,budget_max:budget}));if(delegate)setPanel('mandate');}};
+ const open=async(item:any,delegate=false)=>{
+  // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
+  if(!delegate&&kind!=='opportunity'&&legacyDealCandidate(item)){if(pending.current)return;pending.current=true;setBusy(true);setError('');try{setDetail(null);await openLegacyInterest(item,navigate);}catch(e){setError(e instanceof LegacyInterestError?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}finally{pending.current=false;setBusy(false);}return;}
+delegateIntent.current=delegate;const d=await act('open',{fabric_id:item.fabric_id,city,budget_max:budget?Number(budget):null,confirmed:!delegate});if(d){setDetail(null);setRules(r=>({...r,budget_max:budget}));if(delegate)setPanel('mandate');}};
  const propose=()=>{setOfferVersion(room?.current_offer_version??0);const a=room?.agreement?.terms;setTerms({amount:String(a?.amount??room?.price??''),quantity:String(a?.quantity??1),scope:a?.scope||room?.title||'',deadline:a?.deadline||'',exclusions:a?.exclusions||'À préciser',expected_result:a?.expected_result||room?.title||'',payment:a?.payment||''});setPanel('offer');};
  // « Intéressé » depuis les résultats : le panneau de proposition s'ouvre dès que l'interlocuteur peut la recevoir.
  useEffect(()=>{if(!room||!room.allowed_actions?.includes('propose'))return;const offer=params.get('offer');if(offer){setOfferVersion(room.current_offer_version??0);setTerms(t=>({...t,amount:offer,scope:room.title,expected_result:room.title}));setPanel('offer');}else if(params.get('propose')==='1')propose();},[room?.deal_room_id]);

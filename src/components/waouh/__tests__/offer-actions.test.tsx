@@ -3,6 +3,8 @@ import { createRoot, Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+const legacy = vi.hoisted(() => ({ open: vi.fn(async () => ({ thread_id: 't1' })) }));
+vi.mock('@/lib/waouh/legacyInterest', async (orig) => ({ ...(await orig() as object), openLegacyInterest: legacy.open }));
 vi.mock('@/components/waouh/bot/BotLiveAvatar', () => ({ BotLiveAvatar: () => <span>Avatar</span> }));
 vi.mock('../WaouhDelegateButton', () => ({
   WaouhDelegateButton: (p: { label?: string; result: { fabric_id: string }; alternates?: { fabric_id: string }[] }) =>
@@ -85,4 +87,30 @@ it('the banner hands Bot only reachable offers, and says so when none is', async
   await act(async () => root.render(<MemoryRouter><WaouhBotBanner top={[ad('external:y')]} mode="buy" kind="purchase" requireAuth={() => true} /></MemoryRouter>));
   expect(host.textContent).toContain('Aucun vendeur joignable');
   expect(host.querySelector('button')).toBeNull();
+});
+
+it('“Intéressé” on a WAOUH seller’s offer opens the historical negotiation, not the new Deal Room', async () => {
+  const auth = vi.fn(() => true);
+  const member = { ...(offer('article:m') as object), source_key: 'waouh_app' } as never;
+  await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
+    <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="purchase" requireAuth={auth} />} />
+    <Route path="/app/deal-room" element={<Where />} />
+  </Routes></MemoryRouter>));
+  await act(async () => button('Intéressé').click());
+  expect(auth).toHaveBeenCalledWith('/app/chat');
+  expect(legacy.open).toHaveBeenCalledTimes(1);
+  expect((legacy.open.mock.calls[0] as unknown[])[0]).toMatchObject({ fabric_id: 'article:m' });
+  expect(host.querySelector('[data-testid=where]')).toBeNull();
+});
+
+it('an opportunity keeps its application process in the Deal Room', async () => {
+  legacy.open.mockClear();
+  const member = { ...(offer('article:o') as object), source_key: 'waouh_app' } as never;
+  await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
+    <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="opportunity" requireAuth={() => true} />} />
+    <Route path="/app/deal-room" element={<Where />} />
+  </Routes></MemoryRouter>));
+  await act(async () => button('Postuler').click());
+  expect(legacy.open).not.toHaveBeenCalled();
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Ao');
 });

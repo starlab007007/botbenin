@@ -12,6 +12,7 @@ import 'live_nexus_service.dart';
 import 'live_deal_guidance.dart';
 import 'live_product_presentation.dart';
 import 'live_reasoning.dart';
+import 'live_legacy_interest.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_automatic_offers.dart' show liveOfferReachable;
 
@@ -117,7 +118,10 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   try{final d=await nexus.searchProgressive(query:query.text,city:city.text,budgetMax:double.tryParse(budget.text),findSellers:true,discoveryKind:kind,onIndexed:(d){if(!mounted||v!=generation)return;setState(()=>offers=d.results);final n=d.results.length;pushReason([ReasonStep(id:'res-first',tone:n>0?ReasonTone.found:ReasonTone.search,text:n>1?'$n premières offres dans WAOUH.':n==1?'Une première offre dans WAOUH.':'Rien encore dans WAOUH.'),const ReasonStep(id:'res-more',tone:ReasonTone.search,text:'Je cherche aussi chez les partenaires et en ligne.')]);});
    if(mounted&&v==generation){final base=buildSummary(const [],d,ctx);final reach=d.results.where(liveOfferReachable).length;final summary=ReasonSummary(found:base.found,inZone:base.inZone,contactable:reach,bestPrice:base.bestPrice,nextSteps:[if(reach>0)'Choisissez une offre ou confiez-la à Bot : il écrit et négocie.' else 'Ouvrez l’annonce d’origine pour joindre le vendeur.',...base.nextSteps.where((t)=>!t.startsWith('Choisissez une offre')&&!t.startsWith('Je peux contacter'))].take(3).toList());setState((){offers=d.results;reasonSummary=summary;});pushReason([...discoveryResultSteps(d.results,ctx,reachable:liveOfferReachable),summaryStep(summary,ctx)]);}}
   catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
- Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
+ Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
+  // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
+  if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted)setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}finally{if(mounted)setState(()=>busy=false);}return;}
+  final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
  Widget button(String text,VoidCallback fn,{bool primary=false,bool enabled=true})=>Padding(padding:const EdgeInsets.only(top:8),child:primary?FilledButton(onPressed:busy||!enabled?null:fn,child:Text(text)):OutlinedButton(onPressed:busy||!enabled?null:fn,child:Text(text)));

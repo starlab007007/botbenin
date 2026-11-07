@@ -379,7 +379,8 @@ export default function WaouhAvatarCommercePage() {
   };
 
   const continueWith = async (item: NexusDiscoveryResult, initialOffer?: number) => {
-    if(mode!=='vendre'){navigate('/app/deal-room?'+new URLSearchParams({fabric_id:item.fabric_id,...(initialOffer?{offer:String(initialOffer)}:{})}));return;}
+    // Vendeur WAOUH : parcours de négociation historique plus bas ; sinon Deal Room (propriétaire hors WAOUH).
+    if(mode!=='vendre'&&!canonicalDealCandidate(item)){navigate('/app/deal-room?'+new URLSearchParams({fabric_id:item.fabric_id,...(initialOffer?{offer:String(initialOffer)}:{})}));return;}
 
     setWorkingId(item.fabric_id);
     try {
