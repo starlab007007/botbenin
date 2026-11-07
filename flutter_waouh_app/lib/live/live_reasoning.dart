@@ -123,6 +123,72 @@ String reasonSourceLabel(String? source) {
 
 String _plural(int n, String one, String many) => '$n ${n > 1 ? many : one}';
 
+/// Le besoin tel qu'il se lit : « Je cherche synelia » → « synelia » (même règle que le web).
+String reasonQuery(String query) {
+  final clean = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+  final stripped = clean
+      .replaceFirst(RegExp(r'^(bonjour|salut|bonsoir)[\s,!.]*', caseSensitive: false), '')
+      .replaceFirst(
+          RegExp(
+              r"^(je\s+(veux\s+acheter|voudrais\s+acheter|cherche|recherche|veux|voudrais|souhaite)|j['’]ai\s+besoin\s+d['’e]?|cherche|recherche|trouve[-\s]?moi|il\s+me\s+faut)(?:\s+|(?<=['’]))",
+              caseSensitive: false),
+          '')
+      .replaceFirst(RegExp(r'[.!?]+$'), '')
+      .trim();
+  return stripped.length >= 2 ? stripped : clean;
+}
+
+/// Ce que Bot a trouvé pour une recherche, étape par étape (mêmes libellés que le web).
+List<ReasonStep> discoveryResultSteps(
+  List<NexusDiscoveryItem> results,
+  ReasonContext ctx, {
+  bool Function(NexusDiscoveryItem)? reachable,
+}) {
+  if (results.isEmpty) {
+    return const <ReasonStep>[
+      ReasonStep(id: 'res-none', tone: ReasonTone.warn, text: 'Aucune offre assez proche pour le moment.'),
+    ];
+  }
+  final prices = results.map((r) => r.priceMin ?? r.priceMax).whereType<double>().where((p) => p > 0).toList();
+  final city = (ctx.city ?? '').trim();
+  final steps = <ReasonStep>[
+    ReasonStep(
+      id: 'res-found',
+      tone: ReasonTone.found,
+      text: '${_plural(results.length, 'offre trouvée', 'offres trouvées')}.',
+      chips: <String>[
+        if (prices.isNotEmpty && reasonMoney(prices.reduce((a, b) => a < b ? a : b)) != null)
+          'Dès ${reasonMoney(prices.reduce((a, b) => a < b ? a : b))}',
+      ],
+    ),
+  ];
+  if (city.isNotEmpty) {
+    final inZone = results.where((r) => sameZone(r.city, city)).toList();
+    steps.add(ReasonStep(
+      id: 'res-zone',
+      tone: ReasonTone.zone,
+      text: inZone.isNotEmpty
+          ? '${_plural(inZone.length, 'offre', 'offres')} à $city.'
+          : 'Aucune à $city : je garde les plus proches.',
+      evidence: inZone
+          .take(2)
+          .map((r) => ReasonEvidence(title: r.title, city: r.city, inZone: true, price: reasonMoney(r.priceMin ?? r.priceMax)))
+          .toList(growable: false),
+    ));
+  }
+  if (reachable != null) {
+    final count = results.where(reachable).length;
+    steps.add(ReasonStep(
+      id: 'res-reach',
+      tone: ReasonTone.contact,
+      text: count > 0
+          ? '${_plural(count, 'vendeur joignable', 'vendeurs joignables')} : Bot peut écrire et négocier.'
+          : 'Aucun vendeur joignable directement : consultez les annonces d’origine.',
+    ));
+  }
+  return steps;
+}
+
 List<ReasonStep> planSteps(ReasonContext ctx) {
   final chips = <String>[
     if ((ctx.city ?? '').trim().isNotEmpty) '📍 ${ctx.city!.trim()}',
@@ -134,7 +200,7 @@ List<ReasonStep> planSteps(ReasonContext ctx) {
       id: 'understand',
       tone: ReasonTone.think,
       text:
-          'Je cherche « ${ctx.query.trim()} »${city.isNotEmpty ? ' à $city' : ''}.',
+          'Je cherche « ${reasonQuery(ctx.query)} »${city.isNotEmpty ? ' à $city' : ''}.',
       chips: chips,
     ),
     const ReasonStep(

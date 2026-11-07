@@ -58,3 +58,25 @@ describe("liveReasoning", () => {
     expect(steps.some((s) => s.id === "ext-contact")).toBe(false);
   });
 });
+
+describe("search reasoning wording", () => {
+  it("reads the need without repeating the user's verb", async () => {
+    const { reasonQuery, planSteps } = await import("../liveReasoning");
+    expect(reasonQuery("Je cherche synelia")).toBe("synelia");
+    expect(reasonQuery("je veux acheter un frigo.")).toBe("un frigo");
+    expect(reasonQuery("Bonjour, j'ai besoin d'un plombier")).toBe("un plombier");
+    expect(reasonQuery("un bic")).toBe("un bic");
+    expect(planSteps({ query: "Je cherche synelia" })[0].text).toBe("Je cherche « synelia ».");
+  });
+
+  it("explains found offers, local ones and those Bot can reach", async () => {
+    const { discoveryResultSteps } = await import("../liveReasoning");
+    const offer = (id: string, city: string, price: number) => ({ fabric_id: id, city, price_min: price, subject: "Bic" }) as never;
+    const steps = discoveryResultSteps([offer("article:a", "Abomey-Calavi", 150), offer("external:b", "Cotonou", 100)], { query: "un bic", city: "Abomey-Calavi" }, (r: { fabric_id: string }) => r.fabric_id.startsWith("article:"));
+    expect(steps.map((s) => s.id)).toEqual(["res-found", "res-zone", "res-reach"]);
+    expect(steps[0].text).toBe("2 offres trouvées.");
+    expect(steps[1].text).toBe("1 offre à Abomey-Calavi.");
+    expect(steps[2].text).toContain("1 vendeur joignable");
+    expect(discoveryResultSteps([], { query: "x" })[0].tone).toBe("warn");
+  });
+});

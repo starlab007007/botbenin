@@ -74,13 +74,60 @@ const money = (value: number | null | undefined, currency = "XOF") => {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
+/** Le besoin tel qu’il se lit : « Je cherche synelia » → « synelia ». */
+export function reasonQuery(query: string): string {
+  const clean = query.trim().replace(/\s+/g, " ");
+  const stripped = clean
+    .replace(/^(bonjour|salut|bonsoir)[\s,!.]*/i, "")
+    .replace(/^(je\s+(veux\s+acheter|voudrais\s+acheter|cherche|recherche|veux|voudrais|souhaite)|j['’]ai\s+besoin\s+d['’e]?|cherche|recherche|trouve[-\s]?moi|il\s+me\s+faut)(?:\s+|(?<=['’]))/i, "")
+    .replace(/[.!?]+$/, "")
+    .trim();
+  return stripped.length >= 2 ? stripped : clean;
+}
+
+/** Ce que Bot a trouvé pour une recherche, étape par étape (mêmes libellés que le chat). */
+export function discoveryResultSteps(
+  results: NexusDiscoveryResult[],
+  ctx: ReasonContext,
+  reachable?: (result: NexusDiscoveryResult) => boolean,
+): ReasonStep[] {
+  if (!results.length) return [{ id: "res-none", tone: "warn", text: "Aucune offre assez proche pour le moment." }];
+  const prices = results.map((r) => r.price_min ?? r.price_max).filter((p): p is number => typeof p === "number" && p > 0);
+  const steps: ReasonStep[] = [{
+    id: "res-found",
+    tone: "found",
+    text: `${plural(results.length, "offre trouvée", "offres trouvées")}.`,
+    chips: [prices.length ? `Dès ${money(Math.min(...prices))}` : null].filter(Boolean) as string[],
+  }];
+  if (ctx.city) {
+    const inZone = results.filter((r) => sameZone(r.city, ctx.city));
+    steps.push({
+      id: "res-zone",
+      tone: "zone",
+      text: inZone.length ? `${plural(inZone.length, "offre", "offres")} à ${ctx.city}.` : `Aucune à ${ctx.city} : je garde les plus proches.`,
+      evidence: inZone.slice(0, 2).map((r) => ({ key: `zone-${r.fabric_id}`, title: r.subject || "Offre", city: r.city, inZone: true, price: money(r.price_min ?? r.price_max, r.currency || "XOF") })),
+    });
+  }
+  if (reachable) {
+    const count = results.filter(reachable).length;
+    steps.push({
+      id: "res-reach",
+      tone: "contact",
+      text: count
+        ? `${plural(count, "vendeur joignable", "vendeurs joignables")} : Bot peut écrire et négocier.`
+        : "Aucun vendeur joignable directement : consultez les annonces d’origine.",
+    });
+  }
+  return steps;
+}
+
 export function planSteps(ctx: ReasonContext): ReasonStep[] {
   const chips = [ctx.city ? `📍 ${ctx.city}` : null, ctx.budget ? `💰 ≤ ${money(ctx.budget)}` : null].filter(Boolean) as string[];
   return [
     {
       id: "understand",
       tone: "think",
-      text: `Je cherche « ${ctx.query.trim()} »${ctx.city ? ` à ${ctx.city}` : ""}.`,
+      text: `Je cherche « ${reasonQuery(ctx.query)} »${ctx.city ? ` à ${ctx.city}` : ""}.`,
       chips,
     },
     {

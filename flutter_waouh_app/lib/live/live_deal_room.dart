@@ -11,6 +11,9 @@ import '../main.dart' show WaouhColors;
 import 'live_nexus_service.dart';
 import 'live_deal_guidance.dart';
 import 'live_product_presentation.dart';
+import 'live_reasoning.dart';
+import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
+import 'live_automatic_offers.dart' show liveOfferReachable;
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
 
@@ -84,8 +87,12 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  bool delegationShown=false,proposalShown=false;String? draftRoom;
  String? roomId;String kind='purchase',error='',notice='';bool busy=false,searching=false,refreshing=false;int generation=0;
  Timer? timer;StreamSubscription<AuthState>? auth;String? owner;
+ // Raisonnement en direct pendant la recherche (même fil que le chat et le web).
+ final reasonKey=GlobalKey();final List<ReasonStep> reasonShown=[],reasonQueue=[];Timer? reasonTimer;ReasonSummary? reasonSummary;
+ void pushReason(List<ReasonStep> steps){reasonQueue.addAll(steps);reasonTimer??=Timer.periodic(const Duration(milliseconds:650),(_){if(!mounted)return;if(reasonQueue.isEmpty){reasonTimer?.cancel();reasonTimer=null;setState((){});return;}setState(()=>reasonShown.add(reasonQueue.removeAt(0)));});}
+ void skipReason(){reasonTimer?.cancel();reasonTimer=null;setState((){reasonShown.addAll(reasonQueue);reasonQueue.clear();});}
  @override void initState(){super.initState();client=widget.service?.client??Supabase.instance.client;api=widget.service??LiveDealRoomService(client);nexus=LiveNexusService(client);query=TextEditingController(text:widget.query);city=TextEditingController(text:widget.city??'Cotonou');roomId=widget.roomId;owner=widget.ownerScope??client.auth.currentUser?.id;WidgetsBinding.instance.addObserver(this);unawaited(load());timer=Timer.periodic(const Duration(seconds:10),(_){if(WidgetsBinding.instance.lifecycleState==AppLifecycleState.resumed)unawaited(load());});auth=client.auth.onAuthStateChange.listen((_){if(owner!=(widget.ownerScope??client.auth.currentUser?.id)){owner=widget.ownerScope??client.auth.currentUser?.id;generation++;setState((){room=null;rooms=[];offers=[];message.clear();budget.clear();});unawaited(load());}});}
- @override void dispose(){timer?.cancel();auth?.cancel();WidgetsBinding.instance.removeObserver(this);for(final c in [query,city,budget,message]){c.dispose();}super.dispose();}
+ @override void dispose(){timer?.cancel();reasonTimer?.cancel();auth?.cancel();WidgetsBinding.instance.removeObserver(this);for(final c in [query,city,budget,message]){c.dispose();}super.dispose();}
  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(load());}
  Future<void> load() async {
   if(busy||refreshing||owner==null)return;refreshing=true;final v=generation;
@@ -102,7 +109,13 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));return null;}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
  }
- Future<void> search() async {if(searching||query.text.trim().length<3)return;final v=++generation;setState((){searching=true;error='';});try{final d=await nexus.searchProgressive(query:query.text,city:city.text,budgetMax:double.tryParse(budget.text),findSellers:true,discoveryKind:kind,onIndexed:(d){if(mounted&&v==generation)setState(()=>offers=d.results);});if(mounted&&v==generation)setState(()=>offers=d.results);}catch(_){if(mounted)setState(()=>error='Recherche partielle. Réessayez.');}finally{if(mounted)setState(()=>searching=false);}}
+ Future<void> search() async {if(searching||query.text.trim().length<3)return;final v=++generation;final ctx=ReasonContext(query:query.text,city:city.text.trim().isEmpty?null:city.text.trim(),budget:double.tryParse(budget.text));
+  reasonTimer?.cancel();reasonTimer=null;reasonQueue.clear();FocusManager.instance.primaryFocus?.unfocus();
+  setState((){searching=true;error='';reasonShown.clear();reasonSummary=null;});pushReason(planSteps(ctx));
+  Future.delayed(const Duration(milliseconds:800),(){final c=reasonKey.currentContext;if(mounted&&c!=null)Scrollable.ensureVisible(c,duration:const Duration(milliseconds:350),alignment:0.05);});
+  try{final d=await nexus.searchProgressive(query:query.text,city:city.text,budgetMax:double.tryParse(budget.text),findSellers:true,discoveryKind:kind,onIndexed:(d){if(!mounted||v!=generation)return;setState(()=>offers=d.results);final n=d.results.length;pushReason([ReasonStep(id:'res-first',tone:n>0?ReasonTone.found:ReasonTone.search,text:n>1?'$n premières offres dans WAOUH.':n==1?'Une première offre dans WAOUH.':'Rien encore dans WAOUH.'),const ReasonStep(id:'res-more',tone:ReasonTone.search,text:'Je cherche aussi chez les partenaires et en ligne.')]);});
+   if(mounted&&v==generation){final summary=buildSummary(const [],d,ctx);setState((){offers=d.results;reasonSummary=summary;});pushReason([...discoveryResultSteps(d.results,ctx,reachable:liveOfferReachable),summaryStep(summary,ctx)]);}}
+  catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
@@ -287,6 +300,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     Row(children:[Image.asset('assets/bot/bot_avatar.png',width:64),const SizedBox(width:12),const Expanded(child:Text('Que cherchez-vous ?',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)))]),
     LiveDealGuidance(guide:searchRoomGuidance(searching,offers.isNotEmpty)),
     card([field('Votre besoin',query),field('Ville',city),field('Budget max · F',budget,number:true),DropdownButtonFormField<String>(initialValue:kind,items:const [DropdownMenuItem(value:'purchase',child:Text('Produit')),DropdownMenuItem(value:'service',child:Text('Service')),DropdownMenuItem(value:'opportunity',child:Text('Opportunité'))],onChanged:(v)=>setState(()=>kind=v!)),button('Rechercher',search,primary:true)]),
+    if(reasonShown.isNotEmpty)KeyedSubtree(key:reasonKey,child:LiveReasoningFeed(steps:reasonShown,running:searching||reasonQueue.isNotEmpty,summary:!searching&&reasonQueue.isEmpty?reasonSummary:null,onSkip:skipReason,showActions:false)),
     for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),button('Intéressé',()=>open(item),primary:true),button('Confier à Bot',()=>delegateFromSearch(item))]),
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
