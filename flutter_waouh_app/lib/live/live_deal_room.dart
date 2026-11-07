@@ -110,7 +110,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
   if(busy)return null;final v=++generation;setState((){busy=true;error='';notice='';});
   try{final d=await api.call(action,{if(roomId!=null)'deal_room_id':roomId,...p});if(!mounted||v!=generation)return null;setState((){if(d['deal_room_id']!=null){room={...d,'messages':mergeRoomMessages(room?['deal_room_id']==d['deal_room_id']?(room?['messages'] as List? ?? []):[],d['messages'] as List? ?? [])};roomId='${d['deal_room_id']}';}});return d;}
-  catch(e){if(mounted&&v==generation){setState(()=>error=roomError(e));showError();}return null;}
+  catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));return null;}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
  }
  void showError(){if(!mounted||error.isEmpty)return;final m=ScaffoldMessenger.maybeOf(context);m?.hideCurrentSnackBar();m?.showSnackBar(SnackBar(content:Text(error)));}
@@ -123,7 +123,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
   if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted){setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');showError();}}finally{if(mounted)setState(()=>busy=false);}return;}
-  final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d!=null&&delegate&&mounted)await mandate();}
+  final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
  Widget button(String text,VoidCallback fn,{bool primary=false,bool enabled=true})=>Padding(padding:const EdgeInsets.only(top:8),child:primary?FilledButton(onPressed:busy||!enabled?null:fn,child:Text(text)):OutlinedButton(onPressed:busy||!enabled?null:fn,child:Text(text)));
