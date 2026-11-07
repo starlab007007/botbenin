@@ -412,7 +412,7 @@ async function testRoutes(viewport) {
     ["/app/avatar/acheter", "Acheter avec mon Avatar", true],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
     ["/app/avatar/demander", "Demander à mon Avatar", true],
-    ["/app/nexus", "Que cherchez-vous", false],
+    ["/app/nexus", "Ma recherche", false],
     ["/app/deal-room", "Que cherchez-vous", true],
     ["/app/nexus-legacy", "Ma recherche", false],
     ["/app/missions", "Missions", true],
