@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
+import { isDirectDealCandidate, openExternalDeal, openMatchDetail } from "@/lib/waouh/nexusDeal";
+import { productPhotos } from "../../../supabase/functions/_shared/waouh-product-presentation";
 
 type Offer = Pick<NexusDiscoveryResult, "fabric_id" | "source_key" | "subject" | "raw_text" | "price_min" | "price_max" | "city" | "evidence">;
 
@@ -51,3 +53,22 @@ export async function openLegacyInterest(item: Offer, navigate: (path: string) =
   openCommerceDiscussion(detail, navigate);
   return detail;
 }
+
+/**
+ * Annonce externe (Facebook, web…) : « Intéressé » ouvre la même fenêtre de négociation du Chat que pour un vendeur WAOUH.
+ * Retourne « fallback » quand cette entrée n'est pas disponible : l'appelant garde alors la Deal Room.
+ */
+export async function openExternalInterest(item: Offer, navigate: (path: string) => void): Promise<"chat" | "fallback"> {
+  const outcome = await openExternalDeal(item.fabric_id, null, getWaouhSessionId());
+  if (outcome.status === "fallback") return "fallback";
+  if (outcome.status === "refused") throw new LegacyInterestError(outcome.response.reply?.detail || "Cet échange n’a pas pu être ouvert. Réessayez.");
+  const photos = productPhotos(item);
+  const price = item.price_min ?? item.price_max ?? null;
+  const detail = openMatchDetail(outcome.response, {
+    title: item.subject || item.raw_text || "Annonce", price, city: item.city ?? null, photo: photos[0] ?? null, photos, product_snapshot: item,
+  });
+  if (!openCommerceDiscussion(detail as unknown as Record<string, unknown>, navigate)) throw new LegacyInterestError("Cet échange n’a pas pu être ouvert. Réessayez.");
+  return "chat";
+}
+
+export { isDirectDealCandidate };

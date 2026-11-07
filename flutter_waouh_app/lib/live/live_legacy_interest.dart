@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_models.dart';
 import 'live_nexus_service.dart';
@@ -94,4 +95,36 @@ Future<void> openLiveLegacyInterest(
   }
   if (!context.mounted) return;
   context.push('/app/chat/match/${Uri.encodeComponent(match.key)}', extra: match);
+}
+
+/// Annonce externe : « Intéressé » ouvre la même fenêtre de négociation du Chat que pour un vendeur WAOUH.
+/// Retourne `false` quand cette entrée n'est pas disponible : l'appelant garde alors la Deal Room.
+Future<bool> openLiveExternalInterest(BuildContext context, NexusDiscoveryItem item) async {
+  final controller = context.read<LiveWaouhController>();
+  final response = await controller.sendCommerceAction(liveExternalDealRequest(item.fabricId));
+  switch (liveExternalDealStatus(response)) {
+    case LiveExternalDealStatus.fallback:
+      return false;
+    case LiveExternalDealStatus.refused:
+      final reply = response?['reply'];
+      throw LiveLegacyInterestException(reply is Map && '${reply['detail'] ?? ''}'.isNotEmpty ? '${reply['detail']}' : 'Cet échange n’a pas pu être ouvert. Réessayez.');
+    case LiveExternalDealStatus.opened:
+      final articleId = '${response!['article_id']}';
+      final threadId = '${response['thread_id']}';
+      final match = LiveMatch(
+        key: liveMatchKey(articleId, 'buyer', null, threadId),
+        articleId: articleId,
+        role: 'buyer',
+        title: item.title,
+        lastAt: DateTime.now(),
+        threadId: threadId,
+        negotiationId: response['negotiation_id']?.toString(),
+        source: 'nexus_direct_deal',
+        price: item.priceMin ?? item.priceMax,
+        city: item.city,
+      );
+      if (!context.mounted) return true;
+      context.push('/app/chat/match/${Uri.encodeComponent(match.key)}', extra: match);
+      return true;
+  }
 }

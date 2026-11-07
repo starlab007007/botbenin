@@ -8,7 +8,7 @@ import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import { WaouhDirectContact } from "./WaouhDirectContact";
 import "./waouh-market.css";
 import { offerChannels } from "@/lib/waouh/offerChannels";
-import { legacyDealCandidate, LegacyInterestError, openLegacyInterest } from "@/lib/waouh/legacyInterest";
+import { legacyDealCandidate, LegacyInterestError, isDirectDealCandidate, openExternalInterest, openLegacyInterest } from "@/lib/waouh/legacyInterest";
 import { toast } from "@/hooks/use-toast";
 
 type Mode = "buy" | "sell" | "ask";
@@ -98,6 +98,15 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
         if (!requireAuth("/app/chat")) return;
         setOpening(true);
         void openLegacyInterest(result, navigate)
+          .catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" }))
+          .finally(() => setOpening(false));
+        return;
+      }
+      if (kind !== "opportunity" && isDirectDealCandidate(result.fabric_id)) {
+        if (!requireAuth("/app/chat")) return;
+        setOpening(true);
+        void openExternalInterest(result, navigate)
+          .then(where => { if (where === "fallback") navigate(offerDealRoomPath(result, kind)); })
           .catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" }))
           .finally(() => setOpening(false));
         return;

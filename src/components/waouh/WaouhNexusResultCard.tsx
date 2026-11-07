@@ -1,7 +1,7 @@
 import {ProductGallery} from './WaouhProductPresentation';
 import { useState } from "react";
-import {Link, useNavigate} from "react-router-dom";
-import { legacyDealCandidate, LegacyInterestError, openLegacyInterest } from "@/lib/waouh/legacyInterest";
+import {useNavigate} from "react-router-dom";
+import { isDirectDealCandidate, legacyDealCandidate, LegacyInterestError, openExternalInterest, openLegacyInterest } from "@/lib/waouh/legacyInterest";
 import { offerReachable } from "@/components/waouh/WaouhOfferActions";
 import { toast } from "@/hooks/use-toast";
 import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
@@ -72,7 +72,7 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
             {legacyDealCandidate(result)
               ? <LegacyInterestButton result={result} />
               : offerReachable(result)
-                ? <Link className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" to={`/app/deal-room?${new URLSearchParams({fabric_id:result.fabric_id})}`}>Intéressé</Link>
+                ? <LegacyInterestButton result={result} />
                 : result.source_url
                   ? <a className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" href={result.source_url} target="_blank" rel="noopener noreferrer">Voir l’annonce</a>
                   : <span className="flex h-12 items-center justify-center rounded-2xl border border-slate-200 text-xs font-semibold text-slate-500">Contact non disponible</span>}
@@ -91,7 +91,7 @@ function LegacyInterestButton({ result }: { result: NexusDiscoveryResult }) {
   const [busy, setBusy] = useState(false);
   return (
     <button type="button" disabled={busy} className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700"
-      onClick={() => { setBusy(true); void openLegacyInterest(result, navigate).catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" })).finally(() => setBusy(false)); }}>
+      onClick={() => { setBusy(true); void (isDirectDealCandidate(result.fabric_id) ? openExternalInterest(result, navigate).then(where => { if (where === "fallback") navigate(`/app/deal-room?${new URLSearchParams({ fabric_id: result.fabric_id })}`); }) : openLegacyInterest(result, navigate)).catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" })).finally(() => setBusy(false)); }}>
       Intéressé
     </button>
   );
