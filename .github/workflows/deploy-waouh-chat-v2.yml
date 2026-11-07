@@ -56,6 +56,8 @@ on:
       - "supabase/functions/waouh-radar-site-scraper/**"
       - "supabase/functions/waouh-radar-process/**"
       - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-contact-enrich/**"
+      - "supabase/functions/_shared/waouh-contact-extract.ts"
       - "supabase/functions/waouh-radar-campaign-tick/**"
       - "supabase/functions/waouh-alerts-check/**"
       - "supabase/functions/waouh-price-compare/**"
@@ -427,6 +429,7 @@ jobs:
             waouh-radar-site-scraper
             waouh-radar-process
             waouh-serpapi-scout
+            waouh-contact-enrich
             waouh-radar-campaign-tick
             waouh-alerts-check
             waouh-price-compare

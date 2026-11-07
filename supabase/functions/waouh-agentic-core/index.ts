@@ -1110,6 +1110,7 @@ async function refreshSerpApi(
   const seen = new Set<string>();
   const surfaces: Record<string, number> = {};
   let calls = 0;
+  let cacheHits = 0;
 
   for (const profile of profiles) {
     const url = new URL("https://serpapi.com/search.json");
@@ -1121,9 +1122,15 @@ async function refreshSerpApi(
     url.searchParams.set("tbs", "qdr:m");
     url.searchParams.set("api_key", key.key);
 
+    // Même recherche déjà faite récemment : les annonces sont déjà en base, inutile de consommer le quota.
+    const cacheKey = await sha256Hex(`serpapi|${profile.q}|${perProfile}`);
+    const { data: cached } = await sb.from("waouh_search_cache").select("cache_key")
+      .eq("cache_key", cacheKey).gt("created_at", new Date(Date.now() - 6 * 3600_000).toISOString()).maybeSingle();
+    if (cached) { surfaces[profile.key] = 0; cacheHits += 1; continue; }
     const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     calls += 1;
     await incrementRadarUsage(sb as any, key.configId, 1);
+    if (response.ok) await sb.from("waouh_search_cache").upsert({ cache_key: cacheKey, created_at: new Date().toISOString() });
     if (!response.ok) {
       surfaces[profile.key] = 0;
       continue;
@@ -1175,8 +1182,9 @@ async function refreshSerpApi(
     inserted: saved.length,
     results: saved,
     calls,
+    cache_hits: cacheHits,
     surfaces,
-    reason: saved.length ? null : "no_public_results",
+    reason: saved.length ? null : cacheHits ? "recently_refreshed" : "no_public_results",
   };
 }
 

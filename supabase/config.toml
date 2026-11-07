@@ -205,6 +205,9 @@ verify_jwt = false
 [functions.waouh-serpapi-scout]
 verify_jwt = false
 
+[functions.waouh-contact-enrich]
+verify_jwt = false # garde interne : requireRuntimeOrAdmin
+
 [functions.waouh-radar-apify]
 verify_jwt = false
 
