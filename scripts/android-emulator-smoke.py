@@ -221,6 +221,33 @@ def main():
     else:
         step("resultats", False, "Champ de recherche introuvable sur l'écran d'achat", root)
 
+    # Recherche depuis l'écran d'échange : le raisonnement doit s'afficher en direct.
+    deep_link("/app/deal-room")
+    root = wait_for(r"Que cherchez-vous", 45)
+    fields = [n for n in nodes(root) if "EditText" in (n.get("class") or "")]
+    if len(fields) >= 2:
+        tap(fields[0]); time.sleep(1); type_text("un bic")
+        tap(fields[1]); time.sleep(1)
+        sh("shell", "input", "keyevent", "123")  # fin du champ
+        for _ in range(30):
+            sh("shell", "input", "keyevent", "67")  # efface la ville
+        type_text("Abomey-Calavi")
+        sh("shell", "input", "keyevent", "111")
+        time.sleep(1)
+        go = find_lowest(dump(), r"^\s*Rechercher\s*$")
+        if go is not None:
+            tap(go)
+        time.sleep(5)
+        root = dump("reasoning_live")
+        live = root is not None and find(root, r"Bot réfléchit|Mon raisonnement") is not None
+        step("raisonnement_en_direct", live,
+             "Le raisonnement de Bot s'affiche pendant la recherche" if live else "Aucun raisonnement visible pendant la recherche", root)
+        root = wait_for(r"Bilan|Aucune offre assez proche", 120, "reasoning_done")
+        done = root is not None and find(root, r"Bilan|Aucune offre assez proche") is not None
+        step("raisonnement_bilan", done, "Bilan de la recherche affiché" if done else "Pas de bilan après 2 minutes", root)
+    else:
+        step("raisonnement_en_direct", False, "Champs de recherche de l'échange introuvables", root)
+
     for path, name, rx in [("/app/missions", "missions", r"Mission|Suivi|Bot"),
                            ("/app/chat", "chat", r"Chat|Message|Discussion|WAOUH"),
                            ("/app/notifications", "notifications", r"Notification|Aucune"),
