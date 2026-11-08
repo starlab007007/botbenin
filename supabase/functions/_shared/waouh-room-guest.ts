@@ -68,7 +68,7 @@ export async function sourceReachable(sb: any, sourceRef: string, delegated = fa
   return !!(await resolveRoomContact(sb, sourceRef, { delegated }));
 }
 
-async function enqueue(sb: any, phone: string, text: string, payload: Record<string, unknown>, dedupe: string) {
+export async function enqueue(sb: any, phone: string, text: string, payload: Record<string, unknown>, dedupe: string) {
   const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
     p_to_phone: phone.replace(/\D/g, ""), p_to_user_id: null, p_template: ROOM_GUEST_TEMPLATE,
     p_payload: { waha_session: CENTRAL_WAHA_SESSION, text, actions: [], ...payload },
@@ -77,7 +77,7 @@ async function enqueue(sb: any, phone: string, text: string, payload: Record<str
   if (error) throw error;
 }
 
-async function notifyOwner(sb: any, roomId: string, text: string, key: string) {
+export async function notifyOwner(sb: any, roomId: string, text: string, key: string) {
   const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id").eq("id", roomId).maybeSingle();
   if (!link?.owner_id) return;
   const { data: user } = await sb.from("waouh_users").select("id").eq("auth_user_id", link.owner_id).order("created_at").limit(1).maybeSingle();

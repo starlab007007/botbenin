@@ -89,18 +89,16 @@ it('the banner hands Bot only reachable offers, and says so when none is', async
   expect(host.querySelector('button')).toBeNull();
 });
 
-it('“Intéressé” on a WAOUH seller’s offer opens the historical negotiation, not the new Deal Room', async () => {
-  const auth = vi.fn(() => true);
+it('“Intéressé” ouvre toujours le Deal Room, jamais la négociation historique', async () => {
+  legacy.open.mockClear();
   const member = { ...(offer('article:m') as object), source_key: 'waouh_app' } as never;
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
-    <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="purchase" requireAuth={auth} />} />
+    <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="purchase" requireAuth={() => true} />} />
     <Route path="/app/deal-room" element={<Where />} />
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
-  expect(auth).toHaveBeenCalledWith('/app/chat');
-  expect(legacy.open).toHaveBeenCalledTimes(1);
-  expect((legacy.open.mock.calls[0] as unknown[])[0]).toMatchObject({ fabric_id: 'article:m' });
-  expect(host.querySelector('[data-testid=where]')).toBeNull();
+  expect(legacy.open).not.toHaveBeenCalled();
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Am&offer=50000');
 });
 
 it('an opportunity keeps its application process in the Deal Room', async () => {

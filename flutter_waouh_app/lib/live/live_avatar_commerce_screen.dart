@@ -1,5 +1,4 @@
 import 'live_deal_room.dart';
-import 'live_legacy_interest.dart';
 import 'live_product_presentation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -772,7 +771,6 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
 
   Future<void> _continue(NexusDiscoveryItem item, {bool proposePrice = false}) async {
     // Vendeur WAOUH : parcours de négociation historique ; sinon Deal Room (propriétaire hors WAOUH).
-    if(widget.mode!=LiveAvatarCommerceMode.sell&&liveLegacyDealCandidate(item)){if(item.internalArticle){await _internalInterest(item);return;}try{await openLiveLegacyInterest(context,item,source:'avatar_commerce');}catch(e){if(mounted)setState(()=>_error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}return;}
     if(widget.mode!=LiveAvatarCommerceMode.sell){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${proposePrice?'&propose=1':''}');}catch(e){if(mounted)setState(()=>_error='$e');}return;}
 
     if (!proposePrice && !essentialPrimaryNeedsPrice(item)) {

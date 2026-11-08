@@ -8,8 +8,6 @@ import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import { WaouhDirectContact } from "./WaouhDirectContact";
 import "./waouh-market.css";
 import { offerChannels } from "@/lib/waouh/offerChannels";
-import { legacyDealCandidate, LegacyInterestError, isDirectDealCandidate, openExternalInterest, openLegacyInterest } from "@/lib/waouh/legacyInterest";
-import { toast } from "@/hooks/use-toast";
 
 type Mode = "buy" | "sell" | "ask";
 
@@ -85,32 +83,12 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   const navigate = useNavigate();
   const { mode, kind, requireAuth } = shared;
   const reachable = offerReachable(result);
-  const [opening, setOpening] = useState(false);
   const primary = mode === "sell" && saleAction ? saleAction : !reachable ? (
     result.source_url
       ? <a className="wgd-offer-primary" href={result.source_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden="true" />Voir l’annonce d’origine</a>
       : <span className="wgd-offer-unreachable">Contact non disponible</span>
   ) : (
-    <button type="button" className="wgd-offer-primary" disabled={opening} onClick={() => {
-      // Offre d'un vendeur WAOUH : parcours de négociation historique (intérêt transmis au
-      // vendeur sur le web, l'application et WhatsApp, offres, contre-offres, accord).
-      if (kind !== "opportunity" && legacyDealCandidate(result)) {
-        if (!requireAuth("/app/chat")) return;
-        setOpening(true);
-        void openLegacyInterest(result, navigate)
-          .catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" }))
-          .finally(() => setOpening(false));
-        return;
-      }
-      if (kind !== "opportunity" && isDirectDealCandidate(result.fabric_id)) {
-        if (!requireAuth("/app/chat")) return;
-        setOpening(true);
-        void openExternalInterest(result, navigate)
-          .then(where => { if (where === "fallback") navigate(offerDealRoomPath(result, kind)); })
-          .catch(error => toast({ title: error instanceof LegacyInterestError ? error.message : "Cet échange n’a pas pu être ouvert. Réessayez.", variant: "destructive" }))
-          .finally(() => setOpening(false));
-        return;
-      }
+    <button type="button" className="wgd-offer-primary" onClick={() => {
       const path = offerDealRoomPath(result, kind);
       if (requireAuth(path)) navigate(path);
     }}>

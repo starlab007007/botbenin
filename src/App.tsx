@@ -21,6 +21,7 @@ import { GoogleAnalytics } from "./components/GoogleAnalytics";
 
 const WaouhGuestExchangePage = lazy(() => import('./pages/waouh/WaouhGuestExchangePage'));
 const WaouhDealRoomGuestPage = lazy(() => import('./pages/waouh/WaouhDealRoomGuestPage'));
+const WaouhCourierPage = lazy(() => import('./pages/waouh/WaouhCourierPage'));
 const Index = lazy(() => import("./pages/Index"));
 
 
@@ -252,6 +253,7 @@ const AppContent = () => {
       <FrontendModulesProvider><WaouhModuleAccessGate><Routes>
         <Route path="/exchange" element={<WaouhGuestExchangePage />} />
         <Route path="/echange-deal" element={<WaouhDealRoomGuestPage />} />
+        <Route path="/livraison" element={<WaouhCourierPage />} />
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}

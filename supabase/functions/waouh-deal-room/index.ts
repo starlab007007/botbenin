@@ -5,17 +5,24 @@ import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
+import {assignRoomDeliveries,deliveryCode,handleCourierRequest} from '../_shared/waouh-room-delivery.ts';
 import {createShareLink,handleRoomGuestRequest,reachRoomOwner,relayRoomGuests} from '../_shared/waouh-room-guest.ts';
-const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit','application_outcome','share_link']);
+const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit','application_outcome','share_link','delivery']);
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);
  const raw=await req.text();if(raw.length>32000)return jsonResponse({ok:false,error:'payload_too_large'},413);
  let input:any;try{input=JSON.parse(raw);}catch{return jsonResponse({ok:false,error:'request_failed'},400);}
+ // Livreur : accès par lien sans compte, limité à sa livraison.
+ if(typeof input?.courier_token==='string'){
+  const sbCourier=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+  try{const r=await handleCourierRequest(sbCourier,input.courier_token,String(input.action||''),{...(input.payload||{})});return jsonResponse(r.body,r.status);}
+  catch(error){console.error('[deal-room] courier',error instanceof Error?error.message:'failed');return jsonResponse({ok:false,error:'request_failed'},400);}
+ }
  // Propriétaire sans compte : accès par lien, limité à son propre échange.
  if(typeof input?.guest_token==='string'){
   const sbGuest=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
-  try{const r=await handleRoomGuestRequest(sbGuest,input.guest_token,String(input.action||''),{...(input.payload||{})});return jsonResponse(r.body,r.status);}
+  try{const r=await handleRoomGuestRequest(sbGuest,input.guest_token,String(input.action||''),{...(input.payload||{})});if(input.action==='accept'&&r.status===200)await assignRoomDeliveries(sbGuest).catch(()=>undefined);return jsonResponse(r.body,r.status);}
   catch(error){console.error('[deal-room] guest',error instanceof Error?error.message:'failed');return jsonResponse({ok:false,error:'request_failed'},400);}
  }
  const user=await getRequestUser(req);if(!user)return jsonResponse({ok:false,error:'authentication_required'},401);
@@ -36,6 +43,14 @@ Deno.serve(async req=>{
   p.source={title:product.title,kind:resultKind(signal),source_ref:fabric,source_url:signal.source_url,amount:product.price_min,extra_cost:null,source_snapshot:{product}};
   p.city=signal.city||p.city||'À préciser';
  }
+ if(action==='delivery'){
+  const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
+  const {data:view,error:viewError}=await sb.rpc('waouh_room_delivery_view',{p_actor:user.id,p_room:id});
+  if(viewError)return jsonResponse({ok:false,error:viewError.code==='42501'?'forbidden':'request_failed'},viewError.code==='42501'?403:400);
+  if(view?.is_buyer&&['assigned','picked_up'].includes(view.status))view.code=await deliveryCode(id,Number(view.version));
+  return jsonResponse({ok:true,data:view});
+ }
+ if(action==='propose'&&p.terms?.delivery_mode==='delivery'&&String(p.terms.delivery_address||'').trim().length<5)return jsonResponse({ok:false,error:'delivery_address_required'},422);
  if(action==='share_link'){
   const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
   try{const shared=await createShareLink(sb,id,user.id);if(!shared)return jsonResponse({ok:false,error:'link_unavailable'},409);return jsonResponse({ok:true,data:shared});}
@@ -75,6 +90,7 @@ Deno.serve(async req=>{
  if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});
  }
  if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
+ if(action==='accept')await assignRoomDeliveries(sb).catch(()=>undefined);
  return jsonResponse({ok:true,data});
  }catch(error){console.error('[deal-room]',error instanceof Error?error.message:'request_failed');return jsonResponse({ok:false,error:'request_failed'},400);}
 });

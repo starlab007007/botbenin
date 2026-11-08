@@ -1,6 +1,4 @@
 import 'live_deal_room.dart';
-import 'live_commerce_action_client.dart' show liveIsDirectDealCandidate;
-import 'live_legacy_interest.dart';
 import 'live_smart_sale.dart';
 import 'live_smart_sale_data.dart';
 import 'live_product_presentation.dart';
@@ -813,8 +811,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   Future<void> prepareContact(NexusDiscoveryItem item) async {
     // « Intéressé » : ouvre le Deal Room et son panneau de proposition de prix (dossier pour une opportunité).
     // Vendeur WAOUH : parcours de négociation historique (intérêt transmis au vendeur, offres, contre-offres, accord).
-    if(_activeKind!='sale'&&_activeKind!='opportunity'&&liveIsDirectDealCandidate(fabricId:item.fabricId)){if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'ouvrir cet échange'))return;if(!mounted)return;setState(()=>busy=true);try{if(await openLiveExternalInterest(context,item))return;}catch(e){if(mounted){notice(e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');return;}}finally{if(mounted)setState(()=>busy=false);}}
-    if(_activeKind!='sale'&&_activeKind!='opportunity'&&liveLegacyDealCandidate(item)){if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'ouvrir cet échange'))return;if(!mounted)return;setState(()=>busy=true);try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted)notice(e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}finally{if(mounted)setState(()=>busy=false);}return;}
     if(_activeKind!='sale'){if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'ouvrir cet échange'))return;if(!mounted)return;try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${_activeKind=='opportunity'?'':'&propose=1'}');}catch(e){if(mounted)notice(roomError(e));}return;}
 
     if (!await requireLiveAuthentication(

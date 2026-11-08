@@ -17,3 +17,10 @@ a.wr-primary{display:flex;align-items:center;justify-content:center;min-height:4
 
 .wr-seller-reach{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0;padding:10px 12px;border-radius:14px;background:#eff6ff}
 .wr-seller-reach p{flex-basis:100%;margin:0;font-size:13px;color:#1e3a8a}
+
+.wr-delivery{border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin:8px 0;display:grid;gap:8px}
+.wr-delivery legend{font-weight:600;font-size:13px;padding:0 6px}
+.wr-delivery label{display:flex;gap:8px;align-items:center}
+.wr-delivery input[type=text],.wr-delivery input:not([type]),.wr-delivery input[type=number]{width:100%}
+.wr-delivery-box{margin:10px 0;padding:12px;border-radius:14px;background:#f5f3ff;color:#4c1d95}
+.wr-delivery-box b{font-size:22px;letter-spacing:4px}

@@ -15,8 +15,6 @@ import 'live_nexus_service.dart';
 import 'live_deal_guidance.dart';
 import 'live_product_presentation.dart';
 import 'live_reasoning.dart';
-import 'live_commerce_action_client.dart' show liveIsDirectDealCandidate;
-import 'live_legacy_interest.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_automatic_offers.dart' show liveOfferReachable;
 
@@ -70,7 +68,7 @@ class LiveDealRoomService {
   final prefs=await SharedPreferences.getInstance();
   final key='waouh.room.request.${session.user.id}.${base64Url.encode(utf8.encode(jsonEncode([action,payload])))}';
   final body=Map<String,dynamic>.from(payload);
-  final read=['get','events','list'].contains(action);
+  final read=['get','events','list','delivery'].contains(action);
   if(!read){var request=prefs.getString(key);if(request==null){final random=Random.secure();final hex=List<int>.generate(16,(_)=>random.nextInt(256)).map((n)=>n.toRadixString(16).padLeft(2,'0')).join();request='${hex.substring(0,8)}-${hex.substring(8,12)}-4${hex.substring(13,16)}-8${hex.substring(17,20)}-${hex.substring(20)}';await prefs.setString(key,request);}body['request_id']=request;}
   final result=await client.functions.invoke('waouh-deal-room',body:{'action':action,'payload':body},headers:{'Authorization':'Bearer ${session.accessToken}'});
   if(client.auth.currentUser?.id!=session.user.id)throw StateError('Votre compte a changé.');
@@ -91,7 +89,15 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Map<String,dynamic>? room;List<Map<String,dynamic>> rooms=[];List<NexusDiscoveryItem> offers=[];
  bool delegationShown=false,proposalShown=false;String? draftRoom;
  String? roomId;String kind='purchase',error='',notice='';bool busy=false,searching=false,refreshing=false,botTakeover=false;int generation=0;
- Timer? timer;StreamSubscription<AuthState>? auth;String? owner;
+ Timer? timer;StreamSubscription<AuthState>? auth;String? owner;Map<String,dynamic>? dlv;
+ static const termLabels={'amount':'Prix','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement','delivery_mode':'Remise','delivery_address':'Adresse de livraison','delivery_fee':'Frais de livraison'};
+ String termValue(String k,Object? v){if(k=='delivery_mode')return v=='delivery'?'Livraison par un livreur':'Retrait en main propre';if(k=='delivery_fee')return money(v);return '$v';}
+ Future<void> loadDelivery() async {
+  final r=room;final a=r?['agreement'] as Map?;
+  if(r==null||a==null||a['status']!='accepted'||(a['terms'] as Map)['delivery_mode']!='delivery'){if(dlv!=null&&mounted)setState(()=>dlv=null);return;}
+  try{final d=await api.call('delivery',{'deal_room_id':r['deal_room_id']});if(mounted)setState(()=>dlv=d);}catch(_){/* statut indisponible : on garde l'affichage précédent */}
+ }
+
  // Raisonnement en direct pendant la recherche (même fil que le chat et le web).
  final reasonKey=GlobalKey();final List<ReasonStep> reasonShown=[],reasonQueue=[];Timer? reasonTimer;ReasonSummary? reasonSummary;
  void pushReason(List<ReasonStep> steps){reasonQueue.addAll(steps);reasonTimer??=Timer.periodic(const Duration(milliseconds:650),(_){if(!mounted)return;if(reasonQueue.isEmpty){reasonTimer?.cancel();reasonTimer=null;setState((){});return;}setState(()=>reasonShown.add(reasonQueue.removeAt(0)));followReason();});}
@@ -107,7 +113,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    if(roomId==null&&widget.componentId!=null){data=await api.call('adopt',{'component_id':widget.componentId});}
    if(!mounted||generation!=v)return;
    final nextId=data['deal_room_id']?.toString();if(nextId!=null&&draftRoom!=nextId){draftRoom=nextId;final prefs=await SharedPreferences.getInstance();if(!mounted||generation!=v)return;message.text=prefs.getString('waouh.room.draft.$owner.$nextId')??'';}
-   setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';}else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
+   setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';}else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});unawaited(loadDelivery());if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
   }catch(e){if(mounted&&generation==v)setState(()=>error=roomError(e));}finally{refreshing=false;}
  }
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
@@ -125,21 +131,24 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
-  if(!delegate&&kind!='opportunity'&&liveIsDirectDealCandidate(fabricId:item.fabricId)){if(busy)return;setState((){busy=true;error='';});try{if(await openLiveExternalInterest(context,item))return;}catch(e){if(mounted){setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');showError();}return;}finally{if(mounted)setState(()=>busy=false);}}
-  if(!delegate&&kind!='opportunity'&&liveLegacyDealCandidate(item)){if(busy)return;setState((){busy=true;error='';});try{await openLiveLegacyInterest(context,item);}catch(e){if(mounted){setState(()=>error=e is LiveLegacyInterestException?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');showError();}}finally{if(mounted)setState(()=>busy=false);}return;}
   final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();
   // « Intéressé » : la proposition d'offre s'ouvre aussitôt (prix de l'annonce prérempli), sans étape intermédiaire.
   if(d!=null&&!delegate&&mounted&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose'))await propose(amount:item.priceMin??item.priceMax);}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
+ Widget deliveryBox(){
+  final d=dlv;final st='${d?['status']??'pending'}';final buyer=d?['is_buyer']==true;final name=d?['courier_name'];
+  final text=st=='assigned'?'Livreur assigné${name!=null?' : $name':''}. ${buyer?'Donnez-lui le code à la remise.':'Remettez-lui l’article.'}':st=='picked_up'?'Commande en route.':st=='delivered'?'Livré.':'Un livreur va être assigné automatiquement.';
+  return Padding(padding:const EdgeInsets.symmetric(vertical:8),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(text),if(d?['code']!=null)Text('Code de remise : ${d!['code']}',style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold))]));
+ }
  Widget button(String text,VoidCallback fn,{bool primary=false,bool enabled=true})=>Padding(padding:const EdgeInsets.only(top:8),child:primary?FilledButton(onPressed:busy||!enabled?null:fn,child:Text(text)):OutlinedButton(onPressed:busy||!enabled?null:fn,child:Text(text)));
  Widget card(List<Widget> children)=>Card(child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:children)));
  Widget field(String label,TextEditingController c,{bool number=false})=>Padding(padding:const EdgeInsets.symmetric(vertical:8),child:TextField(controller:c,onChanged:(_){if(c==message){unawaited(SharedPreferences.getInstance().then((prefs)=>prefs.setString('waouh.room.draft.$owner.$roomId',message.text)));}},keyboardType:number?TextInputType.number:TextInputType.text,decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
  Future<Map<String,String>?> form(String title,Map<String,String> values,{Set<String> numeric=const {}}) async {
   final formOwner=owner;
   final controls=values.map((k,v)=>MapEntry(k,TextEditingController(text:v)));
-  final labels={'mode':'Mode : assisted / semi_autonomous / autonomous','budget_max':'Plafond · F','initial_offer':'Offre de départ · F (facultatif)','duration_hours':'Durée en heures (1–168)','max_followups':'Relances (0–2)','active_start':'Début · HH:MM · Bénin','active_end':'Fin · HH:MM · Bénin','amount':'Prix total · F','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement convenu','text':'Votre message'};
-  final result=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(title:Text(title),content:SizedBox(width:450,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:controls.entries.map((e)=>e.key=='mode'?DropdownButtonFormField<String>(initialValue:e.value.text,decoration:const InputDecoration(labelText:'Mode'),items:const [DropdownMenuItem(value:'assisted',child:Text('Assisté')),DropdownMenuItem(value:'semi_autonomous',child:Text('Semi-auto')),DropdownMenuItem(value:'autonomous',child:Text('Autonome'))],onChanged:(v)=>e.value.text=v!):field(labels[e.key]??e.key,e.value,number:numeric.contains(e.key))).toList()))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,controls.map((k,c)=>MapEntry(k,c.text.trim()))),child:const Text('Confirmer'))]));
+  final labels={'mode':'Mode : assisted / semi_autonomous / autonomous','budget_max':'Plafond · F','initial_offer':'Offre de départ · F (facultatif)','duration_hours':'Durée en heures (1–168)','max_followups':'Relances (0–2)','active_start':'Début · HH:MM · Bénin','active_end':'Fin · HH:MM · Bénin','amount':'Prix total · F','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement convenu','delivery_mode':'Remise','delivery_address':'Adresse de livraison','delivery_fee':'Frais de livraison · F (facultatif)','text':'Votre message'};
+  final result=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(title:Text(title),content:SizedBox(width:450,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:controls.entries.map((e)=>e.key=='delivery_mode'?DropdownButtonFormField<String>(initialValue:e.value.text,decoration:const InputDecoration(labelText:'Remise'),items:const [DropdownMenuItem(value:'pickup',child:Text('Retrait en main propre')),DropdownMenuItem(value:'delivery',child:Text('Livraison par un livreur'))],onChanged:(v)=>e.value.text=v!):e.key=='mode'?DropdownButtonFormField<String>(initialValue:e.value.text,decoration:const InputDecoration(labelText:'Mode'),items:const [DropdownMenuItem(value:'assisted',child:Text('Assisté')),DropdownMenuItem(value:'semi_autonomous',child:Text('Semi-auto')),DropdownMenuItem(value:'autonomous',child:Text('Autonome'))],onChanged:(v)=>e.value.text=v!):field(labels[e.key]??e.key,e.value,number:numeric.contains(e.key))).toList()))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,controls.map((k,c)=>MapEntry(k,c.text.trim()))),child:const Text('Confirmer'))]));
   WidgetsBinding.instance.addPostFrameCallback((_){for(final c in controls.values){c.dispose();}});return mounted&&owner==formOwner?result:null;
  }
  // Mandat en un geste : seul le plafond est visible ; le reste est rangé dans « Personnaliser ».
@@ -194,8 +203,13 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  }
  Future<void> propose({num? amount}) async {
   final r=room!;final a=r['agreement'] as Map?;final t=a?['terms'] as Map? ?? {};
-  final values=await form('Votre proposition',{'amount':'${amount?.round()??t['amount']??r['price']??''}','quantity':'${t['quantity']??1}','scope':'${t['scope']??r['title']}','deadline':'${t['deadline']??''}','exclusions':'${t['exclusions']??'À préciser'}','expected_result':'${t['expected_result']??r['title']}','payment':'${t['payment']??''}'},numeric:{'amount','quantity'});
-  if(values!=null)await act('propose',{'version':r['current_offer_version'],'terms':{...values,'amount':num.tryParse(values['amount']!),'quantity':int.tryParse(values['quantity']!)}});
+  final values=await form('Votre proposition',{'amount':'${amount?.round()??t['amount']??r['price']??''}','quantity':'${t['quantity']??1}','scope':'${t['scope']??r['title']}','deadline':'${t['deadline']??''}','exclusions':'${t['exclusions']??'À préciser'}','expected_result':'${t['expected_result']??r['title']}','payment':'${t['payment']??''}','delivery_mode':'${t['delivery_mode']=='delivery'?'delivery':'pickup'}','delivery_address':'${t['delivery_address']??''}','delivery_fee':'${t['delivery_fee']??''}'},numeric:{'amount','quantity','delivery_fee'});
+  if(values==null)return;
+  final delivery=values['delivery_mode']=='delivery';final address=(values['delivery_address']??'').trim();
+  if(delivery&&address.length<5){setState(()=>error='Indiquez une adresse de livraison (au moins 5 caractères).');return;}
+  final fee=num.tryParse(values['delivery_fee']??'')??0;
+  final terms={...values}..remove('delivery_address')..remove('delivery_fee');
+  await act('propose',{'version':r['current_offer_version'],'terms':{...terms,'amount':num.tryParse(values['amount']!),'quantity':int.tryParse(values['quantity']!),'delivery_mode':delivery?'delivery':'pickup',if(delivery)'delivery_address':address,if(delivery&&fee>0)'delivery_fee':fee}});
  }
  Future<void> shareSeller(bool open)async{final d=await act('share_link');if(d==null||d['url']==null)return;final out=open?'${d['text']}':'${d['url']}';try{await Clipboard.setData(ClipboardData(text:out));if(mounted)setState(()=>notice=open?'Message copié. Collez-le dans la discussion de l’annonce.':'Lien copié. Envoyez-le au vendeur par le moyen de votre choix.');}catch(_){if(mounted)setState(()=>notice=out);}final src=d['source_url'];if(open&&src is String&&src.isNotEmpty){final uri=Uri.tryParse(src);if(uri!=null)await launchUrl(uri,mode:LaunchMode.externalApplication);}}
  Future<void> copyInvite()async{final d=await act('invite');if(d?['token']==null)return;try{await Clipboard.setData(ClipboardData(text:'https://bot.bj/app/premium#invite=${d!['token']}'));if(mounted)setState(()=>notice='Invitation copiée. Partagez-la pour que l’interlocuteur rejoigne cet échange.');}catch(_){if(mounted)setState(()=>notice='Invitation préparée : https://bot.bj/app/premium#invite=${d!['token']}');}}
@@ -297,7 +311,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   if(action=='application_outcome'){await outcomePanel();return;}
   if(action=='review'&&a!=null){
    final allowed=r['allowed_actions'] as List? ?? [];
-   final decision=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Relire les conditions · Version $version'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Padding(padding:const EdgeInsets.only(bottom:10),child:Text('${{'amount':'Prix · F','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement'}[entry.key]??entry.key} : ${entry.value}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),if(allowed.contains('reject'))TextButton(onPressed:()=>Navigator.pop(ctx,'reject'),child:const Text('Refuser cette version')),if(allowed.contains('accept'))FilledButton(onPressed:()=>Navigator.pop(ctx,'accept'),child:const Text('Confirmer ces conditions'))]));
+   final decision=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Relire les conditions · Version $version'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Padding(padding:const EdgeInsets.only(bottom:10),child:Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),if(allowed.contains('reject'))TextButton(onPressed:()=>Navigator.pop(ctx,'reject'),child:const Text('Refuser cette version')),if(allowed.contains('accept'))FilledButton(onPressed:()=>Navigator.pop(ctx,'accept'),child:const Text('Confirmer ces conditions'))]));
    if(decision!=null&&mounted&&owner==account)await act(decision,{'version':version});return;
   }
   if(action=='rating'){final score=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Évaluer cet échange'),content:Wrap(spacing:8,children:[for(var n=1;n<=5;n++)OutlinedButton(onPressed:()=>Navigator.pop(ctx,n),child:Text('$n ★'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Plus tard'))]));if(score!=null&&mounted&&owner==account)await act('rating',{'rating':score});return;}
@@ -343,7 +357,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     if(r['provider_joined']!=true&&r['is_owner']==true&&r['external_contact']==null)...[button('Confirmer la prise de contact',()=>act('contact',{'confirmed':true})),if(guide?['action']!='invite')button('Préparer et copier l’invitation',copyInvite),button('Révoquer l’invitation',()=>act('revoke_invite'))],
     if(a==null&&r['initial_price_proposal'] is Map&&r['initial_price_proposal']['amount']!=null)card([const Text('Prix proposé par Bot'),Text(money(r['initial_price_proposal']['amount'])),Text('Proposition ${r['initial_price_proposal']['revision']} · Conditions à préciser avant l’accord.')]),
     if(allowed.contains('rating'))card([const Text('Évaluer cet échange'),Wrap(spacing:8,children:[for(var score=1;score<=5;score++)OutlinedButton(onPressed:busy?null:()=>act('rating',{'rating':score}),child:Text('$score ★'))])]),
-    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':'Accord à confirmer',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money((a['terms'] as Map)['amount']),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Text('${{'amount':'Prix','quantity':'Quantité','scope':'Périmètre','deadline':'Remise / délai','exclusions':'Exclusions','expected_result':'Résultat attendu','payment':'Paiement'}[entry.key]??entry.key} : ${entry.value}'),Text('${a['owner_accepted_at']!=null?'✓':'○'} Demandeur · ${a['provider_accepted_at']!=null?'✓':'○'} Interlocuteur'),
+    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':'Accord à confirmer',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money((a['terms'] as Map)['amount']),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'),if(a['status']=='accepted'&&(a['terms'] as Map)['delivery_mode']=='delivery')deliveryBox(),Text('${a['owner_accepted_at']!=null?'✓':'○'} Demandeur · ${a['provider_accepted_at']!=null?'✓':'○'} Interlocuteur'),
      if(guide==null&&allowed.contains('accept'))button('Confirmer ces conditions',()=>act('accept',{'version':a['version']}),primary:true),if(guide==null&&allowed.contains('reject'))button('Refuser cette version',()=>act('reject',{'version':a['version']})),
      if(a['status']=='accepted')...[
       if(guide==null)const Text('Réception et paiement à confirmer ensuite.'),

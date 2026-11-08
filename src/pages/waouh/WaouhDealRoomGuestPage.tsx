@@ -1,3 +1,4 @@
+import {termLabel,termValue} from '@/lib/waouh/dealTerms';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {guestRoomCall,roomErrorText,type DealRoom} from '@/lib/waouh/dealRoom';
 import {WaouhDealGuidance} from '@/components/waouh/WaouhDealGuidance';
@@ -5,7 +6,6 @@ import {ProductGallery} from '@/components/waouh/WaouhProductPresentation';
 import './deal-room.css';
 
 const money=(n:any)=>n==null?'Prix à préciser':`${new Intl.NumberFormat('fr-FR').format(Number(n))} F`;
-const TERM_LABELS:Record<string,string>={amount:'Prix',quantity:'Quantité',scope:'Périmètre',deadline:'Remise / délai',exclusions:'Exclusions',expected_result:'Résultat attendu',payment:'Paiement'};
 export const isGuestToken=(t:string)=>/^[a-f0-9]{64}$/.test(t);
 
 /** Échange ouvert depuis un message WhatsApp par un vendeur ou un annonceur qui n’a pas l’application. */
@@ -43,7 +43,7 @@ export default function WaouhDealRoomGuestPage(){
    {allowed('message')&&<form onSubmit={e=>{e.preventDefault();void act('message',{text:message}).then(d=>{if(d)setMessage('');});}}><label>Votre réponse<textarea id="wg-message" value={message} maxLength={2000} onChange={e=>setMessage(e.target.value)}/></label><button className="wr-primary" disabled={busy||!message.trim()}>Envoyer</button></form>}
    {allowed('propose')&&guide?.action!=='propose'&&<button disabled={busy} onClick={openOffer}>Proposer un prix / des conditions</button>}
    <section className="wr-card wr-agreement"><h2>{a?.status==='completed'?'Échange clôturé':a?.status==='accepted'?'Accord confirmé':'Accord'}</h2>
-    {a?<><b className="wr-price">{money(a.terms?.amount)}</b><dl>{Object.entries(a.terms||{}).filter(([k])=>k!=='workflow_version').map(([k,v])=><div key={k}><dt>{TERM_LABELS[k]||'Condition'}</dt><dd>{String(v)}</dd></div>)}</dl><p>{a.owner_accepted_at?'✓':'○'} Client · {a.provider_accepted_at?'✓':'○'} Vous</p>
+    {a?<><b className="wr-price">{money(a.terms?.amount)}</b><dl>{Object.entries(a.terms||{}).filter(([k])=>k!=='workflow_version').map(([k,v])=><div key={k}><dt>{termLabel(k)}</dt><dd>{termValue(k,v)}</dd></div>)}</dl><p>{a.owner_accepted_at?'✓':'○'} Client · {a.provider_accepted_at?'✓':'○'} Vous</p>
      {allowed('accept')&&<button className="wr-primary" disabled={busy} onClick={()=>void act('accept',{version:a.version})}>Confirmer ces conditions</button>}
      {allowed('reject')&&<button disabled={busy} onClick={()=>void act('reject',{version:a.version})}>Refuser cette version</button>}
      {allowed('receipt')&&<button disabled={busy} onClick={()=>{setNote('');setPanel('receipt');}}>Confirmer la remise</button>}
@@ -59,7 +59,7 @@ export default function WaouhDealRoomGuestPage(){
    <label>Quantité<input type="number" min="1" value={terms.quantity} onChange={e=>setTerms({...terms,quantity:e.target.value})}/></label>
    <label>Remise / délai<input value={terms.deadline} onChange={e=>setTerms({...terms,deadline:e.target.value})} placeholder="Ex. : demain à Cotonou"/></label>
    <label>Paiement<input value={terms.payment} onChange={e=>setTerms({...terms,payment:e.target.value})} placeholder="Ex. : à la remise"/></label>
-   <button className="wr-primary" disabled={busy||!(Number(terms.amount)>0)||!terms.payment.trim()} onClick={()=>void act('propose',{version:room.current_offer_version??0,terms:{...terms,amount:Number(terms.amount),quantity:Number(terms.quantity)}}).then(d=>{if(d)setPanel('');})}>Envoyer la proposition</button></section></div>}
+   <button className="wr-primary" disabled={busy||!(Number(terms.amount)>0)||!terms.payment.trim()} onClick={()=>void act('propose',{version:room.current_offer_version??0,terms:{...terms,amount:Number(terms.amount),quantity:Number(terms.quantity),...(a?.terms?.delivery_mode?{delivery_mode:a.terms.delivery_mode,delivery_address:a.terms.delivery_address,delivery_fee:a.terms.delivery_fee}:{})}}).then(d=>{if(d)setPanel('');})}>Envoyer la proposition</button></section></div>}
   {panel==='receipt'&&room&&a&&<div className="wr-overlay" role="dialog" aria-modal="true" aria-label="Confirmer la remise"><section className="wr-sheet"><button disabled={busy} onClick={()=>setPanel('')}>Fermer</button><h2>Confirmer la remise</h2><label>Précision (facultatif)<textarea value={note} maxLength={500} onChange={e=>setNote(e.target.value)}/></label><button className="wr-primary" disabled={busy} onClick={()=>void act('receipt',{version:a.version,...(note.trim()?{text:note.trim()}:{})}).then(d=>{if(d)setPanel('');})}>Confirmer la remise</button></section></div>}
  {room&&<section className="wr-card mt-4"><h2>Cette annonce est la vôtre ?</h2><p>Créez votre espace vendeur gratuit : toutes vos offres arrivent au même endroit, et vous répondez quand vous voulez.</p><a className="wr-primary" href="/auth">Créer mon espace vendeur</a></section>}
  </main>;
