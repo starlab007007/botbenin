@@ -12,6 +12,14 @@ export const ROOM_GUEST_ACTOR = "00000000-0000-4000-8000-0000000ae01e";
 export const ROOM_GUEST_TEMPLATE = "deal_room_guest_outreach";
 const SITE = "https://bot.bj";
 const ALLOWED_CONSENT = new Set(["public_business", "initiated", "opt_in", "partner_contract"]);
+const GUEST_NOTICES: Record<string, string> = {
+  message: "Le vendeur vous a écrit dans l’échange.",
+  propose: "Le vendeur a fait une contre-proposition. Relisez-la et confirmez ou refusez.",
+  accept: "Le vendeur a confirmé les conditions. L’accord est prêt.",
+  reject: "Le vendeur a refusé cette version. Bot cherche la suite pour vous.",
+  receipt: "Le vendeur a confirmé la remise.",
+  payment_receive: "Le vendeur confirme avoir reçu le paiement.",
+};
 const GUEST_ACTIONS = new Set(["get", "message", "propose", "accept", "reject", "receipt", "payment_receive", "complete", "rating", "stop"]);
 
 export const roomGuestReference = (roomId: string) => `DR-${roomId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
@@ -265,7 +273,7 @@ export async function handleRoomGuestRequest(sb: any, token: string, action: str
     await sb.from("waouh_room_guests").update({ last_inbound_at: new Date().toISOString() }).eq("room_id", guest.room_id);
     await sb.from("waouh_deal_room_links").update({ next_run_at: new Date().toISOString() }).eq("id", guest.room_id).eq("control_mode", "bot");
     await sb.rpc("waouh_room_tick", { p_limit: 1, p_room_id: guest.room_id });
-    await notifyOwner(sb, guest.room_id, action === "message" ? "Le vendeur vous a écrit dans l’échange." : "Le vendeur a mis à jour l’échange.", `room-guest-act:${guest.room_id}:${String(p.request_id)}`);
+    await notifyOwner(sb, guest.room_id, GUEST_NOTICES[action] ?? "Le vendeur a mis à jour l’échange.", `room-guest-act:${guest.room_id}:${String(p.request_id)}`);
     const fresh = await sb.rpc("waouh_room_snapshot", { p_actor: ROOM_GUEST_ACTOR, p_room: guest.room_id });
     if (!fresh.error) return { status: 200, body: { ok: true, data: { ...fresh.data, guest_name: guest.display_name } } };
   }

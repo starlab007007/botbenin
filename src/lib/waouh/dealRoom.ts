@@ -21,3 +21,13 @@ export async function guestRoomCall(token:string,action:string,payload:Record<st
  if(error||!data?.ok){let code=data?.error;try{code=(await (error as any)?.context?.clone().json())?.error||code;}catch{/* keep current error */}throw new Error(code||'request_failed');}
  return data.data;
 }
+
+/** Cadence de rafraîchissement : rapide quand Bot ou un livreur agit, lente quand tout est calme. */
+export function pollDelay(room:DealRoom|null):number{
+ if(!room)return 10000;
+ const status=room.agreement?.status;
+ if(room.closed||status==='completed')return 60000;
+ if(status==='accepted'&&room.agreement?.terms?.delivery_mode==='delivery'&&room.delivery?.status!=='delivered')return 5000;
+ if(room.control_mode==='bot'&&status!=='accepted')return 3000;
+ return 10000;
+}

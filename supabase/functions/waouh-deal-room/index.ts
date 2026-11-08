@@ -8,6 +8,17 @@ import {resolveProductThread} from '../_shared/waouh-thread.ts';
 import {assignRoomDeliveries,deliveryCode,handleCourierRequest} from '../_shared/waouh-room-delivery.ts';
 import {createShareLink,handleRoomGuestRequest,reachRoomOwner,relayRoomGuests} from '../_shared/waouh-room-guest.ts';
 const actions=new Set(['open','adopt','list','get','events','contact','message','delegate','takeover','pause','resume_bot','approve_step','propose','accept','reject','invite','revoke_invite','receipt','payment_report','payment_receive','complete','issue','rating','application_prepare','application_submit','application_outcome','share_link','delivery']);
+async function digest(value:unknown):Promise<string>{
+ const bytes=new TextEncoder().encode(JSON.stringify(value));
+ const hash=await crypto.subtle.digest('SHA-1',bytes);
+ return Array.from(new Uint8Array(hash).slice(0,8),n=>n.toString(16).padStart(2,'0')).join('');
+}
+async function deliveryFor(sb:any,userId:string,roomId:string){
+ const {data:view,error}=await sb.rpc('waouh_room_delivery_view',{p_actor:userId,p_room:roomId});
+ if(error)return {error};
+ if(view?.is_buyer&&['assigned','picked_up'].includes(view.status))view.code=await deliveryCode(roomId,Number(view.version));
+ return {view};
+}
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
  if(req.method!=='POST')return jsonResponse({ok:false,error:'method_not_allowed'},405);
@@ -45,9 +56,8 @@ Deno.serve(async req=>{
  }
  if(action==='delivery'){
   const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
-  const {data:view,error:viewError}=await sb.rpc('waouh_room_delivery_view',{p_actor:user.id,p_room:id});
+  const {view,error:viewError}=await deliveryFor(sb,user.id,id) as any;
   if(viewError)return jsonResponse({ok:false,error:viewError.code==='42501'?'forbidden':'request_failed'},viewError.code==='42501'?403:400);
-  if(view?.is_buyer&&['assigned','picked_up'].includes(view.status))view.code=await deliveryCode(id,Number(view.version));
   return jsonResponse({ok:true,data:view});
  }
  if(action==='propose'&&p.terms?.delivery_mode==='delivery'&&String(p.terms.delivery_address||'').trim().length<5)return jsonResponse({ok:false,error:'delivery_address_required'},422);
@@ -56,6 +66,7 @@ Deno.serve(async req=>{
   try{const shared=await createShareLink(sb,id,user.id);if(!shared)return jsonResponse({ok:false,error:'link_unavailable'},409);return jsonResponse({ok:true,data:shared});}
   catch(e){console.error('[deal-room] share',e instanceof Error?e.message:'failed');return jsonResponse({ok:false,error:'request_failed'},400);}
  }
+ const since=typeof p.since==='string'?p.since:'';delete p.since;
  const {data,error}=await sb.rpc('waouh_room_command',{p_actor:user.id,p_action:action,p});
  if(error)return jsonResponse({ok:false,error:error.code==='42501'?'forbidden':error.message},error.code==='42501'?403:409);
  // Prise en charge de bout en bout : l'utilisateur est prévenu dans l'application dès que Bot reprend la démarche.
@@ -82,7 +93,7 @@ Deno.serve(async req=>{
    }
   }
  }
- if(data?.deal_room_id&&['delegate','resume_bot','approve_step','propose','contact'].includes(action)){
+ if(data?.deal_room_id&&['delegate','resume_bot','approve_step','propose','contact','message'].includes(action)){
  const tick=await sb.rpc('waouh_room_tick',{p_limit:1,p_room_id:data.deal_room_id});
  if(tick.error)console.warn('[deal-room] scheduled retry',tick.error.code);
  await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
@@ -91,6 +102,13 @@ Deno.serve(async req=>{
  }
  if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  if(action==='accept')await assignRoomDeliveries(sb).catch(()=>undefined);
+ // Lecture légère : la livraison voyage avec le salon et rien n'est renvoyé tant que rien n'a changé.
+ if(action==='get'&&data?.deal_room_id){
+  if(data.agreement?.status==='accepted'&&data.agreement?.terms?.delivery_mode==='delivery'){const {view}=await deliveryFor(sb,user.id,String(data.deal_room_id)) as any;if(view)data.delivery=view;}
+  const hash=await digest(data);
+  if(since&&since===hash)return jsonResponse({ok:true,data:{unchanged:true,hash,deal_room_id:data.deal_room_id}});
+  data.hash=hash;
+ }
  return jsonResponse({ok:true,data});
  }catch(error){console.error('[deal-room]',error instanceof Error?error.message:'request_failed');return jsonResponse({ok:false,error:'request_failed'},400);}
 });

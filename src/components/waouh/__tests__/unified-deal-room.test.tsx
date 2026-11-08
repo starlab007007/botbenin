@@ -4,7 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {Simulate} from 'react-dom/test-utils';
 const mocks=vi.hoisted(()=>({call:vi.fn(),search:vi.fn()}));
-vi.mock('@/lib/waouh/dealRoom',()=>({roomCall:mocks.call}));
+vi.mock('@/lib/waouh/dealRoom',async()=>({roomCall:mocks.call,pollDelay:(await vi.importActual<typeof import('@/lib/waouh/dealRoom')>('@/lib/waouh/dealRoom')).pollDelay}));
 vi.mock('@/lib/waouh/progressiveDiscovery',()=>({progressiveNexusDiscovery:mocks.search}));
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'owner'}})}));
 vi.mock('@/components/waouh/bot/BotLiveAvatar',()=>({BotLiveAvatar:()=> <span>Avatar WAOUH</span>}));
