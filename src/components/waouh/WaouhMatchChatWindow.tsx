@@ -641,6 +641,9 @@ export function WaouhMatchChatWindow({
     return null;
   }, [messages]);
 
+  // Mots d'action compris tels quels par le fil (oui, non, accepter, un montant…) : jamais transformés.
+  const COMMAND_TEXT = /^\s*(?:oui|non|ok|d[’']?accord|j[’']?accepte|accepte[rz]?|refuse[rz]?|annule[rz]?|payer|paiement|pay[ée]|aide|stop|confirme[rz]?|re[çc]u|livr[ée]e?|\d[\d\s.,]*\s*(?:f|fcfa|cfa|francs?)?)\s*[.!]*\s*$/i;
+
   const sendMessage = async (
     overrideText?: string,
     overrideMeta: Record<string, unknown> = {}
@@ -692,6 +695,10 @@ export function WaouhMatchChatWindow({
       }
     }
 
+    // Un message libre écrit dans l'échange est un message pour l'interlocuteur : il lui est transmis,
+    // au lieu d'être lu comme une commande par l'assistant.
+    const forCounterpart = overrideText == null && !askMode && !typedOffer && text.length >= 6 && !COMMAND_TEXT.test(text);
+
     setSending(true);
     const tempId = `temp-in-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -719,7 +726,7 @@ export function WaouhMatchChatWindow({
             role: match.kind,
             product_title: match.title,
             correlation_id: correlationId,
-            ...(askMode && overrideText == null ? { commerce_action: "ask" } : {}),
+            ...((askMode && overrideText == null) || forCounterpart ? { commerce_action: "ask" } : {}),
             ...overrideMeta,
           },
         },

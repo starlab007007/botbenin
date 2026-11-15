@@ -426,6 +426,11 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
       match != null &&
       liveIsClosedArticleStatus(_controller.matchArticleStatus(match));
 
+  static final RegExp _commandText = RegExp(
+    r"^\s*(?:oui|non|ok|d[’']?accord|j[’']?accepte|accepte[rz]?|refuse[rz]?|annule[rz]?|payer|paiement|pay[ée]|aide|stop|confirme[rz]?|re[çc]u|livr[ée]e?|\d[\d\s.,]*\s*(?:f|fcfa|cfa|francs?)?)\s*[.!]*\s*$",
+    caseSensitive: false,
+  );
+
   void _send([String? payload, bool bypassCommerceOffer = false]) {
     final match = _match;
     if (_isClosed(match)) return;
@@ -461,6 +466,15 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         RegExp(r'^\s*(je\s+)?(propose|contre[-\s]?propose)\b',
                 caseSensitive: false)
             .hasMatch(text);
+    // Parité Web : un message libre écrit dans l'échange est transmis à l'interlocuteur ;
+    // les mots d'action (oui, non, accepter, un montant…) partent tels quels.
+    if (payload == null &&
+        !askingQuestion &&
+        !typedOffer &&
+        text.length >= 6 &&
+        !_commandText.hasMatch(text)) {
+      actionMeta['commerce_action'] = 'ask';
+    }
     if (match != null && typedOffer) {
       unawaited(_sendTypedOfferV3(match, text));
       return;

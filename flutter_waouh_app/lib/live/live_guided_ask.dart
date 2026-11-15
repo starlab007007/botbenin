@@ -91,6 +91,19 @@ final RegExp _alreadyPhrased = RegExp(
   caseSensitive: false,
 );
 
+final RegExp _conversation = RegExp(
+  r"^\s*(bonjour|bonsoir|salut|hello|coucou|merci|ok|oui|non|comment|pourquoi|quand|combien|qui|que|quels?|quelles?|quoi|est-ce|aide|aidez|explique|résume|resume|où|ou en)(?=[\s,.!?'’-]|$)|\?",
+  caseSensitive: false,
+);
+
+/// Texte libre : un besoin court (« riz parfumé ») est une recherche, même sans verbe ;
+/// une phrase de conversation reste un simple message (parité Web `freeTextIsNeed`).
+bool liveFreeTextIsNeed(String q) {
+  final t = q.trim();
+  if (t.length < 3 || _conversation.hasMatch(t) || _alreadyPhrased.hasMatch(t)) return false;
+  return t.split(RegExp(r'\s+')).length <= 8;
+}
+
 /// Phrase naturelle comprise par le moteur du Chat, construite à partir du formulaire guidé.
 String liveGuidedAskText({
   required String kind,
@@ -102,7 +115,7 @@ String liveGuidedAskText({
   if (kind == 'vendre') return '';
   final query = q.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (query.isEmpty) return '';
-  if (free) return query;
+  if (free) return liveFreeTextIsNeed(query) ? 'Je cherche $query' : query;
   final zone = city.trim();
   final max = liveGuidedBudget(budget);
   String text;
@@ -197,7 +210,7 @@ LiveGuidedAsk? liveGuidedAskFromUri(Uri uri) {
     goal: q,
     city: city,
     budget: liveGuidedBudget(p['budget']),
-    force: !free,
+    force: !free || liveFreeTextIsNeed(q),
   );
 }
 

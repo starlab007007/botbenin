@@ -4,7 +4,7 @@
 // Elles ne donnent AUCUN droit d'envoi automatique : is_public_business reste faux et le consentement « inconnu ».
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
-import { extractContacts, pageNeedsRenderer } from "../_shared/waouh-contact-extract.ts";
+import { extractContacts, extractPagePhotos, pageNeedsRenderer, publicPhotoUrl } from "../_shared/waouh-contact-extract.ts";
 import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { phoneLast4 } from "../_shared/waouh-tel/phone.ts";
 import { guardedWahaFetch } from "../_shared/waouh-waha-egress.ts";
@@ -38,7 +38,7 @@ async function plainPage(url: URL): Promise<string> {
   return (await response.text()).slice(0, 400_000);
 }
 
-async function renderedPage(url: URL): Promise<string> {
+async function renderedPage(url: URL, photos: string[] = []): Promise<string> {
   if (!FIRECRAWL_API_KEY) return "";
   const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
@@ -50,6 +50,11 @@ async function renderedPage(url: URL): Promise<string> {
   const data = await response.json();
   const markdown = data.markdown ?? data.data?.markdown ?? "";
   const links = data.links ?? data.data?.links ?? [];
+  const meta = data.metadata ?? data.data?.metadata ?? {};
+  for (const candidate of [meta.ogImage, meta["og:image"], meta.twitterImage, meta["twitter:image"]].flat()) {
+    const photo = publicPhotoUrl(candidate, url.toString());
+    if (photo && !photos.includes(photo)) photos.push(photo);
+  }
   return `${markdown}\n${Array.isArray(links) ? links.join("\n") : ""}`.slice(0, 400_000);
 }
 
@@ -96,11 +101,11 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body = await req.json().catch(() => ({}));
   const limit = Math.min(Math.max(Number(body?.limit) || 12, 1), 30);
-  const stats = { checked: 0, with_contact: 0, saved: 0, pages: 0, rendered: 0, failed: 0, verified: 0 };
+  const stats = { checked: 0, with_contact: 0, with_photo: 0, saved: 0, pages: 0, rendered: 0, failed: 0, verified: 0 };
   let verifyBudget = 8;
   let renderBudget = 4;
   try {
-    const cols = "id,entity_id,source_key,source_url,raw_text,contactability_level,evidence,status,updated_at";
+    const cols = "id,entity_id,source_key,source_url,raw_text,contactability_level,evidence,status,updated_at,primary_photo_url,photo_urls";
     // Offres de vente, services et appels d'offres seulement : on n'expose pas le contact d'un particulier qui cherche à acheter.
     const base = () => sb.from("waouh_external_commerce_signals").select(cols)
       .eq("status", "active").not("entity_id", "is", null).in("contactability_level", ["C0", "C1"]).in("intent", ["SELL", "ANNOUNCE", "RFQ"]);
@@ -121,12 +126,27 @@ Deno.serve(async (req) => {
         let text = String(row.raw_text ?? "");
         const url = safePublicUrl(row.source_url);
         let found = extractContacts(text);
-        if (!found.whatsapp.length && !found.phones.length && !found.emails.length && url) {
+        // La page d'origine est lue quand il manque le contact ou la photo de l'annonce.
+        const photos: string[] = [];
+        const hasPhoto = Boolean(row.primary_photo_url) || (Array.isArray(row.photo_urls) && row.photo_urls.length > 0);
+        const noContact = !found.whatsapp.length && !found.phones.length && !found.emails.length;
+        if ((noContact || !hasPhoto) && url) {
           const social = pageNeedsRenderer(url.toString());
-          if (!social) { text += "\n" + await plainPage(url).catch(() => ""); stats.pages++; }
-          else if (renderBudget > 0) { renderBudget--; text += "\n" + await renderedPage(url).catch(() => ""); stats.rendered++; }
-          found = extractContacts(text);
+          if (!social) {
+            const html = await plainPage(url).catch(() => "");
+            stats.pages++;
+            if (!hasPhoto) photos.push(...extractPagePhotos(html, url.toString()));
+            if (noContact) text += "\n" + html;
+          } else if (renderBudget > 0) {
+            renderBudget--;
+            const rendered = await renderedPage(url, photos).catch(() => "");
+            stats.rendered++;
+            if (noContact) text += "\n" + rendered;
+          }
+          if (noContact) found = extractContacts(text);
         }
+        const newPhotos = hasPhoto ? [] : photos.slice(0, 4);
+        if (newPhotos.length) stats.with_photo++;
         let saved = 0;
         for (const p of found.whatsapp) if (await saveContact(sb, row.entity_id, row.source_key, "whatsapp", p)) saved++;
         for (const p of found.phones) if (await saveContact(sb, row.entity_id, row.source_key, "phone", p)) saved++;
@@ -136,7 +156,11 @@ Deno.serve(async (req) => {
         stats.saved += saved;
         await sb.from("waouh_external_commerce_signals").update({
           ...(any && row.contactability_level === "C0" ? { contactability_level: "C1" } : {}),
-          evidence: { ...(row.evidence ?? {}), contact_enriched_at: new Date().toISOString(), contact_found: any, contact_origin: any ? "listing" : null },
+          ...(newPhotos.length ? { primary_photo_url: newPhotos[0], photo_urls: newPhotos } : {}),
+          evidence: {
+            ...(row.evidence ?? {}), contact_enriched_at: new Date().toISOString(), contact_found: any, contact_origin: any ? "listing" : null,
+            ...(newPhotos.length ? { primary_photo_url: newPhotos[0], photos: newPhotos } : {}),
+          },
         }).eq("id", row.id);
       } catch (_e) {
         stats.failed++;
@@ -146,10 +170,10 @@ Deno.serve(async (req) => {
       }
     }
     // Vérification WhatsApp des numéros trouvés (quelques-uns par passage, avec le garde-fou d'envoi WAHA).
-    const { data: pending } = await sb.from("waouh_entity_contacts").select("id,value_encrypted")
+    const { data: toVerify } = await sb.from("waouh_entity_contacts").select("id,value_encrypted")
       .in("channel", ["whatsapp", "phone"]).eq("contactability_level", "C1").is("is_whatsapp_reachable", null)
       .not("value_encrypted", "is", null).order("created_at", { ascending: false }).limit(verifyBudget);
-    for (const contact of pending ?? []) {
+    for (const contact of toVerify ?? []) {
       let phone = "";
       try { phone = await decryptPhone(contact.value_encrypted); } catch { continue; }
       const exists = await onWhatsApp(phone);

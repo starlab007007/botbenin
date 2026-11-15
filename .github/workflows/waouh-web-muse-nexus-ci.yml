@@ -249,6 +249,8 @@ jobs:
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-identity-paging-test.ts
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-partner-seller-test.ts
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-unified-quality-test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/waouh-contact-photos-test.ts
+          deno check --node-modules-dir=none supabase/functions/waouh-contact-enrich/index.ts
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-internal-call-test.ts
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-avatar-briefing-test.ts
           deno test --node-modules-dir=none supabase/functions/_shared/waouh-avatar-briefing-core-test.ts

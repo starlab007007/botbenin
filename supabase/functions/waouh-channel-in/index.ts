@@ -1752,6 +1752,73 @@ Deno.serve(async (req) => {
         const { data: btnArticle } = await sb.from("waouh_articles").select("seller_id").eq("id", fastArticleId).maybeSingle();
         sellerOfArticle = !!btnArticle?.seller_id && siblingIds.includes(btnArticle.seller_id);
       }
+      // Réponse écrite du vendeur dans l'échange : elle est transmise à l'acheteur de ce fil
+      // (symétrique de la question de l'acheteur), au lieu d'être lue comme une commande.
+      const sellerReplyText = String(text || "").trim();
+      const sellerThreadHint = typeof clientMeta?.thread_id === "string" && clientMeta.thread_id ? String(clientMeta.thread_id) : (negOnArticle?.thread_id ?? null);
+      if (
+        fastPathEnabled && !confirmedPendingOffer && !articleButton && fastArticleId && sellerOfArticle &&
+        sellerThreadHint && metaSignalsAsk(clientMeta) && sellerReplyText && !looksLikeActionLabel(text)
+      ) {
+        let sellerThread: any = null;
+        try {
+          sellerThread = await resolveProductThread({
+            sb, articleId: fastArticleId, actorUser: user, role: "seller", preferredThreadId: sellerThreadHint, create: false,
+          });
+        } catch (_e) { sellerThread = null; }
+        const replyBuyerId: string | null = sellerThread?.buyer_user_id ?? null;
+        if (sellerThread?.id && replyBuyerId && !siblingIds.includes(replyBuyerId)) {
+          const { data: replyArticle } = await sb.from("waouh_articles").select("title").eq("id", fastArticleId).maybeSingle();
+          const relayText = `💬 Réponse du vendeur sur « ${replyArticle?.title ?? "l'article"} » :\n${sellerReplyText}`;
+          if (inboundMessageId) {
+            await sb.from("waouh_messages").update({ thread_id: sellerThread.id, article_id: fastArticleId })
+              .eq("id", inboundMessageId).is("thread_id", null);
+          }
+          let relayed = false;
+          if (await chatWriterV2Enabled(sb)) {
+            const w = await recordChatMessage({
+              sb, threadId: sellerThread.id, recipientUserId: replyBuyerId,
+              text: relayText, intent: "seller_answer", correlationId,
+              payloadExtra: { answer: sellerReplyText, from_user_id: user.id },
+              enqueueWhatsapp: true,
+            });
+            relayed = w.ok;
+          }
+          if (!relayed) {
+            const { error: relayError } = await sb.from("waouh_messages").insert({
+              thread_id: sellerThread.id, user_id: replyBuyerId, channel: "system", direction: "out",
+              text: relayText, article_id: fastArticleId,
+              meta: {
+                intent: "seller_answer", thread_id: sellerThread.id, article_id: fastArticleId,
+                counterpart_user_id: user.id, buyer_user_id: replyBuyerId,
+                seller_user_id: sellerThread.seller_user_id ?? user.id, role: "buyer", actions: [],
+              },
+            });
+            relayed = !relayError;
+          }
+          const sellerAck = relayed
+            ? "✅ Réponse transmise à l'acheteur."
+            : "⚠️ Votre réponse n'a pas pu être transmise. Rien n'a été envoyé : réessayez.";
+          const ackMeta = {
+            intent: "match_seller", commerce_event: relayed ? "answer_sent" : "answer_failed",
+            thread_id: sellerThread.id, article_id: fastArticleId, counterpart_user_id: replyBuyerId,
+            buyer_user_id: replyBuyerId, seller_user_id: sellerThread.seller_user_id ?? user.id,
+            role: "seller", actions: [], correlation_id: correlationId,
+          };
+          const { data: ackRow } = await sb.from("waouh_messages").insert({
+            conversation_id: convId, thread_id: sellerThread.id, user_id: user.id, channel, direction: "out",
+            text: sellerAck, web_session_id: sessionId, phone_number: phone, article_id: fastArticleId, meta: ackMeta,
+          }).select("id").maybeSingle();
+          return new Response(JSON.stringify({
+            ok: relayed, reply: sellerAck, ...ackMeta,
+            negotiation_id: negOnArticle?.id ?? null,
+            stage: negOnArticle ? "negotiation" : "interest",
+            outbound_message_id: ackRow?.id ?? null, inbound_message_id: inboundMessageId,
+            conversation_id: convId, user_id: user.id,
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+
       const decision = decideFastPath({
         // Un bouton de négociation ou de deal garde son propre chemin.
         enabled: !confirmedPendingOffer && fastPathEnabled && payloadCommand?.scope !== "negotiation" && payloadCommand?.scope !== "deal",

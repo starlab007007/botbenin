@@ -3,7 +3,7 @@ import { ArrowLeft, Check, MapPin, Wallet, X } from "lucide-react";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { WaouhChatMarketBrief } from "@/components/waouh/WaouhChatMarketBrief";
 import { GUIDED_KIND_LABEL, type GuidedKind } from "@/lib/waouh/guidedAsk";
-import { briefMoney } from "@/lib/waouh/chatMarketBrief";
+import { briefMatch, briefMoney } from "@/lib/waouh/chatMarketBrief";
 import { SEARCH_STAGES, searchStage } from "@/lib/waouh/chatSearchStage";
 import "./waouh-search-live.css";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -85,6 +85,12 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
   const startedFor = useRef<string | null>(null);
   const finishedFor = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  // Les offres qui correspondent à la demande passent devant les modèles proches (ordre reçu conservé sinon).
+  const orderedResults = useMemo(() => {
+    const list = search?.results ?? [];
+    const rank = (r: WaouhResultCard) => (briefMatch(r, search?.goal) === "near" ? 1 : 0);
+    return list.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i).map((x) => x.r);
+  }, [search?.results, search?.goal]);
 
   useEffect(() => {
     if (!search || startedFor.current === search.id) return;
@@ -155,13 +161,13 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
           <div ref={outcomeRef} className="wsl-anchor" aria-hidden="true" />
           {revealed && search && search.results.length > 0 && (
             <>
-              <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} />
+              <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} />
               <div className="wsl-offers">
                 <div className="wsl-offers-head">
                   <strong>Les offres</strong>
-                  <span>Choisissez une offre, écrivez au vendeur ou proposez votre prix : l’échange s’ouvre dans votre Chat.</span>
+                  <span>Choisissez, proposez votre prix : l’échange s’ouvre dans le Chat.</span>
                 </div>
-                <WaouhProductResults results={search.results} onAction={onAction} />
+                <WaouhProductResults results={orderedResults} onAction={onAction} />
               </div>
             </>
           )}
