@@ -1,5 +1,7 @@
 import { useWaouhResync } from "@/lib/waouh/resync";
 import { WaouhChatSearchWindow, type ChatSearch } from "@/components/waouh/WaouhChatSearchWindow";
+import { isChatSearchGoal } from "@/lib/waouh/chatSearchGoal";
+import { GUIDED_ASK_EVENT, takeGuidedAsk } from "@/lib/waouh/guidedAsk";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { WaouhMessageText } from "./WaouhMessageText";
@@ -81,15 +83,7 @@ type Msg = {
 };
 
 /** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */
-/** Une demande de recherche (achat, vente, demande) ouvre sa propre fenêtre « Recherche live ». */
-const SEARCH_GOAL_RE = /\b(cherche|chercher|recherche|rechercher|acheter|achète|achete|trouve|trouver|trouvez|vends?|vendre|acheteurs?|vendeurs?|besoin\s+d)/i;
-const NOT_A_SEARCH_RE = /^\s*(annuler|question\s*\d|je\s+propose|je\s+suis\s+int[ée]ress|oui\b|non\b|ok\b|merci)/i;
-export function isChatSearchGoal(text: string, meta: Record<string, unknown> = {}, hasAttachments = false): boolean {
-  if (meta.commerce_action || meta.button_payload || meta.action_id) return false;
-  const t = text.trim();
-  if (t.length < 4 || NOT_A_SEARCH_RE.test(t)) return false;
-  return SEARCH_GOAL_RE.test(t) && !hasAttachments;
-}
+export { isChatSearchGoal };
 
 const DEDICATED_INTENTS = new Set([
   "CONFIRM",
@@ -236,7 +230,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const accountIdRef = useRef(user?.id ?? null);
   const previousAccountIdRef = useRef(user?.id ?? null);
   accountIdRef.current = user?.id ?? null;
@@ -696,7 +690,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     text: string,
     atts: Att[],
     locationOverride?: { lat: number | null; lng: number | null; city: string } | null,
-    metaOverride: Record<string, unknown> = {}
+    metaOverride: Record<string, unknown> = {},
+    searchHint?: { force?: boolean; goal?: string; kind?: ChatSearch["kind"]; budget?: number | null }
   ) => {
     if ((!text && atts.length === 0) || sendingRef.current) return;
     // Hors ligne : un message texte simple est gardé dans une file locale (visible « en attente ») et
@@ -724,9 +719,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       ...prev,
       { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts },
     ]);
-    const opensSearch = isChatSearchGoal(text, metaOverride, atts.length > 0);
+    const opensSearch = (!!searchHint?.force && atts.length === 0) || isChatSearchGoal(text, metaOverride, atts.length > 0);
     if (opensSearch) {
-      setChatSearch({ id: tempInId, goal: text, city: (locationOverride?.city && locationOverride.city.trim()) || "", status: "running", results: [], text: "" });
+      setChatSearch({ id: tempInId, goal: searchHint?.goal || text, city: (locationOverride?.city && locationOverride.city.trim()) || "", status: "running", results: [], text: "", kind: searchHint?.kind, budget: searchHint?.budget ?? null });
     }
     try {
       const effLat = locationOverride?.lat ?? geo.lat;
@@ -871,6 +866,32 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       setPendingAtts(atts);
     }
   };
+
+  // Recherche guidée (Acheter, Trouver, Service, Prestation, Opportunité, Vendre…) : la demande
+  // déposée par l'accueil part par ce même moteur. Une demande n'est envoyée qu'une fois ;
+  // si un envoi est en cours, elle attend la fin de celui-ci.
+  const sendCoreRef = useRef(sendCore);
+  sendCoreRef.current = sendCore;
+  const guidedAccountId = user?.id ?? null;
+  useEffect(() => {
+    const run = () => {
+      // La demande part au nom du compte : on attend que la session soit connue.
+      if (authLoading || !guidedAccountId || sendingRef.current) return;
+      const ask = takeGuidedAsk();
+      if (!ask) return;
+      if (ask.kind === "vendre" || !ask.text) { setSellOpen(true); return; }
+      void sendCoreRef.current(
+        ask.text,
+        [],
+        ask.city ? { lat: null, lng: null, city: ask.city } : null,
+        {},
+        { force: ask.force, goal: ask.goal, kind: ask.kind, budget: ask.budget },
+      ).catch(() => { /* sendCore affiche déjà l'erreur */ });
+    };
+    run();
+    window.addEventListener(GUIDED_ASK_EVENT, run);
+    return () => window.removeEventListener(GUIDED_ASK_EVENT, run);
+  }, [sending, authLoading, guidedAccountId]);
 
   const handleAgentAction = async (action: AgenticAction, payload: Record<string, unknown>) => {
     if (!user) {

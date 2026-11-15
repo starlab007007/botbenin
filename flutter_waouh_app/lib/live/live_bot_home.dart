@@ -116,15 +116,15 @@ class _BotHomeHeroState extends State<BotHomeHero> {
   }
 
   void _askQuick(LiveQuickAskKind kind) {
-    showLiveQuickAsk(context, kind).then((path) {
-      if (path != null && mounted) context.push(path);
-    });
+    liveGuidedQuickAsk(context, kind);
   }
 
   void _submit() {
     final value = _prompt.text.trim();
     if (value.isEmpty) return;
-    context.push(
+    // Texte libre : envoyé tel quel au Chat pour un compte connecté.
+    liveOpenGuidedPath(
+      context,
       Uri(
         path: '/app/nexus',
         queryParameters: {
@@ -132,6 +132,7 @@ class _BotHomeHeroState extends State<BotHomeHero> {
           'go': '1',
           'mode': 'auto',
           'kind': 'trouver',
+          'free': '1',
         },
       ).toString(),
     );
@@ -302,9 +303,17 @@ class _BotHomeHeroState extends State<BotHomeHero> {
             [
               (LiveQuickAskKind.trouver, 'Trouver', Icons.travel_explore),
               (
-                LiveQuickAskKind.demander,
-                'Demander',
-                Icons.chat_bubble_outline,
+                LiveQuickAskKind.opportunite,
+                'Opportunité',
+                Icons.rocket_launch_outlined,
+              ),
+            ],
+            [
+              (LiveQuickAskKind.service, 'Service', Icons.build_outlined),
+              (
+                LiveQuickAskKind.prestation,
+                'Prestation',
+                Icons.business_center_outlined,
               ),
             ],
           ])

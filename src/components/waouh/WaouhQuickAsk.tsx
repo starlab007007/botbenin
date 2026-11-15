@@ -9,15 +9,19 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import type { GuidedAskInput, GuidedKind } from "@/lib/waouh/guidedAsk";
 
-export type QuickAskKind = "acheter" | "vendre" | "trouver" | "demander";
+export type QuickAskKind = GuidedKind;
 
-/** Les 4 actions passent toutes par le moteur NEXUS, comme "Trouver". */
+/** Lien de recherche publique, gardé pour un visiteur non connecté. */
 const NEXUS_MODE: Record<QuickAskKind, string> = {
   acheter: "find_sellers",
   vendre: "find_buyers",
   trouver: "auto",
   demander: "auto",
+  opportunite: "auto",
+  service: "auto",
+  prestation: "auto",
 };
 
 const COPY: Record<QuickAskKind, {
@@ -50,6 +54,33 @@ const COPY: Record<QuickAskKind, {
     budget: "Budget (FCFA, facultatif)",
     path: (p) => `/app/nexus?${p}`,
   },
+  opportunite: {
+    title: "Opportunité",
+    line: "Quelle opportunité cherchez-vous ?",
+    field: "Ex. appel d’offres, emploi, bourse, partenariat…",
+    chips: ["Appel d’offres BTP", "Stage en informatique", "Subvention agricole"],
+    cta: "Chercher des opportunités",
+    budget: null,
+    path: (p) => `/app/nexus?${p}`,
+  },
+  service: {
+    title: "Service",
+    line: "De quel service avez-vous besoin ?",
+    field: "Ex. plombier, électricien, livreur…",
+    chips: ["Plombier", "Réparation de climatiseur", "Livreur fiable"],
+    cta: "Trouver un professionnel",
+    budget: "Budget max (FCFA)",
+    path: (p) => `/app/nexus?${p}`,
+  },
+  prestation: {
+    title: "Prestation",
+    line: "Quelle prestation voulez-vous confier ?",
+    field: "Ex. site web, traiteur pour 50 personnes…",
+    chips: ["Création d’un site vitrine", "Traiteur pour 50 personnes", "Logo et charte graphique"],
+    cta: "Trouver un prestataire",
+    budget: "Budget max (FCFA)",
+    path: (p) => `/app/nexus?${p}`,
+  },
   demander: {
     title: "Demander",
     line: "Dites-le comme vous voulez.",
@@ -63,11 +94,13 @@ const COPY: Record<QuickAskKind, {
 
 /** Formulaire express (bottom-sheet) : 1 champ, ville/budget qui apparaissent quand utile. */
 export function WaouhQuickAsk({
-  kind, onClose, onSubmit,
+  kind, onClose, onSubmit, onAsk,
 }: {
   kind: QuickAskKind | null;
   onClose: () => void;
   onSubmit: (path: string) => void;
+  /** Compte connecté : la demande part par le moteur du Chat au lieu d'ouvrir un autre écran. */
+  onAsk?: (ask: GuidedAskInput) => void;
 }) {
   const {user}=useAuth();
   const [q, setQ] = useState("");
@@ -77,7 +110,8 @@ export function WaouhQuickAsk({
   const c = kind ? COPY[kind] : null;
 
   const go = () => {
-    if (!c || !q.trim()) return;
+    if (!c || !kind || !q.trim()) return;
+    if (onAsk && user && kind !== "vendre") { onAsk({ kind, q: q.trim(), city: city.trim(), budget }); return; }
     const p = new URLSearchParams({ q: q.trim(), go: "1" });
     if (city.trim()) p.set("city", city.trim());
     if (budget) p.set("budget", budget);

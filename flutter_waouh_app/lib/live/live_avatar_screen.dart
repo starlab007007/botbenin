@@ -10,10 +10,7 @@ import 'live_quick_ask.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 
-Future<void> _quick(BuildContext context, LiveQuickAskKind kind) async {
-  final target = await showLiveQuickAsk(context, kind);
-  if (target != null && context.mounted) context.push(target);
-}
+Future<void> _quick(BuildContext context, LiveQuickAskKind kind) => liveGuidedQuickAsk(context, kind);
 
 class LiveAvatarScreen extends StatefulWidget {
   const LiveAvatarScreen({super.key});

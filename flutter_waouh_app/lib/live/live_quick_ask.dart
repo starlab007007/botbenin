@@ -1,13 +1,17 @@
 import 'live_smart_sale.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_city_field.dart';
+import 'live_controller.dart';
+import 'live_guided_ask.dart';
 import 'live_theme.dart';
 
 /// Formulaire express (parité Web `WaouhQuickAsk`) : un champ, la ville et le
 /// budget n'apparaissent que quand ils servent. Retourne le chemin à ouvrir.
-enum LiveQuickAskKind { acheter, vendre, trouver, demander }
+enum LiveQuickAskKind { acheter, vendre, trouver, demander, opportunite, service, prestation }
 
 class _Copy {
   const _Copy(
@@ -56,6 +60,33 @@ const _copy = <LiveQuickAskKind, _Copy>{
     'Budget (FCFA, facultatif)',
     '/app/nexus',
   ),
+  LiveQuickAskKind.opportunite: _Copy(
+    'Opportunité',
+    'Quelle opportunité cherchez-vous ?',
+    'Ex. appel d’offres, emploi, bourse, partenariat…',
+    ['Appel d’offres BTP', 'Stage en informatique', 'Subvention agricole'],
+    'Chercher des opportunités',
+    null,
+    '/app/nexus',
+  ),
+  LiveQuickAskKind.service: _Copy(
+    'Service',
+    'De quel service avez-vous besoin ?',
+    'Ex. plombier, électricien, livreur…',
+    ['Plombier', 'Réparation de climatiseur', 'Livreur fiable'],
+    'Trouver un professionnel',
+    'Budget max (FCFA)',
+    '/app/nexus',
+  ),
+  LiveQuickAskKind.prestation: _Copy(
+    'Prestation',
+    'Quelle prestation voulez-vous confier ?',
+    'Ex. site web, traiteur pour 50 personnes…',
+    ['Création d’un site vitrine', 'Traiteur pour 50 personnes', 'Logo et charte graphique'],
+    'Trouver un prestataire',
+    'Budget max (FCFA)',
+    '/app/nexus',
+  ),
   LiveQuickAskKind.demander: _Copy(
     'Demander',
     'Dites-le comme vous voulez.',
@@ -73,7 +104,52 @@ const _modeFor = <LiveQuickAskKind, String>{
   LiveQuickAskKind.vendre: 'find_buyers',
   LiveQuickAskKind.trouver: 'auto',
   LiveQuickAskKind.demander: 'auto',
+  LiveQuickAskKind.opportunite: 'auto',
+  LiveQuickAskKind.service: 'auto',
+  LiveQuickAskKind.prestation: 'auto',
 };
+
+LiveWaouhController? _guidedController(BuildContext context) {
+  try {
+    return context.read<LiveWaouhController>();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Ouvre un lien de recherche guidée. Compte connecté : la demande part par le moteur du Chat
+/// (même recherche, mêmes fiches, même ouverture de l'échange). Sinon le lien garde son écran.
+void liveOpenGuidedPath(BuildContext context, String path) {
+  final controller = _guidedController(context);
+  final ask = controller != null && controller.auth.signedIn
+      ? liveGuidedAskFromUri(Uri.parse(path))
+      : null;
+  if (controller == null || ask == null) {
+    context.push(path);
+    return;
+  }
+  controller.setComposerSeed(ask.text, meta: <String, dynamic>{
+    'source': 'flutter_guided_search',
+    'origin_surface': 'flutter_guided_search',
+    'auto_send': true,
+    'guided_ask': ask.toMap(),
+  });
+  context.push('/app/chat/waouh');
+}
+
+/// Entrée guidée de l'accueil (Acheter, Vendre, Trouver, Opportunité, Service, Prestation).
+/// Vendre, compte connecté : la fiche de vente du Chat s'ouvre directement.
+Future<void> liveGuidedQuickAsk(BuildContext context, LiveQuickAskKind kind) async {
+  final controller = _guidedController(context);
+  if (controller != null && controller.auth.signedIn && kind == LiveQuickAskKind.vendre) {
+    controller.setComposerSeed('', meta: const <String, dynamic>{'open_sell': true});
+    context.push('/app/chat/waouh');
+    return;
+  }
+  final path = await showLiveQuickAsk(context, kind);
+  if (path == null || !context.mounted) return;
+  liveOpenGuidedPath(context, path);
+}
 
 /// Ouvre le formulaire et renvoie l'URL (avec ?q=…&go=1) ou null.
 Future<String?> showLiveQuickAsk(BuildContext context, LiveQuickAskKind kind) {

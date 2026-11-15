@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../main.dart' as legacy;
+import 'live_chat_market_brief.dart';
+import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation;
+import 'live_guided_ask.dart';
 import 'live_models.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_nexus_service.dart';
@@ -84,11 +87,17 @@ class LiveChatSearchScreen extends StatefulWidget {
     required this.messages,
     required this.onPayload,
     this.city,
+    this.kind,
+    this.budget,
   });
 
   final String goal;
   final DateTime startedAt;
   final String? city;
+
+  /// Entrée guidée d'origine (acheter, service, prestation…) ; absente pour une phrase libre.
+  final String? kind;
+  final int? budget;
   final ValueListenable<List<LiveMessage>> messages;
   final ValueChanged<String> onPayload;
 
@@ -104,6 +113,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   LiveMessage? _reply;
   ReasonSummary? _summary;
   late final LiveNexusService _service = LiveNexusService(legacy.supabase);
+  bool _delegating = false;
+  String? _delegatedRoom;
 
   bool get _sell => RegExp(r'(vends?|vendre|acheteurs?|clients?|prospects?)', caseSensitive: false)
       .hasMatch(widget.goal);
@@ -305,13 +316,84 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     }
   }
 
+  /// « Confier à Bot » en un geste : Bot ouvre l'échange sur la meilleure offre, négocie dans
+  /// le budget et passe à la suivante sans réponse. L'accord final reste à confirmer.
+  Future<void> _delegateAll(LiveChatBrief brief) async {
+    if (_delegating || brief.delegable.isEmpty) return;
+    final best = brief.delegable.first;
+    final alternates = brief.delegable.skip(1).take(3).toList();
+    final ok = await confirmBotDelegation(
+      context,
+      alternates: alternates.length,
+      budgetMax: widget.budget,
+    );
+    if (!ok || !mounted) return;
+    setState(() => _delegating = true);
+    try {
+      final api = LiveDealRoomService(legacy.supabase);
+      final askedCity = (widget.city ?? '').trim();
+      final city = askedCity.isNotEmpty ? askedCity : best.city;
+      final opened = await api.call('open', <String, dynamic>{
+        'fabric_id': best.delegateId,
+        if (city.isNotEmpty) 'city': city,
+        'budget_max': widget.budget,
+        'confirmed': false,
+      });
+      final id = '${opened['deal_room_id']}';
+      final cascade = <Map<String, dynamic>>[
+        for (final a in alternates)
+          <String, dynamic>{
+            'fabric_id': a.delegateId,
+            if (a.city.isNotEmpty) 'city': a.city,
+          },
+      ];
+      final rules = <String, dynamic>{
+        ...botRoomDefaultRules,
+        'budget_max': widget.budget,
+        if (cascade.isNotEmpty) 'cascade_candidates': cascade,
+        if (cascade.isNotEmpty) 'cascade_step': 1,
+        if (cascade.isNotEmpty) 'cascade_max_steps': 1 + cascade.length,
+      };
+      await api.call('delegate', <String, dynamic>{
+        'deal_room_id': id,
+        'mandate_revision': opened['mandate_revision'] ?? 0,
+        'confirmed': true,
+        'rules': rules,
+      });
+      if (!mounted) return;
+      setState(() => _delegatedRoom = id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bot s’en occupe. Vous confirmerez l’accord final.')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de confier à Bot pour le moment. Réessayez.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _delegating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final running = _reply == null || _queue.isNotEmpty;
     final revealed = !running && _reply != null;
     final reply = _reply;
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
-    final delegable = rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty).toList();
+    // Recherche pour vendre : les pistes d'acheteurs gardent leur prise en charge une à une.
+    final delegable = _sell
+        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty).toList()
+        : const <Map<String, dynamic>>[];
+    final brief = revealed && rows.isNotEmpty
+        ? liveChatMarketBrief(rows, city: widget.city, budget: widget.budget)
+        : null;
+    final stage = liveSearchStage(hasReply: reply != null, revealed: revealed, results: rows.length);
+    final kindLabel = liveGuidedKindLabels[widget.kind ?? ''];
+    final status = running
+        ? (reply == null ? 'BOT CHERCHE POUR VOUS' : 'BOT ANALYSE LES OFFRES')
+        : 'RECHERCHE TERMINÉE';
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: AppBar(
@@ -321,8 +403,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('RECHERCHE LIVE',
-                style: TextStyle(
+            Text(kindLabel == null ? status : '${kindLabel.toUpperCase()} · $status',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
                     fontSize: 10,
                     letterSpacing: 1.6,
                     fontWeight: FontWeight.w900,
@@ -337,6 +421,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
+          LiveSearchChips(city: widget.city, budget: widget.budget),
+          if ((widget.city ?? '').trim().isNotEmpty || widget.budget != null) const SizedBox(height: 10),
+          LiveSearchStageBar(stage: stage),
+          const SizedBox(height: 14),
           LiveReasoningFeed(
             steps: _steps,
             running: running,
@@ -346,11 +434,34 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           ),
           if (revealed && reply != null) ...[
             const SizedBox(height: 14),
+            if (brief != null && brief.total > 0) ...[
+              LiveChatMarketBriefCard(
+                brief: brief,
+                city: widget.city,
+                budget: widget.budget,
+                kind: widget.kind,
+                delegating: _delegating,
+                delegated: _delegatedRoom != null,
+                onDelegate: () => _delegateAll(brief),
+                onFollow: () => context.push('/app/deal-room?room_id=${_delegatedRoom ?? ''}'),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (rows.isNotEmpty)
               const Padding(
                 padding: EdgeInsets.only(left: 2, bottom: 6),
-                child: Text('Résultats',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Les offres',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                    SizedBox(height: 3),
+                    Text(
+                      'Choisissez une offre, écrivez au vendeur ou proposez votre prix : l’échange s’ouvre dans votre Chat.',
+                      style: TextStyle(fontSize: 12, height: 1.4, color: WaouhPalette.muted),
+                    ),
+                  ],
+                ),
               ),
             LiveMessageBubble(
               message: reply,

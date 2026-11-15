@@ -6,8 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useNavigate } from "react-router-dom";
+import { guidedAskFromSearchParams, guidedChatPath, queueGuidedAsk, type GuidedAskInput } from "@/lib/waouh/guidedAsk";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -107,7 +108,24 @@ import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge"
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhDealRoomPage = lazy(() => import("./pages/waouh/WaouhDealRoomPage"));
-function WaouhSearchEntry(){const {search}=useLocation();const p=new URLSearchParams(search);const hasRoomContext=p.has('room_id')||p.has('fabric_id')||p.has('component_id');return hasRoomContext?<WaouhDealRoomPage/>:<WaouhNexusPage/>;}
+/**
+ * /app/nexus : un échange (room_id…) ouvre la Deal Room ; une recherche guidée d'un compte connecté
+ * part par le moteur du Chat ; le reste (visiteur, vente d'un article publié, outils) garde l'écran d'origine.
+ */
+function WaouhSearchEntry(){
+  const {search}=useLocation();const {user,isLoading}=useAuth();
+  const p=new URLSearchParams(search);
+  if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <WaouhDealRoomPage/>;
+  const guided=guidedAskFromSearchParams(p);
+  if(guided&&isLoading)return null;
+  if(guided&&user)return <WaouhGuidedToChat ask={guided}/>;
+  return <WaouhNexusPage/>;
+}
+function WaouhGuidedToChat({ask}:{ask:GuidedAskInput}){
+  const navigate=useNavigate();
+  useEffect(()=>{queueGuidedAsk(ask);navigate(guidedChatPath(),{replace:true});},[]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 const WaouhPremiumJourneyPage = lazy(() => import("./pages/waouh/WaouhPremiumJourneyPage"));

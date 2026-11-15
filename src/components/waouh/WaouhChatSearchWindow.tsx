@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Check, MapPin, Wallet, X } from "lucide-react";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { WaouhChatMarketBrief } from "@/components/waouh/WaouhChatMarketBrief";
+import { GUIDED_KIND_LABEL, type GuidedKind } from "@/lib/waouh/guidedAsk";
+import { briefMoney } from "@/lib/waouh/chatMarketBrief";
+import { SEARCH_STAGES, searchStage } from "@/lib/waouh/chatSearchStage";
+import "./waouh-search-live.css";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { WaouhProductResults, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
@@ -13,6 +19,9 @@ export type ChatSearch = {
   status: "running" | "done" | "error";
   results: WaouhResultCard[];
   text: string;
+  /** Entrée guidée d'origine (Acheter, Service, Prestation…) ; absente pour une phrase libre. */
+  kind?: GuidedKind;
+  budget?: number | null;
 };
 
 const priceOf = (r: WaouhResultCard) => {
@@ -99,30 +108,68 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
   const running = !search || search.status === "running";
   const revealed = !running && feed.pending === 0;
 
+  // À la fin du déroulé, on amène l'analyse (puis les offres) en haut de la fenêtre.
+  const outcomeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (revealed) scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+    if (!revealed) return;
+    const box = scroller.current, target = outcomeRef.current;
+    if (!box) return;
+    box.scrollTo({ top: target ? Math.max(0, target.offsetTop - box.offsetTop - 8) : box.scrollHeight, behavior: "smooth" });
   }, [revealed]);
+
+  const stage = searchStage(search, revealed);
+  const failed = search?.status === "error";
 
   return (
     <Sheet open={!!search} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 border-blue-100 bg-gradient-to-b from-white to-blue-50/50 p-0 sm:max-w-xl [&>button]:hidden">
+      <SheetContent side="right" className="wsl flex w-full flex-col gap-0 p-0 sm:max-w-2xl [&>button]:hidden" data-waouh-ui="search-live-v2">
         <SheetTitle className="sr-only">Recherche live</SheetTitle>
-        <SheetDescription className="sr-only">Raisonnement de Bot et résultats de la recherche</SheetDescription>
-        <header className="flex shrink-0 items-center gap-2 border-b border-blue-100 bg-white/90 px-3 py-2.5 backdrop-blur">
-          <button type="button" onClick={onClose} aria-label="Retour au chat" className="grid h-9 w-9 place-items-center rounded-full text-slate-600 active:scale-95"><ArrowLeft className="h-5 w-5" /></button>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Recherche live</div>
-            <div className="truncate text-sm font-black text-slate-950">{search?.goal}</div>
+        <SheetDescription className="sr-only">Déroulé de la recherche, analyse du marché et offres trouvées</SheetDescription>
+        <header className="wsl-head">
+          <div className="wsl-head-row">
+            <button type="button" onClick={onClose} aria-label="Retour au chat" className="wsl-icon"><ArrowLeft size={19} /></button>
+            <BotLiveAvatar size={40} state={running ? "thinking" : "idle"} />
+            <div className="wsl-head-copy">
+              <span className="wsl-kicker">{search?.kind ? `${GUIDED_KIND_LABEL[search.kind]} · ` : ""}{running ? "Bot cherche pour vous" : revealed ? "Recherche terminée" : "Bot analyse les offres"}</span>
+              <strong>{search?.goal}</strong>
+            </div>
+            <button type="button" onClick={onClose} aria-label="Fermer" className="wsl-icon"><X size={17} /></button>
           </div>
-          <button type="button" onClick={onClose} aria-label="Fermer" className="grid h-9 w-9 place-items-center rounded-full text-slate-500 active:scale-95"><X className="h-4 w-4" /></button>
+          {(search?.city || search?.budget) && (
+            <div className="wsl-chips">
+              {search?.city && <span><MapPin size={12} aria-hidden="true" />{search.city}</span>}
+              {search?.budget ? <span><Wallet size={12} aria-hidden="true" />Budget {briefMoney(search.budget)}</span> : null}
+            </div>
+          )}
+          <ol className="wsl-stages" aria-label="Avancement">
+            {SEARCH_STAGES.map((label, i) => (
+              <li key={label} className={i < stage ? "is-done" : i === stage ? "is-current" : undefined} aria-current={i === stage ? "step" : undefined}>
+                <span>{i < stage ? <Check size={11} aria-hidden="true" /> : i + 1}</span>{label}
+              </li>
+            ))}
+          </ol>
         </header>
 
-        <div ref={scroller} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3">
+        <div ref={scroller} className="wsl-body">
           <WaouhReasoningFeed steps={feed.shown} running={running} pending={feed.pending} summary={revealed ? outcome?.summary ?? null : null} onSkip={feed.skip} />
+          <div ref={outcomeRef} className="wsl-anchor" aria-hidden="true" />
           {revealed && search && search.results.length > 0 && (
-            <div className="space-y-2">
-              <div className="px-1 text-sm font-black text-slate-900">Résultats</div>
-              <WaouhProductResults results={search.results} onAction={onAction} />
+            <>
+              <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} />
+              <div className="wsl-offers">
+                <div className="wsl-offers-head">
+                  <strong>Les offres</strong>
+                  <span>Choisissez une offre, écrivez au vendeur ou proposez votre prix : l’échange s’ouvre dans votre Chat.</span>
+                </div>
+                <WaouhProductResults results={search.results} onAction={onAction} />
+              </div>
+            </>
+          )}
+          {revealed && search && search.results.length === 0 && (
+            <div className="wsl-empty" role="status">
+              <strong>{failed ? "La recherche a été interrompue" : "Aucune offre assez proche pour le moment"}</strong>
+              <p>{failed ? "Rien n’a été envoyé. Vous pouvez relancer votre demande depuis le chat." : "Précisez le modèle, la ville ou le budget : Bot relance aussitôt la recherche."}</p>
+              <button type="button" className="wsl-primary" onClick={onClose}>Préciser ma demande</button>
             </div>
           )}
         </div>
