@@ -265,7 +265,7 @@ async function testRoot(viewport) {
   if (!state.text.includes("Votre Avatar")) {
     fail(`${viewport.name}: Avatar home is missing at ${state.path}; body=${state.text.slice(0, 300)}`);
   }
-  for (const label of ["Acheter", "Vendre", "Trouver", "Demander"]) {
+  for (const label of ["Acheter", "Vendre", "Trouver", "Opportunité", "Service", "Prestation"]) {
     if (!state.text.includes(label)) fail(`${viewport.name}: missing Avatar action ${label}`);
   }
   if (state.overflowX) fail(`${viewport.name}: horizontal overflow on root (${state.scrollWidth} > ${state.width})`);
@@ -313,7 +313,9 @@ async function testRoot(viewport) {
     acheter: { path: "/app/avatar/acheter", auth: true },
     vendre: { path: "/app/avatar/vendre", auth: true },
     trouver: { path: "/app/nexus", auth: false },
-    demander: { path: "/app/avatar/demander", auth: true },
+    opportunite: { path: "/app/nexus", auth: false },
+    service: { path: "/app/nexus", auth: false },
+    prestation: { path: "/app/nexus", auth: false },
   };
   for (const [action, expected] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
