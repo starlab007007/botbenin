@@ -337,7 +337,8 @@ class NexusDiscoveryItem {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
     final evidence = {
-      ..._map(json['evidence']),
+      // Lecture publique (sans compte) : les faits déclarés arrivent sous public_facts.
+      ..._map(json['evidence'] ?? json['public_facts']),
       'photos': liveProductPhotos(json),
       for (final key in [
         'brand',
