@@ -106,7 +106,7 @@ const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNat
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge";
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
-const WaouhDealRoomPage = lazy(() => import("./pages/waouh/WaouhDealRoomPage"));
+import { WaouhChatRoomWindow } from "./components/waouh/WaouhChatRoomWindow";
 /**
  * Plus d'écran Nexus à part : tout ancien lien (/app/nexus, /app/avatar/acheter…) ouvre le Chat,
  * qui est la référence. Seuls les liens d'un échange existant (room_id…) gardent leur écran.
@@ -116,10 +116,11 @@ function WaouhGuidedToChat({ask,loggedIn}:{ask:GuidedAskInput|null;loggedIn:bool
   useEffect(()=>{openGuidedChat(navigate,ask,loggedIn,{replace:true});},[]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
+function WaouhRoomRedirect(){const {search}=useLocation();return <Navigate to={'/app/chat'+search} replace/>;}
 function WaouhSearchEntry(){
   const {search}=useLocation();const {user,isLoading}=useAuth();
   const p=new URLSearchParams(search);
-  if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <Navigate to={'/app/deal-room'+search} replace/>;
+  if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <Navigate to={'/app/chat'+search} replace/>;
   if(isLoading)return null;
   return <WaouhGuidedToChat ask={guidedAskFromSearchParams(p)} loggedIn={!!user}/>;
 }
@@ -408,7 +409,7 @@ const AppContent = () => {
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
-                    <Route path="chat" element={<MobileConversations />} />
+                    <Route path="chat" element={<WaouhChatRoomWindow><MobileConversations /></WaouhChatRoomWindow>} />
                     <Route path="chat/waouh" element={<RequireMobileAuth><MobileWaouhChat /></RequireMobileAuth>} />
                     <Route path="avatar" element={<WaouhAvatarHomePage settingsOnly />} />
                     <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarModeToChat /></RequireMobileAuth>} />
@@ -417,7 +418,7 @@ const AppContent = () => {
                     <Route path="premium" element={<RequireMobileAuth><WaouhPremiumJourneyPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhSearchEntry />} />
                     <Route path="nexus-legacy" element={<WaouhSearchEntry />} />
-                    <Route path="deal-room" element={<RequireMobileAuth><WaouhDealRoomPage /></RequireMobileAuth>} />
+                    <Route path="deal-room" element={<WaouhRoomRedirect />} />
                     <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="apresbac" element={<ApresBacPage />} />

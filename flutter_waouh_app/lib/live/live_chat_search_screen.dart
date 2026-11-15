@@ -443,7 +443,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                 delegating: _delegating,
                 delegated: _delegatedRoom != null,
                 onDelegate: () => _delegateAll(brief),
-                onFollow: () => context.push('/app/deal-room?room_id=${_delegatedRoom ?? ''}'),
+                onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
               ),
               const SizedBox(height: 16),
             ],
