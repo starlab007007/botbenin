@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createTtlCache } from "./waouh-ttl-cache.ts";
 
 export const waouhCorsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,8 @@ export function isServiceRoleRequest(req: Request): boolean {
   return authHeader.slice(7).trim() === serviceRole;
 }
 
+const requestUserCache = createTtlCache<{ id: string; email?: string | null }>(20_000);
+
 export async function getRequestUser(req: Request): Promise<{ id: string; email?: string | null } | null> {
   const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) return null;
@@ -40,6 +43,8 @@ export async function getRequestUser(req: Request): Promise<{ id: string; email?
   const anon = Deno.env.get("SUPABASE_ANON_KEY");
   if (!url || !anon) return null;
 
+  const cached = requestUserCache.get(authHeader);
+  if (cached) return cached;
   try {
     const client = createClient(url, anon, {
       global: { headers: { Authorization: authHeader } },
@@ -47,7 +52,9 @@ export async function getRequestUser(req: Request): Promise<{ id: string; email?
     });
     const { data, error } = await client.auth.getUser();
     if (error || !data?.user) return null;
-    return { id: data.user.id, email: data.user.email ?? null };
+    const user = { id: data.user.id, email: data.user.email ?? null };
+    requestUserCache.set(authHeader, user);
+    return user;
   } catch (e) {
     console.warn("[waouh-auth] getRequestUser failed", e);
     return null;

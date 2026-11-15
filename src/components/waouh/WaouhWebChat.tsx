@@ -686,6 +686,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
   };
 
+  const queuedSendsRef = useRef<Array<{ key: string; args: Parameters<typeof sendCore> }>>([]);
+  const inFlightKeyRef = useRef<string | null>(null);
   const sendCore = async (
     text: string,
     atts: Att[],
@@ -693,7 +695,16 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     metaOverride: Record<string, unknown> = {},
     searchHint?: { force?: boolean; goal?: string; kind?: ChatSearch["kind"]; budget?: number | null }
   ) => {
-    if ((!text && atts.length === 0) || sendingRef.current) return;
+    if (!text && atts.length === 0) return;
+    // Un envoi est déjà en cours : le clic n'est plus perdu, il part juste après (sans doublon).
+    if (sendingRef.current) {
+      const key = JSON.stringify([text, metaOverride]);
+      if (inFlightKeyRef.current !== key && !queuedSendsRef.current.some((q) => q.key === key) && queuedSendsRef.current.length < 3) {
+        queuedSendsRef.current.push({ key, args: [text, atts, locationOverride, metaOverride, searchHint] });
+      }
+      return;
+    }
+    inFlightKeyRef.current = JSON.stringify([text, metaOverride]);
     // Hors ligne : un message texte simple est gardé dans une file locale (visible « en attente ») et
     // renvoyé à la reconnexion. Pièces jointes / actions : refusés, le texte reste dans le composeur.
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -784,7 +795,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       throw e;
     } finally {
       sendingRef.current = false;
+      inFlightKeyRef.current = null;
       setSending(false);
+      const next = queuedSendsRef.current.shift();
+      if (next) window.setTimeout(() => { void sendCoreRef.current(...next.args).catch(() => { /* erreur déjà affichée */ }); }, 0);
     }
   };
 
