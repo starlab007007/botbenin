@@ -17,6 +17,8 @@ import 'live_product_presentation.dart';
 import 'live_reasoning.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_automatic_offers.dart' show liveOfferReachable;
+import 'live_bot_follow_up.dart';
+import 'package:go_router/go_router.dart';
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
 
@@ -344,6 +346,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
      if(r['is_owner']==true&&bot)button('Mettre en pause',()=>act('pause',{'mandate_revision':r['mandate_revision']})),
      if(r['is_owner']==true&&r['control_mode']=='paused'&&!expired&&guide?['action']!='resume_bot')button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
     ]),
+    if(r['is_owner']==true&&(bot||r['control_mode']=='paused'))LiveBotFollowUpCard(room:r,title:'${r['title']??''}'.trim().isEmpty?null:'${r['title']}',onMissions:()=>context.push('/app/missions')),
     if(r['is_owner']==true&&r['expires_at']!=null)Text('Plafond privé : ${money((r['mandate'] as Map?)?['budget_max'])} · Mandat jusqu’au ${when(r['expires_at'])}',style:const TextStyle(fontSize:12)),
     if(r['is_owner']==true&&(((r['mandate'] as Map?)?['cascade_step'] as num?)??1)>1)Padding(padding:const EdgeInsets.only(top:4),child:Text('Piste ${(r['mandate'] as Map)['cascade_step']}/${(r['mandate'] as Map)['cascade_max_steps']} · Bot a choisi cette offre après l’absence de réponse de la précédente.',style:const TextStyle(fontSize:12))),
     if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée','application_prepare':'Dossier préparé','application_submit':'Dossier transmis','application_outcome':'Réponse au dossier enregistrée','guest_contacted':'Vendeur contacté par WhatsApp','guest_stopped':'Le vendeur ne souhaite pas être contacté'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),

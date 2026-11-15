@@ -19,3 +19,13 @@
 .wc-consent{display:flex;gap:9px;align-items:flex-start;font-size:13px;margin:12px 0;min-height:44px}.wc-consent input{margin-top:5px;width:18px;height:18px;flex-shrink:0}
 .wc-metrics>div{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--wc-line);padding:10px 0}.wc-metrics dt{font-size:13px}.wc-metrics dd{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 @media(max-width:560px){.wc-form-grid{grid-template-columns:minmax(0,1fr)}.wc-dialog{padding:16px}.wc-panel,.wc-plan{padding:13px}.wc-inline{flex-wrap:wrap}.wc-inline input{width:100%}}
+/* Besoin : une saisie, le reste est deviné */
+.wc-tabs{gap:4px;padding:4px;border-radius:14px;background:var(--wc-pearl);width:fit-content;max-width:100%;overflow-x:auto;flex-wrap:nowrap}.wc-tabs button{min-height:40px;border-radius:10px;padding:0 14px;font-size:13px}
+.wc-need{display:grid;gap:12px}.wc-need h3{font-size:19px;letter-spacing:-.4px;margin:0}.wc-need textarea{border-radius:14px;padding:12px 14px;font-size:16px;line-height:1.45}
+.wc-read{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.wc-chips{display:flex;flex-wrap:wrap;gap:6px}
+.wc-chip{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--wc-line);background:transparent;color:var(--wc-ink);font-size:13px;cursor:pointer;transition:background .15s,border-color .15s}
+.wc-chip.on{background:var(--wc-lilac);border-color:var(--wc-plum);font-weight:600}.wc-chip button{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:inherit;cursor:pointer}
+.wc-city{display:inline-flex;align-items:center;gap:6px}.wc-city input{height:36px;width:150px;border-radius:999px}
+.wc-more{border-top:1px solid var(--wc-line);padding-top:8px}.wc-more summary{cursor:pointer;color:var(--wc-muted);font-size:13px;min-height:36px;display:flex;align-items:center}
+.wc-go{min-height:48px;border-radius:14px;font-size:15px;font-weight:600;background:var(--wc-plum);color:#fff}.dark .wc-go{color:#292438}
+@media(prefers-reduced-motion:reduce){.wc-chip{transition:none}}

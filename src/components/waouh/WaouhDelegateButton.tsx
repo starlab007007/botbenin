@@ -7,6 +7,7 @@ import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity } fro
 import { resultContact } from "@/lib/waouh/resultCardData";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { roomCall, roomErrorText } from "@/lib/waouh/dealRoom";
+import { WaouhBotFollowUp } from "@/components/waouh/WaouhBotFollowUp";
 
 /** Candidature alternative pour la cascade automatique (offre suivante si pas de réponse). */
 export type WaouhDelegateAlternate = { fabric_id: string; city?: string | null };
@@ -99,8 +100,9 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
   };
 
   if (done) {
+    if (roomId) return <WaouhBotFollowUp roomId={roomId} title={result.title ?? result.subject ?? null} />;
     return (
-      <button type="button" onClick={() => navigate(roomId ? `/app/chat?room_id=${roomId}` : "/app/missions?view=suivi")} className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white ${className}`}>
+      <button type="button" onClick={() => navigate("/app/missions?view=suivi")} className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-md ${className}`}>
         <CheckCircle2 className="h-4 w-4" />Bot s’en occupe · Suivre
       </button>
     );

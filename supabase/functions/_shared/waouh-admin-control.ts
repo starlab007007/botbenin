@@ -6,7 +6,23 @@ export type WaouhModuleControl = {
   updated_at?: string | null;
 };
 
+import { createTtlCache } from "./waouh-ttl-cache.ts";
+
+const moduleControlCache = createTtlCache<WaouhModuleControl>(10_000);
+
+/** État d'un module, mémorisé quelques secondes (un échec de lecture n'est jamais mémorisé). */
 export async function getWaouhModuleControl(
+  sb: any,
+  moduleKey: string,
+): Promise<WaouhModuleControl> {
+  const cached = moduleControlCache.get(moduleKey);
+  if (cached) return cached;
+  const control = await loadWaouhModuleControl(sb, moduleKey);
+  if ("updated_at" in control) moduleControlCache.set(moduleKey, control);
+  return control;
+}
+
+async function loadWaouhModuleControl(
   sb: any,
   moduleKey: string,
 ): Promise<WaouhModuleControl> {

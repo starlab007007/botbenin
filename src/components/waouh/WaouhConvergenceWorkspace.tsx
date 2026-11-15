@@ -1,12 +1,13 @@
 import { cloneElement, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ChevronLeft, ClipboardCopy, Layers3, Loader2, Plus, Sparkles, Users } from 'lucide-react';
+import { Check, ChevronLeft, ClipboardCopy, Layers3, Loader2, MapPin, Plus, Sparkles, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { convergence, planTotal, resultKind, type ConvergenceRow } from '@/lib/waouh/convergence';
+import { detectBudget, detectNeedKind, savedCity } from '@/lib/waouh/convergenceSmart';
 import './waouh-convergence.css';
 
 const money = (v: unknown) => v == null || v === '' ? 'À préciser' : new Intl.NumberFormat('fr-FR').format(Number(v)) + ' F CFA';
@@ -33,7 +34,14 @@ export function WaouhConvergenceWorkspace({ source }: Props) {
   const [planTitle, setPlanTitle] = useState(''), [componentPlan, setComponentPlan] = useState('');
   const [part, setPart] = useState({ title: '', kind: 'service', amount: '', extra_cost: '', unit: 'forfait', scope: '', exclusions: '', source_url: '' });
   const [group, setGroup] = useState({ topic: '', deadline: '' }), [quote, setQuote] = useState({ shared_cost: '', scope: '', expires_at: '', minimum_members: 2 });
+  const [kindTouched, setKindTouched] = useState(false), [budgetTouched, setBudgetTouched] = useState(false), [cityEditing, setCityEditing] = useState(false);
   const patch = (key: keyof typeof form, value: string) => setForm(p => ({ ...p, [key]: value }));
+  // Le besoin suffit : la nature et le budget écrits dans la phrase sont lus automatiquement, tant que l'utilisateur ne les a pas choisis lui-même.
+  const writeNeed = (value: string) => setForm(p => ({
+    ...p, goal: value,
+    kind: kindTouched ? p.kind : detectNeedKind(value),
+    budget: budgetTouched ? p.budget : (detectBudget(value) != null ? String(detectBudget(value)) : ''),
+  }));
   const load = async () => { const uid = account.current; try { const data = await convergence('list'); if (account.current === uid) setMissions(data.missions); } catch (e) { if (account.current === uid) setError((e as Error).message); } };
   const run = async (action: string, payload: ConvergenceRow = {}) => {
     const uid = account.current;
@@ -52,8 +60,8 @@ export function WaouhConvergenceWorkspace({ source }: Props) {
   };
   useEffect(() => {
     setBusy(false); setError(''); setDraftAccount(undefined); setRequestKey(crypto.randomUUID());
-    setBundle(null); setMissions([]); setPools([]); setMetrics(null); setToken(''); setInvite(''); setConsent(false);
-    const seed = { goal: source?.title || '', city: source?.city || '', kind: resultKind(source), budget: '', landmark: '', deadline: '', criteria: '' };
+    setBundle(null); setMissions([]); setPools([]); setMetrics(null); setToken(''); setInvite(''); setConsent(false); setKindTouched(false); setBudgetTouched(false); setCityEditing(false);
+    const seed = { goal: source?.title || '', city: source?.city || savedCity(), kind: resultKind(source), budget: '', landmark: '', deadline: '', criteria: '' };
     if (!user) { setForm(seed); return; }
     try { const saved = JSON.parse(localStorage.getItem('waouh.convergence.draft.' + user.id) || 'null'); setForm(saved?.goal ? saved : seed); } catch { setForm(seed); }
     setDraftAccount(user.id);
@@ -80,13 +88,30 @@ export function WaouhConvergenceWorkspace({ source }: Props) {
   const m = bundle?.mission, own = bundle?.is_owner === true;
   const invoke = (action: string, payload: ConvergenceRow = {}) => void run(action, { ...(m ? { mission_id: m.id } : {}), ...payload });
   return <div className="wc-workspace" aria-busy={busy}>
-    <div className="wc-tabs" role="group" aria-label="Convergence"><Button variant={tab === 'missions' ? 'default' : 'outline'} onClick={() => setTab('missions')}>Mes besoins</Button><Button variant={tab === 'invite' ? 'default' : 'outline'} onClick={() => setTab('invite')}>Invitation</Button><Button variant={tab === 'groups' ? 'default' : 'outline'} onClick={() => { setTab('groups'); invoke('pool_list', { city: m?.city || form.city, kind: m?.kind || form.kind }); }}>Ensemble</Button><Button variant={tab === 'pilot' ? 'default' : 'outline'} onClick={() => { setTab('pilot'); invoke('metrics'); }}>Pilote</Button></div>
+    <div className="wc-tabs" role="group" aria-label="Convergence"><Button variant={tab === 'missions' ? 'default' : 'ghost'} onClick={() => setTab('missions')}>Mon besoin</Button><Button variant={tab === 'invite' ? 'default' : 'ghost'} onClick={() => setTab('invite')}>J’ai un code</Button><Button variant={tab === 'groups' ? 'default' : 'ghost'} onClick={() => { setTab('groups'); invoke('pool_list', { city: m?.city || form.city, kind: m?.kind || form.kind }); }}>Acheter à plusieurs</Button>{user.role === 'admin' && <Button variant={tab === 'pilot' ? 'default' : 'ghost'} onClick={() => { setTab('pilot'); invoke('metrics'); }}>Pilote</Button>}</div>
     {busy && <div className="wc-loading" role="status"><Loader2 className="animate-spin" size={16} />En cours…</div>}
     {error && <p className="wc-error" role="alert">{error}</p>}
     {invite && <section className="wc-panel"><h3>Invitation privée · valable 7 jours</h3><p>Transmettez ce code au professionnel choisi. Il devra se connecter et accepter l’invitation. Aucun message n’est envoyé automatiquement.</p><code className="wc-code">{invite}</code><Button variant="outline" onClick={() => void navigator.clipboard.writeText(invite).catch(() => setError('Copiez le code affiché.'))}><ClipboardCopy size={15} />Copier le code</Button></section>}
     {tab === 'invite' && <section className="wc-panel"><h3>Répondre à une invitation</h3><p>L’invitation vous relie à cette offre. Vous pourrez relire les conditions avant de confirmer un accord.</p><Field label="Code d’invitation"><Input value={token} onChange={e => setToken(e.target.value.trim())} /></Field><Button disabled={busy || token.length !== 64} onClick={async () => { const d = await run('redeem_invite', { token }); if (d?.mission) setTab('missions'); else if (d?.pool_id) { setTab('groups'); invoke('pool_list'); } }}>Accepter l’invitation</Button></section>}
     {tab === 'missions' && !bundle && <>
-      <section className="wc-panel"><h3>Quel résultat voulez-vous obtenir ?</h3><p>Un besoin peut être satisfait par un produit, une prestation ou une annonce. Les solutions proposées restent à confirmer.</p><Field label="Votre besoin"><Textarea value={form.goal} onChange={e => patch('goal', e.target.value)} /></Field><div className="wc-form-grid"><Field label="Nature"><select value={form.kind} onChange={e => patch('kind', e.target.value)}>{Object.entries(kinds).map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select></Field><Field label="Ville"><Input value={form.city} onChange={e => patch('city', e.target.value)} /></Field><Field label="Budget maximum · F CFA (facultatif)"><Input type="number" min="0" value={form.budget} onChange={e => patch('budget', e.target.value)} /></Field><Field label="Pour quand ? (facultatif)"><Input type="datetime-local" value={form.deadline} onChange={e => patch('deadline', e.target.value)} /></Field></div><Field label="Quartier ou repère (privé)"><Input value={form.landmark} onChange={e => patch('landmark', e.target.value)} /></Field><Field label="Résultat attendu · une condition par ligne"><Textarea value={form.criteria} onChange={e => patch('criteria', e.target.value)} /></Field><Button disabled={busy || form.goal.trim().length < 3 || form.city.trim().length < 2} onClick={() => void create()}><Plus size={16} />Conserver ce besoin</Button><p className="wc-caption">Votre brouillon est conservé sur cet appareil pour votre compte. Aucune démarche n’est lancée automatiquement.</p></section>
+      <section className="wc-panel wc-need">
+        <h3>Que cherchez-vous ?</h3>
+        <Field label="Décrivez votre besoin"><Textarea rows={2} placeholder="Ex. : plombier demain à Cotonou · téléphone Android à 80 000 F" value={form.goal} onChange={e => writeNeed(e.target.value)} /></Field>
+        <div className="wc-read" aria-label="Ce que Bot a compris">
+          <div className="wc-chips" role="radiogroup" aria-label="Nature du besoin">{Object.entries(kinds).map(([k, label]) => <button type="button" role="radio" aria-checked={form.kind === k} key={k} className={form.kind === k ? 'wc-chip on' : 'wc-chip'} onClick={() => { setKindTouched(true); patch('kind', k); }}>{label}</button>)}</div>
+          {cityEditing || !form.city.trim()
+            ? <label className="wc-city"><MapPin size={14} /><Input aria-label="Ville" placeholder="Votre ville" value={form.city} onChange={e => patch('city', e.target.value)} onBlur={() => form.city.trim() && setCityEditing(false)} autoFocus={cityEditing} /></label>
+            : <button type="button" className="wc-chip" onClick={() => setCityEditing(true)}><MapPin size={13} />{form.city}</button>}
+          {form.budget !== '' && <span className="wc-chip on">Budget {money(form.budget)}<button type="button" aria-label="Retirer le budget" onClick={() => { setBudgetTouched(true); patch('budget', ''); }}><X size={12} /></button></span>}
+        </div>
+        <details className="wc-more"><summary>Préciser (facultatif)</summary>
+          <div className="wc-form-grid"><Field label="Budget maximum · F CFA"><Input type="number" min="0" value={form.budget} onChange={e => { setBudgetTouched(true); patch('budget', e.target.value); }} /></Field><Field label="Pour quand ?"><Input type="datetime-local" value={form.deadline} onChange={e => patch('deadline', e.target.value)} /></Field></div>
+          <Field label="Quartier ou repère (privé)"><Input value={form.landmark} onChange={e => patch('landmark', e.target.value)} /></Field>
+          <Field label="Conditions importantes · une par ligne"><Textarea rows={2} value={form.criteria} onChange={e => patch('criteria', e.target.value)} /></Field>
+        </details>
+        <Button className="wc-go" disabled={busy || form.goal.trim().length < 3 || form.city.trim().length < 2} onClick={() => void create()}><Sparkles size={16} />Lancer mon besoin</Button>
+        <p className="wc-caption">Brouillon gardé sur cet appareil. Rien n’est envoyé sans votre accord.</p>
+      </section>
       <div className="wc-list">{missions.map(x => <button type="button" key={x.id} className="wc-mission" onClick={() => invoke('get', { mission_id: x.id })}><strong>{x.goal}</strong><span>{x.city} · {statuses[x.status] || x.status}</span></button>)}</div>
     </>}
     {tab === 'missions' && bundle && <>

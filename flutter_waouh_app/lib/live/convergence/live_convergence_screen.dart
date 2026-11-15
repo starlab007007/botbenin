@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_convergence_contract.dart';
+import 'live_convergence_smart.dart';
 
 String convergenceMoney(dynamic n) => n == null || n == '' ? 'À préciser' : '${NumberFormat.decimalPattern('fr_FR').format(convergenceAmount(n) ?? 0)} F CFA';
 Future<void> openLiveConvergence(BuildContext context, {Map<String, dynamic>? source}) => Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => LiveConvergenceScreen(source: source)));
@@ -24,7 +25,8 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
   List<Map<String, dynamic>> missions = [], pools = [];
   String tab = 'missions', error = '', invitation = '', token = '';
   String? focusedComponent;
-  bool busy = false, consent = false;
+  bool busy = false, consent = false, kindTouched = false, budgetTouched = false;
+  final needCtl = TextEditingController(), cityCtl = TextEditingController();
   Map<String, String> draft = {}, groupDraft = {};
   String requestKey = DateTime.now().microsecondsSinceEpoch.toString();
   StreamSubscription<AuthState>? authSubscription;
@@ -44,7 +46,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     });
     authSubscription = client.auth.onAuthStateChange.listen((_) { if (client.auth.currentUser?.id != loadedAccount) _loadAccount(); });
   }
-  @override void dispose() { refreshTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); authSubscription?.cancel(); super.dispose(); }
+  @override void dispose() { refreshTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); authSubscription?.cancel(); needCtl.dispose(); cityCtl.dispose(); super.dispose(); }
   @override void didChangeAppLifecycleState(AppLifecycleState state) {
     if(state==AppLifecycleState.resumed)unawaited(_refreshCurrentMission());
   }
@@ -72,7 +74,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     mutationRevision++;
     final uid = client.auth.currentUser?.id; loadedAccount = uid;
     requestKey = DateTime.now().microsecondsSinceEpoch.toString();
-    if (mounted) setState(() { bundle = null; missions = []; pools = []; metrics = null; invitation = ''; token = ''; consent = false; busy = false; error = ''; draft = {}; });
+    if (mounted) setState(() { bundle = null; missions = []; pools = []; metrics = null; invitation = ''; token = ''; consent = false; busy = false; error = ''; draft = {}; kindTouched = false; budgetTouched = false; });
     if (uid == null) return;
     if(widget.componentId!=null){
       try{final room=await LiveDealRoomService(client).call('get',{'deal_room_id':widget.componentId});
@@ -84,6 +86,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     try { final saved = jsonDecode(prefs.getString('waouh.convergence.draft.$uid') ?? '{}'); if (saved is Map && saved['goal'] != null) next = saved.map((k,v) => MapEntry(k.toString(),v.toString())); } catch (_) { /* keep source seed */ }
     if (!mounted || client.auth.currentUser?.id != uid) return;
     setState(() => draft = next);
+    needCtl.text = next['goal'] ?? ''; cityCtl.text = next['city'] ?? '';
     await run(widget.missionId==null?'list':'business.get',widget.missionId==null?{}:{'mission_id':widget.missionId});
   }
   Future<dynamic> run(String action, [Map<String, dynamic> payload = const {}]) async {
@@ -136,6 +139,16 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
   Future<void> createMission() async {
     final values = await form('Votre résultat attendu', {'goal':'Votre besoin','city':'Ville','budget_max':'Budget maximum · F CFA (facultatif)','landmark':'Quartier ou repère (privé)','deadline':'Pour quand ?','criteria':'Conditions du résultat · une par ligne'}, initial: draft, kind: true, numeric: {'budget_max'}, dates: {'deadline'}, changed: saveDraft);
     if (values == null) return; await saveDraft(values);
+    needCtl.text = values['goal'] ?? ''; cityCtl.text = values['city'] ?? '';
+    await submitMission(values);
+  }
+  /// Lance le besoin saisi directement : nature, ville et budget sont déjà lus, le reste est facultatif.
+  Future<void> launchNeed() async {
+    final values = <String,String>{'goal': needCtl.text.trim(), 'city': cityCtl.text.trim(), 'kind': draft['kind'] ?? 'product', 'budget_max': draft['budget_max'] ?? '', 'landmark': draft['landmark'] ?? '', 'deadline': draft['deadline'] ?? '', 'criteria': draft['criteria'] ?? ''};
+    await saveDraft(values);
+    await submitMission(values);
+  }
+  Future<void> submitMission(Map<String,String> values) async {
     final data = await run('create', {...values,'request_key':requestKey,'budget_max':convergenceAmount(values['budget_max']),'deadline':values['deadline']!.isEmpty ? null : values['deadline'],'criteria':values['criteria']!.split('\n').where((x) => x.trim().isNotEmpty).take(10).toList()});
     if (data == null) return; requestKey = DateTime.now().microsecondsSinceEpoch.toString();
     final source = widget.source;
@@ -195,9 +208,31 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
       const SizedBox(height: 8), const Text('Une nouvelle version remet les confirmations à zéro. Aucun paiement n’est déclenché.',style:TextStyle(fontSize:12)),
     ]);
   }
+  void _setDraft(Map<String,String> next) { setState(() => draft = next); saveDraft(next); }
+  Widget needPanel() {
+    final goal = needCtl.text.trim(), city = cityCtl.text.trim(), kindNow = draft['kind'] ?? 'product', budget = draft['budget_max'] ?? '';
+    return panel('Que cherchez-vous ?', [
+      TextField(controller: needCtl, minLines: 2, maxLines: 4, decoration: const InputDecoration(hintText: 'Ex. : plombier demain à Cotonou · téléphone Android à 80 000 F', border: OutlineInputBorder()), onChanged: (v) {
+        final next = {...draft, 'goal': v};
+        if (!kindTouched) next['kind'] = detectNeedKind(v);
+        if (!budgetTouched) { final b = detectBudget(v); next['budget_max'] = b == null ? '' : '$b'; }
+        _setDraft(next);
+      }),
+      const SizedBox(height: 10),
+      Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        for (final e in kinds.entries) ChoiceChip(label: Text(e.value), selected: kindNow == e.key, onSelected: (_) { kindTouched = true; _setDraft({...draft, 'kind': e.key}); }),
+        if (budget.isNotEmpty) InputChip(label: Text('Budget ${convergenceMoney(budget)}'), onDeleted: () { budgetTouched = true; _setDraft({...draft, 'budget_max': ''}); }),
+      ]),
+      const SizedBox(height: 10),
+      TextField(controller: cityCtl, decoration: const InputDecoration(labelText: 'Ville', prefixIcon: Icon(Icons.place_outlined), border: OutlineInputBorder()), onChanged: (v) => _setDraft({...draft, 'city': v})),
+      button('Lancer mon besoin', launchNeed, enabled: goal.length >= 3 && city.length >= 2, primary: true),
+      TextButton(onPressed: busy ? null : createMission, child: const Text('Préciser (facultatif)')),
+      const Text('Brouillon gardé sur cet appareil. Rien n’est envoyé sans votre accord.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+    ]);
+  }
   Widget missionView() {
     if (bundle == null) return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-      panel('Quel résultat voulez-vous obtenir ?',[const Text('Produits, services et annonces. Votre brouillon est conservé pour votre compte sur cet appareil.'),button('Préciser mon besoin',createMission,primary:true)]),
+      needPanel(),
       ...missions.map((m) => Card(child:ListTile(title:Text('${m['goal']}'),subtitle:Text('${m['city']} · ${statuses[m['status']] ?? m['status']}'),trailing:const Icon(Icons.chevron_right),onTap:() => run('get',{'mission_id':m['id']})))),
     ]);
     final plans = (bundle!['plans'] as List).map(convergenceMap), components = (bundle!['components'] as List).map(convergenceMap).toList();
@@ -272,7 +307,7 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     final signed=client.auth.currentUser!=null;
     return Scaffold(appBar:AppBar(title:const Text('WAOUH Convergence')),body:SafeArea(child:ListView(padding:const EdgeInsets.all(15),children:[
       if(!signed)const Text('Connectez-vous pour conserver un besoin ou répondre à une invitation.') else ...[
-        Wrap(spacing:7,runSpacing:7,children:{'missions':'Mes besoins','invite':'Invitation','groups':'Ensemble','pilot':'Pilote'}.entries.map((e)=>ChoiceChip(label:Text(e.value),selected:tab==e.key,onSelected:(_){setState(()=>tab=e.key);if(tab=='groups')groups();if(tab=='pilot')run('metrics');})).toList()),
+        Wrap(spacing:7,runSpacing:7,children:{'missions':'Mon besoin','invite':'J’ai un code','groups':'Acheter à plusieurs','pilot':'Pilote'}.entries.map((e)=>ChoiceChip(label:Text(e.value),selected:tab==e.key,onSelected:(_){setState(()=>tab=e.key);if(tab=='groups')groups();if(tab=='pilot')run('metrics');})).toList()),
         if(busy)const Padding(padding:EdgeInsets.all(12),child:LinearProgressIndicator()),if(error.isNotEmpty)Semantics(liveRegion:true,child:Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text(error,style:TextStyle(color:Theme.of(context).colorScheme.error)))),
         if(invitation.isNotEmpty)panel('Invitation privée · 7 jours',[SelectableText(invitation),const Text('Le professionnel se connecte et relit les conditions. Aucun message automatique.'),button('Copier le code',()=>Clipboard.setData(ClipboardData(text:invitation)))]),
         if(tab=='missions')missionView(),

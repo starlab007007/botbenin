@@ -1,3 +1,4 @@
+import { createTtlCache } from './waouh-ttl-cache.ts';
 import catalog from './waouh-module-catalog.json' with {type:'json'};
 export {catalog as moduleCatalog};
 export type ModulePermission={module_key:string;visible:boolean;access_enabled:boolean;automation_enabled:boolean};
@@ -16,8 +17,14 @@ export function modulesForAction(action:string):string[]{
 }
 export function policyAllows(rows:ModulePermission[],keys:string[],automatic=false){return keys.every(key=>{const p=rows.find(r=>r.module_key===key);return p?.access_enabled===true&&(!automatic||p.automation_enabled===true);});}
 /** Service clients supply only an already authenticated owner, never a user-provided identity. */
+const policyRowsCache=createTtlCache<ModulePermission[]>(10_000);
 export async function modulePolicyAllowed(sb:any,keys:string[],owner:string|null=null,automatic=false){
  if(!keys.length)return true;
+ const cacheKey=owner||'-';
+ const cached=policyRowsCache.get(cacheKey);
+ if(cached)return policyAllows(cached,keys,automatic);
  const {data,error}=await sb.rpc('waouh_module_policy',{p_user_id:owner||null});
- return !error&&Array.isArray(data)&&policyAllows(data,keys,automatic);
+ if(error||!Array.isArray(data))return false;
+ policyRowsCache.set(cacheKey,data as ModulePermission[]);
+ return policyAllows(data,keys,automatic);
 }
