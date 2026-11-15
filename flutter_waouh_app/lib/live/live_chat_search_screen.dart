@@ -349,7 +349,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     );
   }
 
-  Future<void> _delegateFabric(String fabricId, String fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
+  Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
     if (_delegating || fabricId.trim().isEmpty) return;
     if (!confirmed) {
       final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: widget.budget);
@@ -359,7 +359,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     try {
       final api = LiveDealRoomService(legacy.supabase);
       final askedCity = (widget.city ?? '').trim();
-      final city = askedCity.isNotEmpty ? askedCity : fabricCity;
+      final city = askedCity.isNotEmpty ? askedCity : (fabricCity ?? '');
       final opened = await api.call('open', <String, dynamic>{
         'fabric_id': fabricId,
         if (city.isNotEmpty) 'city': city,
