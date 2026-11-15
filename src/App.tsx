@@ -125,7 +125,7 @@ function WaouhSearchEntry(){
   if(isLoading)return null;
   const ask=guidedAskFromSearchParams(p);
   // Menu « Recherche guidée » sans demande : l'accueil de l'Avatar, dont les résultats arrivent dans le style du Chat.
-  if(!ask)return <WaouhGuidedHome/>;
+  if(!ask&&!p.has('kind')&&!p.has('mode'))return <WaouhGuidedHome/>;
   return <WaouhGuidedToChat ask={ask} loggedIn={!!user}/>;
 }
 function WaouhAvatarModeToChat(){
