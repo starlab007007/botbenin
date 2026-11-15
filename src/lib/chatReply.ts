@@ -48,7 +48,9 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
       fabric_id: label(r.fabric_id, r.fabricId) || null,
       intent: label(r.intent, r.signal_intent) || null,
       actor_type: label(r.actor_type, r.actor_role, r.role) || null,
-      contactability_level: label(r.contactability_level, r.contactability, object(r.evidence).contactability_level) || null,
+      // Lecture publique (sans compte) : les faits déclarés arrivent sous public_facts.
+      evidence: r.evidence ?? r.public_facts ?? null,
+      contactability_level: label(r.contactability_level, r.contactability, object(r.evidence ?? r.public_facts).contactability_level) || null,
       total_score: number(r.total_score ?? object(r.scores).total_score ?? r.match_score ?? r.score),
       relevance_score: number(r.relevance_score ?? object(r.scores).relevance_score),
       trust_score: number(r.trust_score ?? object(r.scores).trust_score),

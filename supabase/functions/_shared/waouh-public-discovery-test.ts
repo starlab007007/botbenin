@@ -18,3 +18,15 @@ Deno.test("public URLs reject scripts and embedded credentials", () => {
   assertEquals(publicNexusResult({ source_url: "javascript:alert(1)" }).source_url, null);
   assertEquals(publicNexusResult({ source_url: "https://user:secret@example.com/product" }).source_url, null);
 });
+
+Deno.test("une lecture publique n'expose jamais la clé evidence, seulement des faits déclarés", () => {
+  const result = publicNexusResult({
+    fabric_id: "article:fan", subject: "Ventilateur", raw_text: "description privée",
+    evidence: { description: "Ventilateur 3 vitesses", seller_id: "private-owner", contact_phone: "+229 01 97 11 22 33" },
+  }) as Record<string, unknown>;
+  for (const forbidden of ["raw_text", "evidence", "contact_pack", "actor_id"]) {
+    assertFalse(forbidden in result, `la clé ${forbidden} ne doit jamais sortir d'une lecture publique`);
+  }
+  assertEquals((result.public_facts as Record<string, unknown>).description, "Ventilateur 3 vitesses");
+  assertFalse(JSON.stringify(result).includes("private-owner"));
+});

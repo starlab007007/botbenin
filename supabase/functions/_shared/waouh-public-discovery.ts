@@ -30,7 +30,7 @@ export function publicNexusResult(row: Record<string, unknown>) {
     fabric_id: row.fabric_id, source_key: row.source_key, source_url: url && !url.username && !url.password ? url.toString() : null,
     subject: redactPublicContacts(row.subject), category: row.category, intent: row.intent,
     price_min: row.price_min, price_max: row.price_max, currency:row.currency, city: row.city, observed_at: row.observed_at,
-    condition:typeof row.condition==='string'?redactPublicContacts(row.condition).slice(0,80):null,evidence:publicBusinessEvidence({...((row.evidence&&typeof row.evidence==='object')?row.evidence as Record<string,unknown>:{}),...(row.expires_at?{expires_at:row.expires_at}:{})}),
+    condition:typeof row.condition==='string'?redactPublicContacts(row.condition).slice(0,80):null,public_facts:publicBusinessEvidence({...((row.evidence&&typeof row.evidence==='object')?row.evidence as Record<string,unknown>:{}),...(row.expires_at?{expires_at:row.expires_at}:{})}),
     scores: row.scores ? { ...(row.scores as Record<string, unknown>), contactability_score: 0, reasons: ((row.scores as { reasons?: string[] }).reasons ?? []).filter(reason => reason !== "Contact autorisé") } : undefined,
     contact_policy: { level: "C0", label: "Connexion requise pour préparer le contact", can_reveal: false, can_auto_contact: false, can_blind_message: false, can_user_confirm_contact: false, requires_approval: true },
   };
