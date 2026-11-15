@@ -164,7 +164,7 @@ class LiveSaleHandoff {
       sale: sale,
     );
     return Uri(
-      path: '/app/nexus',
+      path: '/app/chat/waouh',
       queryParameters: {
         'kind': 'vendre',
         'mode': 'find_buyers',

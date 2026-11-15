@@ -66,6 +66,10 @@ void main() {
       expect(liveGuidedAskFromUri(Uri.parse('/app/nexus')), isNull);
       expect(liveGuidedAskFromUri(Uri.parse('/app/missions?q=soja&go=1')), isNull);
       expect(liveGuidedIsEntryPath(Uri.parse('/app/nexus-legacy')), isTrue);
+      // Lien du Chat lui-même : mêmes règles, sans passer par /app/nexus.
+      expect(liveGuidedAskFromUri(Uri.parse('/app/chat/waouh?q=riz&kind=acheter'))!.kind, 'acheter');
+      expect(liveGuidedIsSell(Uri.parse('/app/chat/waouh?kind=vendre')), isTrue);
+      expect(liveGuidedAskFromUri(Uri.parse('/app/chat/waouh')), isNull);
       expect(liveGuidedIsEntryPath(Uri.parse('/app/avatar')), isFalse);
     });
 

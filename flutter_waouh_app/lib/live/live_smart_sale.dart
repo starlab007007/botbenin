@@ -267,7 +267,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     if (_owner == null) {
       await requireLiveAuthentication(
         context,
-        next: '/app/nexus?kind=vendre',
+        next: '/app/chat/waouh',
         actionLabel: 'ajouter les photos de votre produit',
       );
       return;
@@ -348,7 +348,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     if (_owner == null) {
       await requireLiveAuthentication(
         context,
-        next: '/app/nexus?kind=vendre',
+        next: '/app/chat/waouh',
         actionLabel: 'publier votre produit',
       );
       return;

@@ -36,7 +36,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Samsung S25', 'Moto d’occasion', 'Climatiseur 1,5 CV'],
     'Chercher pour moi',
     'Budget max (FCFA)',
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.vendre: _Copy(
     'Vendre',
@@ -45,7 +45,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Mon téléphone', '10 tonnes de soja', 'Ma moto'],
     'Trouver des acheteurs',
     'Prix souhaité (FCFA)',
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.trouver: _Copy(
     'Trouver',
@@ -58,7 +58,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ],
     'Lancer la recherche',
     'Budget (FCFA, facultatif)',
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.opportunite: _Copy(
     'Opportunité',
@@ -67,7 +67,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Appel d’offres BTP', 'Stage en informatique', 'Subvention agricole'],
     'Chercher des opportunités',
     null,
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.service: _Copy(
     'Service',
@@ -76,7 +76,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Plombier', 'Réparation de climatiseur', 'Livreur fiable'],
     'Trouver un professionnel',
     'Budget max (FCFA)',
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.prestation: _Copy(
     'Prestation',
@@ -85,7 +85,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Création d’un site vitrine', 'Traiteur pour 50 personnes', 'Logo et charte graphique'],
     'Trouver un prestataire',
     'Budget max (FCFA)',
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
   LiveQuickAskKind.demander: _Copy(
     'Demander',
@@ -94,7 +94,7 @@ const _copy = <LiveQuickAskKind, _Copy>{
     ['Un livreur fiable', 'Traiteur pour 50 personnes', 'Un plombier'],
     'Demander à Bot',
     null,
-    '/app/nexus',
+    '/app/chat/waouh',
   ),
 };
 

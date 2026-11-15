@@ -146,10 +146,13 @@ const Map<String, String> _nexusKinds = <String, String>{
   'project': 'prestation',
 };
 
-/// Anciens écrans de recherche guidée : `/app/nexus`, `/app/nexus-legacy` et `/app/avatar/<parcours>`.
-/// Ils n'ont plus d'écran à part : tous ouvrent le Chat.
+/// Entrées guidées : le Chat (`/app/chat/waouh?q=…&kind=…`) et les anciens liens `/app/nexus`,
+/// `/app/nexus-legacy`, `/app/avatar/<parcours>`, qui n'ont plus d'écran à part et ouvrent le Chat.
 bool liveGuidedIsEntryPath(Uri uri) =>
-    uri.path == '/app/nexus' || uri.path == '/app/nexus-legacy' || uri.path.startsWith('/app/avatar/');
+    uri.path == '/app/chat/waouh' ||
+    uri.path == '/app/nexus' ||
+    uri.path == '/app/nexus-legacy' ||
+    uri.path.startsWith('/app/avatar/');
 
 String _entrySegment(Uri uri) {
   if (!uri.path.startsWith('/app/avatar/')) return '';

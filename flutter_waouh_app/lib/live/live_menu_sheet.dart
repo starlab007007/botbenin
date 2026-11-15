@@ -67,12 +67,6 @@ const liveMenuSections = <LiveMenuSection>[
     ),
   ]),
   LiveMenuSection('Agents IA', [
-    LiveMenuItem(
-      'Recherche guidée',
-      '/app/nexus',
-      Icons.search,
-      moduleKey: 'nexus',
-    ),
     LiveMenuItem('IA', '/app/ia', Icons.auto_awesome, moduleKey: 'ia'),
     LiveMenuItem(
       'Avatar',

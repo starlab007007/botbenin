@@ -126,7 +126,7 @@ class _BotHomeHeroState extends State<BotHomeHero> {
     liveOpenGuidedPath(
       context,
       Uri(
-        path: '/app/nexus',
+        path: '/app/chat/waouh',
         queryParameters: {
           'q': value,
           'go': '1',
