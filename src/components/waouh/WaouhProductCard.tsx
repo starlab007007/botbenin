@@ -293,6 +293,7 @@ export function WaouhProductCard({
 }) {
   const photos = normalizeResultCards([result])[0]?.photos || [];
   const [cur, setCur] = useState(0);
+  const swipeX = useRef<number | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
@@ -436,9 +437,9 @@ export function WaouhProductCard({
   return (
     <div className="wr-vip-card">
       <div className="wr-card-head">
-        <div className="wr-photo"><button type="button" onClick={() => photos.length && setZoom(cur)} aria-label={`Agrandir la photo de ${result.title}`}>
-          {photos.length && !failed ? <img src={photos[cur]} alt={result.title} loading="lazy" decoding="async" onLoad={() => setReady(true)} onError={() => setFailed(true)} /> : <span className="flex flex-col gap-2 items-center text-xs text-muted-foreground"><ImageOff size={22} />Photo non fournie</span>}
-        </button>{photos.length > 1 && <div className="wr-photo-controls"><button type="button" aria-label="Photo précédente" onClick={() => go(-1)}><ChevronLeft size={14} /></button><span>{cur + 1}/{photos.length}</span><button type="button" aria-label="Photo suivante" onClick={() => go(1)}><ChevronRight size={14} /></button></div>}</div>
+        <div className={`wr-photo${photos.length && !failed && !ready ? " wr-photo-loading" : ""}`} onTouchStart={(e) => { swipeX.current = e.touches[0]?.clientX ?? null; }} onTouchEnd={(e) => { const x0 = swipeX.current; swipeX.current = null; const x1 = e.changedTouches[0]?.clientX; if (photos.length > 1 && x0 != null && x1 != null && Math.abs(x1 - x0) > 40) go(x1 < x0 ? 1 : -1); }}><button type="button" onClick={() => photos.length && setZoom(cur)} aria-label={`Agrandir la photo de ${result.title}`}>
+          {photos.length && !failed ? <img src={photos[cur]} alt={result.title} loading="lazy" decoding="async" onLoad={() => setReady(true)} onError={() => { if (cur < photos.length - 1) setCur(cur + 1); else setFailed(true); }} /> : <span className="wr-photo-empty"><ImageOff size={22} />Pas de photo</span>}
+        </button>{photos.length > 1 && <span className="wr-photo-count" aria-hidden="true">{photos.length} photos</span>}{photos.length > 1 && <div className="wr-photo-controls"><button type="button" aria-label="Photo précédente" onClick={() => go(-1)}><ChevronLeft size={14} /></button><span>{cur + 1}/{photos.length}</span><button type="button" aria-label="Photo suivante" onClick={() => go(1)}><ChevronRight size={14} /></button></div>}</div>
         <div className="wr-card-title"><span>{opportunity ? 'Demande d’un acheteur' : resultKind(result) === 'service' ? 'Prestation' : resultKind(result) === 'announcement' ? 'Annonce' : 'Offre produit'}</span><h4>{result.title}</h4><div className="wr-location">{[result.city, result.quartier, conditionLabel(result.condition)].filter(Boolean).join(' · ') || 'Localisation à préciser'}</div><div className="wr-price">{priceLabel(result)}</div></div>
       </div>
       <WaouhResultEssentials result={result} />

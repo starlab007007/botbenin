@@ -17,6 +17,8 @@ import 'live_product_presentation.dart';
 import 'live_reasoning.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_automatic_offers.dart' show liveOfferReachable;
+import 'live_bot_follow_up.dart';
+import 'package:go_router/go_router.dart';
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
 
@@ -327,6 +329,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   final expired=r?['control_mode']!='manual'&&(DateTime.tryParse('${r?['expires_at']}')?.isBefore(DateTime.now())??false);
   return Theme(data:Theme.of(context).copyWith(colorScheme:Theme.of(context).colorScheme.copyWith(primary:WaouhColors.blue)),child:Scaffold(backgroundColor:WaouhColors.pearl,appBar:AppBar(title:const Text('WAOUH'),leading:roomId==null?null:IconButton(icon:const Icon(Icons.arrow_back),onPressed:(){generation++;setState((){roomId=null;room=null;message.clear();});unawaited(load());}),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh))]),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[
    if(notice.isNotEmpty)Card(color:const Color(0xFFECFAF6),child:Padding(padding:const EdgeInsets.all(12),child:Text(notice,style:const TextStyle(color:Color(0xFF087E70))))),if(error.isNotEmpty)Semantics(liveRegion:true,child:Text(error,style:TextStyle(color:Theme.of(context).colorScheme.error))),if(busy||searching)const LinearProgressIndicator(),
+   if(roomId!=null&&r!=null&&(bot||botTakeover||r['control_mode']=='paused'))LiveBotFollowUpCard(room:r,title:'${r['title']??''}'.trim().isEmpty?null:'${r['title']}',onMissions:()=>context.push('/app/missions')),
    if(roomId==null)...[
     Row(children:[Image.asset('assets/bot/bot_avatar.png',width:64),const SizedBox(width:12),const Expanded(child:Text('Que cherchez-vous ?',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)))]),
     LiveDealGuidance(guide:searchRoomGuidance(searching,offers.isNotEmpty)),
