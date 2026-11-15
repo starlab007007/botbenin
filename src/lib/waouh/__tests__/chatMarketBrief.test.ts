@@ -60,3 +60,32 @@ describe("analyse du marché dans la recherche du Chat", () => {
     expect(brief.pick?.reasons.length).toBeGreaterThan(0);
   });
 });
+
+describe("pertinence : la demande d'abord", () => {
+  it("place le modèle demandé avant un modèle proche, même moins cher", async () => {
+    const { briefMatch } = await import("../chatMarketBrief");
+    const results = [
+      card(1, { title: "iPhone 11", price: 90000, city: "Cotonou", photos: ["https://x.bj/a.jpg"] }),
+      card(2, { title: "iPhone 6 à 25000", price: 25000 }),
+      card(3, { title: "Apple iPhone 13 128 Go", price: 210000 }),
+      card(4, { title: "iphone 13 pro", price: 260000 }),
+    ];
+    expect(briefMatch(results[0], "iPhone 13")).toBe("near");
+    expect(briefMatch(results[2], "Je cherche un iPhone 13")).toBe("exact");
+    const brief = chatMarketBrief(results, { query: "iPhone 13" });
+    expect(brief.pick?.result.title).toBe("Apple iPhone 13 128 Go");
+    expect(brief.pick?.reasons[0]).toBe("Correspond à votre demande");
+    expect(brief.exact).toBe(2);
+    // Les repères de prix portent sur le modèle demandé.
+    expect(brief.low).toBe(210000);
+  });
+  it("dit clairement quand seules des offres proches existent", () => {
+    const brief = chatMarketBrief([card(1, { title: "iPhone 11", price: 90000 }), card(2, { title: "iPhone 6", price: 25000 })], { query: "iPhone 13" });
+    expect(brief.exact).toBe(0);
+    expect(brief.advice).toMatch(/^Aucune offre ne correspond exactement/);
+    expect(brief.pick?.reasons).toContain("Modèle proche de votre demande");
+  });
+  it("sans demande exploitable, rien ne change", () => {
+    expect(chatMarketBrief([card(1, { price: 10 })], {}).exact).toBeNull();
+  });
+});

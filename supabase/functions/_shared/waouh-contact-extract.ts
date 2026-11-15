@@ -92,3 +92,35 @@ export function pageNeedsRenderer(url: string): boolean {
     return false;
   }
 }
+
+/** Une adresse de photo publique et stable (https, sans jeton), ou null. */
+export function publicPhotoUrl(value: unknown, base?: string): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const raw = value.trim().replace(/&amp;/g, "&");
+    const u = base ? new URL(raw, base) : new URL(raw);
+    if (u.protocol !== "https:" || u.username || u.password) return null;
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^[\d.]+$/.test(host) || host.includes(":")) return null;
+    if ([...u.searchParams.keys()].some((k) => /token|signature|credential|authorization|api.?key|x-amz|secret|session|jwt/i.test(k))) return null;
+    if (/\.(?:svg|ico|gif)$/i.test(u.pathname) || /(?:^|[\/_.-])(?:logo|favicon|sprite|placeholder|default[-_]?avatar|blank)(?:[\/_.-]|$)/i.test(u.pathname)) return null;
+    return u.href.slice(0, 1000);
+  } catch { return null; }
+}
+
+/** Photos de l'annonce déclarées par sa page (image de partage, puis image principale). Quatre au plus. */
+export function extractPagePhotos(html: string, pageUrl: string): string[] {
+  const text = String(html ?? "").slice(0, 400_000);
+  const found: string[] = [];
+  const add = (value: unknown) => { const u = publicPhotoUrl(value, pageUrl); if (u && !found.includes(u)) found.push(u); };
+  const metaRe = /<meta\b[^>]*>/gi;
+  for (const tag of text.match(metaRe) ?? []) {
+    if (!/(?:property|name|itemprop)\s*=\s*["'](?:og:image(?::secure_url|:url)?|twitter:image(?::src)?|image)["']/i.test(tag)) continue;
+    const content = /content\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
+    add(content);
+  }
+  const linkImage = /<link\b[^>]*rel\s*=\s*["']image_src["'][^>]*>/i.exec(text)?.[0];
+  if (linkImage) add(/href\s*=\s*["']([^"']+)["']/i.exec(linkImage)?.[1]);
+  for (const m of text.matchAll(/"image"\s*:\s*(?:\[\s*)?"(https:[^"\\]+)"/g)) { add(m[1]); if (found.length >= 4) break; }
+  return found.slice(0, 4);
+}

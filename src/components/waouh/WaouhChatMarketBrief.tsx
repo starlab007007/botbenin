@@ -20,13 +20,14 @@ const gapLabel = (row: BriefRow) => {
  * comparaison des meilleures offres, et un seul bouton pour tout confier à Bot. Les fiches
  * complètes (photos, intérêt, message, proposition) restent juste en dessous.
  */
-export function WaouhChatMarketBrief({ results, city, budget, kind }: {
+export function WaouhChatMarketBrief({ results, city, budget, kind, query }: {
+  query?: string | null;
   results: WaouhResultCard[];
   city?: string | null;
   budget?: number | null;
   kind?: GuidedKind;
 }) {
-  const brief = useMemo(() => chatMarketBrief(results, { city, budget }), [results, city, budget]);
+  const brief = useMemo(() => chatMarketBrief(results, { city, budget, query }), [results, city, budget, query]);
   const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;

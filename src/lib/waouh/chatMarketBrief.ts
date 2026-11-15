@@ -17,6 +17,8 @@ export type BriefRow = {
   reachable: boolean;
   /** Identifiant de l'offre que Bot peut prendre en charge, sinon null. */
   delegateId: string | null;
+  /** Correspondance avec la demande : exacte, proche (autre modèle), ou non évaluée. */
+  match: "exact" | "near" | null;
   rank: number;
 };
 
@@ -29,6 +31,8 @@ export type ChatMarketBrief = {
   inZone: number;
   reachable: number;
   overBudget: number;
+  /** Nombre d'offres qui correspondent exactement à la demande (null : demande non évaluable). */
+  exact: number | null;
   advice: string;
   pick: (BriefRow & { reasons: string[] }) | null;
   compare: BriefRow[];
@@ -79,9 +83,30 @@ const medianOf = (values: number[]): number | null => {
 
 const hasPhoto = (r: WaouhResultCard) => Array.isArray(r.photos) && r.photos.some((p) => typeof p === "string" && /^https?:\/\//i.test(p));
 
+const STOP = new Set(["je", "cherche", "veux", "un", "une", "des", "le", "la", "les", "de", "du", "a", "à", "au", "pour", "en", "et", "avec", "acheter", "achat", "trouver", "trouve", "moi", "bon", "pas", "cher", "occasion", "neuf", "neuve"]);
+const norm = (v: unknown) => String(v ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * L'offre correspond-elle à la demande ? Les repères chiffrés (« 13 » dans « iPhone 13 », « 256 »…)
+ * doivent tous être présents : un autre modèle est une offre proche, pas la même offre.
+ */
+export function briefMatch(result: WaouhResultCard, query?: string | null): "exact" | "near" | null {
+  const tokens = norm(query).split(" ").filter((t) => t.length > 1 && !STOP.has(t)).slice(0, 8);
+  if (!tokens.length) return null;
+  const hay = ` ${norm([result.title, (result as { brand?: unknown }).brand, (result as { model?: unknown }).model].filter(Boolean).join(" "))} `;
+  const has = (t: string) => hay.includes(` ${t} `) || (!/^\d+$/.test(t) && t.length > 3 && hay.includes(t));
+  const numbers = tokens.filter((t) => /\d/.test(t));
+  const words = tokens.filter((t) => !/\d/.test(t));
+  if (numbers.some((t) => !has(t))) return "near";
+  if (!words.length) return "exact";
+  return words.filter(has).length / words.length >= 0.5 ? "exact" : "near";
+}
+
 /** Classement lisible : dans le budget, dans la zone, joignable, prix proche ou sous la médiane, photo. */
 function fitness(row: Omit<BriefRow, "rank">, median: number | null): number {
   let score = 0;
+  if (row.match === "exact") score += 45;
+  if (row.match === "near") score -= 25;
   if (row.withinBudget === true) score += 30;
   if (row.withinBudget === false) score -= 40;
   if (row.inZone) score += 22;
@@ -97,10 +122,14 @@ function fitness(row: Omit<BriefRow, "rank">, median: number | null): number {
   return score;
 }
 
-export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string | null; budget?: number | null } = {}): ChatMarketBrief {
+export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string | null; budget?: number | null; query?: string | null } = {}): ChatMarketBrief {
   // Les demandes d'acheteurs (recherche pour vendre) ne sont pas des offres à comparer.
   const pool = results.filter((r) => !isBuyerRequest(r));
-  const prices = pool.map(briefPrice).filter((p): p is number => p !== null);
+  const matches = pool.map((r) => briefMatch(r, ctx.query));
+  const exactCount = matches.some((m) => m !== null) ? matches.filter((m) => m === "exact").length : null;
+  // Les repères de prix portent sur les offres qui correspondent à la demande, dès qu'il y en a assez.
+  const exactPrices = pool.filter((_, i) => matches[i] === "exact").map(briefPrice).filter((p): p is number => p !== null);
+  const prices = exactPrices.length >= 2 ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
   const low = prices.length ? Math.min(...prices) : null;
   const high = prices.length ? Math.max(...prices) : null;
   const median = medianOf(prices);
@@ -117,6 +146,7 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
       withinBudget: budget && price !== null ? price <= budget : null,
       reachable: !!delegateId || !!resultContact(result).phone,
       delegateId,
+      match: matches[order],
     };
     return { row, order, score: fitness(row, median) };
   });
@@ -132,6 +162,8 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
   const top = ranked[0] ?? null;
   const reasons: string[] = [];
   if (top) {
+    if (top.match === "exact") reasons.push("Correspond à votre demande");
+    if (top.match === "near") reasons.push("Modèle proche de votre demande");
     if (top.withinBudget === true && budget && top.price !== null) reasons.push(top.price < budget ? `${briefMoney(budget - top.price)} sous votre budget` : "Dans votre budget");
     if (top.inZone && ctx.city) reasons.push(`Dans votre zone · ${top.result.city}`);
     if (top.vsMedianPct !== null && top.vsMedianPct < -50) reasons.push("Prix très inférieur aux autres offres : à vérifier avant tout accord");
@@ -154,7 +186,10 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
     advice = "Aucun prix n’est annoncé sur ces offres : il sera demandé au vendeur.";
   }
 
+  if (exactCount === 0 && ranked.length) advice = `Aucune offre ne correspond exactement à votre demande. Voici les plus proches. ${advice}`;
+
   return {
+    exact: exactCount,
     total: ranked.length,
     priced: prices.length,
     low, median, high,

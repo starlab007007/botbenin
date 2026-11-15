@@ -4,9 +4,14 @@ import type { WaouhResultCard } from './WaouhProductCard';
 export function WaouhResultEssentials({ result }: { result: WaouhResultCard }) {
   const view = resultEssentials(result);
   const currency = view.refs.find(r => r.comparable)?.currency;
+  // L'état est déjà dit sous le titre : pas de répétition, ni de valeur brute.
+  const facts = view.facts.filter(x => x !== result.condition);
+  // Les encarts n'apparaissent que s'ils apportent une information propre à cette offre.
+  const informative = Boolean(view.advice) || view.refs.length > 0 || view.median !== null;
+  if (!facts.length && !informative && !view.missing.length) return null;
   return <div className="wr-essentials">
-    {view.facts.length > 0 && <div className="wr-facts">{view.facts.map((x,i) => <span key={i}>{x}</span>)}</div>}
-    <div className="wr-insights">
+    {facts.length > 0 && <div className="wr-facts">{facts.map((x,i) => <span key={i}>{x}</span>)}</div>}
+    {informative && <div className="wr-insights">
       <div className="wr-insight wr-ai"><span><Sparkles size={14} />{view.advice ? 'Avis IA' : 'À savoir'}</span><p>{view.advice || (view.kind === 'announcement' ? 'Vérifiez les conditions et la validité avant de répondre.' : 'Confirmez les conditions de cette offre avant de vous engager.')}</p></div>
       <div className="wr-insight wr-market"><span><BarChart3 size={14} />Repère marché</span><p>{view.market}</p>
         {view.median !== null && <p>Médiane : {new Intl.NumberFormat('fr-FR').format(view.median)} {currency === 'XOF' ? 'F CFA' : currency}.</p>}
@@ -16,7 +21,7 @@ export function WaouhResultEssentials({ result }: { result: WaouhResultCard }) {
           {!view.refs.length && <small>Aucun prix moyen n’est déduit sans sources comparables.</small>}
         </details>
       </div>
-    </div>
+    </div>}
     {view.missing.length > 0 && <div className="wr-missing"><CircleHelp size={14} /><span>{view.missing.slice(0, 2).join(' · ')}</span>{view.missing.length > 2 && <details><summary>+{view.missing.length - 2}</summary>{view.missing.slice(2).map(x => <p key={x}>{x}</p>)}</details>}</div>}
   </div>;
 }

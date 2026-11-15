@@ -46,6 +46,19 @@ export const GUIDED_KIND_LABEL: Record<GuidedKind, string> = {
 
 const ALREADY_PHRASED = /^\s*(je\s+(cherche|recherche|veux|voudrais|souhaite|vends)|j[’']ai\s+besoin|cherche|recherche|trouve|acheter|vendre)\b/i;
 
+/** Salutation, question ou phrase de conversation : à envoyer telle quelle, ce n'est pas un besoin à chercher. */
+const CONVERSATION = /^\s*(bonjour|bonsoir|salut|hello|coucou|merci|ok|oui|non|comment|pourquoi|quand|combien|qui|que|quels?|quelles?|quoi|est-ce|aide|aidez|explique|résume|resume|où|ou en)(?=[\s,.!?'’-]|$)|\?/i;
+
+/**
+ * Texte libre : un besoin court (« riz parfumé », « iPhone 13 à Cotonou ») est une recherche,
+ * même sans verbe ; une phrase de conversation reste un simple message.
+ */
+export function freeTextIsNeed(q: string): boolean {
+  const t = q.trim();
+  if (t.length < 3 || CONVERSATION.test(t) || ALREADY_PHRASED.test(t)) return false;
+  return t.split(/\s+/).length <= 8;
+}
+
 const LEAD: Record<Exclude<GuidedKind, "vendre">, (q: string) => string> = {
   acheter: (q) => `Je cherche à acheter ${q}`,
   trouver: (q) => `Je cherche ${q}`,
@@ -67,7 +80,7 @@ export function guidedAskText(input: GuidedAskInput): string {
   if (input.kind === "vendre") return "";
   const q = String(input.q ?? "").trim().replace(/\s+/g, " ");
   if (!q) return "";
-  if (input.free) return q;
+  if (input.free) return freeTextIsNeed(q) ? LEAD.trouver(q) : q;
   const city = String(input.city ?? "").trim();
   const budget = guidedBudget(input.budget);
   let text = input.kind === "trouver" && ALREADY_PHRASED.test(q) ? q : LEAD[input.kind](q);
@@ -85,7 +98,7 @@ export function buildGuidedAsk(input: GuidedAskInput, now = Date.now()): GuidedA
     goal: String(input.q ?? "").trim() || text,
     city: String(input.city ?? "").trim(),
     budget: guidedBudget(input.budget),
-    force: input.kind !== "vendre" && !input.free,
+    force: input.kind !== "vendre" && (!input.free || freeTextIsNeed(String(input.q ?? ""))),
     ts: now,
   };
 }

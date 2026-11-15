@@ -37,6 +37,15 @@ void main() {
       );
     });
 
+    test('champ libre : un besoin court devient une recherche, une question reste un message', () {
+      expect(liveFreeTextIsNeed('Riz parfume'), isTrue);
+      expect(liveGuidedAskText(kind: 'trouver', q: 'Riz parfume', free: true), 'Je cherche Riz parfume');
+      for (final q in ['Bonjour Bot', 'Comment vendre plus vite ?', 'Où en sont mes missions']) {
+        expect(liveFreeTextIsNeed(q), isFalse);
+        expect(liveGuidedAskText(kind: 'trouver', q: q, free: true), q);
+      }
+    });
+
     test('vendre ouvre la fiche de vente du Chat : aucune phrase', () {
       expect(liveGuidedAskText(kind: 'vendre', q: 'Ma moto'), isEmpty);
     });

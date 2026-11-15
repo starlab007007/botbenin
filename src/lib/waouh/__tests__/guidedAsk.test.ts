@@ -80,3 +80,22 @@ describe("recherche guidée → moteur du Chat", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("champ libre : besoin court ou conversation", () => {
+  it("traite un besoin sans verbe comme une recherche", () => {
+    const ask = buildGuidedAsk({ kind: "trouver", q: "Riz parfume", free: true });
+    expect(ask?.text).toBe("Je cherche Riz parfume");
+    expect(ask?.force).toBe(true);
+    expect(ask?.goal).toBe("Riz parfume");
+  });
+  it("laisse une question ou une salutation telle quelle", () => {
+    for (const q of ["Bonjour Bot", "Comment vendre plus vite ?", "Où en sont mes missions"]) {
+      const ask = buildGuidedAsk({ kind: "trouver", q, free: true });
+      expect(ask?.text).toBe(q);
+      expect(ask?.force).toBe(false);
+    }
+  });
+  it("ne reformule pas une demande déjà formulée", () => {
+    expect(buildGuidedAsk({ kind: "trouver", q: "Je cherche un frigo à Calavi", free: true })?.text).toBe("Je cherche un frigo à Calavi");
+  });
+});
