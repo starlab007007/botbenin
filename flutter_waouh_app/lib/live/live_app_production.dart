@@ -224,7 +224,15 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           builder: (_, __) => const LiveAvatarScreen(),
         ),
         GoRoute(
-          path: '/app/avatar/:mode',
+          path: '/app/avatar/acheter',
+          builder: (_, state) => LiveGuidedRedirect(uri: state.uri),
+        ),
+        GoRoute(
+          path: '/app/avatar/vendre',
+          builder: (_, state) => LiveGuidedRedirect(uri: state.uri),
+        ),
+        GoRoute(
+          path: '/app/avatar/demander',
           builder: (_, state) => LiveGuidedRedirect(uri: state.uri),
         ),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
