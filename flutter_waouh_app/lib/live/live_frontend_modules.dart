@@ -50,6 +50,8 @@ class FrontendModulesController extends ChangeNotifier
   int _generation = 0;
   String? _owner;
   Timer? _timer;
+  Timer? _retryTimer;
+  int _failures = 0;
   RealtimeChannel? _channel;
   bool canAccess(String key) => accessKeys.contains(key);
   void _onAuthChanged() {
@@ -74,7 +76,9 @@ class FrontendModulesController extends ChangeNotifier
     final version = ++_generation;
     _owner = auth.user?.id;
     try {
-      final raw = await legacy.supabase.rpc('waouh_module_policy');
+      final raw = await legacy.supabase
+          .rpc('waouh_module_policy')
+          .timeout(const Duration(seconds: 12));
       if (_disposed || version != _generation) return;
       final rows = (raw as List).whereType<Map>();
       visibleKeys = {
@@ -87,13 +91,23 @@ class FrontendModulesController extends ChangeNotifier
           if (r['access_enabled'] == true) '${r['module_key']}',
       };
       error = false;
+      _failures = 0;
+      loading = false;
     } catch (_) {
       if (_disposed || version != _generation) return;
       visibleKeys = {};
       accessKeys = {};
-      error = true;
+      _failures++;
+      // Les deux premiers échecs sont retentés sans écran bloquant ; l'accès
+      // reste refusé pendant ce temps.
+      final silent = _failures <= 2;
+      error = !silent;
+      loading = silent;
+      if (silent) {
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(milliseconds: 1500), _load);
+      }
     }
-    loading = false;
     notifyListeners();
   }
 
@@ -104,6 +118,7 @@ class FrontendModulesController extends ChangeNotifier
     auth.removeListener(_onAuthChanged);
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _retryTimer?.cancel();
     if (_channel != null) legacy.supabase.removeChannel(_channel!);
     super.dispose();
   }
