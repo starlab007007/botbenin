@@ -363,14 +363,21 @@ serve(async (req) => {
     if (notifTargetUserId) {
       // Resolve a web_session_id so the app can pull this notif without auth
       let notifSession: string | null = null;
+      // Un destinataire issu d'une annonce extérieure n'a pas de compte : sans ce contrôle,
+      // l'enregistrement échouait et l'erreur remontait jusqu'à la personne.
+      let recipientExists = false;
       try {
         const { data: u } = await sb
           .from("waouh_users")
-          .select("web_session_id")
+          .select("id,web_session_id")
           .eq("id", notifTargetUserId)
           .maybeSingle();
+        recipientExists = !!u?.id;
         notifSession = u?.web_session_id ?? null;
       } catch {}
+      if (!recipientExists) {
+        console.warn("[waouh-notify-dispatch] destinataire sans compte, notification ignorée", { kind, recipient });
+      } else {
 
       // Dedupe key: 1 notif per (kind, article, recipient, day, counterpart)
       // v12: counterpart_user_id is part of the key so two different buyers
@@ -424,6 +431,7 @@ serve(async (req) => {
         } else {
           console.error("[waouh-notify-dispatch] notif insert error", notifErr);
         }
+      }
       }
     }
 

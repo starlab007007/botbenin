@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
+import 'live_seller_brief.dart';
+import 'live_need_domain.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
@@ -318,6 +320,17 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
 
   /// « Confier à Bot » en un geste : Bot ouvre l'échange sur la meilleure offre, négocie dans
   /// le budget et passe à la suivante sans réponse. L'accord final reste à confirmer.
+  /// Vente : confier à Bot les acheteurs retenus (mêmes règles que côté acheteur).
+  Future<void> _delegateBuyers(List<Map<String, dynamic>> buyers) async {
+    final rows = buyers.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty).toList();
+    if (_delegating || rows.isEmpty) return;
+    await _delegateFabric(
+      '${rows.first['fabric_id']}',
+      '${rows.first['city'] ?? ''}',
+      [for (final r in rows.skip(1).take(3)) <String, dynamic>{'fabric_id': '${r['fabric_id']}', if ('${r['city'] ?? ''}'.trim().isNotEmpty) 'city': '${r['city']}'}],
+    );
+  }
+
   Future<void> _delegateAll(LiveChatBrief brief) async {
     if (_delegating || brief.delegable.isEmpty) return;
     final best = brief.delegable.first;
@@ -328,25 +341,32 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       budgetMax: widget.budget,
     );
     if (!ok || !mounted) return;
+    await _delegateFabric(
+      best.delegateId ?? '',
+      best.city,
+      [for (final a in alternates) if (a.delegateId != null) <String, dynamic>{'fabric_id': a.delegateId, if (a.city.isNotEmpty) 'city': a.city}],
+      confirmed: true,
+    );
+  }
+
+  Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
+    if (_delegating || fabricId.trim().isEmpty) return;
+    if (!confirmed) {
+      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: widget.budget);
+      if (!ok || !mounted) return;
+    }
     setState(() => _delegating = true);
     try {
       final api = LiveDealRoomService(legacy.supabase);
       final askedCity = (widget.city ?? '').trim();
-      final city = askedCity.isNotEmpty ? askedCity : best.city;
+      final city = askedCity.isNotEmpty ? askedCity : (fabricCity ?? '');
       final opened = await api.call('open', <String, dynamic>{
-        'fabric_id': best.delegateId,
+        'fabric_id': fabricId,
         if (city.isNotEmpty) 'city': city,
         'budget_max': widget.budget,
         'confirmed': false,
       });
       final id = '${opened['deal_room_id']}';
-      final cascade = <Map<String, dynamic>>[
-        for (final a in alternates)
-          <String, dynamic>{
-            'fabric_id': a.delegateId,
-            if (a.city.isNotEmpty) 'city': a.city,
-          },
-      ];
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
         'budget_max': widget.budget,
@@ -384,10 +404,20 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
     // Recherche pour vendre : les pistes d'acheteurs gardent leur prise en charge une à une.
     final delegable = _sell
-        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty).toList()
+        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty && liveMatchVerdict(widget.goal, r).acceptable).toList()
         : const <Map<String, dynamic>>[];
-    final brief = revealed && rows.isNotEmpty
+    final brief = revealed && rows.isNotEmpty && !_sell
         ? liveChatMarketBrief(rows, city: widget.city, budget: widget.budget)
+        : null;
+    // Vente : le prix demandé face au marché et les acheteurs qui correspondent vraiment.
+    final priceReference = reply?.meta['price_reference'];
+    final seller = revealed && (_sell || priceReference is Map)
+        ? liveSellerBrief(
+            rows,
+            reference: priceReference is Map ? <String, dynamic>{for (final e in priceReference.entries) '${e.key}': e.value} : null,
+            city: widget.city,
+            query: widget.goal,
+          )
         : null;
     final stage = liveSearchStage(hasReply: reply != null, revealed: revealed, results: rows.length);
     final kindLabel = liveGuidedKindLabels[widget.kind ?? ''];
@@ -434,6 +464,17 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           ),
           if (revealed && reply != null) ...[
             const SizedBox(height: 14),
+            if (seller != null) ...[
+              LiveSellerBriefCard(
+                brief: seller,
+                city: widget.city,
+                delegating: _delegating,
+                delegated: _delegatedRoom != null,
+                onDelegate: () => _delegateBuyers(seller.buyers),
+                onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (brief != null && brief.total > 0) ...[
               LiveChatMarketBriefCard(
                 brief: brief,

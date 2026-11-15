@@ -35,6 +35,7 @@ import {
 import { extractOfferAmount } from "../_shared/waouh-negotiation-intent.ts";
 import { negotiationActionsV3 } from "../_shared/waouh-commands.ts";
 import { renderCatalog, unavailableKey } from "../_shared/waouh-message-catalog.ts";
+import { matchVerdict } from "../_shared/waouh-need-domain.ts";
 import {
   contactabilityPolicy,
   scoreFabricSignal,
@@ -418,6 +419,17 @@ function chatBudgetMax(text: string, mode: ChatNexusMode): number | null {
   return Number.isFinite(value) && value >= 1 ? value : null;
 }
 
+/** Prix demandé par le vendeur, lu dans son annonce (« Prix : 12000 FCFA »). */
+function chatAskingPrice(text: string): number | null {
+  const normalized = String(text || "").replace(/\u00a0/g, " ");
+  const explicit = normalized.match(/prix\s*[:=]?\s*(\d[\d\s.,]*)/i)?.[1]
+    ?? normalized.match(/(\d[\d\s.,]*)\s*(?:fcfa|cfa|xof|f)\b/i)?.[1]
+    ?? null;
+  if (!explicit) return null;
+  const value = Number(explicit.replace(/[^\d]/g, ""));
+  return Number.isFinite(value) && value >= 1 ? value : null;
+}
+
 function chatSignalPhoto(signal: any): string[] {
   const evidence = signal?.evidence && typeof signal.evidence === "object" ? signal.evidence : {};
   const photos = Array.isArray(evidence.photos) ? evidence.photos : [];
@@ -447,6 +459,8 @@ async function enrichChatWithSignalFabric(
   if (!["BUY", "SELL"].includes(intent)) {
     return {
       results: input.coreResults,
+      price_reference: null,
+      nothing_relevant: false,
       intelligence: null,
       source_mix: null,
       signal_fabric: null,
@@ -503,15 +517,29 @@ async function enrichChatWithSignalFabric(
           contact_policy: contactabilityPolicy(signal.contactability_level),
         };
       });
-    // Ouverture : seuil strict d'abord ; si la recherche est pauvre (moins de 6 fiches), seuil élargi pour que le chat exploite aussi
-    // les signaux moins proches (Radar, Nexus, API, sites) — ils restent classés après, avec leur phrase de référence.
+    // Une annonce n'est proposée que si elle répond vraiment au besoin : même domaine
+    // (un emploi n'est pas un téléphone) et au moins un mot du besoin réellement présent.
+    // Sans cela, une recherche sans réponse renvoyait « les plus proches », c'est-à-dire n'importe quoi.
+    const eligible = scored.filter((row: any) => {
+      const verdict = matchVerdict(input.text, row);
+      row.match_verdict = verdict;
+      return verdict.acceptable;
+    });
+    // Parmi les annonces qui répondent au besoin : les plus proches d'abord, puis les autres.
     const STRICT = (row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32;
-    const RELAXED = (row: any) => row.scores.relevance_score >= 10 && row.scores.total_score >= 20;
-    const strictRows = scored.filter(STRICT);
-    const pool = strictRows.length >= 6 ? strictRows : scored.filter(RELAXED);
+    const strictRows = eligible.filter(STRICT);
+    const pool = strictRows.length >= 6 ? strictRows : eligible;
     // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points ;
     // aucune source ne peut occuper plus de 4 places (traitement équitable de toutes les sources).
-    const ranked = diversifyBySource([...pool].sort(compareUnified), { perSource: 4, max: 20 });
+    // Ce qui répond précisément au besoin passe devant ce qui n'en est que proche.
+    const byExactThenQuality = (a: any, b: any) => {
+      const exact = Number(b.match_verdict?.exact ?? false) - Number(a.match_verdict?.exact ?? false);
+      if (exact !== 0) return exact;
+      const coverage = Number(b.match_verdict?.coverage ?? 0) - Number(a.match_verdict?.coverage ?? 0);
+      if (Math.abs(coverage) >= 25) return coverage;
+      return compareUnified(a, b);
+    };
+    const ranked = diversifyBySource([...pool].sort(byExactThenQuality), { perSource: 4, max: 20 });
     const fabricIds = ranked.map((row: any) => String(row.fabric_id || "")).filter(Boolean);
     if (fabricIds.length) {
       const { data: packs } = await sb.from("waouh_contact_packs")
@@ -700,6 +728,8 @@ async function enrichChatWithSignalFabric(
         freshness_score: row.scores?.freshness_score ?? null,
         scores: row.scores ?? null,
         reasons: row.scores?.reasons ?? [],
+        match_exact: row.match_verdict?.exact ?? null,
+        match_coverage: row.match_verdict?.coverage ?? null,
         evidence,
         contact_pack: row.contact_pack ?? null,
         readiness_level: row.readiness_level ?? null,
@@ -723,7 +753,21 @@ async function enrichChatWithSignalFabric(
       if (enrichedCore.length + appended.length >= 12) break;
     }
 
-    const results = [...enrichedCore, ...appended].map(
+    // Dernier filtre, toutes sources confondues : aucune fiche hors sujet ne doit
+    // atteindre la personne, même venue du moteur historique.
+    const relevant = [...enrichedCore, ...appended].filter((row: any) => {
+      if (row?.match_verdict?.acceptable != null) return row.match_verdict.acceptable;
+      if (row?.match_exact != null || row?.match_coverage != null) return true;
+      const verdict = matchVerdict(input.text, {
+        subject: row?.subject ?? row?.title,
+        raw_text: row?.raw_text ?? row?.description,
+        category: row?.category,
+        brand: row?.brand,
+        model: row?.model,
+      });
+      return verdict.acceptable;
+    });
+    const results = relevant.map(
       (row: any, index: number) => ({ ...row, index: index + 1 }),
     );
     const top = ranked[0] as any;
@@ -732,8 +776,41 @@ async function enrichChatWithSignalFabric(
         ? 0.5
         : Math.max(0, Math.min(1, Number(top.scores.total_score) / 100));
 
+    // Côté vendeur : son prix face aux annonces comparables déjà publiées.
+    // Sans ce repère, il publie à l'aveugle.
+    let priceReference: Record<string, unknown> | null = null;
+    if (mode === "find_buyers") {
+      const asking = chatAskingPrice(input.text);
+      const { data: comparables } = await sb.from("waouh_signal_fabric")
+        .select("subject,raw_text,category,brand,model,price_min,price_max,city,observed_at")
+        .in("intent", ["SELL", "ANNOUNCE"])
+        .order("observed_at", { ascending: false })
+        .limit(1200);
+      const comparablePrices = (comparables ?? [])
+        .filter((row: any) => matchVerdict(input.text, row).acceptable)
+        .map((row: any) => Number(row.price_min ?? row.price_max ?? 0))
+        .filter((value: number) => Number.isFinite(value) && value > 0)
+        .sort((a: number, b: number) => a - b);
+      if (comparablePrices.length >= 2 || asking !== null) {
+        const middle = comparablePrices.length
+          ? (comparablePrices.length % 2
+            ? comparablePrices[(comparablePrices.length - 1) / 2]
+            : (comparablePrices[comparablePrices.length / 2 - 1] + comparablePrices[comparablePrices.length / 2]) / 2)
+          : null;
+        priceReference = {
+          asking_price: asking,
+          comparable_count: comparablePrices.length,
+          low: comparablePrices[0] ?? null,
+          median: middle,
+          high: comparablePrices[comparablePrices.length - 1] ?? null,
+        };
+      }
+    }
+
     return {
       results,
+      price_reference: priceReference,
+      nothing_relevant: results.length === 0,
       intelligence: {
         mode,
         normalized_query: input.text.trim().slice(0, 700),
@@ -781,6 +858,8 @@ async function enrichChatWithSignalFabric(
     console.warn("[waouh-channel-in] Signal Fabric enrichment failed", error);
     return {
       results: input.coreResults,
+      price_reference: null,
+      nothing_relevant: false,
       intelligence: null,
       source_mix: null,
       signal_fabric: { error: "enrichment_unavailable" },
@@ -2447,6 +2526,21 @@ Deno.serve(async (req) => {
       core?.contactability ??
       nexus.contactability_level;
 
+    // Rien ne correspond au besoin : on le dit, au lieu de proposer des fiches hors sujet.
+    // La personne garde une suite utile : confier la recherche à Bot, qui prévient dès qu'il trouve.
+    if (nexus.nothing_relevant && results.length === 0) {
+      const sellSide = String(core.intent || "").toUpperCase() === "SELL";
+      reply = [
+        sellSide
+          ? "Aucun acheteur ne correspond à votre annonce pour le moment."
+          : "Rien ne correspond à votre demande pour le moment.",
+        sellSide
+          ? "Votre annonce reste visible : je vous préviens dès qu’un acheteur sérieux apparaît."
+          : "Je préfère vous le dire plutôt que de vous proposer des offres sans rapport.",
+        "Dites-moi « Bot, occupe-t’en » et je cherche en continu, partout, puis je vous préviens dès que j’ai quelque chose.",
+      ].join("\n\n");
+    }
+
     // Opportunity OS — une simple recherche reste une recherche.
     // Seule une délégation explicite ("Bot contacte...") crée un mandat borné.
     const mandateDirective = parseChatMandateDirective(text, core.intent);
@@ -2560,6 +2654,7 @@ Deno.serve(async (req) => {
         results,
         products,
         intelligence,
+        price_reference: nexus.price_reference ?? null,
         source_mix: sourceMix,
         signal_fabric: signalFabric,
         contactability_level: contactability,
@@ -2585,7 +2680,7 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, thread_id: coreThreadId, negotiation_id: coreNegotiationId, stage: core.stage ?? null, buyer_user_id: core.buyer_user_id ?? null, seller_user_id: core.seller_user_id ?? null, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability, avatar_mandate: avatarMandate, persistent_intent: persistentIntent }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, thread_id: coreThreadId, negotiation_id: coreNegotiationId, stage: core.stage ?? null, buyer_user_id: core.buyer_user_id ?? null, seller_user_id: core.seller_user_id ?? null, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, price_reference: nexus.price_reference ?? null, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability, avatar_mandate: avatarMandate, persistent_intent: persistentIntent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
