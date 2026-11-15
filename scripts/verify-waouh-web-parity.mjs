@@ -117,6 +117,7 @@ if (tabs.includes("label: 'WhatsApp IA'") || tabs.includes("label: 'Diffusion'")
 
 for (const label of [
   "Chat Command Center",
+  "Recherche guidée",
   "Radar",
   "WhatsApp IA",
   "Diffusion",
@@ -139,6 +140,7 @@ for (const label of [
 
 const canonicalDesktopRoutes = [
   ["Chat Command Center", "/app/chat"],
+  ["Recherche guidée", "/app/nexus"],
   ["Radar", "/app/radar-map"],
   ["WhatsApp IA", "/app/whatsapp"],
   ["Avatar", "/app/avatar"],

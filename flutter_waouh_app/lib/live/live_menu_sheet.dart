@@ -48,6 +48,12 @@ const liveMenuSections = <LiveMenuSection>[
       moduleKey: 'chat',
     ),
     LiveMenuItem(
+      'Recherche guidée',
+      '/app/nexus',
+      Icons.search_rounded,
+      moduleKey: 'nexus',
+    ),
+    LiveMenuItem(
       'Radar',
       '/app/radar-map',
       Icons.radar_rounded,
