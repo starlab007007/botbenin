@@ -63,7 +63,6 @@ export const navigationSections: NavigationSection[] = [
   {
     title: 'Agents IA',
     items: [
-      { key:'nexus',label:'Recherche guidée',to:'/app/nexus',icon:Sparkles },
       { key:'ia',label:'IA',to:'/app/ia',icon:Sparkles },
       { key: 'avatar', label: 'Avatar', to: '/app/avatar', icon: Sparkles, accent: 'ai' },
       { key: 'missions', label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },

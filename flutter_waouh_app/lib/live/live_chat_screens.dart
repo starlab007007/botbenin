@@ -15,6 +15,7 @@ import 'live_controller.dart';
 import 'live_chat_search_screen.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_guest_action_gate.dart';
+import 'live_guided_ask.dart';
 import 'user_message.dart';
 import 'live_match_navigation.dart';
 import 'live_models.dart';
@@ -40,6 +41,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   late final LiveWaouhController _controller;
   bool _interestInFlight = false;
   bool _interestNavigationFailed = false;
+  LiveGuidedAsk? _guidedAsk;
   final _avatarBarKey = GlobalKey<LiveAvatarGuideBarState>();
   // L'avatar « écrit » : ses bulles en direct apparaissent l'une après l'autre (historique : d'un coup).
   final _avatarReveal = LiveAvatarReveal();
@@ -60,6 +62,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       final controller = context.read<LiveWaouhController>();
       final seed = controller.takeComposerSeed();
       final meta = controller.takeComposerMeta();
+      // Recherche guidée : le contexte (type, ville, budget) sert à l'écran de recherche,
+      // il n'est pas envoyé avec le message.
+      final guided = LiveGuidedAsk.fromMap(meta.remove('guided_ask'));
+      final openSell = meta.remove('open_sell') == true;
+      if (guided != null) _guidedAsk = guided;
+      if (openSell) {
+        if (mounted) unawaited(_openSellForm());
+        return;
+      }
       if (seed != null) composer.text = seed;
       if (meta.isNotEmpty && mounted) setState(() => pendingMeta = meta);
       if (meta['auto_send'] == true && seed != null && seed.trim().isNotEmpty) {
@@ -338,13 +349,18 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       composerFocus.requestFocus();
     }
     unawaited(_deliver(local, meta));
-    if (!interested && files.isEmpty && mounted && liveIsChatSearchGoal(text, meta)) {
-      final goal = text;
+    final guided = payload == null ? _guidedAsk : null;
+    if (payload == null) _guidedAsk = null;
+    if (!interested && files.isEmpty && mounted && ((guided != null && guided.force) || liveIsChatSearchGoal(text, meta))) {
+      final goal = guided != null && guided.goal.isNotEmpty ? guided.goal : text;
       final startedAt = local.createdAt;
       unawaited(Navigator.of(context).push<void>(MaterialPageRoute<void>(
         builder: (_) => LiveChatSearchScreen(
           goal: goal,
           startedAt: startedAt,
+          city: guided != null && guided.city.isNotEmpty ? guided.city : null,
+          kind: guided?.kind,
+          budget: guided?.budget,
           messages: _searchFeed,
           onPayload: (payload) {
             if (!mounted) return;

@@ -26,31 +26,31 @@ it('names the main action after the kind of search', () => {
 });
 
 it('opens the existing Deal Room with the price proposal, or the application process for opportunities', () => {
-  expect(offerDealRoomPath(offer('article:a'), 'purchase')).toBe('/app/deal-room?fabric_id=article%3Aa&offer=50000');
-  expect(offerDealRoomPath(offer('article:b', null), 'purchase')).toBe('/app/deal-room?fabric_id=article%3Ab&propose=1');
-  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/deal-room?fabric_id=article%3Ac');
+  expect(offerDealRoomPath(offer('article:a'), 'purchase')).toBe('/app/chat?fabric_id=article%3Aa&offer=50000');
+  expect(offerDealRoomPath(offer('article:b', null), 'purchase')).toBe('/app/chat?fabric_id=article%3Ab&propose=1');
+  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/chat?fabric_id=article%3Ac');
 });
 
 it('“Intéressé” goes to the Deal Room, “Bot” keeps the other offers as fallbacks, “Détails” opens the analysis', async () => {
   const details = vi.fn();
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
     <Route path="/app/nexus" element={<WaouhOfferActions result={offer('article:a')} alternates={[offer('article:a'), offer('article:b'), offer('article:c')]} onDetails={details} mode="buy" kind="purchase" requireAuth={() => true} />} />
-    <Route path="/app/deal-room" element={<Where />} />
+    <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   expect(button('Bot').dataset.alternates).toBe('article:b,article:c');
   await act(async () => button('Détails').click()); expect(details).toHaveBeenCalledTimes(1);
   await act(async () => button('Intéressé').click());
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Aa&offer=50000');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Aa&offer=50000');
 });
 
 it('asks to sign in instead of opening the Deal Room when signed out', async () => {
   const auth = vi.fn(() => false);
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
     <Route path="/app/nexus" element={<WaouhOfferActions result={offer('article:a')} alternates={[]} mode="buy" kind="purchase" requireAuth={auth} />} />
-    <Route path="/app/deal-room" element={<Where />} />
+    <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
-  expect(auth).toHaveBeenCalledWith('/app/deal-room?fabric_id=article%3Aa&offer=50000');
+  expect(auth).toHaveBeenCalledWith('/app/chat?fabric_id=article%3Aa&offer=50000');
   expect(host.querySelector('[data-testid=where]')).toBeNull();
 });
 
@@ -94,11 +94,11 @@ it('“Intéressé” ouvre toujours le Deal Room, jamais la négociation histor
   const member = { ...(offer('article:m') as object), source_key: 'waouh_app' } as never;
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
     <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="purchase" requireAuth={() => true} />} />
-    <Route path="/app/deal-room" element={<Where />} />
+    <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Am&offer=50000');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Am&offer=50000');
 });
 
 it('an opportunity keeps its application process in the Deal Room', async () => {
@@ -106,11 +106,11 @@ it('an opportunity keeps its application process in the Deal Room', async () => 
   const member = { ...(offer('article:o') as object), source_key: 'waouh_app' } as never;
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
     <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="opportunity" requireAuth={() => true} />} />
-    <Route path="/app/deal-room" element={<Where />} />
+    <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   await act(async () => button('Postuler').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/deal-room?fabric_id=article%3Ao');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Ao');
 });
 
 describe("offre d'un site marchand sans contact", () => {

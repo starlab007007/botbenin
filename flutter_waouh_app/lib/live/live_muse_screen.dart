@@ -100,7 +100,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                         icon: Icons.travel_explore_rounded,
                         title: 'Trouver partout',
                         subtitle: 'Vendeurs ou acheteurs',
-                        onTap: () => context.push('/app/nexus'),
+                        onTap: () => context.push('/app/chat/waouh'),
                       ),
                     ),
                     const SizedBox(width: 8),

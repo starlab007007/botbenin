@@ -1,3 +1,4 @@
+import 'live_quick_ask.dart';
 import 'live_mission_feed.dart';
 import 'live_product_presentation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -403,8 +404,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
     );
     input.dispose();
     if (need != null && mounted)
-      context.push(
-        '/app/nexus?${Uri(queryParameters: {'q': need, 'go': '1', 'mode': 'auto', 'kind': 'trouver', 'follow': '1'}).query}',
+      liveOpenGuidedPath(
+        context,
+        '/app/chat/waouh?${Uri(queryParameters: {'q': need, 'kind': 'trouver'}).query}',
       );
   }
 
@@ -512,8 +514,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                   TextButton(
                     onPressed: () {
                       Navigator.pop(ctx);
-                      context.push(
-                        '/app/nexus?${Uri(
+                      liveOpenGuidedPath(
+                        context,
+                        '/app/chat/waouh?${Uri(
                           queryParameters: {
                             'q': '${row['goal'] ?? ''}',
                             'city': '${row['city'] ?? ''}',

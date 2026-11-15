@@ -251,7 +251,7 @@ export function WaouhNexusContactSheet({
             <p className="mt-1 text-xs text-muted-foreground">
               Connectez-vous pour que votre Avatar conserve et poursuive cette démarche.
             </p>
-            <Button asChild className="mt-3" size="sm"><Link to={buildWaouhAuthRedirect("/app/nexus", "/auth")}>Se connecter</Link></Button>
+            <Button asChild className="mt-3" size="sm"><Link to={buildWaouhAuthRedirect("/app/chat", "/auth")}>Se connecter</Link></Button>
           </div>
         ) : busy && !prepared ? (
           <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">

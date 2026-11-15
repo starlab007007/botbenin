@@ -31,6 +31,7 @@ import {
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
 import { WaouhQuickAsk, type QuickAskKind } from "@/components/waouh/WaouhQuickAsk";
+import { openGuidedChat, queueGuidedAsk, type GuidedAskInput } from "@/lib/waouh/guidedAsk";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting";
 import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
@@ -129,18 +130,29 @@ export default function ChatListScreen() {
     }, 420);
   };
   const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
-  // Les 4 actions ouvrent toutes le moteur NEXUS, invité ou non — comme "Trouver".
+  /**
+   * Recherche guidée : la demande part par le moteur du Chat (même recherche, mêmes fiches,
+   * même ouverture de l'échange). Grand écran : le Chat est à côté. Téléphone : il s'ouvre.
+   */
+  const sendGuided = (ask: GuidedAskInput) => {
+    if (!queueGuidedAsk(ask)) return;
+    if (spaceMode !== "stack") {
+      setDrawerOpen(false);
+      setActiveConvId(null);
+      matchChats.setActiveKey("main");
+    } else {
+      navigate("/app/chat/waouh");
+    }
+  };
   const askQuick = (kind: QuickAskKind) => {
     if (isGuest) {
-      const mode: Record<QuickAskKind, string> = {
-        acheter: "find_sellers",
-        vendre: "find_buyers",
-        trouver: "auto",
-        demander: "auto",
-      };
-      navigate(`/app/nexus?mode=${mode[kind]}`);
+      // Visiteur : connexion, puis retour dans le Chat (même parcours que pour un compte connecté).
+      if (kind === "vendre") openGuidedChat(navigate, { kind }, false);
+      else setQuickAsk(kind);
       return;
     }
+    // Vendre : la fiche de vente du Chat s'ouvre directement.
+    if (kind === "vendre") { sendGuided({ kind }); return; }
     setQuickAsk(kind);
   };
 
@@ -420,7 +432,9 @@ export default function ChatListScreen() {
           onSettings={() => navigate('/app/avatar')}
           onMissions={() => navigate('/app/missions')}
           onAction={askQuick}
-          onAsk={(value) => navigate(`/app/nexus?${new URLSearchParams({q:value,go:'1',kind:'trouver',mode:'auto'})}`)} />
+          onAsk={(value) => isGuest
+            ? openGuidedChat(navigate, { kind: "trouver", q: value, free: true }, false)
+            : sendGuided({ kind: "trouver", q: value, free: true })} />
 
         {!isGuest && (
           <div className="mx-auto mb-2 flex w-full max-w-[760px] items-center gap-2 px-1">
@@ -569,7 +583,7 @@ export default function ChatListScreen() {
             </SheetContent>
           </Sheet>
         )}
-        <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
+        <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} onAsk={(ask) => { setQuickAsk(null); sendGuided(ask); }} />
       </div>
     );
   }
@@ -577,7 +591,7 @@ export default function ChatListScreen() {
   return (
     <div className="min-h-[100dvh] waouh-chat-list-bg">
       {listContent}
-      <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} />
+      <WaouhQuickAsk kind={quickAsk} onClose={() => setQuickAsk(null)} onSubmit={(path) => { setQuickAsk(null); navigate(path); }} onAsk={(ask) => { setQuickAsk(null); sendGuided(ask); }} />
     </div>
   );
 }

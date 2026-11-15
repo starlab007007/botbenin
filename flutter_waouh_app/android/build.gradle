@@ -15,6 +15,27 @@ subprojects { subproject ->
         ]
     }
 }
+// file_picker 11.0.x ne déclare pas Kotlin quand le Kotlin intégré d'AGP 9 est
+// désactivé : ses classes ne sont alors pas compilées. À retirer lors du
+// passage à file_picker 12 ou plus.
+subprojects { subproject ->
+    if (subproject.name == "file_picker") {
+        subproject.pluginManager.withPlugin("com.android.library") {
+            subproject.pluginManager.apply("org.jetbrains.kotlin.android")
+        }
+    }
+}
+// Aligne les bibliothèques de plugins sur le compileSdk de l'application
+// (certaines déclarent encore 34 alors que leurs dépendances exigent 35+).
+subprojects { subproject ->
+    subproject.pluginManager.withPlugin("com.android.library") {
+        subproject.extensions.getByName("androidComponents").finalizeDsl { ext ->
+            if ((ext.compileSdk ?: 0) < 36) {
+                ext.compileSdk = 36
+            }
+        }
+    }
+}
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }

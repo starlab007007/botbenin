@@ -8,6 +8,9 @@ type Snapshot={owner:string|null|undefined;rows:ModulePermission[];loading:boole
 const Context=createContext<State>({visibleKeys:new Set(),permissions:[],loading:true,error:false,reload:()=>{},canAccess:()=>false});
 const MIN_REFRESH_MS=30000;
 const MAX_RETRY_MS=120000;
+const SILENT_RETRIES=2;
+const SILENT_RETRY_MS=1500;
+const CALL_TIMEOUT_MS=12000;
 export function FrontendModulesProvider({children}:{children:ReactNode}){
  const {user}=useAuth(),owner=user?.id??null;
  const [state,setState]=useState<Snapshot>({owner:undefined,rows:[],loading:true,error:false});
@@ -24,7 +27,8 @@ export function FrontendModulesProvider({children}:{children:ReactNode}){
    if(!active||pending||document.visibilityState==='hidden')return;
    pending=true;
    try{
-    const {data,error}=await supabase.rpc('waouh_module_policy' as never);
+    const call=Promise.resolve(supabase.rpc('waouh_module_policy' as never)) as Promise<{data:unknown;error:unknown}>;
+    const {data,error}=await Promise.race([call,new Promise<never>((_,reject)=>window.setTimeout(()=>reject(Error('module_policy_timeout')),CALL_TIMEOUT_MS))]);
     if(error||!Array.isArray(data))throw Error('module_policy_unavailable');
     failures=0;
     if(active)setState({owner,rows:data as ModulePermission[],loading:false,error:false});
@@ -32,8 +36,10 @@ export function FrontendModulesProvider({children}:{children:ReactNode}){
    }catch{
     failures=Math.min(failures+1,6);
     // Fail closed: never reuse stale permissions after an RPC failure.
-    if(active)setState({owner,rows:[],loading:false,error:true});
-    const backoff=Math.min(MAX_RETRY_MS,Math.round(3000*2**(failures-1)));
+    // The first failures are retried quickly without a blocking page; access stays denied meanwhile.
+    const silent=failures<=SILENT_RETRIES;
+    if(active)setState({owner,rows:[],loading:silent,error:!silent});
+    const backoff=silent?SILENT_RETRY_MS:Math.min(MAX_RETRY_MS,Math.round(3000*2**(failures-SILENT_RETRIES-1)));
     schedule(backoff+Math.round(Math.random()*1000));
    }finally{pending=false;}
   };

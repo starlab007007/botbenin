@@ -181,7 +181,7 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                           onAvatar: () => context.push('/app/avatar'),
                           onMissions: () => context.push('/app/missions'),
                           onAsk: _newChat,
-                          onFindOpportunity: () => context.push('/app/nexus'),
+                          onFindOpportunity: () => context.push('/app/chat/waouh'),
                           onNegotiate: () =>
                               _openWaouhWith('Je souhaite négocier '),
                           onPrompt: _openWaouhWith,

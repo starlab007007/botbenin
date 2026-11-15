@@ -1,3 +1,4 @@
+import {openGuidedChat} from '@/lib/waouh/guidedAsk';
 import {WaouhProductPresentation} from '@/components/waouh/WaouhProductPresentation';
 import {supabase} from '@/integrations/supabase/client';
 import {normalizeMissionKind} from '@/lib/waouh/guidedDiscovery';
@@ -68,7 +69,7 @@ export default function WaouhMissionsPage(){
   const selected=own&&active?mandates.find(m=>m.id===active.id)??active:null;
   const watchRows=selected?.metadata?.discovery_kind==='opportunity'&&Array.isArray(selected.metadata.latest_selection)?selected.metadata.latest_selection.filter((r:unknown):r is {fabric_id:string;subject:string;deadline?:number|string|null}=>!!r&&typeof r==='object'&&typeof (r as {subject?:unknown}).subject==='string'):[];
   const update=async(status:'active'|'paused'|'cancelled')=>{if(!selected||busy)return;const version=generation.current;setBusy(true);setError('');try{const r=await updateNexusMandate(selected.id,{status});if(version===generation.current)setMandates(rows=>rows.map(m=>m.id===r.mandate.id?r.mandate:m));}catch{setError('Modification impossible. Réessayez.');}finally{if(version===generation.current)setBusy(false);}};
-  const start=()=>{if(need.trim())navigate(`/app/nexus?${new URLSearchParams({q:need.trim(),go:'1',mode:'auto',kind:'trouver',follow:'1'})}`);else setSheet('new');};
+  const start=()=>{if(need.trim())openGuidedChat(navigate,{kind:'trouver',q:need.trim()},true);else setSheet('new');};
   return <div className="wmn-surface"><main className="wmn" data-waouh-ui="minimal-missions">
     <header className="wmn-head"><h1>Missions</h1><span className="wmn-grow"/><button type="button" className="wmn-icon" aria-label="Autres outils de mission" onClick={()=>setSheet('tools')}><MoreHorizontal/></button></header>
     <button type="button" className="wmn-new" onClick={()=>setSheet('new')}><span className="wmn-grow">Quel est votre besoin ?</span><span><ArrowUpRight/></span></button>

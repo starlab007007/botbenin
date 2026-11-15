@@ -30,7 +30,7 @@ export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id"
     if (price != null && Number.isFinite(Number(price))) params.set("offer", String(Math.round(Number(price))));
     else params.set("propose", "1");
   }
-  return `/app/deal-room?${params}`;
+  return `/app/chat?${params}`;
 }
 
 /**

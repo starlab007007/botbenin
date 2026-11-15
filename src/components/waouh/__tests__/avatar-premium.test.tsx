@@ -13,13 +13,13 @@ let host:HTMLDivElement,root:Root;
 beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;host=document.createElement('div');document.body.append(host);root=createRoot(host);mocks.load.mockResolvedValue({...DEFAULT_AVATAR_AUTONOMY});mocks.save.mockResolvedValue({...DEFAULT_AVATAR_AUTONOMY});});
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.clearAllMocks();});
 describe('Approved Avatar screens',()=>{
-  it('places one greeting below the 84px avatar and retains all four actual actions',async()=>{
+  it('places one greeting below the 84px avatar and offers the six guided entries',async()=>{
     const action=vi.fn();await act(async()=>root.render(<WaouhPremiumAvatar firstName="Songbian Zime" deals={1} onAction={action} onAsk={()=>{}} onSettings={()=>{}} onMissions={()=>{}}/>));
     const portrait=host.querySelector('[data-avatar-size="84"]')!,greeting=host.querySelector('.wap-greeting')!;
     expect(portrait.compareDocumentPosition(greeting)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(host.textContent).toContain('Bonjour Songbian');expect(host.textContent).toContain('1 échange en cours');
     for(const button of host.querySelectorAll('.wap-action'))await act(async()=>button.dispatchEvent(new MouseEvent('click',{bubbles:true})));
-    expect(action.mock.calls.map(c=>c[0])).toEqual(['acheter','vendre','trouver','demander']);
+    expect(action.mock.calls.map(c=>c[0])).toEqual(['acheter','vendre','trouver','opportunite','service','prestation']);
     expect(host.textContent).not.toContain('Je cherche, compare et négocie');
   });
   it('exposes observed events on demand and keeps pause tied to the request lifecycle',async()=>{

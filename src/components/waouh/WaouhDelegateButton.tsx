@@ -41,7 +41,7 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
 
   const runBuyAsk = async () => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) { navigate(`/app/deal-room?${new URLSearchParams({ fabric_id: result.fabric_id, delegate: "1" })}`); return; }
+    if (!data.session) { navigate(`/app/chat?${new URLSearchParams({ fabric_id: result.fabric_id, delegate: "1" })}`); return; }
     const opened = await roomCall("open", { fabric_id: result.fabric_id, city: city ?? result.city ?? undefined, budget_max: budgetMax ?? null, confirmed: false });
     const cascade_candidates = (alternates ?? []).slice(0, 3).filter(a => a.fabric_id && a.fabric_id !== result.fabric_id);
     const rules: Record<string, unknown> = { ...DEFAULT_RULES, budget_max: budgetMax ?? null };
@@ -100,7 +100,7 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
 
   if (done) {
     return (
-      <button type="button" onClick={() => navigate(roomId ? `/app/deal-room?room_id=${roomId}` : "/app/missions?view=suivi")} className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white ${className}`}>
+      <button type="button" onClick={() => navigate(roomId ? `/app/chat?room_id=${roomId}` : "/app/missions?view=suivi")} className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white ${className}`}>
         <CheckCircle2 className="h-4 w-4" />Bot s’en occupe · Suivre
       </button>
     );

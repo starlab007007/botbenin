@@ -128,7 +128,7 @@ class _LiveMuseMissionsHubScreenState extends State<LiveMuseMissionsHubScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () => context.push('/app/nexus'),
+                        onPressed: () => context.push('/app/chat/waouh'),
                         child: const Text('NEXUS'),
                       ),
                     ],
@@ -208,13 +208,13 @@ class _LiveMuseMissionsHubScreenState extends State<LiveMuseMissionsHubScreen> {
                       icon: Icons.travel_explore_rounded,
                       label: 'Trouver',
                       accent: const Color(0xFF4788F4),
-                      onTap: () => context.push('/app/nexus'),
+                      onTap: () => context.push('/app/chat/waouh'),
                     ),
                     _QuickAction(
                       icon: Icons.compare_arrows_rounded,
                       label: 'Comparer',
                       accent: const Color(0xFF7A6CF2),
-                      onTap: () => context.push('/app/nexus'),
+                      onTap: () => context.push('/app/chat/waouh'),
                     ),
                     _QuickAction(
                       icon: Icons.flag_outlined,

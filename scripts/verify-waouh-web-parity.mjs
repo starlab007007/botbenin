@@ -89,7 +89,7 @@ for (const [route, token] of Object.entries(webTokens)) {
   must(app, token, `Web route missing for Flutter route ${route}`);
 }
 
-must(app, '<Route path="/waouh/nexus" element={<Navigate to="/app/nexus" replace />} />', "/waouh/nexus must target NEXUS");
+must(app, '<Route path="/waouh/nexus" element={<Navigate to="/app/chat" replace />} />', "/waouh/nexus must open the Chat");
 must(viewportTier, "export const DESKTOP_MIN_WIDTH = 1180", "Desktop breakpoint must remain 1180");
 must(shell, "useViewportTier", "MobileShell must use the shared viewport tiers");
 must(shell, "WorkspaceMenuSheet", "MobileShell must expose the full module menu");
