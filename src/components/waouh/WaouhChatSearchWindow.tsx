@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { ArrowLeft, Check, MapPin, Wallet, X } from "lucide-react";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { WaouhChatMarketBrief } from "@/components/waouh/WaouhChatMarketBrief";
+import { WaouhSellerBrief } from "@/components/waouh/WaouhSellerBrief";
+import type { PriceReference } from "@/lib/waouh/sellerBrief";
 import { GUIDED_KIND_LABEL, type GuidedKind } from "@/lib/waouh/guidedAsk";
 import { briefMatch, briefMoney } from "@/lib/waouh/chatMarketBrief";
 import { SEARCH_STAGES, searchStage } from "@/lib/waouh/chatSearchStage";
@@ -22,6 +24,10 @@ export type ChatSearch = {
   /** Entrée guidée d'origine (Acheter, Service, Prestation…) ; absente pour une phrase libre. */
   kind?: GuidedKind;
   budget?: number | null;
+  /** Vente : repère de prix renvoyé avec la publication, pour situer le prix demandé. */
+  priceReference?: PriceReference;
+  /** Vente : l'annonce publiée, pour confier la vente à Bot. */
+  articleId?: string | null;
 };
 
 const priceOf = (r: WaouhResultCard) => {
@@ -161,7 +167,9 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
           <div ref={outcomeRef} className="wsl-anchor" aria-hidden="true" />
           {revealed && search && search.results.length > 0 && (
             <>
-              <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} />
+              {search.kind === "vendre" || search.priceReference
+                ? <WaouhSellerBrief results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
+                : <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} />}
               <div className="wsl-offers">
                 <div className="wsl-offers-head">
                   <strong>Les offres</strong>

@@ -4,6 +4,7 @@
 // joignables, choix de Bot et comparaison des meilleures offres. Aucune valeur n'est inventée :
 // une information absente reste « à confirmer ».
 import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
+import { matchVerdict } from "../../../supabase/functions/_shared/waouh-need-domain";
 import { sameZone } from "@/lib/waouh/liveReasoning";
 import { resultContact } from "@/lib/waouh/resultCardData";
 
@@ -91,15 +92,25 @@ const norm = (v: unknown) => String(v ?? "").toLowerCase().normalize("NFD").repl
  * doivent tous être présents : un autre modèle est une offre proche, pas la même offre.
  */
 export function briefMatch(result: WaouhResultCard, query?: string | null): "exact" | "near" | null {
-  const tokens = norm(query).split(" ").filter((t) => t.length > 1 && !STOP.has(t)).slice(0, 8);
-  if (!tokens.length) return null;
-  const hay = ` ${norm([result.title, (result as { brand?: unknown }).brand, (result as { model?: unknown }).model].filter(Boolean).join(" "))} `;
-  const has = (t: string) => hay.includes(` ${t} `) || (!/^\d+$/.test(t) && t.length > 3 && hay.includes(t));
-  const numbers = tokens.filter((t) => /\d/.test(t));
-  const words = tokens.filter((t) => !/\d/.test(t));
-  if (numbers.some((t) => !has(t))) return "near";
-  if (!words.length) return "exact";
-  return words.filter(has).length / words.length >= 0.5 ? "exact" : "near";
+  if (!norm(query).trim()) return null;
+  const verdict = matchVerdict(query, {
+    subject: result.title,
+    raw_text: (result as { description?: unknown }).description,
+    category: (result as { category?: unknown }).category,
+    brand: (result as { brand?: unknown }).brand,
+    model: (result as { model?: unknown }).model,
+  });
+  if (!verdict.acceptable) return "near";
+  return verdict.exact ? "exact" : "near";
+}
+
+/** Écarte les prix isolés, très loin de tous les autres : ils ne sont pas comparables. */
+export function plausiblePrices(values: number[]): number[] {
+  if (values.length < 3) return values;
+  const reference = medianOf(values);
+  if (reference === null || reference <= 0) return values;
+  const kept = values.filter((p) => p >= reference / 8 && p <= reference * 8);
+  return kept.length >= 2 ? kept : values;
 }
 
 /** Classement lisible : dans le budget, dans la zone, joignable, prix proche ou sous la médiane, photo. */
@@ -129,7 +140,9 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
   const exactCount = matches.some((m) => m !== null) ? matches.filter((m) => m === "exact").length : null;
   // Les repères de prix portent sur les offres qui correspondent à la demande, dès qu'il y en a assez.
   const exactPrices = pool.filter((_, i) => matches[i] === "exact").map(briefPrice).filter((p): p is number => p !== null);
-  const prices = exactPrices.length >= 2 ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
+  const rawPrices = exactPrices.length >= 2 ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
+  // Un prix manifestement faux (1 F au milieu d'offres à 25 000 F) fausserait tout le repère.
+  const prices = plausiblePrices(rawPrices);
   const low = prices.length ? Math.min(...prices) : null;
   const high = prices.length ? Math.max(...prices) : null;
   const median = medianOf(prices);

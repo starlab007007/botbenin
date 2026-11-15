@@ -763,7 +763,15 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         const reply = [...reconcileChatResponse([] as Msg[], data, inputRow)].reverse().find((m) => m.direction === "out");
         const rich = reply ? normalizeChatReply(reply) : null;
         setChatSearch((cur) => (cur && cur.id === tempInId
-          ? { ...cur, status: "done", results: rich?.results ?? [], text: rich?.text ?? "" }
+          ? {
+              ...cur,
+              status: "done",
+              results: rich?.results ?? [],
+              text: rich?.text ?? "",
+              // Vente : le repère de prix et l'annonce publiée servent la vue du vendeur.
+              priceReference: (data as { price_reference?: unknown })?.price_reference as never ?? undefined,
+              articleId: respArticleId ?? undefined,
+            }
           : cur));
       }
 

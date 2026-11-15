@@ -104,3 +104,7 @@
   .wsl-delegate-copy{flex:1;min-width:0}
   .wsl-delegate>div:last-child,.wsl-delegate>button{flex-shrink:0;width:230px}
 }
+/* Vue du vendeur : prix face au marché et acheteurs trouvés */
+.wsl-seller-gauge{display:grid;gap:6px;padding:11px 13px;border-block:1px solid var(--wsl-line,#e4e4e7)}
+.wsl-seller-advice{margin:6px 0 0;padding:0 13px 11px;font-size:12.5px;line-height:1.55;color:var(--wsl-muted,#626977)}
+.wsl-seller-gauge .wsl-seller-advice{padding:0}
