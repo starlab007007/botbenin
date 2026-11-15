@@ -147,6 +147,9 @@ jobs:
           flutter test test/live_access_policy_test.dart
           flutter test test/live_user_message_test.dart
           flutter test test/live_onboarding_test.dart
+          flutter test test/live_need_domain_test.dart
+          flutter test test/live_bot_follow_up_test.dart
+          flutter test test/live_convergence_smart_test.dart
 
       - name: Build universal APK (arm64 + armv7)
         env:
