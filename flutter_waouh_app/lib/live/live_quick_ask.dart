@@ -7,6 +7,7 @@ import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_city_field.dart';
 import 'live_controller.dart';
 import 'live_guided_ask.dart';
+import 'live_inbox_production.dart' show LiveInboxProductionScreen;
 import 'live_theme.dart';
 
 /// Formulaire express (parité Web `WaouhQuickAsk`) : un champ, la ville et le
@@ -154,17 +155,26 @@ class LiveGuidedRedirect extends StatefulWidget {
 }
 
 class _LiveGuidedRedirectState extends State<LiveGuidedRedirect> {
+  /// Menu « Recherche guidée » sans demande : l'accueil de l'Avatar (Acheter, Vendre, Trouver…),
+  /// dont les entrées lancent la recherche dans le Chat, résultats en continu.
+  bool get _showHome =>
+      widget.uri.path.startsWith('/app/nexus') &&
+      !liveGuidedIsSell(widget.uri) &&
+      liveGuidedAskFromUri(widget.uri) == null;
+
   @override
   void initState() {
     super.initState();
+    if (_showHome) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) liveOpenGuidedPath(context, widget.uri.toString(), replace: true);
     });
   }
 
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) => _showHome
+      ? const LiveInboxProductionScreen()
+      : const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 /// Entrée guidée de l'accueil (Acheter, Vendre, Trouver, Opportunité, Service, Prestation).

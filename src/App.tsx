@@ -106,6 +106,7 @@ const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNat
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge";
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
+import { WaouhGuidedHome } from "./components/waouh/WaouhGuidedHome";
 import { WaouhChatRoomWindow } from "./components/waouh/WaouhChatRoomWindow";
 /**
  * Plus d'écran Nexus à part : tout ancien lien (/app/nexus, /app/avatar/acheter…) ouvre le Chat,
@@ -122,7 +123,10 @@ function WaouhSearchEntry(){
   const p=new URLSearchParams(search);
   if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <Navigate to={'/app/chat'+search} replace/>;
   if(isLoading)return null;
-  return <WaouhGuidedToChat ask={guidedAskFromSearchParams(p)} loggedIn={!!user}/>;
+  const ask=guidedAskFromSearchParams(p);
+  // Menu « Recherche guidée » sans demande : l'accueil de l'Avatar, dont les résultats arrivent dans le style du Chat.
+  if(!ask)return <WaouhGuidedHome/>;
+  return <WaouhGuidedToChat ask={ask} loggedIn={!!user}/>;
 }
 function WaouhAvatarModeToChat(){
   const {mode}=useParams();const {search}=useLocation();const {user,isLoading}=useAuth();
