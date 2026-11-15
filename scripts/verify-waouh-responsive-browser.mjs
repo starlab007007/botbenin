@@ -371,6 +371,7 @@ async function testDesktopSidebar(viewport) {
   if (viewport.width < 1180) return;
   const expected = [
     ["Chat Command Center", "/app/chat", false],
+    ["Recherche guidée", "/app/nexus", false],
     ["Radar", "/app/radar-map", false],
     ["WhatsApp IA", "/app/whatsapp", true],
     ["Avatar", "/app/avatar", false],

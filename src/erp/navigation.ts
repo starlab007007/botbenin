@@ -9,6 +9,7 @@ import {
   MessagesSquare,
   Package,
   QrCode,
+  Search,
   Radar as RadarIcon,
   ShieldCheck,
   ShoppingCart,
@@ -55,6 +56,7 @@ export const navigationSections: NavigationSection[] = [
     title: 'Communication',
     items: [
       { key: 'chat', label: 'Chat Command Center', to: CHAT_PATH, icon: MessageSquareText, accent: 'chat' },
+      { key: 'nexus', label: 'Recherche guidée', to: '/app/nexus', icon: Search, accent: 'ai' },
       { key: 'radar', label: 'Radar', to: '/app/radar-map', icon: RadarIcon, brick: 'radar' },
       { key: 'whatsapp', label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
       { key: 'diffusion', label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
