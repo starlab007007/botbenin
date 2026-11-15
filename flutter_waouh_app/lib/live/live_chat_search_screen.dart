@@ -342,9 +342,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     );
     if (!ok || !mounted) return;
     await _delegateFabric(
-      best.delegateId,
+      best.delegateId ?? '',
       best.city,
-      [for (final a in alternates) <String, dynamic>{'fabric_id': a.delegateId, if (a.city.isNotEmpty) 'city': a.city}],
+      [for (final a in alternates) if (a.delegateId != null) <String, dynamic>{'fabric_id': a.delegateId, if (a.city.isNotEmpty) 'city': a.city}],
       confirmed: true,
     );
   }
