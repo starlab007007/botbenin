@@ -421,7 +421,7 @@ async function testRoutes(viewport) {
     ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
     ["/app/avatar/demander", "Demander à mon Avatar", true],
     ["/app/nexus", "Que puis-je faire pour vous", true],
-    ["/app/deal-room", "Que cherchez-vous", true],
+    ["/app/deal-room", "Que puis-je faire pour vous", true],
     ["/app/nexus-legacy", "Que puis-je faire pour vous", true],
     ["/app/missions", "Missions", true],
     ["/app/ia", "Bots & IA WAOUH", true],
