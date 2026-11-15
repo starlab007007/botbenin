@@ -7,7 +7,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useNavigate } from "react-router-dom";
-import { guidedAskFromSearchParams, guidedChatPath, queueGuidedAsk, type GuidedAskInput } from "@/lib/waouh/guidedAsk";
+import { guidedAskFromSearchParams, guidedKindFrom, openGuidedChat, type GuidedAskInput } from "@/lib/waouh/guidedAsk";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -106,27 +106,32 @@ const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNat
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 import { WaouhQuickReplyBridge } from "@/components/waouh/WaouhQuickReplyBridge";
 const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
-const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhDealRoomPage = lazy(() => import("./pages/waouh/WaouhDealRoomPage"));
 /**
- * /app/nexus : un échange (room_id…) ouvre la Deal Room ; une recherche guidée d'un compte connecté
- * part par le moteur du Chat ; le reste (visiteur, vente d'un article publié, outils) garde l'écran d'origine.
+ * Plus d'écran Nexus à part : tout ancien lien (/app/nexus, /app/avatar/acheter…) ouvre le Chat,
+ * qui est la référence. Seuls les liens d'un échange existant (room_id…) gardent leur écran.
  */
+function WaouhGuidedToChat({ask,loggedIn}:{ask:GuidedAskInput|null;loggedIn:boolean}){
+  const navigate=useNavigate();
+  useEffect(()=>{openGuidedChat(navigate,ask,loggedIn,{replace:true});},[]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 function WaouhSearchEntry(){
   const {search}=useLocation();const {user,isLoading}=useAuth();
   const p=new URLSearchParams(search);
-  if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <WaouhDealRoomPage/>;
-  const guided=guidedAskFromSearchParams(p);
-  if(guided&&isLoading)return null;
-  if(guided&&user)return <WaouhGuidedToChat ask={guided}/>;
-  return <WaouhNexusPage/>;
+  if(p.has('room_id')||p.has('fabric_id')||p.has('component_id'))return <Navigate to={'/app/deal-room'+search} replace/>;
+  if(isLoading)return null;
+  return <WaouhGuidedToChat ask={guidedAskFromSearchParams(p)} loggedIn={!!user}/>;
 }
-function WaouhGuidedToChat({ask}:{ask:GuidedAskInput}){
-  const navigate=useNavigate();
-  useEffect(()=>{queueGuidedAsk(ask);navigate(guidedChatPath(),{replace:true});},[]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
+function WaouhAvatarModeToChat(){
+  const {mode}=useParams();const {search}=useLocation();const {user,isLoading}=useAuth();
+  const p=new URLSearchParams(search);
+  if(isLoading)return null;
+  const kind=guidedKindFrom(mode);
+  const q=(p.get('q')||'').trim();
+  const ask:GuidedAskInput=kind==='vendre'?{kind}:{kind,q,city:p.get('city')||'',budget:p.get('budget')};
+  return <WaouhGuidedToChat ask={kind==='vendre'||q?ask:null} loggedIn={!!user}/>;
 }
-const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 const WaouhPremiumJourneyPage = lazy(() => import("./pages/waouh/WaouhPremiumJourneyPage"));
 const WaouhAiHubPage = lazy(() => import("./pages/waouh/WaouhAiHubPage"));
@@ -395,7 +400,7 @@ const AppContent = () => {
                    <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
                    <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />
                    <Route path="/waouh/muse" element={<Navigate to="/app/avatar" replace />} />
-                   <Route path="/waouh/nexus" element={<Navigate to="/app/nexus" replace />} />
+                   <Route path="/waouh/nexus" element={<Navigate to="/app/chat" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
@@ -406,12 +411,12 @@ const AppContent = () => {
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<RequireMobileAuth><MobileWaouhChat /></RequireMobileAuth>} />
                     <Route path="avatar" element={<WaouhAvatarHomePage settingsOnly />} />
-                    <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarCommercePage /></RequireMobileAuth>} />
+                    <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarModeToChat /></RequireMobileAuth>} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />
                     <Route path="premium" element={<RequireMobileAuth><WaouhPremiumJourneyPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhSearchEntry />} />
-                    <Route path="nexus-legacy" element={<WaouhNexusPage />} />
+                    <Route path="nexus-legacy" element={<WaouhSearchEntry />} />
                     <Route path="deal-room" element={<RequireMobileAuth><WaouhDealRoomPage /></RequireMobileAuth>} />
                     <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />

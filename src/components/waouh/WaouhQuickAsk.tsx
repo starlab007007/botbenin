@@ -1,6 +1,5 @@
 import {WaouhSmartSale} from './WaouhSmartSale';
 import {useAuth} from '@/contexts/AuthContext';
-import {saleSearchPath} from '@/lib/waouh/smartSale';
 import {buildWaouhAuthRedirect} from '@/lib/waouhAccessPolicy';
 import { useEffect, useState } from "react";
 import { WaouhCityField } from "./WaouhCityField";
@@ -9,23 +8,14 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
-import type { GuidedAskInput, GuidedKind } from "@/lib/waouh/guidedAsk";
+import { guidedChatPath, queueGuidedAsk, type GuidedAskInput, type GuidedKind } from "@/lib/waouh/guidedAsk";
 
 export type QuickAskKind = GuidedKind;
 
 /** Lien de recherche publique, gardé pour un visiteur non connecté. */
-const NEXUS_MODE: Record<QuickAskKind, string> = {
-  acheter: "find_sellers",
-  vendre: "find_buyers",
-  trouver: "auto",
-  demander: "auto",
-  opportunite: "auto",
-  service: "auto",
-  prestation: "auto",
-};
 
 const COPY: Record<QuickAskKind, {
-  title: string; line: string; field: string; chips: string[]; cta: string; budget: string | null; path: (p: URLSearchParams) => string;
+  title: string; line: string; field: string; chips: string[]; cta: string; budget: string | null;
 }> = {
   acheter: {
     title: "Acheter",
@@ -34,7 +24,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Samsung S25", "Moto d’occasion", "Climatiseur 1,5 CV"],
     cta: "Chercher pour moi",
     budget: "Budget max (FCFA)",
-    path: (p) => `/app/nexus?${p}`,
   },
   vendre: {
     title: "Vendre",
@@ -43,7 +32,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Mon téléphone", "10 tonnes de soja", "Ma moto"],
     cta: "Trouver des acheteurs",
     budget: "Prix souhaité (FCFA)",
-    path: (p) => `/app/nexus?${p}`,
   },
   trouver: {
     title: "Trouver",
@@ -52,7 +40,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Un S25 fiable à Cotonou", "Vendre 10 tonnes de soja", "Plombier à Porto-Novo"],
     cta: "Lancer la recherche",
     budget: "Budget (FCFA, facultatif)",
-    path: (p) => `/app/nexus?${p}`,
   },
   opportunite: {
     title: "Opportunité",
@@ -61,7 +48,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Appel d’offres BTP", "Stage en informatique", "Subvention agricole"],
     cta: "Chercher des opportunités",
     budget: null,
-    path: (p) => `/app/nexus?${p}`,
   },
   service: {
     title: "Service",
@@ -70,7 +56,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Plombier", "Réparation de climatiseur", "Livreur fiable"],
     cta: "Trouver un professionnel",
     budget: "Budget max (FCFA)",
-    path: (p) => `/app/nexus?${p}`,
   },
   prestation: {
     title: "Prestation",
@@ -79,7 +64,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Création d’un site vitrine", "Traiteur pour 50 personnes", "Logo et charte graphique"],
     cta: "Trouver un prestataire",
     budget: "Budget max (FCFA)",
-    path: (p) => `/app/nexus?${p}`,
   },
   demander: {
     title: "Demander",
@@ -88,7 +72,6 @@ const COPY: Record<QuickAskKind, {
     chips: ["Un livreur fiable", "Traiteur pour 50 personnes", "Un plombier"],
     cta: "Demander à Bot",
     budget: null,
-    path: (p) => `/app/nexus?${p}`,
   },
 };
 
@@ -112,18 +95,15 @@ export function WaouhQuickAsk({
   const go = () => {
     if (!c || !kind || !q.trim()) return;
     if (onAsk && user && kind !== "vendre") { onAsk({ kind, q: q.trim(), city: city.trim(), budget }); return; }
-    const p = new URLSearchParams({ q: q.trim(), go: "1" });
-    if (city.trim()) p.set("city", city.trim());
-    if (budget) p.set("budget", budget);
-    p.set("mode", NEXUS_MODE[kind]);
-    p.set("kind", kind);
-    onSubmit(c.path(p));
+    // Même chemin pour tous : la demande est déposée pour le Chat, qui s'ouvre (connexion d'abord pour un visiteur).
+    queueGuidedAsk({ kind, q: q.trim(), city: city.trim(), budget });
+    onSubmit(user ? guidedChatPath() : buildWaouhAuthRedirect(guidedChatPath(), "/app/auth"));
   };
 
   return (
     <Sheet open={!!kind} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="bottom" className={kind==='vendre'?'wss-sheet [&>button]:hidden':"rounded-t-[28px] border-blue-100 bg-gradient-to-b from-white to-blue-50/60 px-4 pb-6 pt-4 [&>button]:hidden"}>
-        {kind==='vendre'?<><div className="wss-sheet-heading"><BotLiveAvatar size={40}/><div><SheetTitle>Vendre</SheetTitle><SheetDescription>Bot prépare votre fiche.</SheetDescription></div><button type="button" aria-label="Fermer" onClick={onClose}><X size={19}/></button></div><WaouhSmartSale key={user?.id??'guest'} onPublished={sale=>{if(user)onSubmit(saleSearchPath(user.id,sale));}} onConnect={()=>onSubmit(buildWaouhAuthRedirect('/app/nexus?kind=vendre'))}/></>:c && (
+        {kind==='vendre'?<><div className="wss-sheet-heading"><BotLiveAvatar size={40}/><div><SheetTitle>Vendre</SheetTitle><SheetDescription>Bot prépare votre fiche.</SheetDescription></div><button type="button" aria-label="Fermer" onClick={onClose}><X size={19}/></button></div><WaouhSmartSale key={user?.id??'guest'} onPublished={()=>{if(user)onSubmit(guidedChatPath());}} onConnect={()=>onSubmit(buildWaouhAuthRedirect('/app/nexus?kind=vendre'))}/></>:c && (
           <div className="mx-auto w-full max-w-lg space-y-3">
             <div className="flex items-center gap-3">
               <BotLiveAvatar size={56} state={q.trim() ? "talking" : "idle"} />

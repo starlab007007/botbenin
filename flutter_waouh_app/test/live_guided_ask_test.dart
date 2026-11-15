@@ -52,11 +52,21 @@ void main() {
       expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=site&go=1&kind=project'))!.kind, 'prestation');
     });
 
-    test('la vente d’un article, les outils et un lien sans recherche gardent leur écran', () {
-      expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=soja&kind=trouver')), isNull);
+    test('tout ancien lien guidé ouvre le Chat : recherche, vente ou simple ouverture', () {
+      expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=soja&kind=trouver'))!.kind, 'trouver');
+      expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=soja&go=1&tab=lab'))!.kind, 'trouver');
+      expect(liveGuidedAskFromUri(Uri.parse('/app/avatar/acheter?q=riz'))!.kind, 'acheter');
+      expect(liveGuidedAskFromUri(Uri.parse('/app/avatar/demander?q=riz'))!.kind, 'demander');
+      // Vente : pas de recherche, la fiche de vente du Chat s'ouvre.
       expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=soja&go=1&kind=sale&mode=find_buyers&article_id=a')), isNull);
-      expect(liveGuidedAskFromUri(Uri.parse('/app/nexus?q=soja&go=1&tab=lab')), isNull);
+      expect(liveGuidedIsSell(Uri.parse('/app/nexus?q=soja&go=1&kind=sale&mode=find_buyers&article_id=a')), isTrue);
+      expect(liveGuidedIsSell(Uri.parse('/app/avatar/vendre')), isTrue);
+      expect(liveGuidedIsSell(Uri.parse('/app/avatar/acheter?q=riz')), isFalse);
+      // Rien à lancer, ou autre écran.
+      expect(liveGuidedAskFromUri(Uri.parse('/app/nexus')), isNull);
       expect(liveGuidedAskFromUri(Uri.parse('/app/missions?q=soja&go=1')), isNull);
+      expect(liveGuidedIsEntryPath(Uri.parse('/app/nexus-legacy')), isTrue);
+      expect(liveGuidedIsEntryPath(Uri.parse('/app/avatar')), isFalse);
     });
 
     test('la demande survit à son passage par les métadonnées du composeur', () {

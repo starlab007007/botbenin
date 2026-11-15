@@ -146,18 +146,44 @@ const Map<String, String> _nexusKinds = <String, String>{
   'project': 'prestation',
 };
 
-/// Lien de recherche guidée (`/app/nexus?q=…&go=1`) → demande pour le Chat.
-/// Retourne null quand le lien garde son écran : vente d'un article, outils, lien sans recherche.
-LiveGuidedAsk? liveGuidedAskFromUri(Uri uri) {
+/// Anciens écrans de recherche guidée : `/app/nexus`, `/app/nexus-legacy` et `/app/avatar/<parcours>`.
+/// Ils n'ont plus d'écran à part : tous ouvrent le Chat.
+bool liveGuidedIsEntryPath(Uri uri) =>
+    uri.path == '/app/nexus' || uri.path == '/app/nexus-legacy' || uri.path.startsWith('/app/avatar/');
+
+String _entrySegment(Uri uri) {
+  if (!uri.path.startsWith('/app/avatar/')) return '';
+  final segments = uri.pathSegments;
+  return segments.length > 2 ? segments[2].toLowerCase() : '';
+}
+
+/// Vente : ouvre la fiche de vente du Chat plutôt qu'une recherche.
+bool liveGuidedIsSell(Uri uri) {
   final p = uri.queryParameters;
-  if (uri.path != '/app/nexus' || p['go'] != '1') return null;
+  final kind = (p['kind'] ?? '').toLowerCase();
+  final mode = p['mode'];
+  return _entrySegment(uri) == 'vendre' ||
+      kind == 'vendre' ||
+      kind == 'sale' ||
+      mode == 'find_buyers' ||
+      mode == 'sell' ||
+      p.containsKey('article_id') ||
+      p.containsKey('sale_draft');
+}
+
+/// Ancien lien de recherche guidée → demande pour le Chat. Null : vente, ou rien à lancer
+/// (le Chat s'ouvre alors simplement).
+LiveGuidedAsk? liveGuidedAskFromUri(Uri uri) {
+  if (!liveGuidedIsEntryPath(uri) || liveGuidedIsSell(uri)) return null;
+  final p = uri.queryParameters;
   final q = (p['q'] ?? '').trim();
   if (q.isEmpty) return null;
-  if (p.containsKey('tab') || p.containsKey('article_id') || p.containsKey('sale_draft')) return null;
-  final mode = p['mode'];
   final rawKind = (p['kind'] ?? '').toLowerCase();
-  if (mode == 'find_buyers' || mode == 'sell' || rawKind == 'vendre' || rawKind == 'sale') return null;
-  final kind = _nexusKinds[rawKind] ?? (mode == 'find_sellers' ? 'acheter' : 'trouver');
+  final mode = p['mode'];
+  final segment = _entrySegment(uri);
+  final kind = _nexusKinds[rawKind] ??
+      _nexusKinds[segment] ??
+      (mode == 'find_sellers' ? 'acheter' : 'trouver');
   final city = (p['city'] ?? '').trim();
   final free = p['free'] == '1';
   final text = liveGuidedAskText(kind: kind, q: q, city: city, budget: p['budget'], free: free);

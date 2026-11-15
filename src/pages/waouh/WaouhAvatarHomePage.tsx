@@ -312,7 +312,7 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
     return {
       title: "Explorez le marché",
       detail: `${profile.name} peut chercher vendeurs, acheteurs et opportunités.`,
-      action: () => navigate("/app/nexus"),
+      action: () => navigate("/app/chat"),
     };
   }, [navigate, profile.name, summary]);
 
@@ -408,7 +408,7 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
       icon: Globe2,
       card: "from-cyan-50 to-sky-100/80 border-cyan-100",
       iconTone: "text-cyan-600",
-      action: () => (user ? setQuickAsk("trouver") : navigate("/app/nexus")),
+      action: () => (user ? setQuickAsk("trouver") : navigate("/app/chat")),
     },
     {
       title: "Demander",

@@ -5,6 +5,8 @@
 // propre moteur. La recherche, les fiches, l'intérêt et l'ouverture de l'échange sont alors
 // strictement ceux du Chat.
 
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
+
 export type GuidedKind = "acheter" | "vendre" | "trouver" | "demander" | "opportunite" | "service" | "prestation";
 
 export type GuidedAskInput = {
@@ -131,26 +133,43 @@ export function guidedChatPath(width: number = typeof window !== "undefined" ? w
 }
 
 const NEXUS_KIND: Record<string, GuidedKind> = {
-  acheter: "acheter", purchase: "acheter",
-  trouver: "trouver", demander: "demander",
+  acheter: "acheter", purchase: "acheter", buy: "acheter",
+  vendre: "vendre", sale: "vendre", sell: "vendre",
+  trouver: "trouver", demander: "demander", ask: "demander",
   opportunite: "opportunite", opportunity: "opportunite",
   service: "service",
   prestation: "prestation", project: "prestation",
 };
 
+/** Type de demande déduit d'un ancien lien ou d'un nom de parcours (`acheter`, `vendre`, `demander`…). */
+export function guidedKindFrom(kind: string | null | undefined, mode?: string | null): GuidedKind {
+  const key = String(kind || "").toLowerCase();
+  if (NEXUS_KIND[key]) return NEXUS_KIND[key];
+  if (mode === "find_buyers" || mode === "sell") return "vendre";
+  if (mode === "find_sellers") return "acheter";
+  return "trouver";
+}
+
 /**
- * Ancien lien de recherche guidée (`/app/nexus?q=…&go=1`) → demande pour le Chat.
- * Retourne null quand le lien doit garder l'écran d'origine : vente d'un article déjà
- * publié, suivi d'une mission, outils avancés ou lien sans recherche à lancer.
+ * Ancien lien de recherche guidée (`/app/nexus?…`) → demande pour le Chat.
+ * Retourne null quand il n'y a rien à lancer : le Chat s'ouvre simplement.
  */
 export function guidedAskFromSearchParams(params: URLSearchParams): GuidedAskInput | null {
-  if (params.get("go") !== "1") return null;
+  const kind = guidedKindFrom(params.get("kind"), params.get("mode"));
+  if (kind === "vendre" || params.get("article_id") || params.get("sale_draft")) return { kind: "vendre" };
   const q = (params.get("q") || "").trim();
   if (!q) return null;
-  if (params.get("tab") || params.get("article_id") || params.get("sale_draft")) return null;
-  const mode = params.get("mode");
-  const rawKind = (params.get("kind") || "").toLowerCase();
-  if (mode === "find_buyers" || mode === "sell" || rawKind === "vendre" || rawKind === "sale") return null;
-  const kind = NEXUS_KIND[rawKind] ?? (mode === "find_sellers" ? "acheter" : "trouver");
   return { kind, q, city: params.get("city") || "", budget: params.get("budget") };
+}
+
+type Nav = (path: string, opts?: { replace?: boolean }) => void;
+
+/**
+ * Point d'entrée unique des parcours guidés : la demande est déposée pour le Chat, puis le Chat
+ * s'ouvre (un visiteur passe d'abord par la connexion et revient au Chat). Aucun autre écran.
+ */
+export function openGuidedChat(navigate: Nav, input: GuidedAskInput | null, loggedIn: boolean, opts: { replace?: boolean } = {}): void {
+  if (input) queueGuidedAsk(input);
+  const chat = guidedChatPath();
+  navigate(loggedIn || !input ? chat : buildWaouhAuthRedirect(chat, "/app/auth"), opts);
 }

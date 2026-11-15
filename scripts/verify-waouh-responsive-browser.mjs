@@ -312,10 +312,10 @@ async function testRoot(viewport) {
   const actionPaths = {
     acheter: { path: "/app/avatar/acheter", auth: true },
     vendre: { path: "/app/avatar/vendre", auth: true },
-    trouver: { path: "/app/nexus", auth: false },
-    opportunite: { path: "/app/nexus", auth: false },
-    service: { path: "/app/nexus", auth: false },
-    prestation: { path: "/app/nexus", auth: false },
+    trouver: { path: "/app/chat", auth: false },
+    opportunite: { path: "/app/chat", auth: false },
+    service: { path: "/app/chat", auth: false },
+    prestation: { path: "/app/chat", auth: false },
   };
   for (const [action, expected] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
@@ -334,7 +334,11 @@ async function testRoot(viewport) {
         fail(`${viewport.name}: ${action} should require auth and preserve ${expected.path}; got ${target.path}${target.search}`);
       }
     } else if (target.path !== expected.path) {
-      fail(`${viewport.name}: ${action} navigated to ${target.path}; expected ${expected.path}`);
+      // Téléphone : le Chat exige un compte, la connexion revient dans le Chat.
+      const next = new URLSearchParams(target.search).get("next") || "";
+      if (!(target.path.startsWith("/app/auth") && next.startsWith("/app/chat"))) {
+        fail(`${viewport.name}: ${action} navigated to ${target.path}; expected ${expected.path}`);
+      }
     }
   }
 
@@ -356,8 +360,10 @@ async function testRoot(viewport) {
   if (!asked) fail(`${viewport.name}: Bot command composer is not operable`);
   await sleep(700);
   const afterAsk = await evaluate(`({ path: location.pathname, search: location.search, text: document.body.innerText })`);
-  if (afterAsk.path !== '/app/nexus') fail(`${viewport.name}: Bot command did not open the live mission`);
-  if (!new URLSearchParams(afterAsk.search).get('q')) fail(`${viewport.name}: Bot command lost the requested goal`);
+  // Visiteur : la connexion d'abord, puis retour dans le Chat (jamais un écran Nexus à part).
+  const afterPath = afterAsk.path;
+  const backToChat = afterPath === '/app/chat' || afterPath === '/app/chat/waouh' || new URLSearchParams(afterAsk.search).get('next')?.startsWith('/app/chat');
+  if (!backToChat || afterPath.startsWith('/app/nexus')) fail(`${viewport.name}: Bot command did not open the Chat (${afterPath}${afterAsk.search})`);
 
 }
 
@@ -414,9 +420,9 @@ async function testRoutes(viewport) {
     ["/app/avatar/acheter", "Acheter avec mon Avatar", true],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
     ["/app/avatar/demander", "Demander à mon Avatar", true],
-    ["/app/nexus", "Ma recherche", false],
+    ["/app/nexus", "Que puis-je faire pour vous", true],
     ["/app/deal-room", "Que cherchez-vous", true],
-    ["/app/nexus-legacy", "Ma recherche", false],
+    ["/app/nexus-legacy", "Que puis-je faire pour vous", true],
     ["/app/missions", "Missions", true],
     ["/app/ia", "Bots & IA WAOUH", true],
     ["/app/bots", "Bots WAOUH", true],

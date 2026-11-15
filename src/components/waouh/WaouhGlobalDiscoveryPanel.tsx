@@ -104,7 +104,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const requireAuth = (next = "/app/nexus"): boolean => {
+  const requireAuth = (next = "/app/chat"): boolean => {
     if (user) return true;
     navigate(buildWaouhAuthRedirect(next));
     return false;
@@ -266,7 +266,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   }, [user?.id,urlParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const uploadSharedImage = async (file: File) => {
-    if (!requireAuth("/app/nexus")) return;
+    if (!requireAuth("/app/chat")) return;
     setBusy(true);
     try {
       const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
@@ -290,7 +290,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
 
   const ingestShare = async () => {
     if (!shareText.trim() && !shareImageUrl && !shareUrl.trim()) return;
-    if (!requireAuth("/app/nexus")) return;
+    if (!requireAuth("/app/chat")) return;
     setBusy(true);
     try {
       const response = await ingestSharedCommerceSignal({
@@ -318,7 +318,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   };
 
   const prepareContact = async (result: NexusDiscoveryResult) => {
-    if (!requireAuth("/app/nexus")) return;
+    if (!requireAuth("/app/chat")) return;
     setBusy(true);
     try {
       const prepared = await prepareNexusContact(result.fabric_id);
@@ -337,7 +337,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   };
 
   const openUserInitiatedContact = (channel: string, value: string) => {
-    if (!requireAuth("/app/nexus")) return;
+    if (!requireAuth("/app/chat")) return;
     if (channel === "phone" || channel === "whatsapp") {
       const digits = value.replace(/\D/g, "");
       if (channel === "whatsapp") window.open(`https://wa.me/${digits}`, "_blank", "noopener,noreferrer");
@@ -350,7 +350,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
 
   const sendWithWaouh = async () => {
     if (!contact?.fabric_id || !contactMessage.trim()) return;
-    if (!requireAuth("/app/nexus")) return;
+    if (!requireAuth("/app/chat")) return;
     setBusy(true);
     try {
       const sent = await sendNexusDiscoveryContact({
@@ -536,7 +536,7 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
                 className="h-auto min-h-20 gap-2 sm:w-36 sm:flex-col"
                 disabled={busy}
                 onClick={() => {
-                  if (requireAuth("/app/nexus")) shareImageInput.current?.click();
+                  if (requireAuth("/app/chat")) shareImageInput.current?.click();
                 }}
               >
                 {shareImageUrl ? <Camera className="h-5 w-5" /> : <Upload className="h-5 w-5" />}

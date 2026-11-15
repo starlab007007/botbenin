@@ -117,24 +117,54 @@ LiveWaouhController? _guidedController(BuildContext context) {
   }
 }
 
-/// Ouvre un lien de recherche guidée. Compte connecté : la demande part par le moteur du Chat
-/// (même recherche, mêmes fiches, même ouverture de l'échange). Sinon le lien garde son écran.
-void liveOpenGuidedPath(BuildContext context, String path) {
+/// Ouvre un ancien lien de recherche guidée : toujours le Chat. Compte connecté : la demande part par
+/// son moteur (même recherche, mêmes fiches, même ouverture de l'échange) ; Vendre ouvre sa fiche de vente.
+void liveOpenGuidedPath(BuildContext context, String path, {bool replace = false}) {
+  void open(String to) => replace ? context.pushReplacement(to) : context.push(to);
+  final uri = Uri.parse(path);
   final controller = _guidedController(context);
-  final ask = controller != null && controller.auth.signedIn
-      ? liveGuidedAskFromUri(Uri.parse(path))
-      : null;
-  if (controller == null || ask == null) {
-    context.push(path);
+  if (controller == null || !liveGuidedIsEntryPath(uri)) {
+    open(path);
     return;
   }
-  controller.setComposerSeed(ask.text, meta: <String, dynamic>{
-    'source': 'flutter_guided_search',
-    'origin_surface': 'flutter_guided_search',
-    'auto_send': true,
-    'guided_ask': ask.toMap(),
-  });
-  context.push('/app/chat/waouh');
+  if (controller.auth.signedIn) {
+    if (liveGuidedIsSell(uri)) {
+      controller.setComposerSeed('', meta: const <String, dynamic>{'open_sell': true});
+    } else {
+      final ask = liveGuidedAskFromUri(uri);
+      if (ask != null) {
+        controller.setComposerSeed(ask.text, meta: <String, dynamic>{
+          'source': 'flutter_guided_search',
+          'origin_surface': 'flutter_guided_search',
+          'auto_send': true,
+          'guided_ask': ask.toMap(),
+        });
+      }
+    }
+  }
+  open('/app/chat/waouh');
+}
+
+/// Route des anciens liens (`/app/nexus`, `/app/avatar/acheter`…) : ouvre le Chat aussitôt.
+class LiveGuidedRedirect extends StatefulWidget {
+  const LiveGuidedRedirect({super.key, required this.uri});
+  final Uri uri;
+  @override
+  State<LiveGuidedRedirect> createState() => _LiveGuidedRedirectState();
+}
+
+class _LiveGuidedRedirectState extends State<LiveGuidedRedirect> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) liveOpenGuidedPath(context, widget.uri.toString(), replace: true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
 /// Entrée guidée de l'accueil (Acheter, Vendre, Trouver, Opportunité, Service, Prestation).

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildGuidedAsk, guidedAskFromSearchParams, guidedAskText, peekGuidedAsk, queueGuidedAsk, takeGuidedAsk } from "../guidedAsk";
+import { describe, expect, it, vi } from "vitest";
+import { buildGuidedAsk, guidedAskFromSearchParams, guidedAskText, guidedKindFrom, openGuidedChat, peekGuidedAsk, queueGuidedAsk, takeGuidedAsk } from "../guidedAsk";
 import { isChatSearchGoal } from "@/lib/waouh/chatSearchGoal";
 
 const memory = () => {
@@ -47,14 +47,36 @@ describe("recherche guidée → moteur du Chat", () => {
     expect(takeGuidedAsk(store, Date.now() + 3 * 60_000)).toBeNull();
   });
 
-  it("convertit un ancien lien de recherche guidée, mais laisse la vente d’un article et les outils à leur écran", () => {
+  it("convertit tout ancien lien de recherche guidée en demande pour le Chat", () => {
     const p = (s: string) => new URLSearchParams(s);
     expect(guidedAskFromSearchParams(p("q=Samsung+S25&go=1&mode=find_sellers&city=Cotonou&budget=400000"))).toEqual({ kind: "acheter", q: "Samsung S25", city: "Cotonou", budget: "400000" });
     expect(guidedAskFromSearchParams(p("q=plombier&go=1&kind=service"))?.kind).toBe("service");
     expect(guidedAskFromSearchParams(p("q=site+web&go=1&kind=project"))?.kind).toBe("prestation");
-    expect(guidedAskFromSearchParams(p("q=soja&go=1&kind=trouver&mode=auto"))?.kind).toBe("trouver");
-    expect(guidedAskFromSearchParams(p("q=soja&kind=trouver"))).toBeNull();
-    expect(guidedAskFromSearchParams(p("q=soja&go=1&kind=vendre&mode=find_buyers&article_id=a"))).toBeNull();
-    expect(guidedAskFromSearchParams(p("q=soja&go=1&tab=lab"))).toBeNull();
+    expect(guidedAskFromSearchParams(p("q=soja&kind=trouver"))?.kind).toBe("trouver");
+    expect(guidedAskFromSearchParams(p("q=soja&go=1&tab=lab"))?.kind).toBe("trouver");
+    // Vendre (y compris la vente d'un article publié) ouvre la fiche de vente du Chat.
+    expect(guidedAskFromSearchParams(p("q=soja&go=1&kind=vendre&mode=find_buyers&article_id=a"))).toEqual({ kind: "vendre" });
+    // Rien à lancer : le Chat s'ouvre simplement.
+    expect(guidedAskFromSearchParams(p("tab=lab"))).toBeNull();
+  });
+
+  it("guidedKindFrom reconnaît les noms de parcours", () => {
+    expect(guidedKindFrom("acheter")).toBe("acheter");
+    expect(guidedKindFrom("demander")).toBe("demander");
+    expect(guidedKindFrom(null, "find_sellers")).toBe("acheter");
+    expect(guidedKindFrom("inconnu")).toBe("trouver");
+  });
+
+  it("openGuidedChat ouvre le Chat, avec connexion d'abord pour un visiteur", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
+    const calls: string[] = [];
+    openGuidedChat((path) => void calls.push(path), { kind: "acheter", q: "riz" }, true);
+    openGuidedChat((path) => void calls.push(path), { kind: "acheter", q: "riz" }, false);
+    openGuidedChat((path) => void calls.push(path), null, false);
+    expect(calls[0]).toMatch(/^\/app\/chat/);
+    expect(calls[1]).toMatch(/^\/app\/auth\?next=/);
+    expect(calls[2]).toMatch(/^\/app\/chat/);
+    vi.unstubAllGlobals();
   });
 });
