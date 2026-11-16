@@ -48,3 +48,15 @@ describe('mots de gabarit', () => {
     expect(matchVerdict('Je cherche une opportunité : un stage en informatique', { subject: 'Stage informatique · assistant' }).acceptable).toBe(true);
   });
 });
+
+describe('la ville ne prouve rien', () => {
+  it('une annonce de la même ville ne répond pas pour autant au besoin', () => {
+    const place = 'Abomey-Calavi';
+    expect(matchVerdict('Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi',
+      { subject: 'Galaxy S25 - Cell Phones - Cotonou, Benin', city: place }, { place }).acceptable).toBe(false);
+    expect(matchVerdict('Je cherche une opportunité : un poste de secrétaire à Abomey-Calavi',
+      { subject: 'Secrétaire administrative', city: place }, { place }).acceptable).toBe(true);
+    expect(matchVerdict('Je cherche un Galaxy S25 à Cotonou',
+      { subject: 'Galaxy S25 - Cell Phones', city: 'Cotonou' }, { place: 'Cotonou' }).acceptable).toBe(true);
+  });
+});

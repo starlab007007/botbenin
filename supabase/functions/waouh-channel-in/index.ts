@@ -521,7 +521,7 @@ async function enrichChatWithSignalFabric(
     // (un emploi n'est pas un téléphone) et au moins un mot du besoin réellement présent.
     // Sans cela, une recherche sans réponse renvoyait « les plus proches », c'est-à-dire n'importe quoi.
     const eligible = scored.filter((row: any) => {
-      const verdict = matchVerdict(input.text, row);
+      const verdict = matchVerdict(input.text, row, { place: scoringCity });
       row.match_verdict = verdict;
       return verdict.acceptable;
     });
@@ -764,7 +764,8 @@ async function enrichChatWithSignalFabric(
         category: row?.category,
         brand: row?.brand,
         model: row?.model,
-      });
+        city: row?.city,
+      }, { place: scoringCity });
       return verdict.acceptable;
     });
     const results = relevant.map(
@@ -787,7 +788,7 @@ async function enrichChatWithSignalFabric(
         .order("observed_at", { ascending: false })
         .limit(1200);
       const comparablePrices = (comparables ?? [])
-        .filter((row: any) => matchVerdict(input.text, row).acceptable)
+        .filter((row: any) => matchVerdict(input.text, row, { place: scoringCity }).acceptable)
         .map((row: any) => Number(row.price_min ?? row.price_max ?? 0))
         .filter((value: number) => Number.isFinite(value) && value > 0)
         .sort((a: number, b: number) => a - b);
