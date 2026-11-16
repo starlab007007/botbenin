@@ -809,33 +809,17 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> prepareContact(NexusDiscoveryItem item) async {
-    // « Intéressé » : ouvre le Deal Room et son panneau de proposition de prix (dossier pour une opportunité).
-    // Vendeur WAOUH : parcours de négociation historique (intérêt transmis au vendeur, offres, contre-offres, accord).
-    if(_activeKind!='sale'){if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'ouvrir cet échange'))return;if(!mounted)return;try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${_activeKind=='opportunity'?'':'&propose=1'}');}catch(e){if(mounted)notice(roomError(e));}return;}
-
-    if (!await requireLiveAuthentication(
-      context,
-      next: '/app/nexus',
-      actionLabel: 'contacter cette opportunité',
-    ))
-      return;
-    setState(() => busy = true);
+    if (!await requireLiveAuthentication(context, next: '/app/nexus', actionLabel: 'ouvrir cet échange') || !mounted) return;
+    final sale = _activeKind == 'sale' ? _articleId : null;
+    if (_activeKind == 'sale' && sale == null) { notice('Choisissez votre article à vendre.'); return; }
     try {
-      final contact = await service.prepareContact(item.fabricId);
-      if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) =>
-            _ContactSheet(service: service, item: item, contact: contact),
-      );
-    } catch (error) {
-      if (mounted) notice(errorText(error));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
+      final result = await LiveDealRoomService(legacy.supabase).call('open', {
+        'fabric_id': item.fabricId, 'confirmed': true, if (sale != null) 'sale_article_id': sale,
+      });
+      if (mounted) context.push(Uri(path: '/app/chat/room', queryParameters: {
+        'room_id': '${result['deal_room_id']}', if (_activeKind != 'opportunity') 'propose': '1',
+      }).toString());
+    } catch (error) { if (mounted) notice(roomError(error)); }
   }
 
   void notice(String text, {bool success = false}) {
@@ -1146,96 +1130,17 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     ],
   );
   Future<void> _delegateOne(NexusDiscoveryItem item, {List<NexusDiscoveryItem>? alternates}) async {
-    // Achat, demande, opportunité : Bot ouvre le Deal Room et négocie directement,
-    // avec jusqu’à 3 autres offres en repli si la piste ne répond pas (comme le web).
-    if(_activeKind!='sale'){
-      if(!await requireLiveAuthentication(context,next:'/app/nexus',actionLabel:'confier cette piste à Bot'))return;
-      if(!mounted)return;
-      final fallbacks=(alternates??discovery?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId&&liveOfferReachable(r)).take(3).toList();
-      if(!await confirmBotDelegation(context,alternates:fallbacks.length,budgetMax:_lastBudget)||!mounted)return;
-      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_lastCity,budgetMax:_lastBudget,alternates:fallbacks);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)notice(roomError(e));}
-      return;
-    }
-
-    if (!await requireLiveAuthentication(
-      context,
-      next: '/app/nexus',
-      actionLabel: 'confier cette piste à Bot',
-    ))
-      return;
-    if (!mounted) return;
-    final owner = legacy.supabase.auth.currentUser?.id;
-    if (owner == null || _activeKind == 'opportunity') return;
-    final mode = _activeKind == 'sale'
-        ? 'sell'
-        : _activeKind == 'purchase'
-        ? 'buy'
-        : 'ask';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confier à Bot'),
-        content: const Text(
-          'Bot prépare le contact avec ce profil. Vous validez l’accord final.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirmer'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted || legacy.supabase.auth.currentUser?.id != owner)
-      return;
+    if (!await requireLiveAuthentication(context, next: '/app/nexus', actionLabel: 'confier cette piste à Bot') || !mounted) return;
+    final selling = _activeKind == 'sale';
+    if (selling && _articleId == null) { notice('Choisissez votre article à vendre.'); return; }
+    final fallbacks = (alternates ?? discovery?.results ?? const <NexusDiscoveryItem>[])
+      .where((row) => row.fabricId != item.fabricId && liveOfferReachable(row)).take(3).toList();
+    if (!await confirmBotDelegation(context, alternates: fallbacks.length, budgetMax: _lastBudget, selling: selling) || !mounted) return;
     try {
-      String? article = _articleId;
-      if (mode == 'sell' && article == null) {
-        final data = await service.ownedArticles();
-        final raw = data['articles'];
-        final rows = raw is List ? raw.whereType<Map>().toList() : <Map>[];
-        if (rows.length != 1) {
-          notice(
-            rows.isEmpty
-                ? 'Publiez d’abord votre article.'
-                : 'Choisissez l’article dans votre parcours de vente.',
-          );
-          return;
-        }
-        article = '${rows.first['id']}';
-      }
-      final data = await service.createMandate(
-        mode: mode,
-        expectedOwner: owner,
-        discoveryKind: _activeKind,
-        missionContext: _lastContext,
-        goal: item.title,
-        articleId: article,
-        maxContacts: 4,
-        allowWhatsapp: item.bestChannel == 'whatsapp',
-      );
-      if (!mounted || legacy.supabase.auth.currentUser?.id != owner) return;
-      final mandate = data['mandate'];
-      await service.startOpportunity(
-        fabricId: item.fabricId,
-        mode: mode,
-        expectedOwner: owner,
-        mandateId: mandate is Map ? '${mandate['id']}' : null,
-      );
-      if (mounted) {
-        notice(
-          'Bot s’en occupe. Retrouvez le suivi dans Missions.',
-          success: true,
-        );
-        context.push('/app/missions');
-      }
-    } catch (_) {
-      if (mounted) notice('Enregistrement impossible. Réessayez.');
-    }
+      final id = await delegateRoomToBot(LiveDealRoomService(legacy.supabase), fabricId: item.fabricId,
+        city: _lastCity, budgetMax: _lastBudget, saleArticleId: selling ? _articleId : null, alternates: fallbacks);
+      if (mounted) context.push('/app/chat/room?room_id=$id');
+    } catch (error) { if (mounted) notice(roomError(error)); }
   }
 
   Future<void> _watchOne(NexusDiscoveryItem item) async {

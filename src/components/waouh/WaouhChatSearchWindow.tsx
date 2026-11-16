@@ -5,12 +5,15 @@ import { WaouhChatMarketBrief } from "@/components/waouh/WaouhChatMarketBrief";
 import { WaouhSellerBrief } from "@/components/waouh/WaouhSellerBrief";
 import type { PriceReference } from "@/lib/waouh/sellerBrief";
 import { GUIDED_KIND_LABEL, type GuidedKind } from "@/lib/waouh/guidedAsk";
-import { briefMatch, briefMoney } from "@/lib/waouh/chatMarketBrief";
+import { briefDelegateId, briefMatch, briefMoney } from "@/lib/waouh/chatMarketBrief";
 import { SEARCH_STAGES, searchStage } from "@/lib/waouh/chatSearchStage";
 import "./waouh-search-live.css";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { WaouhProductResults, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
+import { offerReachable, WaouhOfferActions } from "./WaouhOfferActions";
+import { resultKind } from "@/lib/waouh/convergence";
+import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { resultContact, channelLabel } from "@/lib/waouh/resultCardData";
 import { maskPhone, planSteps, sameZone, summaryStep, type ReasonStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 
@@ -28,6 +31,7 @@ export type ChatSearch = {
   priceReference?: PriceReference;
   /** Vente : l'annonce publiée, pour confier la vente à Bot. */
   articleId?: string | null;
+  sources?: string[];
 };
 
 const priceOf = (r: WaouhResultCard) => {
@@ -43,8 +47,12 @@ export function chatSearchOutcome(search: ChatSearch): { steps: ReasonStep[]; su
   const ctx = { query: search.goal, city: search.city };
   const prices = results.map(priceOf).filter((p): p is number => p !== null);
   const inZone = results.filter((r) => sameZone(r.city, search.city)).length;
-  const withContact = results.filter((r) => !!resultContact(r).phone);
-  const contactable = results.filter((r) => !!r.fabric_id || !!r.article_id || !!resultContact(r).phone).length;
+  const reachable = results.filter(r => {
+    const fabric_id = r.fabric_id || briefDelegateId(r);
+    return !!fabric_id && offerReachable({ ...r, fabric_id } as NexusDiscoveryResult);
+  });
+  const withContact = reachable.filter(r => !!resultContact(r).phone);
+  const contactable = reachable.length;
   const summary: ReasonSummary = {
     found: results.length,
     internal: results.filter((r) => !r.fabric_id).length,
@@ -82,10 +90,13 @@ export function chatSearchOutcome(search: ChatSearch): { steps: ReasonStep[]; su
  * Fenêtre « Recherche live » : chaque recherche du chat s'ouvre ici, jamais dans l'historique.
  * Le raisonnement progresse en direct, puis les résultats s'affichent comme dans le chat.
  */
-export function WaouhChatSearchWindow({ search, onClose, onAction }: {
+export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, onWatch, watchBusy = false }: {
   search: ChatSearch | null;
   onClose: () => void;
   onAction?: (text: string, meta?: Record<string, unknown>) => void;
+  requireAuth?: (next?: string) => boolean;
+  onWatch?: () => void;
+  watchBusy?: boolean;
 }) {
   const feed = useReasoningFeed();
   const startedFor = useRef<string | null>(null);
@@ -131,6 +142,15 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
 
   const stage = searchStage(search, revealed);
   const failed = search?.status === "error";
+  const selling = search?.kind === "vendre" || !!search?.priceReference;
+  const asOffer = (row: WaouhResultCard) => {
+    const fabric_id = row.fabric_id || briefDelegateId(row);
+    return fabric_id ? { ...row, fabric_id, price_min: row.price_min ?? row.price ?? null } as NexusDiscoveryResult : null;
+  };
+  const alternatives = orderedResults.flatMap(row => {
+    const offer = asOffer(row);
+    return offer ? [offer] : [];
+  });
 
   return (
     <Sheet open={!!search} onOpenChange={(open) => !open && onClose()}>
@@ -171,11 +191,20 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
                 ? <WaouhSellerBrief results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
                 : <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} />}
               <div className="wsl-offers">
+                {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
                 <div className="wsl-offers-head">
                   <strong>Les offres</strong>
                   <span>Choisissez, proposez votre prix : l’échange s’ouvre dans le Chat.</span>
                 </div>
-                <WaouhProductResults results={orderedResults} onAction={onAction} />
+                <WaouhProductResults results={orderedResults} onAction={onAction} roomActions={requireAuth ? row => {
+                    const offer = asOffer(row);
+                    if (!offer || (selling && !search.articleId)) return null;
+                    const kind = selling ? "sale" : resultKind(row) === "announcement" || search.kind === "opportunite"
+                      ? "opportunity" : resultKind(row) === "service" || search.kind === "service" || search.kind === "prestation"
+                        ? "service" : "purchase";
+                    return <WaouhOfferActions result={offer} alternates={alternatives} mode={selling ? "sell" : "buy"} kind={kind}
+                      articleId={search.articleId ?? undefined} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />;
+                  } : undefined} />
               </div>
             </>
           )}
@@ -184,6 +213,11 @@ export function WaouhChatSearchWindow({ search, onClose, onAction }: {
               <strong>{failed ? "La recherche a été interrompue" : "Aucune offre assez proche pour le moment"}</strong>
               <p>{failed ? "Rien n’a été envoyé. Vous pouvez relancer votre demande depuis le chat." : "Précisez le modèle, la ville ou le budget : Bot relance aussitôt la recherche."}</p>
               <button type="button" className="wsl-primary" onClick={onClose}>Préciser ma demande</button>
+              {!failed && onWatch && (!selling || search.articleId) && (
+                <button type="button" className="wsl-primary" onClick={onWatch} disabled={watchBusy}>
+                  {watchBusy ? "Activation…" : "Activer la veille"}
+                </button>
+              )}
             </div>
           )}
         </div>

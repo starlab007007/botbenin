@@ -13,6 +13,23 @@ async function digest(value:unknown):Promise<string>{
  const hash=await crypto.subtle.digest('SHA-1',bytes);
  return Array.from(new Uint8Array(hash).slice(0,8),n=>n.toString(16).padStart(2,'0')).join('');
 }
+async function includeOutreachState(sb: any, data: any) {
+ const contact = data?.external_contact;
+ if (!data?.is_owner || !contact) return;
+ const { data: row } = await sb.from("waouh_outbound_queue")
+  .select("status,payload").eq("template", "deal_room_guest_outreach")
+  .eq("dedupe_key", `dr-first:${data.deal_room_id}`)
+  .order("created_at", { ascending: false }).limit(1).maybeSingle();
+ const receipt = row?.payload?.room_delivery_status;
+ contact.delivery_status = contact.status === "stopped" ? "stopped"
+  : contact.last_reply_at ? "replied"
+  : receipt === "delivered" || receipt === "read" ? "delivered"
+  : receipt === "failed" || row?.status === "failed" ? "failed"
+  : row?.status === "sent" ? "sent"
+  : row ? "queued"
+  : contact.channel === "link" ? "link_shared" : "waiting";
+}
+
 async function deliveryFor(sb:any,userId:string,roomId:string){
  const {data:view,error}=await sb.rpc('waouh_room_delivery_view',{p_actor:userId,p_room:roomId});
  if(error)return {error};
@@ -43,17 +60,50 @@ Deno.serve(async req=>{
  const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
  const automatic=['delegate','resume_bot','approve_step'].includes(action);
  if(!await modulePolicyAllowed(sb,automatic?['nexus','missions','avatar']:['nexus'],user.id,automatic))return jsonResponse({ok:false,error:'module_unavailable'},403);
- if(action==='open'){
-  const fabric=String(p.fabric_id||p.source?.source_ref||'');
-  const {data:signal,error}=await sb.from('waouh_signal_fabric').select('*').eq('fabric_id',fabric).maybeSingle();
-  if(error||!signal)return jsonResponse({ok:false,error:'offer_not_found'},404);
-  if(signal.is_active===false||(signal.expires_at&&Date.parse(signal.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);
-  let record=signal;
-  if(fabric.startsWith('article:')){const {data:article}=await sb.from('waouh_articles').select('*').eq('id',fabric.slice(8)).eq('status','active').maybeSingle();if(!article||(article.expires_at&&Date.parse(article.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);record={...signal,...article};}
-  const product=productSnapshot(record);if(!product||product.currency!=='XOF')return jsonResponse({ok:false,error:'quote_in_xof_required'},422);
-  p.source={title:product.title,kind:resultKind(signal),source_ref:fabric,source_url:signal.source_url,amount:product.price_min,extra_cost:null,source_snapshot:{product}};
-  p.city=signal.city||p.city||'À préciser';
+ if (action === "open") {
+  const fabric = String(p.fabric_id || p.source?.source_ref || "");
+  const saleArticleId = typeof p.sale_article_id === "string" ? p.sale_article_id : "";
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  if (saleArticleId && !uuid.test(saleArticleId)) return jsonResponse({ ok: false, error: "article_unavailable" }, 422);
+  const { data: signal, error } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabric).maybeSingle();
+  if (error || (!signal && !fabric.startsWith("article:"))) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+  if (signal?.is_active === false || (signal?.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
+   return jsonResponse({ ok: false, error: "article_unavailable" }, 409);
+  }
+  const buyer = ["BUY", "RFQ"].includes(String(signal?.intent));
+  if (buyer !== Boolean(saleArticleId) || (buyer && !/^(buyer|external):[0-9a-f-]{36}$/i.test(fabric))) {
+   return jsonResponse({ ok: false, error: buyer ? "sale_article_required" : "offer_not_found" }, 422);
+  }
+  let record = signal;
+  const articleId = saleArticleId || (fabric.startsWith("article:") ? fabric.slice(8) : "");
+  if (articleId) {
+   if (!uuid.test(articleId)) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+   const { data: article } = await sb.from("waouh_articles").select("*").eq("id", articleId).eq("status", "active").maybeSingle();
+   if (!article || (article.expires_at && Date.parse(article.expires_at) <= Date.now())) {
+    return jsonResponse({ ok: false, error: "article_unavailable" }, 409);
+   }
+   const { data: seller } = await sb.from("waouh_users").select("auth_user_id").eq("id", article.seller_id).maybeSingle();
+   if (saleArticleId ? seller?.auth_user_id !== user.id : seller?.auth_user_id === user.id) {
+    return jsonResponse({ ok: false, error: saleArticleId ? "forbidden" : "own_offer" }, 403);
+   }
+   if (saleArticleId && fabric.startsWith("buyer:")) {
+    const { data: profile } = await sb.from("waouh_buyer_profiles").select("waouh_users!inner(auth_user_id)")
+     .eq("id", fabric.slice(6)).eq("is_active", true).maybeSingle();
+    const counterpart = Array.isArray(profile?.waouh_users) ? profile?.waouh_users[0] : profile?.waouh_users;
+    if (counterpart?.auth_user_id === user.id) return jsonResponse({ ok: false, error: "own_offer" }, 403);
+   }
+   record = { ...signal, ...article };
+  }
+  const product = productSnapshot(record);
+  if (!product) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+  const kind = resultKind(saleArticleId ? record : signal ?? record);
+  if (kind !== "announcement" && product.currency !== "XOF") return jsonResponse({ ok: false, error: "quote_in_xof_required" }, 422);
+  const sourceRef = saleArticleId ? `sale:${saleArticleId}:${fabric}` : fabric;
+  p.source = { title: product.title, kind, source_ref: sourceRef, source_url: signal?.source_url,
+   amount: product.price_min, extra_cost: null, source_snapshot: { product } };
+  p.city = signal?.city || record?.city || p.city || "À préciser";
  }
+
  if(action==='delivery'){
   const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
   const {view,error:viewError}=await deliveryFor(sb,user.id,id) as any;
@@ -74,8 +124,8 @@ Deno.serve(async req=>{
   try{await notifyInApp(sb,{userId:user.id,title:'Bot prend en charge votre démarche',text:`Bot s’occupe de « ${String(data.title||'votre recherche').slice(0,80)} » de bout en bout : contact, négociation et accord. Vous êtes prévenu à chaque étape et vous gardez la main.`,actions:[{id:'open_room',label:'Suivre'}],dedupeKey:`bot-takeover:${data.deal_room_id}:${Number(data.mandate_revision??0)}`});}catch(_e){/* la prise en charge ne dépend pas de la notification */}
  }
  // Propriétaire hors WAOUH : Bot le joint (WhatsApp + lien sans compte) dès que l'échange lui est confié ou que l'utilisateur se déclare intéressé.
- if(data?.deal_room_id&&data.is_owner&&!data.provider_joined&&(action==='delegate'||action==='contact'||(action==='open'&&p.confirmed===true))){
-  try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'||reached==='pending'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});}}
+ if(data?.deal_room_id&&data.is_owner&&(action==='delegate'||action==='contact'||(!data.provider_joined&&action==='open'&&p.confirmed===true))){
+  try{const reached=await reachRoomOwner(sb,data.deal_room_id);if(reached==='contacted'||reached==='joined'||reached==='pending'){const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});if(!fresh.error)Object.assign(data,fresh.data);}}
   catch(e){console.warn('[deal-room] reach',e instanceof Error?e.message:'failed');}
  }
  // Link the existing canonical thread without creating an offer or sending another opener.
@@ -98,10 +148,11 @@ Deno.serve(async req=>{
  if(tick.error)console.warn('[deal-room] scheduled retry',tick.error.code);
  await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});
- if(!fresh.error)return jsonResponse({ok:true,data:fresh.data});
+ if(!fresh.error){await includeOutreachState(sb,fresh.data);return jsonResponse({ok:true,data:fresh.data});}
  }
  if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  if(action==='accept')await assignRoomDeliveries(sb).catch(()=>undefined);
+ await includeOutreachState(sb,data);
  // Lecture légère : la livraison voyage avec le salon et rien n'est renvoyé tant que rien n'a changé.
  if(action==='get'&&data?.deal_room_id){
   if(data.agreement?.status==='accepted'&&data.agreement?.terms?.delivery_mode==='delivery'){const {view}=await deliveryFor(sb,user.id,String(data.deal_room_id)) as any;if(view)data.delivery=view;}

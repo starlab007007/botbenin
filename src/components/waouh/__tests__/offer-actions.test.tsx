@@ -72,12 +72,16 @@ it('only members, partners and allowed public businesses are reachable', () => {
   expect(offerReachable(ad('catalog:z'))).toBe(false);
 });
 
-it('an ad without reachable contact shows the original listing and never offers Bot', async () => {
-  await act(async () => root.render(<MemoryRouter><WaouhOfferActions result={ad('external:y', { source_url: 'https://example.org/annonce' })} alternates={[]} onDetails={() => undefined} mode="buy" kind="purchase" requireAuth={() => true} /></MemoryRouter>));
+it('opens a manual room for a listing without an automatic contact', async () => {
+  await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
+    <Route path="/app/nexus" element={<WaouhOfferActions result={ad('external:y', { source_url: 'https://example.org/annonce' })} alternates={[]} mode="buy" kind="purchase" requireAuth={() => true} />} />
+    <Route path="/app/chat" element={<Where />} />
+  </Routes></MemoryRouter>));
   expect(host.querySelector('a')?.textContent).toContain('Voir l’annonce d’origine');
   expect(host.textContent).toContain('Contact non disponible');
   expect(host.textContent).not.toContain('Bot');
-  expect(host.textContent).not.toContain('Intéressé');
+  await act(async () => button('Ouvrir l’échange').click());
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=external%3Ay&offer=50000');
 });
 
 it('the banner hands Bot only reachable offers, and says so when none is', async () => {

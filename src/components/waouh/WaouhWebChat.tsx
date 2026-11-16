@@ -1,3 +1,6 @@
+import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
+import { createNexusMandate } from "@/lib/waouh/nexus";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { useWaouhResync } from "@/lib/waouh/resync";
 import { WaouhChatSearchWindow, type ChatSearch } from "@/components/waouh/WaouhChatSearchWindow";
 import { isChatSearchGoal } from "@/lib/waouh/chatSearchGoal";
@@ -192,6 +195,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [sending, setSending] = useState(false);
   const [chatSearch, setChatSearch] = useState<ChatSearch | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
   useEffect(() => { if (chatSearch?.id) setSearchOpen(true); }, [chatSearch?.id]);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("waouh:chat-search", {
@@ -771,6 +775,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               // Vente : le repère de prix et l'annonce publiée servent la vue du vendeur.
               priceReference: (data as { price_reference?: unknown })?.price_reference as never ?? undefined,
               articleId: respArticleId ?? undefined,
+              sources: data?.source_mix && typeof data.source_mix === "object"
+                ? Object.entries(data.source_mix).filter(([, count]) => Number(count) > 0).map(([name]) => sourceDisplayName(name))
+                : [],
             }
           : cur));
       }
@@ -1438,6 +1445,33 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       <WaouhChatSearchWindow
         search={searchOpen ? chatSearch : null}
         onClose={() => setSearchOpen(false)}
+        requireAuth={(next = "/app/chat") => {
+          if (user) { setSearchOpen(false); return true; }
+          navigate(buildWaouhAuthRedirect(next));
+          return false;
+        }}
+        watchBusy={watchBusy}
+        onWatch={!chatSearch ? undefined : async () => {
+          if (watchBusy) return;
+          if (!user) { navigate(buildWaouhAuthRedirect("/app/chat")); return; }
+          setWatchBusy(true);
+          const selling = chatSearch.kind === "vendre" || !!chatSearch.priceReference;
+          try {
+            const response = await createNexusMandate({
+              mode: selling ? "sell" : "buy", goal: chatSearch.goal,
+              article_id: selling ? chatSearch.articleId ?? undefined : undefined,
+              city: chatSearch.city || undefined, budget_max: selling ? undefined : chatSearch.budget ?? undefined,
+              autonomy_mode: "assisted", completion_goal: "recommendations", max_followups: 0,
+              allow_waouh: false, allow_whatsapp: false, allow_public_business: false,
+              allow_blind_message: false, allow_email: false, allow_sms_rcs: false,
+              origin_surface: "web_chat_watch",
+            }, { expectedOwner: user.id });
+            setSearchOpen(false);
+            navigate(`/app/missions?mandate=${response.mandate.id}`);
+          } catch {
+            toast({ title: "Veille non activée", description: "Réessayez depuis cette recherche." });
+          } finally { setWatchBusy(false); }
+        }}
         onAction={sending ? undefined : (txt, meta) => { setChatSearch(null); void sendCore(txt, [], null, meta ?? {}).catch(() => {}); }}
       />
     </Card>

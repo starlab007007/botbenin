@@ -69,6 +69,7 @@ begin
  if r->'agreement'->>'status'<>'accepted' then raise exception 'bilateral_agreement_failed';end if;
  denied=false;begin perform public.waouh_room_command(buyer,'complete',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));exception when others then if sqlerrm not like '%evidence%' then raise;end if;denied=true;end;
  if not denied then raise exception 'premature_closure';end if;
+ perform public.waouh_room_command(seller,'receipt',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
  perform public.waouh_room_command(buyer,'receipt',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
  perform public.waouh_room_command(buyer,'payment_report',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
  perform public.waouh_room_command(seller,'payment_receive',jsonb_build_object('deal_room_id',room,'request_id',gen_random_uuid(),'version',v));
@@ -83,6 +84,90 @@ begin
  end loop;
  perform set_config('waouh.audit_report',jsonb_build_object('passed',true,'paths',results,'elapsed_ms',round(extract(epoch from(clock_timestamp()-started))*1000,1),'persisted_test_data',false)::text,true);
 end $audit$;
+do $release_audit$
+declare
+ actor uuid;
+ other_actor uuid;
+ waouh_buyer uuid;
+ item uuid;
+ buyer_request uuid;
+ courier_id uuid;
+ room_id uuid;
+ current_version integer;
+ result jsonb;
+ input jsonb;
+ offer jsonb;
+ provider_message text := gen_random_uuid()::text;
+ guest_actor uuid := public.waouh_room_guest_actor();
+begin
+ select a.id, u.auth_user_id into item, actor from public.waouh_articles a
+  join public.waouh_users u on u.id=a.seller_id
+  where a.status='active' and u.auth_user_id is not null limit 1;
+ select u.id, u.auth_user_id into waouh_buyer, other_actor from public.waouh_users u
+  where u.auth_user_id is not null and u.auth_user_id<>actor limit 1;
+ if actor is null or other_actor is null then raise exception 'audit_missing_sale_participants'; end if;
+ insert into public.waouh_buyer_profiles(user_id,query_text)
+ values(waouh_buyer,'Recherche de contrôle '||gen_random_uuid()) returning id into buyer_request;
+ input := jsonb_build_object('request_id',gen_random_uuid(),'city','Cotonou','confirmed',true,'source',
+  jsonb_build_object('title','Vente de contrôle','kind','product','source_ref','sale:'||item||':buyer:'||buyer_request,'amount',150000,
+   'source_snapshot','{"product":{"title":"Vente de contrôle","photos":[]}}'::jsonb));
+ result := public.waouh_room_command(actor,'open',input);
+ room_id := (result->>'deal_room_id')::uuid;
+ if result->>'buyer'<>'false' or result->>'provider_joined'<>'true' then raise exception 'sale_seller_roles_not_linked'; end if;
+ result := public.waouh_room_command(other_actor,'get',jsonb_build_object('deal_room_id',room_id));
+ if result->>'buyer'<>'true' then raise exception 'sale_buyer_role_not_linked'; end if;
+ offer := jsonb_build_object('amount',150000,'quantity',1,'scope','Article de contrôle',
+  'deadline','Demain','exclusions','Aucune livraison','expected_result','Validation technique','payment','Paiement de contrôle');
+ result := public.waouh_room_command(actor,'propose',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',0,'terms',offer));
+ current_version := (result->>'current_offer_version')::integer;
+ perform public.waouh_room_command(actor,'accept',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ result := public.waouh_room_command(other_actor,'accept',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ if result->'agreement'->>'status'<>'accepted' then raise exception 'sale_bilateral_accept_failed'; end if;
+ select id into courier_id from public.waouh_couriers where active and phone_number is not null limit 1;
+ if courier_id is null then raise exception 'audit_missing_courier'; end if;
+ insert into public.waouh_room_deliveries(room_id,agreement_version,delivery_address)
+ values(room_id,current_version,'Adresse de contrôle');
+ if not public.waouh_room_assign_courier(room_id,courier_id,encode(sha256(convert_to(gen_random_uuid()::text,'UTF8')),'hex'),'Invitation de contrôle') then raise exception 'courier_assignment_failed'; end if;
+ if public.waouh_room_assign_courier(room_id,courier_id,repeat('a',64),'Invitation de contrôle') then raise exception 'courier_assignment_duplicated'; end if;
+ if not exists (select 1 from public.waouh_outbound_queue q where q.dedupe_key='dr-courier:'||room_id||':'||current_version and q.payload->>'courier_delivery'='true') then raise exception 'courier_invitation_not_queued'; end if;
+ perform public.waouh_room_reject_delivery_code(room_id);
+ if not public.waouh_room_delivery_complete(room_id) then raise exception 'versioned_delivery_confirmation_failed'; end if;
+ result := public.waouh_room_delivery_view(other_actor,room_id);
+ if result->>'status'<>'delivered' or result->>'is_buyer'<>'true' then raise exception 'sale_delivery_proof_failed'; end if;
+ perform public.waouh_room_command(other_actor,'payment_report',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ perform public.waouh_room_command(actor,'payment_receive',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ perform public.waouh_room_command(actor,'complete',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ result := public.waouh_room_command(other_actor,'complete',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ if result->'agreement'->>'status'<>'completed' then raise exception 'sale_closure_failed'; end if;
+
+ input := jsonb_build_object('request_id',gen_random_uuid(),'city','Cotonou','confirmed',false,'source',
+  jsonb_build_object('title','Opportunité de contrôle','kind','announcement','source_ref','external:'||gen_random_uuid(),
+   'source_snapshot','{"product":{"title":"Opportunité de contrôle","photos":[]}}'::jsonb));
+ result := public.waouh_room_command(actor,'open',input);
+ room_id := (result->>'deal_room_id')::uuid;
+ if not public.waouh_room_attach_pending_guest(room_id) then raise exception 'external_pending_failed'; end if;
+ perform public.waouh_room_command(actor,'message',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'text','Message de contrôle'));
+ insert into public.waouh_room_guests(room_id,reference,channel,consent_basis,token_hash,token_encrypted,token_expires_at)
+ values(room_id,'DR-AUDIT','link','shared_link',md5(gen_random_uuid()::text),'sealed-fixture',now()+interval '1 day');
+ perform public.waouh_room_command(actor,'application_prepare',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid()));
+ perform public.waouh_room_command(actor,'application_submit',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'confirmation','submitted'));
+ result := public.waouh_room_command(guest_actor,'application_outcome',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'outcome','retained'));
+ if result->'evidence'->>'application_outcome'<>'retained' then raise exception 'external_application_decision_failed'; end if;
+ if not exists(select 1 from public.waouh_business_messages b where b.component_id=room_id and b.text='Message de contrôle') then raise exception 'pending_history_lost'; end if;
+
+ insert into public.waouh_outbound_queue(template,channel,status,dedupe_key,payload)
+ values('deal_room_guest_outreach','whatsapp','sent','dr-first:'||room_id,jsonb_build_object('provider_message_id',provider_message));
+ perform public.waouh_room_record_outreach_ack(provider_message,'delivered');
+ perform public.waouh_room_record_outreach_ack(provider_message,'sent');
+ if not exists(select 1 from public.waouh_outbound_queue where dedupe_key='dr-first:'||room_id and payload->>'room_delivery_status'='delivered') then raise exception 'delivery_receipt_regressed'; end if;
+ perform set_config('waouh.audit_report',(current_setting('waouh.audit_report')::jsonb || '{"sale":"completed","courier_assignment":"queued_once","delivery_confirmation":"passed","external_opportunity":"retained","whatsapp_receipt_contract":"passed"}'::jsonb)::text,true);
+ if has_column_privilege('anon','public.waouh_articles','contact_whatsapp','SELECT')
+  or has_column_privilege('authenticated','public.waouh_articles','contact_whatsapp','SELECT')
+  or not has_column_privilege('anon','public.waouh_articles','title','SELECT')
+  or not has_column_privilege('service_role','public.waouh_articles','contact_whatsapp','SELECT')
+ then raise exception 'article_contact_privileges_failed'; end if;
+end $release_audit$;
+
 select current_setting('waouh.audit_report')::jsonb as audit_report;
 rollback;
 

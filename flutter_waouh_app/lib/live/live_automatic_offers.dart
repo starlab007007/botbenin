@@ -665,15 +665,17 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (liveOfferReachable(o)) ...[
                           FilledButton(
-                            onPressed: () => Navigator.pop(ctx, 'contact'),
+                            onPressed: o.fabricId.isEmpty ? null : () => Navigator.pop(ctx, 'contact'),
                             style: FilledButton.styleFrom(
                               backgroundColor: avatarPremiumInk,
                               minimumSize: const Size.fromHeight(46),
                             ),
-                            child: Text(livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)),
+                            child: Text(liveOfferReachable(o)
+                                ? livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)
+                                : 'Ouvrir l’échange'),
                           ),
+                          if (liveOfferReachable(o)) ...[
                           const SizedBox(height: 8),
                           OutlinedButton(
                             onPressed: () => Navigator.pop(ctx, 'delegate'),
@@ -822,34 +824,24 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!liveOfferReachable(o))
-          SizedBox(
-            height: 40,
-            child: _hasSource(o)
-                ? OutlinedButton(
-                    onPressed: () => _openSource(o),
-                    style: _secondaryStyle,
-                    child: _fit(Icons.open_in_new, 'Voir l’annonce d’origine'),
-                  )
-                : const Center(
-                    child: Text('Contact non disponible',
-                        style: TextStyle(fontSize: 12, color: avatarPremiumMuted)),
-                  ),
-          )
-        else
         SizedBox(
           height: 40,
           child: FilledButton(
-            onPressed: widget.actionBusy ? null : () => widget.onContact(o),
+            onPressed: widget.actionBusy || o.fabricId.isEmpty ? null : () => widget.onContact(o),
             style: FilledButton.styleFrom(
               backgroundColor: avatarPremiumInk,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
             ),
-            child: _fit(Icons.volunteer_activism_outlined, livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)),
+            child: _fit(Icons.volunteer_activism_outlined, liveOfferReachable(o)
+               ? livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)
+               : 'Ouvrir l’échange'),
           ),
         ),
+        if (!liveOfferReachable(o) && _hasSource(o))
+          TextButton.icon(onPressed: () => _openSource(o), icon: const Icon(Icons.open_in_new, size: 15),
+            label: const Text('Voir l’annonce d’origine')),
         const SizedBox(height: 6),
         Row(
           children: [

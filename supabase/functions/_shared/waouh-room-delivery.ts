@@ -2,7 +2,7 @@
 // WAOUH — Livraison dans la Deal Room.
 // Un accord « livraison » assigne un livreur (ville proche, moins chargé). Le livreur reçoit un lien sans compte,
 // l'acheteur un code à lui donner à la remise. Code correct = réception et remise confirmées dans l'échange.
-import { enqueue, notifyOwner } from "./waouh-room-guest.ts";
+import { notifyOwner } from "./waouh-room-guest.ts";
 import { sha256Hex } from "./waouh-tel/crypto.ts";
 
 const SITE = "https://bot.bj";
@@ -22,7 +22,7 @@ export async function deliveryCode(roomId: string, version: number): Promise<str
 const sameCity = (a: string, b: string) => !!a && !!b && (a === b || a.includes(b) || b.includes(a));
 
 async function pickCourier(sb: any, city: string) {
-  const { data: couriers } = await sb.from("waouh_couriers").select("id,name,phone_number,city").eq("active", true).limit(100);
+  const { data: couriers } = await sb.from("waouh_couriers").select("id,name,phone_number,city").eq("active", true).not("phone_number", "is", null).limit(100);
   if (!couriers?.length) return null;
   const { data: busy } = await sb.from("waouh_room_deliveries").select("courier_id").in("status", ["assigned", "picked_up"]).not("courier_id", "is", null).limit(2000);
   const load = new Map<string, number>();
@@ -80,15 +80,13 @@ async function assignOne(sb: any, roomId: string, title: string): Promise<boolea
     return false;
   }
   const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join("");
-  const { data: claimed } = await sb.from("waouh_room_deliveries").update({
-    status: "assigned", courier_id: courier.id, courier_name: courier.name ?? "Livreur", token_hash: await sha256Hex(token), assigned_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  }).eq("room_id", roomId).eq("status", "pending").select("room_id");
-  if (!claimed?.length) return false;
   const fee = d.delivery_fee ? ` · Frais ${money(d.delivery_fee)} F` : "";
-  if (courier.phone_number) {
-    await enqueue(sb, String(courier.phone_number), `Nouvelle livraison WAOUH : « ${title} ».\nRécupération : ${d.pickup_city || "à préciser"}\nLivraison : ${d.delivery_address}${fee}\nOuvrez la mission : ${courierLink(token)}`,
-      { room_id: roomId }, `dr-courier:${roomId}:${d.agreement_version}`);
-  }
+  const { data: claimed, error } = await sb.rpc("waouh_room_assign_courier", {
+    p_room: roomId, p_courier: courier.id, p_token_hash: await sha256Hex(token),
+    p_text: `Nouvelle livraison WAOUH : « ${title} ».\nRécupération : ${d.pickup_city || "à préciser"}\nLivraison : ${d.delivery_address}${fee}\nOuvrez la mission : ${courierLink(token)}`,
+  });
+  if (error) throw error;
+  if (!claimed) return false;
   await notifyOwner(sb, roomId, `Livreur assigné pour « ${title} ». Votre code de remise est dans l’échange : donnez-le au livreur à la livraison.`, `delivery-assigned:${roomId}:${d.agreement_version}`);
   return true;
 }
@@ -114,11 +112,15 @@ export async function handleCourierRequest(sb: any, token: string, action: strin
   if ((d.attempts ?? 0) >= MAX_CODE_ATTEMPTS) return { status: 429, body: { ok: false, error: "too_many_attempts" } };
   const given = String(payload.code ?? "").replace(/\D/g, "");
   if (given !== await deliveryCode(d.room_id, d.agreement_version)) {
-    await sb.from("waouh_room_deliveries").update({ attempts: (d.attempts ?? 0) + 1, updated_at: new Date().toISOString() }).eq("room_id", d.room_id);
+    const { error } = await sb.rpc("waouh_room_reject_delivery_code", { p_room: d.room_id });
+    if (error) return { status: 409, body: { ok: false, error: "request_failed" } };
     return { status: 422, body: { ok: false, error: "wrong_code" } };
   }
-  const { error } = await sb.rpc("waouh_room_delivery_complete", { p_room: d.room_id });
-  if (error) { console.warn("[room-delivery] complete", error.message); return { status: 409, body: { ok: false, error: "request_failed" } }; }
+  const { data: completed, error } = await sb.rpc("waouh_room_delivery_complete", { p_room: d.room_id });
+  if (error || !completed) {
+    console.warn("[room-delivery] complete", error?.code ?? "delivery_not_confirmed");
+    return { status: 409, body: { ok: false, error: "request_failed" } };
+  }
   await notifyOwner(sb, d.room_id, "Livraison confirmée avec votre code. Il reste à confirmer le paiement dans l’échange.", `delivery-done:${d.room_id}:${d.agreement_version}`);
   d.status = "delivered";
   return { status: 200, body: { ok: true, data: view() } };

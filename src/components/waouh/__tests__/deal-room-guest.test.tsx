@@ -56,8 +56,11 @@ it('a malformed link never calls the server', async () => {
 });
 
 it('owner sees how the external seller was reached, never the full number', () => {
-  expect(externalContactText({ status: 'contacted', last4: '1234' })).toBe('Contacté par WhatsApp · •••• 1234 · réponse attendue');
-  expect(externalContactText({ status: 'joined', last4: '1234' })).toBe('A répondu par WhatsApp · •••• 1234');
+  expect(externalContactText({ status: 'contacted', last4: '1234', delivery_status: 'queued' })).toBe('Invitation en attente d’envoi');
+  expect(externalContactText({ status: 'contacted', delivery_status: 'sent' })).toBe('Invitation envoyée · remise à confirmer');
+  expect(externalContactText({ status: 'contacted', delivery_status: 'delivered' })).toBe('Invitation remise sur WhatsApp');
+  expect(externalContactText({ status: 'joined', last_reply_at: '2026-11-16' })).toBe('Réponse reçue');
+  expect(externalContactText({ channel: 'link', status: 'joined' })).toBe('Lien d’invitation disponible');
   expect(externalContactText({ status: 'stopped' })).toBe('Ne souhaite pas être contacté');
   expect(externalContactText(null)).toBe('');
 });

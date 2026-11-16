@@ -3,7 +3,7 @@ import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
 import { assignRoomDeliveries } from "../_shared/waouh-room-delivery.ts";
-import { ROOM_GUEST_ACTOR, notifyRoomDeliveryDelay, notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
+import { notifyRoomDeliveryDelay, notifyRoomSilence, reachRoomOwner, relayRoomGuests, roomSaleSource, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1149,7 +1149,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
   const result = { checked: 0, advanced: 0, abandoned: 0, errors: 0 };
   const { data: rooms } = await sb
     .from("waouh_deal_room_links")
-    .select("id, owner_id, mandate, initial_sent, followups, control_mode")
+    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode")
     .eq("active", true)
     .in("control_mode", ["bot", "paused"])
     .order("created_at", { ascending: true })
@@ -1224,7 +1224,9 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (await avatarAccountPaused(sb, ownerId)) continue;
 
       const [next, ...rest] = candidates;
-      const sourceRef = String(next?.source_ref || "");
+      const nextFabricId = String(next?.source_ref || "");
+      const sale = roomSaleSource(room.source_ref);
+      const sourceRef = sale && nextFabricId ? `sale:${sale.articleId}:${nextFabricId}` : nextFabricId;
       const dropCandidate = async () => {
         await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id);
       };
@@ -1232,14 +1234,20 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       // Bot ne retient que des offres dont le propriétaire peut être joint.
       if (!await sourceReachable(sb, sourceRef, true)) { await dropCandidate(); continue; }
 
-      const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", sourceRef).maybeSingle();
+      const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", nextFabricId).maybeSingle();
+      if (sale && !["BUY", "RFQ"].includes(String(signal?.intent))) { await dropCandidate(); continue; }
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
         await dropCandidate(); continue;
       }
       let record: any = signal;
-      if (sourceRef.startsWith("article:")) {
-        const { data: article } = await sb.from("waouh_articles").select("*").eq("id", sourceRef.slice(8)).eq("status", "active").maybeSingle();
+      if (sale || sourceRef.startsWith("article:")) {
+        const { data: article } = await sb.from("waouh_articles").select("*")
+          .eq("id", sale?.articleId ?? sourceRef.slice(8)).eq("status", "active").maybeSingle();
         if (!article || (article.expires_at && Date.parse(article.expires_at) <= Date.now())) { await dropCandidate(); continue; }
+        if (sale) {
+          const { data: seller } = await sb.from("waouh_users").select("auth_user_id").eq("id", article.seller_id).maybeSingle();
+          if (seller?.auth_user_id !== ownerId) { await dropCandidate(); continue; }
+        }
         record = { ...signal, ...article };
       }
       const product = productSnapshot(record);
@@ -1248,7 +1256,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const openPayload: Record<string, unknown> = {
         request_id: crypto.randomUUID(),
         source: {
-          title: product.title, kind: resultKind(signal), source_ref: sourceRef,
+          title: product.title, kind: resultKind(sale ? record : signal), source_ref: sourceRef,
           source_url: signal.source_url, amount: product.price_min, extra_cost: null,
           source_snapshot: { product },
         },
@@ -1296,30 +1304,16 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
 // joindre le propriétaire s'il est joignable, puis relayer les nouveautés par WhatsApp.
 async function reachAndRelayRoomGuests(sb: SupabaseClient) {
   const result = { reached: 0, relayed: 0, errors: 0 };
-  const { data: rooms } = await sb.from("waouh_deal_room_links").select("id").eq("active", true).eq("control_mode", "bot").limit(100);
-  const ids = (rooms ?? []).map((r: any) => r.id);
-  if (ids.length) {
-    const [{ data: comps }, { data: known }] = await Promise.all([
-      sb.from("waouh_convergence_components").select("id").in("id", ids).is("provider_id", null),
-      sb.from("waouh_room_guests").select("room_id").in("room_id", ids),
-    ]);
-    const done = new Set((known ?? []).map((g: any) => g.room_id));
-    for (const c of (comps ?? []).filter((c: any) => !done.has(c.id)).slice(0, 20)) {
-      try { if (await reachRoomOwner(sb, c.id) === "contacted") result.reached++; } catch (e) { console.warn("[waouh-opportunity-worker][room-guest]", e); result.errors++; }
+  const { data: candidates, error: candidateError } = await sb.rpc("waouh_room_contact_candidates", { p_limit: 30 });
+  if (candidateError) throw candidateError;
+  for (const candidate of candidates ?? []) {
+    try {
+      if (await reachRoomOwner(sb, candidate.room_id) === "contacted") result.reached++;
+    } catch (error) {
+      console.warn("[waouh-opportunity-worker][room-guest]", error);
+      result.errors++;
     }
   }
-  // Vendeurs en attente de contact (l'acheteur a déjà écrit ou proposé) : on réessaie dès qu'un contact existe.
-  try {
-    const { data: waiting } = await sb.from("waouh_convergence_components").select("id").eq("provider_id", ROOM_GUEST_ACTOR).limit(100);
-    const wIds = (waiting ?? []).map((c: any) => c.id);
-    if (wIds.length) {
-      const { data: has } = await sb.from("waouh_room_guests").select("room_id").in("room_id", wIds);
-      const hasSet = new Set((has ?? []).map((g: any) => g.room_id));
-      for (const id of wIds.filter((i: string) => !hasSet.has(i)).slice(0, 20)) {
-        try { if (await reachRoomOwner(sb, id) === "contacted") result.reached++; } catch (e) { console.warn("[waouh-opportunity-worker][room-pending]", e); result.errors++; }
-      }
-    }
-  } catch (e) { console.warn("[waouh-opportunity-worker][room-pending]", e); result.errors++; }
   try { await assignRoomDeliveries(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-delivery]", e); result.errors++; }
   try { result.relayed = (await relayRoomGuests(sb)).sent; } catch (e) { console.warn("[waouh-opportunity-worker][room-relay]", e); result.errors++; }
   try { await notifyRoomSilence(sb); await notifyRoomDeliveryDelay(sb); } catch (e) { console.warn("[waouh-opportunity-worker][room-silence]", e); result.errors++; }

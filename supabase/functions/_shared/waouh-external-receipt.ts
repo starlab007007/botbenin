@@ -1,3 +1,4 @@
+import { CENTRAL_WAHA_SESSION } from "./waouh-central-whatsapp.ts";
 import { isServiceRoleRequest } from "./waouh-auth.ts";
 import { constantTimeEqual } from "./waouh-tel/crypto.ts";
 export function wahaReceiptStatus(payload: Record<string, unknown>) {
@@ -60,5 +61,12 @@ export async function acceptExternalReceipt(
     p_status: status,
   });
   if (error) throw new Error("external_receipt_storage_failed");
+  if (session.toLowerCase() === CENTRAL_WAHA_SESSION.toLowerCase() && payload.fromMe === true) {
+    const { error: roomError } = await sb.rpc("waouh_room_record_outreach_ack", {
+      p_provider_message_id: id,
+      p_status: status,
+    });
+    if (roomError) throw new Error("room_receipt_storage_failed");
+  }
   return true;
 }

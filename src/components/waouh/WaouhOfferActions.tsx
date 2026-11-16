@@ -15,6 +15,7 @@ type Mode = "buy" | "sell" | "ask";
 export function offerPrimaryLabel(kind?: MissionKind | string | null): string {
   if (kind === "service" || kind === "project") return "Demander un devis";
   if (kind === "opportunity") return "Postuler";
+  if (kind === "sale") return "Contacter l’acheteur";
   return "Intéressé";
 }
 
@@ -23,9 +24,11 @@ export function offerPrimaryLabel(kind?: MissionKind | string | null): string {
  * proposition de prix s'ouvre aussitôt (prérempli avec le prix annoncé quand il est
  * connu). Opportunité : le Deal Room suit son propre parcours de dossier.
  */
-export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id" | "price_min" | "price_max">, kind?: MissionKind | string | null): string {
+export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id" | "price_min" | "price_max">, kind?: MissionKind | string | null, saleArticleId?: string): string {
   const params = new URLSearchParams({ fabric_id: result.fabric_id });
-  if (kind !== "opportunity") {
+  if (saleArticleId) params.set("sale_article_id", saleArticleId);
+  if (kind === "sale") params.set("propose", "1");
+  else if (kind !== "opportunity") {
     const price = result.price_min ?? result.price_max;
     if (price != null && Number.isFinite(Number(price))) params.set("offer", String(Math.round(Number(price))));
     else params.set("propose", "1");
@@ -40,7 +43,7 @@ export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id"
  */
 export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | "evidence" | "contact_policy">): boolean {
   const id = result.fabric_id || "";
-  if (id.startsWith("article:")) return true;
+  if (id.startsWith("article:") || id.startsWith("buyer:")) return true;
   const evidence = (result.evidence || {}) as Record<string, unknown>;
   if (id.startsWith("catalog:") && (evidence.source === "partner" || evidence.has_contact === true || evidence.has_contact === "true")) return true;
   if (result.contact_policy?.can_auto_contact === true) return true;
@@ -83,25 +86,23 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   const navigate = useNavigate();
   const { mode, kind, requireAuth } = shared;
   const reachable = offerReachable(result);
-  const primary = mode === "sell" && saleAction ? saleAction : !reachable ? (
-    result.source_url
-      ? <a className="wgd-offer-primary" href={result.source_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden="true" />Voir l’annonce d’origine</a>
-      : <span className="wgd-offer-unreachable">Contact non disponible</span>
-  ) : (
+  const canOpen = !!result.fabric_id && (mode !== "sell" || !!shared.articleId);
+  const primary = canOpen ? (
     <button type="button" className="wgd-offer-primary" onClick={() => {
-      const path = offerDealRoomPath(result, kind);
+      const path = offerDealRoomPath(result, mode === "sell" ? "sale" : kind, shared.articleId);
       if (requireAuth(path)) navigate(path);
     }}>
-      <HeartHandshake size={16} aria-hidden="true" />{offerPrimaryLabel(kind)}
+      <HeartHandshake size={16} aria-hidden="true" />{reachable ? offerPrimaryLabel(mode === "sell" ? "sale" : kind) : "Ouvrir l’échange"}
     </button>
-  );
+  ) : saleAction ?? null;
   return (
     <div className="wgd-offer-actions">
       {primary}
       <WaouhDirectContact result={result} requireAuth={requireAuth} />
+      {!reachable && result.source_url && <a href={result.source_url} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost"><ExternalLink size={15} aria-hidden="true" />Voir l’annonce d’origine</a>}
       <div className="wgd-offer-secondary">
-        {!reachable && result.source_url && <span className="wgd-offer-unreachable">Contact non disponible</span>}
-        {reachable && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
+        {!reachable && <span className="wgd-offer-unreachable">Contact non disponible</span>}
+        {reachable && canOpen && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
           city={shared.city} budgetMax={shared.budgetMax} variant="secondary" label="Bot" className="h-10"
           alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}
         {onDetails && <button type="button" className="wgd-offer-ghost" onClick={onDetails}><Eye size={15} aria-hidden="true" />Détails</button>}
@@ -140,7 +141,7 @@ export function WaouhBotBanner({ top, followAction, tracking, ...shared }: Share
         <BotLiveAvatar size={40} />
         <div className="wgd-bot-banner-copy">
           <strong>{count > 1 ? `${count} offres · Bot recommande la n°1` : "Bot recommande cette offre"}</strong>
-          <p>{count > 1 ? "Il négocie dans votre plafond et passe à la suivante sans réponse sous 48 h." : "Il négocie dans votre plafond. Vous confirmez l’accord final."}</p>
+          <p>{count > 1 ? "Bot suit les échéances du mandat et passe à la piste suivante si nécessaire." : "Il négocie dans votre plafond. Vous confirmez l’accord final."}</p>
           {shared.budgetMax ? <small>Plafond · {new Intl.NumberFormat("fr-FR").format(shared.budgetMax)} F</small> : null}
         </div>
         <div className="wgd-bot-banner-cta">

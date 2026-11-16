@@ -3,9 +3,7 @@ import {supabase} from "@/integrations/supabase/client";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Handshake, Loader2 } from "lucide-react";
-import { createNexusMandate, listNexusOwnedArticles, startNexusOpportunity } from "@/lib/waouh/nexus";
-import { resultContact } from "@/lib/waouh/resultCardData";
-import { userFacingErrorText } from "@/lib/userFacingError";
+import { listNexusOwnedArticles } from "@/lib/waouh/nexus";
 import { roomCall, roomErrorText } from "@/lib/waouh/dealRoom";
 import { WaouhBotFollowUp } from "@/components/waouh/WaouhBotFollowUp";
 
@@ -17,7 +15,7 @@ const DEFAULT_RULES = { mode: "autonomous", duration_hours: 168, max_followups: 
 /** « Confier à Bot » : un contact, deux appuis (action puis confirmation). Rien ne part sans confirmation.
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
  *  alternatives sont fournies — reprend automatiquement avec la suivante en l’absence de réponse. */
-export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, discoveryKind, missionContext, alternates, city, budgetMax, label = "Confier à l’avatar", variant = "primary" }: {
+export function WaouhDelegateButton({ result, mode, articleId, className = "h-12", onHandled, alternates, city, budgetMax, label = "Confier à l’avatar", variant = "primary" }: {
   result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
@@ -40,13 +38,29 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
   const [roomId, setRoomId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const runBuyAsk = async () => {
+  const openAndDelegate = async () => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) { navigate(`/app/chat?${new URLSearchParams({ fabric_id: result.fabric_id, delegate: "1" })}`); return; }
-    const opened = await roomCall("open", { fabric_id: result.fabric_id, city: city ?? result.city ?? undefined, budget_max: budgetMax ?? null, confirmed: false });
-    const cascade_candidates = (alternates ?? []).slice(0, 3).filter(a => a.fabric_id && a.fabric_id !== result.fabric_id);
-    const rules: Record<string, unknown> = { ...DEFAULT_RULES, budget_max: budgetMax ?? null };
-    if (cascade_candidates.length) { rules.cascade_candidates = cascade_candidates; rules.cascade_step = 1; rules.cascade_max_steps = 1 + cascade_candidates.length; }
+    const params = new URLSearchParams({ fabric_id: result.fabric_id, delegate: "1" });
+    let article = articleId;
+    if (mode === "sell" && data.session && !article) {
+      const list = (await listNexusOwnedArticles()).articles ?? [];
+      if (list.length !== 1) throw new Error("sale_article_required");
+      article = list[0].id;
+    }
+    if (article && mode === "sell") params.set("sale_article_id", article);
+    if (!data.session) { navigate(`/app/chat?${params}`); return; }
+    if (mode === "sell" && !article) throw new Error("sale_article_required");
+    const opened = await roomCall("open", {
+      fabric_id: result.fabric_id, city: city ?? result.city ?? undefined,
+      ...(mode === "sell" ? { sale_article_id: article } : { budget_max: budgetMax ?? null }),
+      confirmed: false,
+    });
+    const cascade = (alternates ?? []).filter(a => a.fabric_id && a.fabric_id !== result.fabric_id).slice(0, 3);
+    const rules = {
+      ...DEFAULT_RULES,
+      budget_max: mode === "sell" ? null : budgetMax ?? null,
+      ...(cascade.length ? { cascade_candidates: cascade, cascade_step: 1, cascade_max_steps: 1 + cascade.length } : {}),
+    };
     await roomCall("delegate", { deal_room_id: opened.deal_room_id, mandate_revision: opened.mandate_revision ?? 0, confirmed: true, rules });
     setRoomId(opened.deal_room_id);
     setDone(true);
@@ -59,40 +73,9 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
     if (!confirm) { setConfirm(true); return; }
     setBusy(true);
     try {
-      if (mode !== "sell") { await runBuyAsk(); return; }
-      const {data}=await supabase.auth.getSession();
-      const expectedOwner=data.session?.user.id;
-      if(!expectedOwner)throw new Error("Connectez-vous pour confier cette piste.");
-      let article = articleId;
-      if (mode === "sell" && !article) {
-        const list = (await listNexusOwnedArticles()).articles ?? [];
-        if (list.length === 1) article = list[0].id;
-        else {
-          setError(list.length ? "Choisissez d’abord l’article à vendre." : "Publiez d’abord votre article.");
-          setConfirm(false);
-          return;
-        }
-      }
-      const response = await createNexusMandate({
-        mode,discovery_kind:discoveryKind,mission_context:missionContext,
-        goal: result.subject ?? result.title ?? result.category ?? "Opportunité",
-        article_id: mode === "sell" ? article : undefined,
-        autonomy_mode: "semi_autonomous",
-        max_contacts: 4,
-        max_followups: 1,
-        duration_hours: 72,
-        completion_goal: "agreement",
-        allow_waouh: true,
-        allow_public_business: true,
-        allow_blind_message: true,
-        allow_whatsapp: resultContact(result).channel === "whatsapp",
-        origin_surface: "web_result_card",
-      },{expectedOwner});
-      await startNexusOpportunity(result.fabric_id, mode, response.mandate.id,{expectedOwner});
-      setDone(true);
-      onHandled?.();
+      await openAndDelegate();
     } catch (err) {
-      setError(mode === "sell" ? userFacingErrorText(err, "save") : roomErrorText(err));
+      setError(roomErrorText(err));
       setConfirm(false);
     } finally {
       setBusy(false);
@@ -117,6 +100,9 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
         {confirm ? "Confirmer" : label}
       </button>
+      {confirm && mode === "sell" && (
+        <p className="mt-1.5 text-xs font-semibold text-slate-600">Bot présente le prix de votre annonce aux acheteurs joignables. Vous confirmez l’accord final.</p>
+      )}
       {confirm && mode !== "sell" && (
         <p className="mt-1.5 text-xs font-semibold text-slate-600">
           L’avatar peut écrire seul au vendeur, relancer 2 fois et négocier sans jamais dépasser {budgetMax ? `${new Intl.NumberFormat("fr-FR").format(budgetMax)} FCFA` : "votre budget"}. Vous confirmez l’accord final.
