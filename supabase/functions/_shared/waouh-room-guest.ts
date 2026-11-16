@@ -125,8 +125,18 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (!comp) return "unreachable";
   const pendingGuest = comp.provider_id === ROOM_GUEST_ACTOR;
   if (comp.provider_id && !pendingGuest) return "joined";
-  const { data: existing } = await sb.from("waouh_room_guests").select("room_id,phone_encrypted,token_encrypted,reference").eq("room_id", roomId).maybeSingle();
-  if (existing?.phone_encrypted) return "already";
+  const { data: existing, error: guestError } = await sb.from("waouh_room_guests")
+    .select("room_id,phone_encrypted,token_encrypted,reference,status,token_expires_at,consent_basis")
+    .eq("room_id", roomId).maybeSingle();
+  if (guestError) throw guestError;
+  if (existing?.status === "stopped" || (existing && Date.parse(existing.token_expires_at) <= Date.now())) {
+    return "unreachable";
+  }
+  const firstKey = `dr-first:${roomId}`;
+  const { data: queued, error: queueError } = await sb.from("waouh_outbound_queue")
+    .select("id").eq("dedupe_key", firstKey).limit(1).maybeSingle();
+  if (queueError) throw queueError;
+  if (queued) return "already";
   // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
   const waitForContact = async () => {
     if (pendingGuest || !String(comp.source_ref || "").startsWith("external:")) return "unreachable" as const;
@@ -136,7 +146,9 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,control_mode").eq("id", roomId).maybeSingle();
   const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated: link?.control_mode === "bot" });
   if (!contact) return await waitForContact();
-  if (contact.basis === "listing_contact" && !(await listingContactAllowed(sb, link?.owner_id))) return await waitForContact();
+  if (contact.basis === "listing_contact" && (
+    existing?.phone_encrypted ? !(await centralWhatsAppHealth()).working : !(await listingContactAllowed(sb, link?.owner_id))
+  )) return await waitForContact();
   const phoneHash = await hashPhone(contact.phone);
   const { data: refused } = await sb.from("waouh_room_guests").select("room_id").eq("phone_hash", phoneHash).eq("status", "stopped").limit(1);
   if (refused?.length) return "unreachable";
@@ -167,7 +179,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
     contact.basis === "listing_contact"
       ? `Bonjour${contact.name ? ` ${contact.name}` : ""}, je suis l’assistant WAOUH d’${who === "un candidat" ? "un candidat" : "un acheteur"} intéressé par ${what} « ${comp.title} », publiée en ligne avec ce numéro. Il souhaite en discuter avec vous. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`
       : `Bonjour${contact.name ? ` ${contact.name}` : ""}, ${who} passe par WAOUH pour ${what} « ${comp.title} ». Son assistant va vous écrire pour en discuter. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`,
-    { room_id: roomId, reference, first_contact: true }, `dr-first:${roomId}`);
+    { room_id: roomId, reference, first_contact: true }, firstKey);
   // Bot écrit tout de suite (proposition initiale), puis ce message est relayé.
   await sb.rpc("waouh_room_tick", { p_limit: 1, p_room_id: roomId });
   await relayRoomGuests(sb, roomId);
@@ -182,6 +194,10 @@ export async function relayRoomGuests(sb: any, roomId?: string) {
   let sent = 0;
   for (const g of guests ?? []) {
     try {
+      const { data: first, error: firstError } = await sb.from("waouh_outbound_queue").select("status")
+        .eq("dedupe_key", `dr-first:${g.room_id}`).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (firstError) throw firstError;
+      if (first?.status !== "sent" && !g.last_inbound_at) continue;
       const since = g.relayed_until ?? new Date(Date.parse(g.contacted_at) - 1000).toISOString();
       const [{ data: msgs }, { data: ag }, { data: link }] = await Promise.all([
         sb.from("waouh_business_messages").select("id,text,created_at").eq("component_id", g.room_id).neq("actor_id", ROOM_GUEST_ACTOR).gt("created_at", since).order("created_at").limit(10),
