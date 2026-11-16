@@ -1,11 +1,11 @@
 {
   "schema": "waouh.release.v1",
-  "version": "18.47.0",
-  "build": 1793791963,
-  "release_id": "18.47.0+1793791963",
+  "version": "18.48.0",
+  "build": 1794809357,
+  "release_id": "18.48.0+1794809357",
   "branch": "prod",
   "project_ref": "mvynepqulhflxtyymtzs",
-  "prepared_at": "2026-11-04T11:32:43Z",
+  "prepared_at": "2026-11-16T06:09:17Z",
   "base_commit": "daf6ef115113aecbc86c9e7ea76847f57150671c",
   "runtime_aliases": {
     "waouh-studio-e2e-v21465": "waouh-agentic-core",
