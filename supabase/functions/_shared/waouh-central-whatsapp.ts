@@ -94,12 +94,15 @@ export async function centralWhatsAppHealth() {
   pendingHealth = (async () => {
     let result = { working: false, status: "UNAVAILABLE" };
     try {
-      const base = Deno.env.get("WAHA_BASE_URL") || "";
-      if (base) {
+      const base = (Deno.env.get("WAHA_BASE_URL") || "").trim().replace(/\/+$/, "").replace(/\/dashboard$/, "");
+      const rawKey = (Deno.env.get("WAHA_API_KEY") || "").trim();
+      const apiKey = (Deno.env.get("WAHA_API_KEY_PLAIN") || "").trim() ||
+        (!rawKey.startsWith("sha512:") ? rawKey : "");
+      if (base && apiKey) {
         const response = await fetch(
           `${base.replace(/\/$/, "")}/api/sessions/${CENTRAL_WAHA_SESSION}`,
           {
-            headers: { "X-Api-Key": Deno.env.get("WAHA_API_KEY") || "" },
+            headers: { "X-Api-Key": apiKey },
             signal: AbortSignal.timeout(5000),
           },
         );
@@ -108,7 +111,7 @@ export async function centralWhatsAppHealth() {
           result = {
             working: data.status === "WORKING" &&
               isCentralWhatsAppPhone(data.me?.id) &&
-              await centralProviderOperational(base, Deno.env.get("WAHA_API_KEY") || "", data),
+              await centralProviderOperational(base, apiKey, data),
             status: data.status || "UNKNOWN",
           };
           if (data.status === "WORKING" && !result.working) result.status = "DEGRADED";

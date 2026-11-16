@@ -53,8 +53,10 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
-const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
+const WAHA_BASE_URL = (Deno.env.get("WAHA_BASE_URL") || "").trim().replace(/\/+$/, "").replace(/\/dashboard$/, "");
+const WAHA_RAW_KEY = (Deno.env.get("WAHA_API_KEY") || "").trim();
+const WAHA_API_KEY = (Deno.env.get("WAHA_API_KEY_PLAIN") || "").trim() ||
+  (!WAHA_RAW_KEY.startsWith("sha512:") ? WAHA_RAW_KEY : "");
 const WAHA_SESSION = CENTRAL_WAHA_SESSION;
 // Le slug « waouh-agentic-core » n'est pas déployé (quota de fonctions Supabase) : le cœur agentique est servi par l'alias
 // de production utilisé aussi par le Web et Flutter. Sans cela, tout mandat créé depuis le chat/WhatsApp échouait en 404.
