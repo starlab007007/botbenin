@@ -38,7 +38,7 @@ const _emptyWords = {
   'opportunite','opportunites','affaires','annonce','annonces','article','articles',
   'produit','produits','chose','choses','truc','trucs','divers','general','generale',
   // Le pays et les repères de lieu ne disent rien de ce qui est cherché.
-  'benin','afrique','ville','quartier','zone','pres','proche','autour','region',
+  'benin','afrique','ville','quartier','zone','proche','autour','region',
 };
 
 List<String> liveContentWords(Object? value) {
