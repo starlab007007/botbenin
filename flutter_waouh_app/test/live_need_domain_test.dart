@@ -37,6 +37,13 @@ void main() {
     expect(liveSellerPriceVerdict({'asking_price': 12000, 'comparable_count': 1, 'median': 12000}), isNull);
   });
 
+  test('les mots du gabarit de demande ne valent pas rapprochement', () {
+    expect(liveMatchVerdict('Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi', {
+      'subject': 'Galaxy S25 - Cell Phones', 'raw_text': "ventes achats et opportunités d'affaires au Bénin",
+    }).acceptable, false);
+    expect(liveMatchVerdict('Je cherche une opportunité : un stage en informatique', {'subject': 'Stage informatique · assistant'}).acceptable, true);
+  });
+
   test('vente : seuls les acheteurs correspondants sont retenus', () {
     final brief = liveSellerBrief(
       [

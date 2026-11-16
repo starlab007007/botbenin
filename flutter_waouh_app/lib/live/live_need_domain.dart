@@ -33,6 +33,10 @@ const _emptyWords = {
   'bon','bonne','tres','plus','moins','grand','petit','neuf','occasion','etat','urgent','urgente',
   'svp','please','merci','bonjour','salut','c','est','suis','ai','avoir','etre','fait','faire','ici',
   'qualite','bien','super','nouveau','nouvelle','meilleur','meilleure','autre','autres','tout','tous','toute',
+  // Mots des gabarits de demande et noms de rubriques : ils décrivent la forme de la
+  // demande, pas ce qui est cherché.
+  'opportunite','opportunites','affaires','annonce','annonces','article','articles',
+  'produit','produits','chose','choses','truc','trucs','divers','general','generale',
 };
 
 List<String> liveContentWords(Object? value) {

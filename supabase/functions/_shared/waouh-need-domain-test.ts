@@ -38,3 +38,11 @@ Deno.test("les mots vides ne justifient jamais un rapprochement", () => {
   assertEquals(matchVerdict("je cherche", phone).acceptable, false);
   assertEquals(matchVerdict("je veux acheter quelque chose de bon état", phone).acceptable, false);
 });
+
+Deno.test("les mots du gabarit de demande ne valent pas rapprochement", () => {
+  // « opportunité » vient de la phrase générée, et le nom d'un groupe d'annonces le contient souvent.
+  assertEquals(matchVerdict("Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi", {
+    subject: "Galaxy S25 - Cell Phones", raw_text: "ventes achats et opportunités d'affaires au Bénin",
+  }).acceptable, false);
+  assertEquals(matchVerdict("Je cherche une opportunité : un stage en informatique", { subject: "Stage informatique · assistant" }).acceptable, true);
+});
