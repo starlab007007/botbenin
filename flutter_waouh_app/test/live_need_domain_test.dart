@@ -44,6 +44,14 @@ void main() {
     expect(liveMatchVerdict('Je cherche une opportunité : un stage en informatique', {'subject': 'Stage informatique · assistant'}).acceptable, true);
   });
 
+  test('la ville ne prouve jamais la pertinence', () {
+    const place = 'Abomey-Calavi';
+    expect(liveMatchVerdict('Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi',
+        {'subject': 'Galaxy S25 - Cell Phones - Cotonou, Benin', 'city': place}, place: place).acceptable, false);
+    expect(liveMatchVerdict('Je cherche une opportunité : un poste de secrétaire à Abomey-Calavi',
+        {'subject': 'Secrétaire administrative', 'city': place}, place: place).acceptable, true);
+  });
+
   test('vente : seuls les acheteurs correspondants sont retenus', () {
     final brief = liveSellerBrief(
       [

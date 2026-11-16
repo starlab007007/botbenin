@@ -91,7 +91,7 @@ const norm = (v: unknown) => String(v ?? "").toLowerCase().normalize("NFD").repl
  * L'offre correspond-elle à la demande ? Les repères chiffrés (« 13 » dans « iPhone 13 », « 256 »…)
  * doivent tous être présents : un autre modèle est une offre proche, pas la même offre.
  */
-export function briefMatch(result: WaouhResultCard, query?: string | null): "exact" | "near" | null {
+export function briefMatch(result: WaouhResultCard, query?: string | null, place?: string | null): "exact" | "near" | null {
   if (!norm(query).trim()) return null;
   const verdict = matchVerdict(query, {
     subject: result.title,
@@ -99,7 +99,8 @@ export function briefMatch(result: WaouhResultCard, query?: string | null): "exa
     category: (result as { category?: unknown }).category,
     brand: (result as { brand?: unknown }).brand,
     model: (result as { model?: unknown }).model,
-  });
+    city: result.city,
+  }, { place });
   if (!verdict.acceptable) return "near";
   return verdict.exact ? "exact" : "near";
 }
@@ -136,7 +137,7 @@ function fitness(row: Omit<BriefRow, "rank">, median: number | null): number {
 export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string | null; budget?: number | null; query?: string | null } = {}): ChatMarketBrief {
   // Les demandes d'acheteurs (recherche pour vendre) ne sont pas des offres à comparer.
   const pool = results.filter((r) => !isBuyerRequest(r));
-  const matches = pool.map((r) => briefMatch(r, ctx.query));
+  const matches = pool.map((r) => briefMatch(r, ctx.query, ctx.city));
   const exactCount = matches.some((m) => m !== null) ? matches.filter((m) => m === "exact").length : null;
   // Les repères de prix portent sur les offres qui correspondent à la demande, dès qu'il y en a assez.
   const exactPrices = pool.filter((_, i) => matches[i] === "exact").map(briefPrice).filter((p): p is number => p !== null);

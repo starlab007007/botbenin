@@ -46,3 +46,11 @@ Deno.test("les mots du gabarit de demande ne valent pas rapprochement", () => {
   }).acceptable, false);
   assertEquals(matchVerdict("Je cherche une opportunité : un stage en informatique", { subject: "Stage informatique · assistant" }).acceptable, true);
 });
+
+Deno.test("la ville ne prouve jamais la pertinence", () => {
+  const place = "Abomey-Calavi";
+  assertEquals(matchVerdict("Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi",
+    { subject: "Galaxy S25 - Cell Phones - Cotonou, Benin", city: place }, { place }).acceptable, false);
+  assertEquals(matchVerdict("Je cherche une opportunité : un poste de secrétaire à Abomey-Calavi",
+    { subject: "Secrétaire administrative", city: place }, { place }).acceptable, true);
+});

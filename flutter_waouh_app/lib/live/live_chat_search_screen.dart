@@ -404,7 +404,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
     // Recherche pour vendre : les pistes d'acheteurs gardent leur prise en charge une à une.
     final delegable = _sell
-        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty && liveMatchVerdict(widget.goal, r).acceptable).toList()
+        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty && liveMatchVerdict(widget.goal, r, place: widget.city).acceptable).toList()
         : const <Map<String, dynamic>>[];
     final brief = revealed && rows.isNotEmpty && !_sell
         ? liveChatMarketBrief(rows, city: widget.city, budget: widget.budget)

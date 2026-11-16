@@ -31,6 +31,8 @@ const EMPTY_WORDS = new Set([
   // pour toute recherche d'opportunité.
   "opportunite","opportunites","affaires","annonce","annonces","article","articles",
   "produit","produits","chose","choses","truc","trucs","divers","general","generale",
+  // Le pays et les repères de lieu ne disent rien de ce qui est cherché.
+  "benin","afrique","ville","quartier","zone","pres","proche","autour","region",
 ]);
 
 export function contentWords(value: unknown): string[] {
@@ -115,11 +117,18 @@ export type MatchVerdict = {
  * et au moins un mot du besoin réellement présent. Rien d'autre ne vaut rapprochement.
  */
 export function matchVerdict(need: unknown, candidate: {
-  subject?: unknown; raw_text?: unknown; category?: unknown; brand?: unknown; model?: unknown;
-}): MatchVerdict {
+  subject?: unknown; raw_text?: unknown; category?: unknown; brand?: unknown; model?: unknown; city?: unknown;
+}, options: { place?: unknown } = {}): MatchVerdict {
   const domain = needDomain(need);
   const candidateDomain = signalDomain(candidate);
-  const words = contentWords(need);
+  // La ville est déjà prise en compte à part : qu'elle figure dans la demande et dans
+  // l'annonce ne prouve rien sur ce qui est cherché. Sans cela, toute annonce de la ville
+  // paraissait répondre à n'importe quelle demande faite depuis cette ville.
+  const placeWords = new Set([
+    ...contentWords(options.place),
+    ...contentWords(candidate.city),
+  ]);
+  const words = contentWords(need).filter((word) => !placeWords.has(word));
   const shared = sharedWords(need, [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" "));
   const coverage = words.length ? Math.round((shared.length / words.length) * 100) : 0;
   const compatible = domainsCompatible(domain, candidateDomain);

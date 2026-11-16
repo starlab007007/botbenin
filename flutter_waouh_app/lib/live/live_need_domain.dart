@@ -37,6 +37,8 @@ const _emptyWords = {
   // demande, pas ce qui est cherché.
   'opportunite','opportunites','affaires','annonce','annonces','article','articles',
   'produit','produits','chose','choses','truc','trucs','divers','general','generale',
+  // Le pays et les repères de lieu ne disent rien de ce qui est cherché.
+  'benin','afrique','ville','quartier','zone','pres','proche','autour','region',
 };
 
 List<String> liveContentWords(Object? value) {
@@ -95,11 +97,13 @@ class LiveMatchVerdict {
 
 /// Une annonce n'est proposée que si elle est du même domaine que le besoin et
 /// qu'elle reprend au moins un mot réel de ce besoin.
-LiveMatchVerdict liveMatchVerdict(Object? need, Map<String, dynamic> candidate) {
+LiveMatchVerdict liveMatchVerdict(Object? need, Map<String, dynamic> candidate, {Object? place}) {
   final domain = liveNeedDomain(need);
   final candidateDomain = liveSignalDomain(candidate);
   final compatible = domain == 'unknown' || candidateDomain == 'unknown' || domain == candidateDomain;
-  final words = liveContentWords(need);
+  // La ville est prise en compte à part : qu'elle figure des deux côtés ne prouve rien.
+  final placeWords = {...liveContentWords(place), ...liveContentWords(candidate['city'])};
+  final words = liveContentWords(need).where((w) => !placeWords.contains(w)).toList();
   final candidateWords = liveFoldText([
     candidate['subject'], candidate['title'], candidate['raw_text'], candidate['description'],
     candidate['category'], candidate['brand'], candidate['model'],
