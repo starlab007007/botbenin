@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
 import 'live_seller_brief.dart';
-import 'live_need_domain.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
@@ -257,78 +256,91 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     ];
   }
 
-  Future<void> _delegate(Map<String, dynamic> row) async {
-    final fabricId = '${row['fabric_id'] ?? ''}'.trim();
-    if (fabricId.isEmpty) return;
-    final mode = _sell ? 'sell' : 'buy';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confier à Bot'),
-        content: const Text(
-            'Bot contacte ce profil et prépare la négociation. Vous validez l’accord final. Aucun paiement.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmer')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
+  String? _roomFabric(Map<String, dynamic> row) {
+    final fabric = '${row['fabric_id'] ?? ''}'.trim();
+    if (fabric.isNotEmpty) return fabric;
+    final uuid = RegExp(r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$', caseSensitive: false);
+    final article = '${row['article_id'] ?? ''}'.trim();
+    if (uuid.hasMatch(article)) return 'article:$article';
+    final id = '${row['id'] ?? ''}'.trim();
+    final source = '${row['source'] ?? 'waouh'}'.toLowerCase();
+    if (const ['waouh', 'chat', 'waouh_app'].contains(source) && uuid.hasMatch(id)) return 'article:$id';
+    final catalog = '${row['catalog_id'] ?? id}'.trim();
+    return const ['partner', 'catalog'].contains(source) && uuid.hasMatch(catalog) ? 'catalog:$catalog' : null;
+  }
+
+  bool _contactAllowed(Map<String, dynamic> row) {
+    final fabric = _roomFabric(row) ?? '';
+    final policy = row['contact_policy'];
+    final evidence = row['evidence'];
+    return fabric.startsWith('article:') || fabric.startsWith('buyer:')
+        || (policy is Map && policy['can_auto_contact'] == true)
+        || (fabric.startsWith('catalog:') && (row['source'] == 'partner'
+            || (evidence is Map && (evidence['source'] == 'partner' || evidence['has_contact'] == true))));
+  }
+
+  Future<String?> _saleArticle() async {
+    if (!_sell) return null;
+    final article = _reply?.articleId ?? _reply?.meta['article_id']?.toString();
+    if (article != null && article.trim().isNotEmpty) return article;
+    final response = await _service.ownedArticles();
+    final rows = response['articles'];
+    if (rows is List && rows.length == 1 && rows.first is Map) return (rows.first as Map)['id']?.toString();
+    throw StateError('sale_article_required');
+  }
+
+  Future<void> _openManually(Map<String, dynamic> row) async {
+    final fabric = _roomFabric(row);
+    if (fabric == null || _delegating) return;
+    setState(() => _delegating = true);
     try {
-      String? article;
-      if (mode == 'sell') {
-        final data = await _service.ownedArticles();
-        final raw = data['articles'];
-        final list = raw is List ? raw.whereType<Map>().toList() : <Map>[];
-        if (list.length != 1) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(list.isEmpty ? 'Publiez d’abord votre article.' : 'Choisissez d’abord l’article à vendre.'),
-            ));
-          }
-          return;
-        }
-        article = list.first['id'].toString();
-      }
-      final data = await _service.createMandate(
-        mode: mode,
-        goal: _rowTitle(row),
-        articleId: article,
-        maxContacts: 4,
-        allowPublicBusiness: true,
-        allowBlindMessage: true,
-      );
-      final mandate = data['mandate'];
-      await _service.startOpportunity(
-        fabricId: fabricId,
-        mode: mode,
-        mandateId: mandate is Map ? '${mandate['id'] ?? ''}' : '',
-      );
+      final sale = await _saleArticle();
+      final data = await LiveDealRoomService(legacy.supabase).call('open', {
+        'fabric_id': fabric, 'confirmed': true, if (sale != null) 'sale_article_id': sale,
+      });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bot s’en occupe. Suivez-le dans Missions.')),
-      );
-      context.go('/app/missions');
+      final opportunity = widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE';
+      context.push(Uri(path: '/app/chat/room', queryParameters: {
+        'room_id': '${data['deal_room_id']}', if (!opportunity) 'propose': '1',
+      }).toString());
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de confier à Bot pour le moment. Réessayez.')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Échange indisponible. Connectez-vous et vérifiez la piste ou l’article à vendre.'),
+      ));
+    } finally {
+      if (mounted) setState(() => _delegating = false);
     }
   }
 
-  /// « Confier à Bot » en un geste : Bot ouvre l'échange sur la meilleure offre, négocie dans
-  /// le budget et passe à la suivante sans réponse. L'accord final reste à confirmer.
-  /// Vente : confier à Bot les acheteurs retenus (mêmes règles que côté acheteur).
   Future<void> _delegateBuyers(List<Map<String, dynamic>> buyers) async {
-    final rows = buyers.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty).toList();
-    if (_delegating || rows.isEmpty) return;
+    final rows = buyers.where((row) => _roomFabric(row) != null && _contactAllowed(row)).take(4).toList();
+    if (rows.isEmpty) return;
     await _delegateFabric(
-      '${rows.first['fabric_id']}',
-      '${rows.first['city'] ?? ''}',
-      [for (final r in rows.skip(1).take(3)) <String, dynamic>{'fabric_id': '${r['fabric_id']}', if ('${r['city'] ?? ''}'.trim().isNotEmpty) 'city': '${r['city']}'}],
+      _roomFabric(rows.first)!,
+      rows.first['city']?.toString(),
+      [for (final row in rows.skip(1)) {'fabric_id': _roomFabric(row), 'city': row['city']?.toString()}],
     );
+  }
+
+  Future<void> _watch() async {
+    if (_delegating) return;
+    setState(() => _delegating = true);
+    try {
+      final article = await _saleArticle();
+      final response = await _service.createMandate(
+        mode: _sell ? 'sell' : 'buy', goal: widget.goal, articleId: article, city: widget.city,
+        budgetMax: _sell ? null : widget.budget?.toDouble(), autonomyMode: 'assisted',
+        completionGoal: 'recommendations', maxFollowups: 0, allowWaouh: false, allowBlindMessage: false,
+      );
+      final mandate = response['mandate'];
+      if (mounted && mandate is Map) context.push('/app/missions?mandate=${mandate['id']}');
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Veille non activée. Connectez-vous puis réessayez.'),
+      ));
+    } finally {
+      if (mounted) setState(() => _delegating = false);
+    }
   }
 
   Future<void> _delegateAll(LiveChatBrief brief) async {
@@ -352,24 +364,26 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
     if (_delegating || fabricId.trim().isEmpty) return;
     if (!confirmed) {
-      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: widget.budget);
+      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: widget.budget, selling: _sell);
       if (!ok || !mounted) return;
     }
     setState(() => _delegating = true);
     try {
+      final saleArticle = await _saleArticle();
       final api = LiveDealRoomService(legacy.supabase);
       final askedCity = (widget.city ?? '').trim();
       final city = askedCity.isNotEmpty ? askedCity : (fabricCity ?? '');
       final opened = await api.call('open', <String, dynamic>{
         'fabric_id': fabricId,
+        if (saleArticle != null) 'sale_article_id': saleArticle,
         if (city.isNotEmpty) 'city': city,
-        'budget_max': widget.budget,
+        'budget_max': _sell ? null : widget.budget,
         'confirmed': false,
       });
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
-        'budget_max': widget.budget,
+        'budget_max': _sell ? null : widget.budget,
         if (cascade.isNotEmpty) 'cascade_candidates': cascade,
         if (cascade.isNotEmpty) 'cascade_step': 1,
         if (cascade.isNotEmpty) 'cascade_max_steps': 1 + cascade.length,
@@ -402,10 +416,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final revealed = !running && _reply != null;
     final reply = _reply;
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
-    // Recherche pour vendre : les pistes d'acheteurs gardent leur prise en charge une à une.
-    final delegable = _sell
-        ? rows.where((r) => '${r['fabric_id'] ?? ''}'.trim().isNotEmpty && liveMatchVerdict(widget.goal, r, place: widget.city).acceptable).toList()
-        : const <Map<String, dynamic>>[];
+    final canonicalRows = rows.where((row) => _roomFabric(row) != null).toList();
     final brief = revealed && rows.isNotEmpty && !_sell
         ? liveChatMarketBrief(rows, city: widget.city, budget: widget.budget)
         : null;
@@ -506,19 +517,22 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               ),
             LiveMessageBubble(
               message: reply,
+              actionsEnabled: canonicalRows.isEmpty,
               onPayload: (payload) {
                 Navigator.of(context).maybePop();
                 widget.onPayload(payload);
               },
             ),
-            if (delegable.isNotEmpty) ...[
+            if (rows.isEmpty)
+              OutlinedButton(onPressed: _delegating ? null : _watch, child: const Text('Activer la veille')),
+            if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
               const Padding(
                 padding: EdgeInsets.only(left: 2, bottom: 6),
-                child: Text('Confier à Bot',
+                child: Text('Ouvrir un échange',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
               ),
-              for (final row in delegable.take(10))
+              for (final row in canonicalRows)
                 Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -540,7 +554,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                           Text(
                             [
                               if (reasonMoney(_rowPrice(row)) != null) reasonMoney(_rowPrice(row))!,
-                              _rowPhone(row) ?? 'Contact via Bot',
+                              _rowPhone(row) ?? (_contactAllowed(row) ? 'Contact via WAOUH' : 'Contact à vérifier'),
                             ].join(' · '),
                             style: const TextStyle(
                                 fontSize: 11, fontWeight: FontWeight.w700, color: WaouhPalette.muted),
@@ -548,10 +562,14 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                         ],
                       ),
                     ),
-                    FilledButton.icon(
-                      onPressed: () => _delegate(row),
-                      icon: const Icon(Icons.smart_toy_rounded, size: 16),
-                      label: const Text('Confier'),
+                    Column(
+                      children: [
+                        TextButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Ouvrir')),
+                        if (_contactAllowed(row)) TextButton(
+                          onPressed: _delegating ? null : () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []),
+                          child: const Text('Confier à Bot'),
+                        ),
+                      ],
                     ),
                   ]),
                 ),

@@ -60,17 +60,50 @@ Deno.serve(async req=>{
  const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
  const automatic=['delegate','resume_bot','approve_step'].includes(action);
  if(!await modulePolicyAllowed(sb,automatic?['nexus','missions','avatar']:['nexus'],user.id,automatic))return jsonResponse({ok:false,error:'module_unavailable'},403);
- if(action==='open'){
-  const fabric=String(p.fabric_id||p.source?.source_ref||'');
-  const {data:signal,error}=await sb.from('waouh_signal_fabric').select('*').eq('fabric_id',fabric).maybeSingle();
-  if(error||!signal)return jsonResponse({ok:false,error:'offer_not_found'},404);
-  if(signal.is_active===false||(signal.expires_at&&Date.parse(signal.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);
-  let record=signal;
-  if(fabric.startsWith('article:')){const {data:article}=await sb.from('waouh_articles').select('*').eq('id',fabric.slice(8)).eq('status','active').maybeSingle();if(!article||(article.expires_at&&Date.parse(article.expires_at)<=Date.now()))return jsonResponse({ok:false,error:'article_unavailable'},409);record={...signal,...article};}
-  const product=productSnapshot(record);if(!product||product.currency!=='XOF')return jsonResponse({ok:false,error:'quote_in_xof_required'},422);
-  p.source={title:product.title,kind:resultKind(signal),source_ref:fabric,source_url:signal.source_url,amount:product.price_min,extra_cost:null,source_snapshot:{product}};
-  p.city=signal.city||p.city||'À préciser';
+ if (action === "open") {
+  const fabric = String(p.fabric_id || p.source?.source_ref || "");
+  const saleArticleId = typeof p.sale_article_id === "string" ? p.sale_article_id : "";
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  if (saleArticleId && !uuid.test(saleArticleId)) return jsonResponse({ ok: false, error: "article_unavailable" }, 422);
+  const { data: signal, error } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabric).maybeSingle();
+  if (error || (!signal && !fabric.startsWith("article:"))) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+  if (signal?.is_active === false || (signal?.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
+   return jsonResponse({ ok: false, error: "article_unavailable" }, 409);
+  }
+  const buyer = ["BUY", "RFQ"].includes(String(signal?.intent));
+  if (buyer !== Boolean(saleArticleId) || (buyer && !/^(buyer|external):[0-9a-f-]{36}$/i.test(fabric))) {
+   return jsonResponse({ ok: false, error: buyer ? "sale_article_required" : "offer_not_found" }, 422);
+  }
+  let record = signal;
+  const articleId = saleArticleId || (fabric.startsWith("article:") ? fabric.slice(8) : "");
+  if (articleId) {
+   if (!uuid.test(articleId)) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+   const { data: article } = await sb.from("waouh_articles").select("*").eq("id", articleId).eq("status", "active").maybeSingle();
+   if (!article || (article.expires_at && Date.parse(article.expires_at) <= Date.now())) {
+    return jsonResponse({ ok: false, error: "article_unavailable" }, 409);
+   }
+   const { data: seller } = await sb.from("waouh_users").select("auth_user_id").eq("id", article.seller_id).maybeSingle();
+   if (saleArticleId ? seller?.auth_user_id !== user.id : seller?.auth_user_id === user.id) {
+    return jsonResponse({ ok: false, error: saleArticleId ? "forbidden" : "own_offer" }, 403);
+   }
+   if (saleArticleId && fabric.startsWith("buyer:")) {
+    const { data: profile } = await sb.from("waouh_buyer_profiles").select("waouh_users!inner(auth_user_id)")
+     .eq("id", fabric.slice(6)).eq("is_active", true).maybeSingle();
+    const counterpart = Array.isArray(profile?.waouh_users) ? profile?.waouh_users[0] : profile?.waouh_users;
+    if (counterpart?.auth_user_id === user.id) return jsonResponse({ ok: false, error: "own_offer" }, 403);
+   }
+   record = { ...signal, ...article };
+  }
+  const product = productSnapshot(record);
+  if (!product) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
+  const kind = resultKind(saleArticleId ? record : signal ?? record);
+  if (kind !== "announcement" && product.currency !== "XOF") return jsonResponse({ ok: false, error: "quote_in_xof_required" }, 422);
+  const sourceRef = saleArticleId ? `sale:${saleArticleId}:${fabric}` : fabric;
+  p.source = { title: product.title, kind, source_ref: sourceRef, source_url: signal?.source_url,
+   amount: product.price_min, extra_cost: null, source_snapshot: { product } };
+  p.city = signal?.city || record?.city || p.city || "À préciser";
  }
+
  if(action==='delivery'){
   const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
   const {view,error:viewError}=await deliveryFor(sb,user.id,id) as any;

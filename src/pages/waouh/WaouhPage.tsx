@@ -82,7 +82,7 @@ export default function WaouhPage() {
     const { data: statsData } = await supabase.functions.invoke("waouh-admin-stats");
     if (statsData) setStats(statsData);
 
-    const { data: a } = await supabase.from("waouh_articles").select("*, waouh_users!seller_id(phone_number, display_name, city)").order("created_at", { ascending: false }).limit(200);
+    const { data: a } = await supabase.from("waouh_articles").select("id,seller_id,title,description,category,brand,model,condition,price,currency,photos,location,city,address_description,radius_km,status,market_price_min,market_price_max,views_count,interests_count,expires_at,created_at,updated_at,origin,origin_signal_id,source_channel,partner_id,ai_canonical_key,ai_attributes,ai_quality_score,last_verified_at,gtin,barcode_type,ai_visual_fingerprint, waouh_users!seller_id(phone_number, display_name, city)").order("created_at", { ascending: false }).limit(200);
     setArticles(a || []);
 
     const { data: b } = await supabase.from("waouh_buyer_profiles").select("*, waouh_users!user_id(phone_number, display_name)").order("created_at", { ascending: false }).limit(100);

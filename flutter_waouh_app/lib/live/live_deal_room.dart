@@ -26,17 +26,19 @@ String roomError(Object error){
  dynamic detail;String code='';
  if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(error.status==401)return 'Reconnectez-vous pour retrouver cet échange.';if(error.status==404)return 'Le service des échanges est momentanément indisponible. Réessayez.';}
  if(code.isEmpty)code=error is StateError?'${error.message}':error.toString();
- return {'application_not_submitted':'Le dossier doit d’abord être transmis.','application_outcome_recorded':'Votre réponse à ce dossier est déjà enregistrée.','invalid_outcome':'Choisissez si le dossier est retenu ou non.','invalid_outcome_note':'La note doit contenir entre 3 et 500 caractères.','agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','contact_unavailable':'Ce vendeur ne peut pas être joint pour le moment. Choisissez une autre offre.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+ return {'sale_article_required':'Choisissez votre article à vendre.','own_offer':'Cette piste vous appartient.','application_not_submitted':'Le dossier doit d’abord être transmis.','application_outcome_recorded':'Votre réponse à ce dossier est déjà enregistrée.','invalid_outcome':'Choisissez si le dossier est retenu ou non.','invalid_outcome_note':'La note doit contenir entre 3 et 500 caractères.','agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','contact_unavailable':'Ce vendeur ne peut pas être joint pour le moment. Choisissez une autre offre.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
 }
 
 /// Règles par défaut de « Confier à Bot » — identiques au web.
 const Map<String,dynamic> botRoomDefaultRules={'mode':'autonomous','duration_hours':168,'max_followups':2,'active_start':'08:00','active_end':'21:00'};
 
 /// Confirmation courte avant de confier une piste à Bot (même message que le web).
-Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0,num? budgetMax}) async =>
+Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0,num? budgetMax,bool selling=false}) async =>
  await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
   title:const Text('Confier à Bot'),
-  content:Text(alternates>0
+  content:Text(selling
+   ? 'Bot contacte les acheteurs autorisés et présente le prix de votre annonce. Vous confirmez l’accord final.'
+   : alternates>0
    ?'Bot ouvre l’échange et négocie pour vous. Sans réponse, il passe à l’offre suivante (jusqu’à ${alternates+1} pistes). Vous confirmez l’accord final.'
    :'Bot peut écrire seul au vendeur, relancer 2 fois et négocier sans jamais dépasser ${budgetMax!=null&&budgetMax>0?'$budgetMax FCFA':'votre budget'}. Vous confirmez l’accord final.'),
   actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Confirmer'))],
@@ -44,22 +46,31 @@ Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0,num? bu
 
 /// « Confier à Bot » en un geste : ouvre le Deal Room, délègue la négociation avec les
 /// règles par défaut et transmet jusqu’à 3 pistes de repli (reprise automatique si pas de réponse).
-Future<String> delegateRoomToBot(LiveDealRoomService api,{required String fabricId,String? city,num? budgetMax,Iterable<NexusDiscoveryItem> alternates=const []}) async {
- final opened=await api.call('open',{'fabric_id':fabricId,if(city!=null&&city.trim().isNotEmpty)'city':city.trim(),'budget_max':budgetMax,'confirmed':false});
+Future<String> delegateRoomToBot(LiveDealRoomService api,{required String fabricId,String? city,num? budgetMax,String? saleArticleId,Iterable<NexusDiscoveryItem> alternates=const []}) async {
+ final opened=await api.call('open',{'fabric_id':fabricId,if(city!=null&&city.trim().isNotEmpty)'city':city.trim(),'budget_max':saleArticleId==null?budgetMax:null,if(saleArticleId!=null)'sale_article_id':saleArticleId,'confirmed':false});
  final id='${opened['deal_room_id']}';
  final cascade=alternates.where((a)=>a.fabricId.isNotEmpty&&a.fabricId!=fabricId).take(3).map((a)=><String,dynamic>{'fabric_id':a.fabricId,if(a.city!=null)'city':a.city}).toList();
- final rules=<String,dynamic>{...botRoomDefaultRules,'budget_max':budgetMax,if(cascade.isNotEmpty)...{'cascade_candidates':cascade,'cascade_step':1,'cascade_max_steps':1+cascade.length}};
+ final rules=<String,dynamic>{...botRoomDefaultRules,'budget_max':saleArticleId==null?budgetMax:null,if(cascade.isNotEmpty)...{'cascade_candidates':cascade,'cascade_step':1,'cascade_max_steps':1+cascade.length}};
  await api.call('delegate',{'deal_room_id':id,'mandate_revision':opened['mandate_revision']??0,'confirmed':true,'rules':rules});
  return id;
 }
 
 /// Suivi du contact d’un vendeur sans application, visible uniquement par le demandeur (même texte que le web).
-String? externalContactText(dynamic c){
-  if(c is! Map)return null;
-  final last4=c['last4']!=null?' · •••• ${c['last4']}':'';
-  if(c['status']=='stopped')return 'Ne souhaite pas être contacté';
-  if(c['status']=='joined')return 'A répondu par WhatsApp$last4';
-  return 'Contacté par WhatsApp$last4 · réponse attendue';
+String? externalContactText(dynamic contact) {
+  if (contact is! Map) return null;
+  final status = contact['delivery_status'] ?? (contact['status'] == 'stopped'
+      ? 'stopped' : contact['last_reply_at'] != null ? 'replied'
+      : contact['channel'] == 'manual' ? 'link_shared' : 'waiting');
+  return const {
+    'stopped': 'Ne souhaite pas être contacté',
+    'replied': 'Réponse reçue',
+    'delivered': 'Invitation remise sur WhatsApp',
+    'sent': 'Invitation envoyée · remise à confirmer',
+    'failed': 'Invitation en échec',
+    'queued': 'Invitation en attente d’envoi',
+    'link_shared': 'Lien d’invitation disponible',
+    'waiting': 'Contact en préparation',
+  }[status] ?? 'Contact en préparation';
 }
 
 class LiveDealRoomService {

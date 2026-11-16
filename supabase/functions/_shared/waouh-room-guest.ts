@@ -20,7 +20,7 @@ const GUEST_NOTICES: Record<string, string> = {
   receipt: "Le vendeur a confirmé la remise.",
   payment_receive: "Le vendeur confirme avoir reçu le paiement.",
 };
-const GUEST_ACTIONS = new Set(["get", "message", "propose", "accept", "reject", "receipt", "payment_receive", "complete", "rating", "stop"]);
+const GUEST_ACTIONS = new Set(["get", "message", "propose", "accept", "reject", "receipt", "payment_report", "payment_receive", "application_outcome", "complete", "rating", "stop"]);
 
 export const roomGuestReference = (roomId: string) => `DR-${roomId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 const guestLink = (token: string) => `${SITE}/echange-deal#${token}`;
@@ -28,12 +28,19 @@ const money = (n: unknown) => new Intl.NumberFormat("fr-FR").format(Number(n) ||
 
 type RoomContact = { phone: string; name: string | null; basis: "partner" | "public_business" | "initiated" | "listing_owner" | "listing_contact"; contactId: string | null };
 
+/** A sale room keeps the item and the buyer together in its stable source reference. */
+export function roomSaleSource(sourceRef: string) {
+  const match = /^sale:([0-9a-f-]{36}):((?:buyer|external):[0-9a-f-]{36})$/i.exec(sourceRef);
+  return match ? { articleId: match[1], fabricId: match[2] } : null;
+}
+
 /** Contact joignable automatiquement pour une offre, ou null. */
 /** Plafonds du premier message automatique (numéro publié dans l'annonce, après « Confier à l'avatar »). */
 export const LISTING_CONTACT_DAILY_PER_BUYER = 10;
 export const LISTING_CONTACT_DAILY_GLOBAL = 60;
 
 export async function resolveRoomContact(sb: any, sourceRef: string, opts: { delegated?: boolean } = {}): Promise<RoomContact | null> {
+  sourceRef = roomSaleSource(sourceRef)?.fabricId ?? sourceRef;
   if (sourceRef.startsWith("catalog:")) {
     const { data: row } = await sb.from("waouh_unified_catalog")
       .select("source,vendeur_nom,vendeur_whatsapp,vendeur_phone,is_active").eq("id", sourceRef.slice(8)).maybeSingle();
@@ -69,6 +76,12 @@ export async function resolveRoomContact(sb: any, sourceRef: string, opts: { del
 
 /** L'offre a-t-elle un interlocuteur joignable (membre WAOUH ou contact autorisé) ? */
 export async function sourceReachable(sb: any, sourceRef: string, delegated = false): Promise<boolean> {
+  const sale = roomSaleSource(sourceRef);
+  if (sale?.fabricId.startsWith("buyer:")) {
+    const { data } = await sb.from("waouh_buyer_profiles").select("id")
+      .eq("id", sale.fabricId.slice(6)).eq("is_active", true).maybeSingle();
+    return !!data;
+  }
   if (sourceRef.startsWith("article:")) {
     const { data } = await sb.from("waouh_articles").select("id").eq("id", sourceRef.slice(8)).eq("status", "active").maybeSingle();
     return !!data;
@@ -139,12 +152,15 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (queued) return "already";
   // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
   const waitForContact = async () => {
-    if (pendingGuest || !String(comp.source_ref || "").startsWith("external:")) return "unreachable" as const;
+    if (pendingGuest || !(roomSaleSource(String(comp.source_ref || ""))?.fabricId ?? String(comp.source_ref || "")).startsWith("external:")) return "unreachable" as const;
     const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
     return ok === true ? ("pending" as const) : ("unreachable" as const);
   };
-  const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,control_mode").eq("id", roomId).maybeSingle();
-  const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated: link?.control_mode === "bot" });
+  const { data: link } = await sb.from("waouh_deal_room_links")
+    .select("owner_id,control_mode,expires_at,active,blocked_reason").eq("id", roomId).maybeSingle();
+  if (!link?.active || link.blocked_reason) return "unreachable";
+  const delegated = link.control_mode === "bot" && Date.parse(link.expires_at) > Date.now();
+  const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated });
   if (!contact) return await waitForContact();
   if (contact.basis === "listing_contact" && (
     existing?.phone_encrypted ? !(await centralWhatsAppHealth()).working : !(await listingContactAllowed(sb, link?.owner_id))
@@ -173,10 +189,13 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (error) { if (error.code === "23505") return "already"; throw error; }
   const { data: attached, error: attachError } = pendingGuest ? { data: true, error: null } : await sb.rpc("waouh_room_attach_guest", { p_room: roomId });
   if (attachError || attached !== true) { if (!upgrade) await sb.from("waouh_room_guests").delete().eq("room_id", roomId); return attached === false ? "joined" : "unreachable"; }
+  const sale = roomSaleSource(String(comp.source_ref || ""));
   const who = comp.kind === "announcement" ? "un candidat" : "un client";
   const what = comp.kind === "announcement" ? "votre annonce" : "votre offre";
   await enqueue(sb, contact.phone,
-    contact.basis === "listing_contact"
+    sale
+      ? `Bonjour${contact.name ? ` ${contact.name}` : ""}, un vendeur WAOUH vous propose « ${comp.title} » en réponse à votre demande. Répondez ici ou ouvrez l’échange : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`
+      : contact.basis === "listing_contact"
       ? `Bonjour${contact.name ? ` ${contact.name}` : ""}, je suis l’assistant WAOUH d’${who === "un candidat" ? "un candidat" : "un acheteur"} intéressé par ${what} « ${comp.title} », publiée en ligne avec ce numéro. Il souhaite en discuter avec vous. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`
       : `Bonjour${contact.name ? ` ${contact.name}` : ""}, ${who} passe par WAOUH pour ${what} « ${comp.title} ». Son assistant va vous écrire pour en discuter. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`,
     { room_id: roomId, reference, first_contact: true }, firstKey);

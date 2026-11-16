@@ -285,11 +285,13 @@ export function WaouhProductCard({
   onAction,
   compact,
   topPick = false,
+  roomActions,
 }: {
   result: WaouhResultCard;
   onAction?: (text: string, meta?: Record<string, unknown>) => void;
   compact?: boolean;
   topPick?: boolean;
+  roomActions?: (result: WaouhResultCard) => React.ReactNode;
 }) {
   const photos = normalizeResultCards([result])[0]?.photos || [];
   const [cur, setCur] = useState(0);
@@ -318,6 +320,7 @@ export function WaouhProductCard({
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
+  const canonicalActions = roomActions?.(result);
   const level = contactLevel(result);
   const externalOpportunity = !!result.fabric_id &&
     !["waouh", "chat", "waouh_app"].includes(String(result.source || "").toLowerCase());
@@ -444,6 +447,7 @@ export function WaouhProductCard({
       </div>
       <WaouhResultEssentials result={result} />
       <div className="wr-actions">
+        {canonicalActions ?? <>
         {resultKind(result) === "announcement" && <Button className="w-full min-h-11" onClick={() => setConvergenceOpen(true)}>Préparer une réponse à l’annonce</Button>}
         {resultKind(result) !== "announcement" && (onAction || externalDeal) && v3Entry && (!externalOpportunity || externalDeal) && (
           <div className="mt-1 space-y-1.5">
@@ -574,7 +578,8 @@ export function WaouhProductCard({
             )}
           </div>
         )}
-        <details className="wr-more"><summary>Autres actions et résultat attendu</summary><div className="wr-more-actions">{externalDeal && result.fabric_id && <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} />}<Button variant="outline" onClick={() => setConvergenceOpen(true)}>Organiser ce besoin avec Bot</Button>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="text-xs underline">Voir l’annonce d’origine</a>}</div></details>
+        </>}
+        <details className="wr-more"><summary>Autres actions et résultat attendu</summary><div className="wr-more-actions">{!canonicalActions && externalDeal && result.fabric_id && <WaouhDelegateButton result={{ ...result, fabric_id: result.fabric_id }} mode={opportunity ? "sell" : "buy"} />}<Button variant="outline" onClick={() => setConvergenceOpen(true)}>Organiser ce besoin avec Bot</Button>{result.source_url && <a href={result.source_url} target="_blank" rel="noreferrer" className="text-xs underline">Voir l’annonce d’origine</a>}</div></details>
       </div>
       <WaouhConvergenceDialog open={convergenceOpen} onOpenChange={setConvergenceOpen} source={result} />
 
@@ -585,7 +590,7 @@ export function WaouhProductCard({
   );
 }
 
-export function WaouhProductResults({ results, onAction, compact }: { results: WaouhResultCard[]; onAction?: (text: string, meta?: Record<string, unknown>) => void; compact?: boolean }) {
+export function WaouhProductResults({ results, onAction, compact, roomActions }: { results: WaouhResultCard[]; onAction?: (text: string, meta?: Record<string, unknown>) => void; compact?: boolean; roomActions?: (result: WaouhResultCard) => React.ReactNode }) {
   const normalized = withSearchReferences(normalizeResultCards(results));
   const [selected, setSelected] = useState<string[]>([]), [page, setPage] = useState(0), [all, setAll] = useState(false), [sort, setSort] = useState('selection');
   const [comparing, setComparing] = useState(false), [organizing, setOrganizing] = useState(false), [notice, setNotice] = useState('');
@@ -602,7 +607,7 @@ export function WaouhProductResults({ results, onAction, compact }: { results: W
     <div className="wr-toolbar"><h3>{normalized.length} résultat{normalized.length > 1 ? 's' : ''} </h3><div className="wr-toolbar-actions"><label><span className="sr-only">Trier les résultats</span><select value={sort} onChange={e => { setSort(e.target.value); setPage(0); }}><option value="selection">Sélection reçue</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label><Button variant="outline" disabled={chosen.length < 2} onClick={() => setComparing(true)}>Comparer {chosen.length}/5</Button><Button variant="outline" onClick={() => setOrganizing(true)}><Sparkles size={15} />Organiser mon besoin</Button></div></div>
     <p className="text-xs text-muted-foreground mb-3">Infos annoncées, à confirmer.</p>
     <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{notice}</p>
-    <div className="wr-grid">{visible.map(r => <div key={key(r)} ref={el => { if (el) refs.current.set(key(r), el); else refs.current.delete(key(r)); }} className="wr-wrap"><div className="wr-pick"><span>Résultat {r.index}</span><label><input type="checkbox" aria-label={`Comparer ${r.title}, résultat ${r.index}`} checked={selected.includes(key(r))} onChange={e => { if (!e.target.checked) setSelected(old => old.filter(x => x !== key(r))); else if (selected.length < CONVERGENCE_LIMIT) setSelected(old => [...old, key(r)]); else setNotice('Vous pouvez comparer jusqu’à 5 offres. Retirez-en une pour en ajouter une autre.'); }} />Comparer</label></div><WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} /></div>)}</div>
+    <div className="wr-grid">{visible.map(r => <div key={key(r)} ref={el => { if (el) refs.current.set(key(r), el); else refs.current.delete(key(r)); }} className="wr-wrap"><div className="wr-pick"><span>Résultat {r.index}</span><label><input type="checkbox" aria-label={`Comparer ${r.title}, résultat ${r.index}`} checked={selected.includes(key(r))} onChange={e => { if (!e.target.checked) setSelected(old => old.filter(x => x !== key(r))); else if (selected.length < CONVERGENCE_LIMIT) setSelected(old => [...old, key(r)]); else setNotice('Vous pouvez comparer jusqu’à 5 offres. Retirez-en une pour en ajouter une autre.'); }} />Comparer</label></div><WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} roomActions={roomActions} /></div>)}</div>
     <div className="wr-paging"><Button variant="outline" size="icon" aria-label="Résultats précédents" disabled={currentPage === 0} onClick={() => setPage(p => p - 1)}><ChevronLeft size={16} /></Button><span>{currentPage * size + 1}–{Math.min((currentPage + 1) * size, normalized.length)} sur {normalized.length}</span><Button variant="outline" size="icon" aria-label="Résultats suivants" disabled={(currentPage + 1) * size >= normalized.length} onClick={() => setPage(p => p + 1)}><ChevronRight size={16} /></Button></div>
     {normalized.length > 5 && <div className="wr-all"><Button variant="ghost" onClick={() => { setAll(x => !x); setPage(0); }}>{all ? 'Revenir à 5 résultats par page' : `Afficher les ${normalized.length} résultats ensemble`}</Button></div>}
     <Dialog open={comparing} onOpenChange={setComparing}><DialogContent className="wr-compare-dialog"><DialogHeader><DialogTitle>Comparer votre sélection · {chosen.length}/5</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Comparez les références, le périmètre et le coût total. Les différences de modèle ou de prestation limitent la comparaison des prix.</p><div className="wr-compare-grid">{chosen.map(r => { const v = resultEssentials(r); return <article className="wr-compare-item" key={key(r)}>{r.photos?.[0] && <img src={r.photos[0]} alt={r.title} />}<h3>{r.title}</h3><p>{priceLabel(r)}</p><small>{r.city || 'Localisation à confirmer'}</small><p>{v.advice || v.market}</p><small>{v.missing.join(' · ')}</small><Button variant="outline" onClick={() => { setComparing(false); setAll(true); setTimeout(() => refs.current.get(key(r))?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0); }}>Retrouver cette fiche</Button><Button variant="ghost" onClick={() => setSelected(old => old.filter(k => k !== key(r)))}>Retirer</Button></article>; })}</div></DialogContent></Dialog>

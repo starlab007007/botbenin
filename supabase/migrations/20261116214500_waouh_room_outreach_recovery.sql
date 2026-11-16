@@ -28,7 +28,8 @@ as $$
       or exists (
         select 1 from public.waouh_external_commerce_signals s
         join public.waouh_entity_contacts ec on ec.entity_id = s.entity_id
-        where 'external:' || s.id = c.source_ref
+        where (c.source_ref = 'external:' || s.id
+          or (c.source_ref like 'sale:%:external:%' and split_part(c.source_ref, ':', 4) = s.id::text))
           and s.status = 'active' and (s.expires_at is null or s.expires_at > now())
           and ec.channel in ('whatsapp', 'phone') and ec.value_encrypted is not null
           and ec.consent_state is distinct from 'revoked'

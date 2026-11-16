@@ -3,7 +3,7 @@ import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
 import { resultKind } from '../_shared/waouh-convergence-contract.ts';
 import { assignRoomDeliveries } from "../_shared/waouh-room-delivery.ts";
-import { notifyRoomDeliveryDelay, notifyRoomSilence, reachRoomOwner, relayRoomGuests, sourceReachable } from '../_shared/waouh-room-guest.ts';
+import { notifyRoomDeliveryDelay, notifyRoomSilence, reachRoomOwner, relayRoomGuests, roomSaleSource, sourceReachable } from '../_shared/waouh-room-guest.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {missionCriteria,missionMatches,opportunityWatchOnly,opportunityWatchPlan,missionContactMessage} from '../_shared/waouh-mission-domain.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
@@ -1149,7 +1149,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
   const result = { checked: 0, advanced: 0, abandoned: 0, errors: 0 };
   const { data: rooms } = await sb
     .from("waouh_deal_room_links")
-    .select("id, owner_id, mandate, initial_sent, followups, control_mode")
+    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode")
     .eq("active", true)
     .in("control_mode", ["bot", "paused"])
     .order("created_at", { ascending: true })
@@ -1224,7 +1224,9 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (await avatarAccountPaused(sb, ownerId)) continue;
 
       const [next, ...rest] = candidates;
-      const sourceRef = String(next?.source_ref || "");
+      const nextFabricId = String(next?.source_ref || "");
+      const sale = roomSaleSource(room.source_ref);
+      const sourceRef = sale && nextFabricId ? `sale:${sale.articleId}:${nextFabricId}` : nextFabricId;
       const dropCandidate = async () => {
         await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id);
       };
@@ -1232,14 +1234,20 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       // Bot ne retient que des offres dont le propriétaire peut être joint.
       if (!await sourceReachable(sb, sourceRef, true)) { await dropCandidate(); continue; }
 
-      const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", sourceRef).maybeSingle();
+      const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", nextFabricId).maybeSingle();
+      if (sale && !["BUY", "RFQ"].includes(String(signal?.intent))) { await dropCandidate(); continue; }
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
         await dropCandidate(); continue;
       }
       let record: any = signal;
-      if (sourceRef.startsWith("article:")) {
-        const { data: article } = await sb.from("waouh_articles").select("*").eq("id", sourceRef.slice(8)).eq("status", "active").maybeSingle();
+      if (sale || sourceRef.startsWith("article:")) {
+        const { data: article } = await sb.from("waouh_articles").select("*")
+          .eq("id", sale?.articleId ?? sourceRef.slice(8)).eq("status", "active").maybeSingle();
         if (!article || (article.expires_at && Date.parse(article.expires_at) <= Date.now())) { await dropCandidate(); continue; }
+        if (sale) {
+          const { data: seller } = await sb.from("waouh_users").select("auth_user_id").eq("id", article.seller_id).maybeSingle();
+          if (seller?.auth_user_id !== ownerId) { await dropCandidate(); continue; }
+        }
         record = { ...signal, ...article };
       }
       const product = productSnapshot(record);
@@ -1248,7 +1256,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const openPayload: Record<string, unknown> = {
         request_id: crypto.randomUUID(),
         source: {
-          title: product.title, kind: resultKind(signal), source_ref: sourceRef,
+          title: product.title, kind: resultKind(sale ? record : signal), source_ref: sourceRef,
           source_url: signal.source_url, amount: product.price_min, extra_cost: null,
           source_snapshot: { product },
         },

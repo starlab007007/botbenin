@@ -28,7 +28,7 @@ export default function WaouhDealRoomGuestPage(){
   if(action==='rating'){document.getElementById('wg-rating')?.scrollIntoView({block:'start'});return;}
   if(action==='review'||action==='accept'){if(a)void act('accept',{version:a.version});return;}
   if(action==='refresh'){void load();return;}
-  if(['payment_receive','complete'].includes(action)&&a){void act(action,{version:a.version});return;}
+  if(['payment_report','payment_receive','complete'].includes(action)&&a){void act(action,{version:a.version});return;}
  };
  const header=<header className="mb-4"><p className="text-xs font-semibold text-cyan-700">WAOUH · Échange sécurisé</p><h1 className="mt-1 text-xl font-bold">Répondez sans installer l’application</h1><p className="mt-1 text-xs text-slate-600">Un client s’intéresse à votre offre. Échangez, proposez votre prix et confirmez l’accord ici.</p></header>;
  if(!isGuestToken(token))return <main className="wr mx-auto max-w-xl p-3">{header}<p role="alert" className="wr-error">Lien incomplet. Répondez au message reçu pour obtenir un nouveau lien.</p></main>;
@@ -46,10 +46,16 @@ export default function WaouhDealRoomGuestPage(){
     {a?<><b className="wr-price">{money(a.terms?.amount)}</b><dl>{Object.entries(a.terms||{}).filter(([k])=>k!=='workflow_version').map(([k,v])=><div key={k}><dt>{termLabel(k)}</dt><dd>{termValue(k,v)}</dd></div>)}</dl><p>{a.owner_accepted_at?'✓':'○'} Client · {a.provider_accepted_at?'✓':'○'} Vous</p>
      {allowed('accept')&&<button className="wr-primary" disabled={busy} onClick={()=>void act('accept',{version:a.version})}>Confirmer ces conditions</button>}
      {allowed('reject')&&<button disabled={busy} onClick={()=>void act('reject',{version:a.version})}>Refuser cette version</button>}
-     {allowed('receipt')&&<button disabled={busy} onClick={()=>{setNote('');setPanel('receipt');}}>Confirmer la remise</button>}
-     {allowed('payment_receive')&&<button disabled={busy} onClick={()=>void act('payment_receive',{version:a.version})}>J’ai reçu le paiement</button>}
+     {allowed('receipt')&&<button disabled={busy} onClick={()=>{setNote('');setPanel('receipt');}}>{room?.buyer ? 'Confirmer la réception' : 'Confirmer la remise'}</button>}
+     {allowed('payment_report')&&<button disabled={busy} onClick={()=>void act('payment_report',{version:a.version})}>J’ai effectué le paiement</button>}
+      {allowed('payment_receive')&&<button disabled={busy} onClick={()=>void act('payment_receive',{version:a.version})}>J’ai reçu le paiement</button>}
      {allowed('complete')&&<button disabled={busy} onClick={()=>void act('complete',{version:a.version})}>Confirmer la clôture</button>}
     </>:<p>Le prix et les conditions seront confirmés ici par les deux parties.</p>}
+    {allowed('application_outcome')&&<section>
+      <h3>Décision sur le dossier</h3>
+      <button disabled={busy} onClick={()=>void act('application_outcome',{outcome:'retained'})}>Dossier retenu</button>
+      <button disabled={busy} onClick={()=>void act('application_outcome',{outcome:'not_retained'})}>Dossier non retenu</button>
+    </section>}
     {allowed('rating')&&<section id="wg-rating"><h3>Évaluer cet échange</h3>{[1,2,3,4,5].map(r=><button key={r} disabled={busy} aria-label={`${r} étoiles`} onClick={()=>void act('rating',{rating:r})}>{r} ★</button>)}</section>}
    </section>
    <details className="wr-card"><summary>Ne plus être contacté</summary><p>Le client sera informé que vous ne donnez pas suite.</p><button disabled={busy} onClick={()=>void act('stop')}>Ne plus être contacté</button></details>
