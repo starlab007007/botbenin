@@ -39,3 +39,12 @@ describe('repère de prix', () => {
     expect(brief.exact).toBe(0);
   });
 });
+
+describe('mots de gabarit', () => {
+  it('« opportunité » venu de la phrase générée ne rapproche rien', () => {
+    expect(matchVerdict('Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi', {
+      subject: 'Galaxy S25 - Cell Phones', raw_text: "ventes achats et opportunités d'affaires au Bénin",
+    }).acceptable).toBe(false);
+    expect(matchVerdict('Je cherche une opportunité : un stage en informatique', { subject: 'Stage informatique · assistant' }).acceptable).toBe(true);
+  });
+});

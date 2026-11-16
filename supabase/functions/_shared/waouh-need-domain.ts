@@ -25,6 +25,12 @@ const EMPTY_WORDS = new Set([
   "bon","bonne","tres","plus","moins","grand","petit","neuf","occasion","etat","urgent","urgente",
   "svp","please","merci","bonjour","salut","c","est","suis","ai","avoir","etre","fait","faire","ici","la",
   "qualite","bien","super","nouveau","nouvelle","meilleur","meilleure","autre","autres","tout","tous","toute",
+  // Mots des gabarits de demande (« Je cherche une opportunité : … ») et noms de rubriques :
+  // ils décrivent la forme de la demande, pas ce qui est cherché. Sans cela, une annonce
+  // publiée dans un groupe « ventes, achats et opportunités d'affaires » paraissait pertinente
+  // pour toute recherche d'opportunité.
+  "opportunite","opportunites","affaires","annonce","annonces","article","articles",
+  "produit","produits","chose","choses","truc","trucs","divers","general","generale",
 ]);
 
 export function contentWords(value: unknown): string[] {
