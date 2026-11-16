@@ -34,11 +34,12 @@ const WAHA_REQUEST_TIMEOUT_MS = 3_000;
 async function wahaFetch(
   url: string,
   init: RequestInit = {},
-  timeoutMs = WAHA_REQUEST_TIMEOUT_MS,
+  timeoutMs?: number,
 ) {
   const path = new URL(url).pathname;
   const method = String(init.method || "GET").toUpperCase();
-  const scope = /\/api\/send(?:Text|Image|Buttons)/.test(path) ? "transactional"
+  const isSend = method === "POST" && /\/send(?:Text|Image|Buttons)$/.test(path);
+  const scope = isSend ? "transactional"
     : method !== "GET" ? "management"
     : /\/contacts\//.test(path) ? "contact_sync" : "status";
   const { data: admission, error: admissionError } = await WAHA_EGRESS_DB.rpc(
@@ -48,7 +49,7 @@ async function wahaFetch(
     throw new Error("waha_guard:" + (admissionError?.message || admission?.reason || "denied"));
   let result: Response;
   try {
-    result = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    result = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs ?? (isSend ? 8_000 : WAHA_REQUEST_TIMEOUT_MS)) });
   } catch (error) {
     try { await WAHA_EGRESS_DB.rpc("waouh_waha_report", {
       p_audit_id: admission.audit_id, p_status: 599,
@@ -1093,9 +1094,18 @@ Deno.serve(async (req) => {
         }
         sent++;
       } catch (e: any) {
-        // Erreur réseau → retry
-        await governorRecord(sb, gov.id, "failed", String(e?.message || e));
-        await finishFailed(String(e.message || e), true);
+        const reason = String(e?.message || e);
+        if (reason === "waha_guard:rate_limited" || reason === "waha_guard:circuit_open") {
+          await governorRecord(sb, gov.id, "released", reason);
+          await sb.from("waouh_outbound_queue").update({
+            status: "pending", attempts: it.attempts, last_error: reason,
+            next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+          }).eq("id", it.id).eq("status", "sending");
+          skipped++;
+          continue;
+        }
+        await governorRecord(sb, gov.id, "failed", reason);
+        await finishFailed(reason, true);
       }
     }
 
