@@ -139,7 +139,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   const pendingGuest = comp.provider_id === ROOM_GUEST_ACTOR;
   if (comp.provider_id && !pendingGuest) return "joined";
   const { data: existing, error: guestError } = await sb.from("waouh_room_guests")
-    .select("room_id,phone_encrypted,token_encrypted,reference,status,token_expires_at,consent_basis")
+    .select("room_id,phone_encrypted,token_encrypted,reference,status,token_expires_at,last_inbound_at")
     .eq("room_id", roomId).maybeSingle();
   if (guestError) throw guestError;
   if (existing?.status === "stopped" || (existing && Date.parse(existing.token_expires_at) <= Date.now())) {
@@ -147,9 +147,9 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   }
   const firstKey = `dr-first:${roomId}`;
   const { data: queued, error: queueError } = await sb.from("waouh_outbound_queue")
-    .select("id").eq("dedupe_key", firstKey).limit(1).maybeSingle();
+    .select("id").eq("template", ROOM_GUEST_TEMPLATE).eq("dedupe_key", firstKey).limit(1).maybeSingle();
   if (queueError) throw queueError;
-  if (queued) return "already";
+  if (queued || existing?.last_inbound_at) return "already";
   // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
   const waitForContact = async () => {
     if (pendingGuest || !(roomSaleSource(String(comp.source_ref || ""))?.fabricId ?? String(comp.source_ref || "")).startsWith("external:")) return "unreachable" as const;
@@ -340,7 +340,10 @@ export async function createShareLink(sb: any, roomId: string, userId: string): 
   const { data: link } = await sb.from("waouh_deal_room_links").select("owner_id,active").eq("id", roomId).maybeSingle();
   if (!link || link.owner_id !== userId || link.active === false) return null;
   const { data: comp } = await sb.from("waouh_convergence_components").select("id,title,provider_id,source_ref,source_url").eq("id", roomId).maybeSingle();
-  if (!comp || !String(comp.source_ref || "").startsWith("external:")) return null;
+  if (!comp) return null;
+  const source = String(comp.source_ref || "");
+  const sale = roomSaleSource(source);
+  if (!(sale?.fabricId ?? source).startsWith("external:")) return null;
   if (comp.provider_id && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
   if (!comp.provider_id) {
     const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
@@ -360,12 +363,20 @@ export async function createShareLink(sb: any, roomId: string, userId: string): 
       token_hash: await sha256Hex(token), token_encrypted: await encryptPhone(token), token_expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
       ...(ev?.created_at ? { relayed_until: new Date(Date.parse(ev.created_at) - 1000).toISOString() } : {}),
     });
-    if (error && error.code !== "23505") throw error;
+    if (error?.code === "23505") {
+      const { data: original, error: readError } = await sb.from("waouh_room_guests")
+        .select("token_encrypted,status").eq("room_id", roomId).maybeSingle();
+      if (readError) throw readError;
+      if (!original || original.status === "stopped") return null;
+      token = await decryptPhone(original.token_encrypted);
+    } else if (error) throw error;
   }
   const url = guestLink(token);
   const title = String(comp.title || "votre annonce");
   return { url, title, source_url: comp.source_url ?? null,
-    text: `Bonjour, je suis intéressé par « ${title} ». Pour répondre et voir mon offre, sans compte ni application : ${url}` };
+    text: sale
+      ? `Bonjour, mon article « ${title} » correspond à votre recherche. Retrouvez l’échange sans compte ni application : ${url}`
+      : `Bonjour, je suis intéressé par « ${title} ». Pour répondre et voir mon offre, sans compte ni application : ${url}` };
 }
 
 

@@ -43,7 +43,7 @@ export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id"
  */
 export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | "evidence" | "contact_policy">): boolean {
   const id = result.fabric_id || "";
-  if (id.startsWith("article:")) return true;
+  if (id.startsWith("article:") || id.startsWith("buyer:")) return true;
   const evidence = (result.evidence || {}) as Record<string, unknown>;
   if (id.startsWith("catalog:") && (evidence.source === "partner" || evidence.has_contact === true || evidence.has_contact === "true")) return true;
   if (result.contact_policy?.can_auto_contact === true) return true;

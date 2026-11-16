@@ -1,3 +1,4 @@
+import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import { createNexusMandate } from "@/lib/waouh/nexus";
 import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { useWaouhResync } from "@/lib/waouh/resync";
@@ -775,7 +776,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               priceReference: (data as { price_reference?: unknown })?.price_reference as never ?? undefined,
               articleId: respArticleId ?? undefined,
               sources: data?.source_mix && typeof data.source_mix === "object"
-                ? Object.entries(data.source_mix).filter(([, count]) => Number(count) > 0).map(([name]) => name)
+                ? Object.entries(data.source_mix).filter(([, count]) => Number(count) > 0).map(([name]) => sourceDisplayName(name))
                 : [],
             }
           : cur));

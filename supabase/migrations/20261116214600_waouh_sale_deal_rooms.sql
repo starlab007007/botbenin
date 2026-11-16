@@ -151,86 +151,7 @@ begin
    from public.waouh_unified_catalog cat join public.waouh_partners p on p.id=cat.partner_id
    where cat.id=substring(c.source_ref from 9)::uuid and cat.is_active and cat.source='partner' and p.user_id is not null;
   end if;
-  if target_auth is null and c.source_ref ~ '^sale:[0-9a-f-]{36}:buyer:[0-9a-f-]{36}(p_actor,m.id)||jsonb_build_object('needs_invite',true);end if;
-  update public.waouh_convergence_components set provider_id=target_auth where id=c.id;
-  insert into public.waouh_notifications(user_id,notification_type,article_id,photos,payload,channel,delivery_status,dedupe_key)
-  values(target_user,'new_buyer',aid,array(select jsonb_array_elements_text(coalesce(c.source_snapshot->'product'->'photos','[]'))),jsonb_build_object('text','Une demande vous attend : '||c.title,'url','/app/premium?mission_id='||m.id||'&component_id='||c.id||'&screen=seller','mission_id',m.id,'component_id',c.id),'waouh_app','recorded','business-request:'||c.id) on conflict do nothing;
-  return public.waouh_business_bundle(p_actor,m.id);
- end if;
- select * into a from public.waouh_convergence_agreements where component_id=c.id for update;
- if p_action='business.rating' then
-  if a.status is distinct from 'completed' or (p->>'rating')::integer not between 1 and 5 or p->>'rating' is null then raise exception 'rating_unavailable' using errcode='22023';end if;
-  insert into public.waouh_business_evidence(component_id,version) values(c.id,a.version) on conflict do nothing;
-  update public.waouh_business_evidence set owner_rating=case when own then (p->>'rating')::integer else owner_rating end,provider_rating=case when not own then (p->>'rating')::integer else provider_rating end where component_id=c.id and version=a.version;
-  return public.waouh_business_bundle(p_actor,m.id);
- end if;
- if m.status in ('cancelled','completed') then raise exception 'mission_closed' using errcode='22023';end if;
- if p_action='business.message' then
-  if c.provider_id is null then raise exception 'contact_not_joined' using errcode='22023';end if;
-  if length(trim(coalesce(p->>'text',''))) not between 1 and 2000 then raise exception 'invalid_message' using errcode='22023';end if;
-  rid=(p->>'request_id')::uuid;if rid is null then raise exception 'request_required';end if;
-  if exists(select 1 from public.waouh_business_messages where actor_id=p_actor and request_id=rid and component_id<>c.id) then raise exception 'request_scope_changed';end if;
-  select count(*) into count_recent from public.waouh_business_messages where actor_id=p_actor and created_at>now()-interval '1 minute';if count_recent>=20 then raise exception 'rate_limited' using errcode='54000';end if;
-  insert into public.waouh_business_messages(component_id,actor_id,request_id,text) values(c.id,p_actor,rid,trim(p->>'text')) on conflict(actor_id,request_id) do nothing;
- elsif p_action='business.application_outcome' then
-  if own or c.kind<>'announcement' or c.provider_id is distinct from p_actor then raise exception 'forbidden' using errcode='42501';end if;
-  if coalesce(p->>'outcome','') not in ('retained','declined') then raise exception 'invalid_outcome' using errcode='22023';end if;
-  if length(trim(coalesce(p->>'text','')))>0 and length(trim(p->>'text')) not between 3 and 500 then raise exception 'invalid_outcome_note' using errcode='22023';end if;
-  if not exists(select 1 from public.waouh_business_evidence where component_id=c.id and version=0 and application_submitted_at is not null) then raise exception 'application_not_submitted' using errcode='22023';end if;
-  if exists(select 1 from public.waouh_business_evidence where component_id=c.id and version=0 and application_outcome is not null) then raise exception 'application_outcome_recorded' using errcode='22023';end if;
-  update public.waouh_business_evidence set application_outcome=p->>'outcome',application_outcome_at=now(),application_outcome_note=nullif(trim(coalesce(p->>'text','')),'') where component_id=c.id and version=0;
-  -- La réponse conclut l'échange : Bot cesse de relancer et ne passe pas à une autre offre.
-  update public.waouh_deal_room_links set control_mode='manual',next_run_at=null,mandate_revision=mandate_revision+1 where id=c.id and control_mode in ('bot','paused');
-  select u.id into target_user from public.waouh_users u where u.auth_user_id=m.owner_id order by u.id limit 1;
-  if target_user is not null then
-   insert into public.waouh_notifications(user_id,notification_type,photos,payload,channel,delivery_status,dedupe_key)
-   values(target_user,'avatar_mission_progress','{}'::text[],jsonb_build_object('text',case when p->>'outcome'='retained' then 'Bonne nouvelle : votre candidature « '||c.title||' » est retenue.' else 'Votre candidature « '||c.title||' » n’a pas été retenue.' end,'url','/app/deal-room?room_id='||c.id,'component_id',c.id),'waouh_app','recorded','application-outcome:'||c.id) on conflict do nothing;
-  end if;
- elsif p_action in ('business.application_prepare','business.application_submit') then
-  if not own or c.kind<>'announcement' then raise exception 'forbidden' using errcode='42501';end if;
-  insert into public.waouh_business_evidence(component_id,version) values(c.id,0) on conflict do nothing;
-  if p_action='business.application_prepare' then update public.waouh_business_evidence set application_prepared_at=coalesce(application_prepared_at,now()) where component_id=c.id and version=0;
-  else
-   if p->>'confirmation' is distinct from 'submitted' or not exists(select 1 from public.waouh_business_evidence where component_id=c.id and version=0 and application_prepared_at is not null) then raise exception 'application_confirmation_required';end if;
-   update public.waouh_business_evidence set application_submitted_at=coalesce(application_submitted_at,now()) where component_id=c.id and version=0;
-  end if;
- else
-  if a.id is null or (p->>'version')::integer is distinct from a.version then raise exception 'agreement_unavailable_or_changed' using errcode='22023';end if;
-  insert into public.waouh_business_evidence(component_id,version) values(c.id,a.version) on conflict do nothing;
-  select * into e from public.waouh_business_evidence where component_id=c.id and version=a.version for update;
-  if p_action='business.issue' then
-   if length(trim(coalesce(p->>'text',''))) not between 3 and 1000 then raise exception 'invalid_issue';end if;
-   update public.waouh_business_evidence set issue=trim(p->>'text'),issue_at=now() where component_id=c.id and version=a.version;
-  else
-   if a.status<>'accepted' or e.issue is not null then raise exception 'confirmed_agreement_required' using errcode='22023';end if;
-   buyer=case when m.criteria ? 'workflow:sale' then not own else own end;
-   -- Preuve facultative (note + photo) : validée pour la réception ET la remise, jamais obligatoire.
-   if p_action='business.receipt' and (p->>'text') is not null and length(trim(p->>'text'))>0 and length(trim(p->>'text')) not between 3 and 500 then raise exception 'invalid_receipt_note';end if;
-   if p_action='business.receipt' and (p->>'photo_url') is not null and length(trim(p->>'photo_url'))>0 and (length(p->>'photo_url')>500 or p->>'photo_url' !~ '^https?://') then raise exception 'invalid_receipt_photo';end if;
-   if p_action='business.receipt' and buyer then
-    update public.waouh_business_evidence set receipt_at=coalesce(receipt_at,now()),
-     receipt_note=coalesce(nullif(trim(p->>'text'),''),receipt_note),
-     receipt_photo_url=coalesce(nullif(trim(p->>'photo_url'),''),receipt_photo_url)
-     where component_id=c.id and version=a.version;
-   elsif p_action='business.receipt' and not buyer then
-    -- Côté interlocuteur (remise) : même geste, pour une confirmation mutuelle réelle.
-    update public.waouh_business_evidence set receipt_handover_at=coalesce(receipt_handover_at,now()),
-     receipt_handover_note=coalesce(nullif(trim(p->>'text'),''),receipt_handover_note),
-     receipt_handover_photo_url=coalesce(nullif(trim(p->>'photo_url'),''),receipt_handover_photo_url)
-     where component_id=c.id and version=a.version;
-   elsif p_action='business.payment_report' and buyer then
-    update public.waouh_business_evidence set payment_reported_at=coalesce(payment_reported_at,now()) where component_id=c.id and version=a.version;
-   elsif p_action='business.payment_receive' and not buyer and e.payment_reported_at is not null then
-    update public.waouh_business_evidence set payment_received_at=coalesce(payment_received_at,now()) where component_id=c.id and version=a.version;
-   elsif p_action='business.complete' then
-    if e.receipt_at is null or e.payment_reported_at is null or e.payment_received_at is null then raise exception 'completion_evidence_required' using errcode='22023';end if;
-    perform public.waouh_convergence_command(p_actor,'agreement_complete',jsonb_build_object('component_id',c.id,'version',a.version));
-   else raise exception 'participant_role_required' using errcode='42501';end if;
-  end if;
- end if;
- insert into public.waouh_convergence_events(actor_id,mission_id,event_type,payload) values(p_actor,m.id,p_action,jsonb_build_object('component_id',c.id));
- return public.waouh_business_bundle(p_actor,m.id);
-end $function$ then
+  if target_auth is null and c.source_ref ~ '^sale:[0-9a-f-]{36}:buyer:[0-9a-f-]{36}$' then
    aid=split_part(c.source_ref,':',2)::uuid;
    select u.auth_user_id,u.id into target_auth,target_user
    from public.waouh_buyer_profiles bp join public.waouh_users u on u.id=bp.user_id
@@ -241,7 +162,8 @@ end $function$ then
   if target_auth is null or target_auth=p_actor then return public.waouh_business_bundle(p_actor,m.id)||jsonb_build_object('needs_invite',true);end if;
   update public.waouh_convergence_components set provider_id=target_auth where id=c.id;
   insert into public.waouh_notifications(user_id,notification_type,article_id,photos,payload,channel,delivery_status,dedupe_key)
-  values(target_user,'new_buyer',aid,array(select jsonb_array_elements_text(coalesce(c.source_snapshot->'product'->'photos','[]'))),jsonb_build_object('text','Une demande vous attend : '||c.title,'url','/app/premium?mission_id='||m.id||'&component_id='||c.id||'&screen=seller','mission_id',m.id,'component_id',c.id),'waouh_app','recorded','business-request:'||c.id) on conflict do nothing;
+  values(target_user,'new_buyer',aid,array(select jsonb_array_elements_text(coalesce(c.source_snapshot->'product'->'photos','[]'))),jsonb_build_object('text','Une demande vous attend : '||c.title,'url',case when exists(select 1 from public.waouh_deal_room_links where id=c.id)
+    then '/app/deal-room?room_id='||c.id else '/app/premium?mission_id='||m.id||'&component_id='||c.id||'&screen=seller' end,'mission_id',m.id,'component_id',c.id),'waouh_app','recorded','business-request:'||c.id) on conflict do nothing;
   return public.waouh_business_bundle(p_actor,m.id);
  end if;
  select * into a from public.waouh_convergence_agreements where component_id=c.id for update;

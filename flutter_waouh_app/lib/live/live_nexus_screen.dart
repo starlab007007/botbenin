@@ -822,6 +822,313 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     } catch (error) { if (mounted) notice(roomError(error)); }
   }
 
+  void notice(String text, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: success ? const Color(0xFF08745D) : null,
+        content: Text(text),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<legacy.AuthController>();
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: WaouhPalette.pearl,
+        appBar: AppBar(
+          backgroundColor: avatarPremiumBg,
+          leading: IconButton(
+            tooltip: 'Retour aux missions',
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/app/missions'),
+            icon: const Icon(Icons.arrow_back, size: 20),
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _started
+                    ? (_phase == 'ready'
+                          ? '${missionCopy[_activeKind]!['title']}'
+                          : _lastGoal)
+                    : '${missionCopy[_selectedKind]!['title']}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.5,
+                ),
+              ),
+              if (_started)
+                Text(
+                  '${_lastCity.isEmpty ? 'Zone à préciser' : _lastCity}${_lastBudget != null ? ' · ${_lastBudget!.round()} F max' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: avatarPremiumMuted,
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            Builder(
+              builder: (tabs) => PopupMenuButton<int>(
+                tooltip: 'Mes outils de recherche',
+                onSelected: (index) {
+                  if (index == 4) {
+                    context.push('/app/avatar');
+                    return;
+                  }
+                  DefaultTabController.of(tabs).animateTo(index);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Ma recherche')),
+                  PopupMenuItem(value: 1, child: Text('Partager')),
+                  PopupMenuItem(value: 2, child: Text('Terrain')),
+                  PopupMenuItem(value: 3, child: Text('Sources')),
+                  PopupMenuItem(value: 4, child: Text('Mon avatar')),
+                ],
+              ),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: TabBarView(
+                children: [
+                  buildSearch(),
+                  auth.signedIn
+                      ? buildShare()
+                      : const _GuestLockedNexusPane(
+                          title: 'Partager à WAOUH',
+                          description:
+                              'Connectez-vous pour analyser et ajouter un signal personnel à votre réseau.',
+                        ),
+                  auth.signedIn
+                      ? buildScout()
+                      : const _GuestLockedNexusPane(
+                          title: 'Scout terrain',
+                          description:
+                              'Connectez-vous pour contribuer au réseau de prix et publier une observation.',
+                        ),
+                  buildSources(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _applySale(LivePublishedSale sale){
+    _saleSeed=sale;query.text='${sale.article['title']}';city.text='${sale.draft['city']}';brief.text='${sale.draft['description']??''}';quantity.text='${sale.draft['quantity']??''}';unit.text='${sale.draft['unit']??''}';_articleId=sale.articleId;_selectedArticle=sale.article;
+  }
+  Widget _searchEditor() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      DropdownButtonFormField<String>(
+        key: ValueKey('mission-$_selectedKind'),
+        initialValue: _selectedKind,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Type de mission'),
+        items: const [
+          DropdownMenuItem(value: 'purchase', child: Text('Acheter')),
+          DropdownMenuItem(value: 'opportunity', child: Text('Opportunités')),
+          DropdownMenuItem(value: 'service', child: Text('Services')),
+          DropdownMenuItem(value: 'project', child: Text('Prestations')),
+          DropdownMenuItem(value: 'sale', child: Text('Vendre')),
+        ],
+        onChanged: busy
+            ? null
+            : (v) {
+                if (v == null) return;
+                setState(() {
+                  _kind = v;
+                  findSellers = v != 'sale';
+                  smartMode = false;
+                  discovery = null;
+                  _started = false;
+                });
+              },
+      ),
+      const SizedBox(height: 10),
+      if(_selectedKind=='sale') LiveSmartSale(key:ValueKey(_owner),initial:_saleSeed?.draft??{'title':query.text,'city':city.text},onPublished:(sale){_applySale(sale);runSearch();}) else ...[
+      TextField(
+        controller: query,
+        maxLines: 3,
+        minLines: 1,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => runSearch(),
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: '${missionCopy[_selectedKind]!['placeholder']}',
+          prefixIcon: const Icon(Icons.auto_awesome_rounded),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: city,
+              decoration: const InputDecoration(
+                labelText: 'Ville / zone',
+                prefixIcon: Icon(Icons.location_on_outlined),
+              ),
+            ),
+          ),
+          if (!['sale', 'opportunity'].contains(_selectedKind)) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: budget,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Budget max',
+                  suffixText: 'F',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      if (_selectedKind != 'purchase')
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text(
+            'Préciser mes critères',
+            style: TextStyle(fontSize: 13),
+          ),
+          children: [
+            TextField(
+              controller: brief,
+              maxLines: 3,
+              maxLength: 1500,
+              decoration: InputDecoration(
+                labelText: _selectedKind == 'opportunity'
+                    ? 'Mon activité ou profil'
+                    : _selectedKind == 'sale'
+                    ? 'Détails de mon article'
+                    : 'Mon besoin en détail',
+              ),
+            ),
+            if (_selectedKind == 'project')
+              TextField(
+                controller: maxDays,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Délai souhaité · jours',
+                ),
+              ),
+            if (_selectedKind == 'sale') ...[
+              TextField(
+                controller: priceFloor,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Prix plancher · F CFA',
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: quantity,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Quantité'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: unit,
+                      maxLength: 40,
+                      decoration: const InputDecoration(
+                        labelText: 'Unité',
+                        hintText: 'pièce, sac…',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Text(
+                'Votre prix plancher enregistré reste respecté.',
+                style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+              ),
+            ],
+          ],
+        ),
+      if (!smartMode && !findSellers) ...[
+        LiveSellPhotos(
+          service: service,
+          photos: sellPhotos,
+          onChanged: (v) => setState(() => sellPhotos = v),
+          onNotes: (v) => sellNotes = v,
+        ),
+        if (sellPhotos.isNotEmpty)
+          LiveMyArticleCard(
+            title: query.text.trim(),
+            photos: sellPhotos,
+            notes: sellNotes,
+            city: city.text,
+          ),
+      ],
+      const SizedBox(height: 8),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text(
+          'Photo ou code-barres',
+          style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+        ),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : recognizeProduct,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Photo'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : scanBarcode,
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: const Text('Code-barres'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+        onPressed: busy ? null : runSearch,
+        icon: Icon(
+          smartMode
+              ? Icons.auto_awesome_rounded
+              : findSellers
+              ? Icons.travel_explore_rounded
+              : Icons.person_search_rounded,
+        ),
+        label: Text(
+          smartMode
+              ? 'Confier à Bot'
+              : findSellers
+              ? 'Confier à Bot'
+              : 'Confier à Bot',
+        ),
+      ),
+      ],
+    ],
+  );
   Future<void> _delegateOne(NexusDiscoveryItem item, {List<NexusDiscoveryItem>? alternates}) async {
     if (!await requireLiveAuthentication(context, next: '/app/nexus', actionLabel: 'confier cette piste à Bot') || !mounted) return;
     final selling = _activeKind == 'sale';

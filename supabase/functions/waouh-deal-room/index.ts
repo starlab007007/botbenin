@@ -27,7 +27,7 @@ async function includeOutreachState(sb: any, data: any) {
   : receipt === "failed" || row?.status === "failed" ? "failed"
   : row?.status === "sent" ? "sent"
   : row ? "queued"
-  : contact.channel === "manual" ? "link_shared" : "waiting";
+  : contact.channel === "link" ? "link_shared" : "waiting";
 }
 
 async function deliveryFor(sb:any,userId:string,roomId:string){

@@ -60,7 +60,7 @@ String? externalContactText(dynamic contact) {
   if (contact is! Map) return null;
   final status = contact['delivery_status'] ?? (contact['status'] == 'stopped'
       ? 'stopped' : contact['last_reply_at'] != null ? 'replied'
-      : contact['channel'] == 'manual' ? 'link_shared' : 'waiting');
+      : contact['channel'] == 'link' ? 'link_shared' : 'waiting');
   return const {
     'stopped': 'Ne souhaite pas être contacté',
     'replied': 'Réponse reçue',

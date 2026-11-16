@@ -216,9 +216,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     }
     final prices = rows.map(_rowPrice).whereType<double>().toList();
     final inZone = rows.where((r) => _zone('${r['city'] ?? ''}')).length;
-    final withPhone = rows.where((r) => _rowPhone(r) != null).toList();
-    final contactable =
-        rows.where((r) => '${r['fabric_id'] ?? ''}'.isNotEmpty || _rowPhone(r) != null).length;
+    final reachable = rows.where(_contactAllowed).toList();
+    final withPhone = reachable.where((row) => _rowPhone(row) != null).toList();
+    final contactable = reachable.length;
     final summary = ReasonSummary(
       found: rows.length,
       inZone: inZone,

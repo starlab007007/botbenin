@@ -14,10 +14,10 @@ as $$
   join public.waouh_convergence_components c on c.id = l.id
   join public.waouh_convergence_missions m on m.id = c.mission_id
   left join public.waouh_room_guests g on g.room_id = l.id
-  where l.active and l.blocked_reason is null and m.status not in ('completed', 'cancelled')
+  where l.active and l.control_mode <> 'paused' and l.blocked_reason is null and m.status not in ('completed', 'cancelled')
     and ((l.control_mode = 'bot' and l.expires_at > now()) or c.provider_id = public.waouh_room_guest_actor())
     and (c.provider_id is null or c.provider_id = public.waouh_room_guest_actor())
-    and (g.room_id is null or (g.status <> 'stopped' and g.token_expires_at > now()))
+    and (g.room_id is null or (g.status <> 'stopped' and g.last_inbound_at is null and g.token_expires_at > now()))
     and not exists (
       select 1 from public.waouh_outbound_queue q
       where q.template = 'deal_room_guest_outreach' and q.dedupe_key = 'dr-first:' || l.id

@@ -31,7 +31,7 @@ export const externalContactText = (contact: any): string => {
   link_shared: "Lien d’invitation disponible", waiting: "Contact en préparation",
  };
  const status = contact.delivery_status || (contact.status === "stopped" ? "stopped"
-  : contact.last_reply_at ? "replied" : contact.channel === "manual" ? "link_shared" : "waiting");
+  : contact.last_reply_at ? "replied" : contact.channel === "link" ? "link_shared" : "waiting");
  return labels[status] || labels.waiting;
 };
 const roomError=(e:unknown)=>errors[(e as Error).message]||'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';

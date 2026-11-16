@@ -374,10 +374,10 @@ export function WaouhGlobalDiscoveryPanel({onTools}:{onTools?:()=>void}={}) {
   };
 
   const activeKind=lastSearch?.discovery_kind??selectedKind;
-  const interested = useInterested(activeKind, requireAuth, activeKind === "sale" ? selectedArticle?.id : undefined);
   const activeContext=normalizeMissionContext(automatic?.mandate?.metadata?.mission_context??lastSearch?.mission_context??draftContext,activeKind,lastSearch?.goal||query);
   const articleSnapshot=automatic?.mandate?.metadata?.article_snapshot;
   const selectedArticle=productSnapshot(articleSnapshot)??(activeKind==='sale'?salePreview?.article:null)??articles.find(a=>a.id===(completeSearch?.article_id??lastSearch?.article_id));
+  const interested = useInterested(activeKind, requireAuth, activeKind === "sale" ? selectedArticle?.id : undefined);
   const kindPicker=<label className="wgd wgd-kind">Type de mission<select aria-label="Type de mission" value={selectedKind} disabled={busy} onChange={e=>{setKind(e.target.value);setMode(e.target.value==='sale'?'find_buyers':'find_sellers');setResults([]);setCompleteSearch(null);setLastSearch(null);setStarted(false);}}><option value="purchase">Acheter</option><option value="opportunity">Opportunités</option><option value="service">Services</option><option value="project">Prestations</option><option value="sale">Vendre</option></select></label>;
   return (
     <Card className="wap wap-mission wmn border-0 bg-transparent shadow-none">

@@ -54,7 +54,7 @@ export default function WaouhDealRoomGuestPage(){
     {allowed('application_outcome')&&<section>
       <h3>Décision sur le dossier</h3>
       <button disabled={busy} onClick={()=>void act('application_outcome',{outcome:'retained'})}>Dossier retenu</button>
-      <button disabled={busy} onClick={()=>void act('application_outcome',{outcome:'not_retained'})}>Dossier non retenu</button>
+      <button disabled={busy} onClick={()=>void act('application_outcome',{outcome:'declined'})}>Dossier non retenu</button>
     </section>}
     {allowed('rating')&&<section id="wg-rating"><h3>Évaluer cet échange</h3>{[1,2,3,4,5].map(r=><button key={r} disabled={busy} aria-label={`${r} étoiles`} onClick={()=>void act('rating',{rating:r})}>{r} ★</button>)}</section>}
    </section>
