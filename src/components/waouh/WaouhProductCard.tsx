@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WaouhConvergenceDialog } from "./WaouhConvergenceWorkspace";
 import { WaouhResultEssentials } from "./WaouhResultEssentials";
+import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import { CONVERGENCE_LIMIT, resultEssentials, resultKind, withSearchReferences } from "@/lib/waouh/convergence";
 import "./waouh-results-vip.css";
 import React, { useEffect, useRef, useState } from "react";
@@ -80,6 +81,7 @@ export interface WaouhResultCard {
   seller_id?: string | null;
   counterpart_user_id?: string | null;
   source_url?: string | null;
+  observed_at?: string | null;
   fabric_id?: string | null;
   intent?: string | null;
   actor_type?: string | null;
@@ -321,6 +323,10 @@ export function WaouhProductCard({
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
   const canonicalActions = roomActions?.(result);
+  const observedTime = Date.parse(result.observed_at ?? "");
+  const observedLabel = Number.isFinite(observedTime)
+    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeZone: "Africa/Lagos" }).format(observedTime)
+    : null;
   const level = contactLevel(result);
   const externalOpportunity = !!result.fabric_id &&
     !["waouh", "chat", "waouh_app"].includes(String(result.source || "").toLowerCase());
@@ -446,6 +452,9 @@ export function WaouhProductCard({
         <div className="wr-card-title"><span>{opportunity ? 'Demande d’un acheteur' : resultKind(result) === 'service' ? 'Prestation' : resultKind(result) === 'announcement' ? 'Annonce' : 'Offre produit'}</span><h4>{result.title}</h4><div className="wr-location">{[result.city, result.quartier, conditionLabel(result.condition)].filter(Boolean).join(' · ') || 'Localisation à préciser'}</div><div className="wr-price">{priceLabel(result)}</div></div>
       </div>
       <WaouhResultEssentials result={result} />
+      {result.source && observedLabel && <p className="text-xs text-muted-foreground">
+        {sourceDisplayName(result.source)} · repérée le {observedLabel}
+      </p>}
       <div className="wr-actions">
         {canonicalActions ?? <>
         {resultKind(result) === "announcement" && <Button className="w-full min-h-11" onClick={() => setConvergenceOpen(true)}>Préparer une réponse à l’annonce</Button>}

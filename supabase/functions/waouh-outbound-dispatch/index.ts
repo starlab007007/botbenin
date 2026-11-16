@@ -844,8 +844,18 @@ Deno.serve(async (req) => {
 
       // A queued message is not an irrevocable permission: recheck immediately before dispatch.
       if (it.template === "deal_room_guest_outreach" && it.payload?.room_id) {
-        const { data: guest } = await sb.from("waouh_room_guests").select("status").eq("room_id", it.payload.room_id).maybeSingle();
-        if (!guest || guest.status === "stopped") {
+        let authorized = false;
+        if (it.payload.courier_delivery === true) {
+          const { data: delivery } = await sb.from("waouh_room_deliveries")
+            .select("room_id").eq("room_id", it.payload.room_id).eq("courier_id", it.payload.courier_id)
+            .eq("agreement_version", it.payload.agreement_version).in("status", ["assigned", "picked_up"]).maybeSingle();
+          authorized = !!delivery;
+        } else {
+          const { data: guest } = await sb.from("waouh_room_guests")
+            .select("status").eq("room_id", it.payload.room_id).maybeSingle();
+          authorized = !!guest && guest.status !== "stopped";
+        }
+        if (!authorized) {
           await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "contact_permission_unavailable", next_attempt_at: null }).eq("id", it.id).eq("status", "sending");
           skipped++; continue;
         }

@@ -555,6 +555,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                             [
                               if (reasonMoney(_rowPrice(row)) != null) reasonMoney(_rowPrice(row))!,
                               _rowPhone(row) ?? (_contactAllowed(row) ? 'Contact via WAOUH' : 'Contact à vérifier'),
+                              if (row['observed_at'] is String)
+                                if (DateTime.tryParse(row['observed_at'] as String) case final date?)
+                                  'Repérée le ${date.day}/${date.month}/${date.year}',
                             ].join(' · '),
                             style: const TextStyle(
                                 fontSize: 11, fontWeight: FontWeight.w700, color: WaouhPalette.muted),

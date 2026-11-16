@@ -664,6 +664,8 @@ async function enrichChatWithSignalFabric(
         entity_kind: row.entity_kind ?? matched.quality?.entity_kind ?? null,
         fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
         source_url: row.source_url ?? matched.source_url ?? null,
+        observed_at: row.observed_at ?? matched.observed_at ?? null,
+        contact_policy: matched.contact_policy ?? row.contact_policy ?? null,
         intent: row.intent ?? matched.intent ?? null,
         actor_type: row.actor_type ?? matched.actor_type ?? null,
         contactability_level:
@@ -716,6 +718,8 @@ async function enrichChatWithSignalFabric(
         condition: row.condition ?? null,
         source: row.source_key ?? "nexus",
         source_url: row.source_url ?? null,
+        observed_at: row.observed_at ?? null,
+        contact_policy: row.contact_policy ?? null,
         photos: chatSignalPhoto(row),
         intent: row.intent ?? null,
         actor_type: row.actor_type ?? null,

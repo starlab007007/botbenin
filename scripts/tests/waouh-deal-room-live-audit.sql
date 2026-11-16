@@ -91,6 +91,7 @@ declare
  waouh_buyer uuid;
  item uuid;
  buyer_request uuid;
+ courier_id uuid;
  room_id uuid;
  current_version integer;
  result jsonb;
@@ -122,8 +123,17 @@ begin
  perform public.waouh_room_command(actor,'accept',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
  result := public.waouh_room_command(other_actor,'accept',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
  if result->'agreement'->>'status'<>'accepted' then raise exception 'sale_bilateral_accept_failed'; end if;
- perform public.waouh_room_command(actor,'receipt',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
- perform public.waouh_room_command(other_actor,'receipt',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
+ select id into courier_id from public.waouh_couriers where active and phone_number is not null limit 1;
+ if courier_id is null then raise exception 'audit_missing_courier'; end if;
+ insert into public.waouh_room_deliveries(room_id,agreement_version,delivery_address)
+ values(room_id,current_version,'Adresse de contrôle');
+ if not public.waouh_room_assign_courier(room_id,courier_id,encode(sha256(convert_to(gen_random_uuid()::text,'UTF8')),'hex'),'Invitation de contrôle') then raise exception 'courier_assignment_failed'; end if;
+ if public.waouh_room_assign_courier(room_id,courier_id,repeat('a',64),'Invitation de contrôle') then raise exception 'courier_assignment_duplicated'; end if;
+ if not exists (select 1 from public.waouh_outbound_queue q where q.dedupe_key='dr-courier:'||room_id||':'||current_version and q.payload->>'courier_delivery'='true') then raise exception 'courier_invitation_not_queued'; end if;
+ perform public.waouh_room_reject_delivery_code(room_id);
+ if not public.waouh_room_delivery_complete(room_id) then raise exception 'versioned_delivery_confirmation_failed'; end if;
+ result := public.waouh_room_delivery_view(other_actor,room_id);
+ if result->>'status'<>'delivered' or result->>'is_buyer'<>'true' then raise exception 'sale_delivery_proof_failed'; end if;
  perform public.waouh_room_command(other_actor,'payment_report',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
  perform public.waouh_room_command(actor,'payment_receive',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
  perform public.waouh_room_command(actor,'complete',jsonb_build_object('deal_room_id',room_id,'request_id',gen_random_uuid(),'version',current_version));
@@ -150,6 +160,7 @@ begin
  perform public.waouh_room_record_outreach_ack(provider_message,'delivered');
  perform public.waouh_room_record_outreach_ack(provider_message,'sent');
  if not exists(select 1 from public.waouh_outbound_queue where dedupe_key='dr-first:'||room_id and payload->>'room_delivery_status'='delivered') then raise exception 'delivery_receipt_regressed'; end if;
+ perform set_config('waouh.audit_report',(current_setting('waouh.audit_report')::jsonb || '{"sale":"completed","courier_assignment":"queued_once","delivery_confirmation":"passed","external_opportunity":"retained","whatsapp_receipt_contract":"passed"}'::jsonb)::text,true);
  if has_column_privilege('anon','public.waouh_articles','contact_whatsapp','SELECT')
   or has_column_privilege('authenticated','public.waouh_articles','contact_whatsapp','SELECT')
   or not has_column_privilege('anon','public.waouh_articles','title','SELECT')

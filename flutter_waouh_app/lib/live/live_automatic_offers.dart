@@ -665,15 +665,17 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (liveOfferReachable(o)) ...[
                           FilledButton(
-                            onPressed: () => Navigator.pop(ctx, 'contact'),
+                            onPressed: o.fabricId.isEmpty ? null : () => Navigator.pop(ctx, 'contact'),
                             style: FilledButton.styleFrom(
                               backgroundColor: avatarPremiumInk,
                               minimumSize: const Size.fromHeight(46),
                             ),
-                            child: Text(livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)),
+                            child: Text(liveOfferReachable(o)
+                                ? livePrimaryOfferLabel(widget.missionKind, widget.mode, o.contactPolicy.level)
+                                : 'Ouvrir l’échange'),
                           ),
+                          if (liveOfferReachable(o)) ...[
                           const SizedBox(height: 8),
                           OutlinedButton(
                             onPressed: () => Navigator.pop(ctx, 'delegate'),

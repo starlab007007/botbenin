@@ -343,7 +343,8 @@ export async function createShareLink(sb: any, roomId: string, userId: string): 
   if (!comp) return null;
   const source = String(comp.source_ref || "");
   const sale = roomSaleSource(source);
-  if (!(sale?.fabricId ?? source).startsWith("external:")) return null;
+  const external = (sale?.fabricId ?? source).startsWith("external:");
+  if (!external && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
   if (comp.provider_id && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
   if (!comp.provider_id) {
     const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
