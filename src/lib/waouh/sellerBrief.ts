@@ -93,7 +93,8 @@ export function sellerBrief(
       category: (r as { category?: unknown }).category,
       brand: (r as { brand?: unknown }).brand,
       model: (r as { model?: unknown }).model,
-    }).acceptable;
+      city: r.city,
+    }, { place: ctx.city }).acceptable;
   });
   const verdict = sellerPriceVerdict(ctx.reference ?? null);
   const asking = num(ctx.reference?.asking_price);

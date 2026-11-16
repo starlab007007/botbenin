@@ -84,7 +84,7 @@ LiveSellerBrief liveSellerBrief(
 }) {
   final buyers = (query ?? '').trim().isEmpty
       ? results
-      : results.where((row) => liveMatchVerdict(query, row).acceptable).toList(growable: false);
+      : results.where((row) => liveMatchVerdict(query, row, place: city).acceptable).toList(growable: false);
   final verdict = liveSellerPriceVerdict(reference);
   final asking = _amount(reference?['asking_price']);
   final count = (_amount(reference?['comparable_count']) ?? 0).toInt();
