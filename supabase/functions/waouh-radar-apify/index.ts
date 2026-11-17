@@ -18,6 +18,38 @@ const ACTORS = {
   fb_marketplace: "apify~facebook-marketplace-scraper",
   fb_group: "apify~facebook-groups-scraper",
 };
+const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "web.facebook.com", "m.facebook.com"]);
+
+async function facebookGroupUrl(identifier: string): Promise<string | null> {
+  let url: URL;
+  try {
+    url = new URL(identifier.trim());
+  } catch {
+    return null;
+  }
+  for (let redirects = 0; redirects < 4; redirects++) {
+    if (!FACEBOOK_HOSTS.has(url.hostname) || url.protocol !== "https:" ||
+      url.username || url.password || url.port) return null;
+    const group = /^\/groups\/([a-z0-9._-]+)(?:\/|$)/i.exec(url.pathname)?.[1];
+    if (group) return `https://www.facebook.com/groups/${group}/`;
+    if (!url.pathname.startsWith("/share/")) return null;
+
+    const response = await fetch(url, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(4_000),
+    }).catch(() => null);
+    if (!response) return null;
+    const location = response.headers.get("location");
+    await response.body?.cancel();
+    if (response.status < 300 || response.status >= 400 || !location) return null;
+    try {
+      url = new URL(location, url);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 async function apifyAuthStatus(token: string): Promise<number> {
   const response = await fetch("https://api.apify.com/v2/users/me", {
@@ -116,12 +148,23 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get active sources
-    const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
+    const body = await req.json().catch(() => ({}));
+    const target = typeof body?.source_id === "string" ? body.source_id : null;
+    if (target && !/^[0-9a-f-]{36}$/i.test(target)) {
+      return new Response(JSON.stringify({ ok: false, reason: "invalid_source_id" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const activeSources = sb.from("waouh_radar_sources").select("*").eq("active", true)
+      .in("type", ["fb_marketplace", "fb_group"]);
+    const { data: sources, error: sourceError } = await (target ? activeSources.eq("id", target) : activeSources);
+    if (sourceError) throw new Error("apify_sources_unavailable");
     if (!sources || sources.length === 0) {
-      return new Response(JSON.stringify({ ok: true, message: "No active FB sources" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: !target, reason: "no_active_facebook_source" }),
+        { status: target ? 404 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const groupUrls = new Map(await Promise.all(sources.filter((src) => src.type === "fb_group")
+      .map(async (src) => [src.id, await facebookGroupUrl(src.identifier)] as const)));
     let total = 0;
     let providerBlocked = false;
     const perSource: any[] = [];
@@ -130,9 +173,14 @@ Deno.serve(async (req) => {
       let srcError: string | null = null;
       try {
         const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
+        const url = groupUrls.get(src.id);
+        if (src.type === "fb_group" && !url) {
+          perSource.push({ id: src.id, type: src.type, count: 0, error: "public_facebook_group_url_required" });
+          continue;
+        }
         const input = src.type === "fb_marketplace"
           ? { search: src.identifier, country: "BJ", maxItems: 30 }
-          : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
+          : { startUrls: [{ url }], resultsLimit: 8 };
 
         console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input, apifyToken);
