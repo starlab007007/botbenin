@@ -1328,7 +1328,10 @@ async function globalDiscoverySearch(
   const {records:data,coverage} = await loadDiscoveryRecords(sb, {query:input.query,mode:input.mode,publicSources:input.publicRead?PUBLIC_NEXUS_SOURCES:undefined});
   const lookingForJob = input.missionKind === "opportunity" && needDomain(input.query) === "job";
   const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind}))
-    .filter(row => !lookingForJob || (signalDomain(row) === "job" && matchVerdict(input.query, row, {place: input.city}).acceptable))
+    .filter(row => !lookingForJob || (
+      signalDomain(row) === "job" && !/^march[eé]s publics$/i.test(String(row.category ?? "")) &&
+      matchVerdict(input.query, row, {place: input.city}).acceptable
+    ))
     .filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({

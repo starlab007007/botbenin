@@ -87,9 +87,27 @@ type BoadIndexRow = {
   id?: number;
   link?: string;
   title?: string;
-  acf?: { end_at?: string | null };
+  acf?: { end_at?: string | null; presentation?: Record<string, unknown> };
   project_status?: Array<{ slug?: string }>;
 };
+
+function boadDeadline(date: string, presentation: Record<string, unknown> | undefined) {
+  const closing = /date limite[^:\r\n]{0,130}:\s*(\d{1,2}\s+[\p{L}]+\s+\d{4})\s+[àa]\s+(\d{1,2})\s*[h:]\s*(\d{2})[^\r\n]{0,30}?\b(?:GMT|UTC)(?:\s*([+-])\s*(\d{1,2})(?::(\d{2}))?)?/giu;
+  const possible = new Set<string>();
+  for (const value of Object.values(presentation ?? {})) {
+    if (typeof value !== "string") continue;
+    const text = load(value).text();
+    for (const match of text.matchAll(closing)) {
+      const [_, writtenDate, hour, minutes, sign, offsetHour, offsetMinutes] = match;
+      const advertisedDate = noticeDeadline(writtenDate, "+00:00");
+      if (advertisedDate !== date || Number(offsetHour ?? 0) > 14 || Number(offsetMinutes ?? 0) > 59) continue;
+      const offset = `${sign ?? "+"}${(offsetHour ?? "0").padStart(2, "0")}:${offsetMinutes ?? "00"}`;
+      const timestamp = noticeDeadline(`${writtenDate} ${hour}:${minutes}`, offset);
+      if (timestamp) possible.add(timestamp);
+    }
+  }
+  return possible.size === 1 ? [...possible][0] : date;
+}
 
 function extractBoadNotices(html: string, source: CollectionSource) {
   const $ = load(html);
@@ -114,7 +132,7 @@ function extractBoadNotices(html: string, source: CollectionSource) {
     url.hash = "";
     const title = redactPublicContacts(load(row.title).text().replace(/\s+/g, " ").trim()).slice(0, 300);
     if (title.length < 10) continue;
-    notices.push({id: String(row.id), url: url.href, title, deadline: date});
+    notices.push({id: String(row.id), url: url.href, title, deadline: boadDeadline(date, row.acf?.presentation)});
   }
   return {candidates: data.length, notices};
 }

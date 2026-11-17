@@ -42,3 +42,19 @@ Deno.test("external WhatsApp needs channel-specific authorization", () => {
   assert.equal(permitsExternalWhatsApp({...authorized, channel: "phone"}), false);
   assert.equal(permitsExternalWhatsApp({...authorized, contactability_level: "C0"}), false);
 });
+
+Deno.test("a BOAD notice retains an explicitly published closing time and timezone", () => {
+  const row = {
+    id: 99, link: "/fr/opportunites/appels-doffre/exemple/", title: "Exemple de marché public",
+    acf: {end_at: "19/01/2027", presentation: {text_left: "<p>Date limite de soumission : 19 Janvier 2027 à 10 h 00 heure locale (GMT+1)</p>"}},
+    project_status: [{slug: "tender_notice"}],
+  };
+  const payload = JSON.stringify({props: {tenders: {data: [row]}}}).replaceAll('"', "&quot;");
+  const html = `<div data-page="${payload}"></div>`;
+  const [notice] = extractNotices(html, collectionSources.waemu_boad_procurement).notices;
+  assert.equal(notice.deadline, "2027-01-19T09:00:00.000Z");
+  const result = publicNexusResult({ source_key: "waemu_boad_procurement", intent: "ANNOUNCE",
+    source_url: notice.url, evidence: {deadline: "2027-01-19"}, expires_at: "2027-01-19T00:00:00Z" });
+  assert.equal(result.contact_policy.label, "Voir l’avis officiel");
+  assert.equal(result.public_facts.expires_at, undefined);
+});
