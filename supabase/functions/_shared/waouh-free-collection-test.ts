@@ -65,6 +65,10 @@ Deno.test("ranking rejects wrong domains and a city or hidden contact placeholde
  assert.equal(score('réparer une moto','Moto à vendre'),0);
  assert.equal(score('plombier Cotonou','Téléphone à vendre'),0);
  assert.equal(score('téléphone','Objets divers','Appel [téléphone]'),0);
+ assert.equal(score('emploi informaticien','Emploi secrétaire'),0);
+ assert.equal(score('formation informatique','Formation en couture'),0);
+ assert.ok(score('fuite d’eau','Plombier pour une plomberie')>0);
+ assert.equal(scoreFabricSignal({query:'iPhone 13',mode:'find_sellers',signal:{subject:'iPhone 11',model:'11',intent:'SELL'}}).relevance_score,0);
  assert.ok(score('réparer mon téléphone','Réparation de téléphones')>0);
 });
 

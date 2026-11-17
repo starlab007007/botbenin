@@ -13,6 +13,7 @@ export function foldText(value: unknown): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
+    .replace(/\b(?:fuite d eau|fuite eau|robinet qui fuit)\b/g,"plomberie")
     .trim();
 }
 
@@ -136,7 +137,10 @@ export function matchVerdict(need: unknown, candidate: {
     ...contentWords(options.place),
     ...contentWords(candidate.city),
   ]);
-  const words = contentWords(need).filter((word) => !placeWords.has(word));
+  const meaningful = contentWords(need).filter((word) => !placeWords.has(word));
+  const domainWords=new Set(['emploi','emplois','job','jobs','travail','poste','recrutement','recrute','stage','formation','formations','cours','bourse','bourses','service','services','prestation','prestataire','agent','produit','moto','voiture']);
+  const topics=meaningful.filter(word=>!domainWords.has(word));
+  const words=topics.length?topics:meaningful;
   const found = new Set(sharedWords(need, [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" ")));
   const shared = words.filter(word=>found.has(word));
   const coverage = words.length ? Math.round((shared.length / words.length) * 100) : 0;
