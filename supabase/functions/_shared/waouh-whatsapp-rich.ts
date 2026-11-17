@@ -15,6 +15,19 @@ export interface RichWhatsAppOptions {
   minLinesForFooter?: number;
 }
 
+export function appendWhatsAppActions(
+  text: string,
+  actions: Array<{ label: string; url?: string; phone?: string }>,
+  numbered = false,
+): string {
+  if (actions.length === 0) return text;
+  const lines = actions.slice(0, 3).map((action, index) => {
+    const target = action.url || action.phone;
+    return `${numbered ? `${index + 1}.` : "•"} ${action.label}${target ? ` → ${target}` : ""}`;
+  });
+  return [text, lines.join("\n")].join("\n\n");
+}
+
 const TABLE_SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const AMOUNT = /(?<![\w*])(\d{1,3}(?:[   .]\d{3})+|\d+)\s?(FCFA|F\s?CFA|XOF|CFA)\b/gi;

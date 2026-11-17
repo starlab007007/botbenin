@@ -97,13 +97,24 @@ export function RadarPanel({ query = "" }: { query?: string }) {
   }, [filtered]);
 
   const startChat = (it: RadarItem, intent: "interest" | "negotiate" | "buy") => {
+    const fabric = it.type === "SELL" && it.source === "catalog"
+      ? `catalog:${it.id.slice(4)}`
+      : it.source === "status" && it.raw?.article_id
+        ? `article:${it.raw.article_id}`
+        : null;
+    if (fabric) {
+      const room = new URLSearchParams({ fabric_id: fabric });
+      if (intent === "negotiate") room.set("propose", "1");
+      const target = `/app/deal-room?${room}`;
+      navigate(user ? target : buildWaouhAuthRedirect(target));
+      return;
+    }
     const distance = formatDistance(it.distanceKm);
     const price = it.priceMin || it.priceMax || "";
     const params = new URLSearchParams({
       new: "1",
       autosend: "1",
       intent,
-      article: it.id,
       title: it.title,
       distance,
       ...(price ? { price: String(price), devise: it.devise || "FCFA" } : {}),

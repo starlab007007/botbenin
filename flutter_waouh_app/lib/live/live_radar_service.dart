@@ -1,9 +1,39 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'live_guest_action_gate.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
+
+Future<bool> openLiveRadarRoom(
+  BuildContext context,
+  LiveRadarItem item, {
+  required bool propose,
+}) async {
+  final String? fabric;
+  if (item.type == LiveRadarItemType.buy) return false;
+  if (item.id.startsWith('cat:')) {
+    fabric = 'catalog:${item.sourceId}';
+  } else if (item.id.startsWith('ext:')) {
+    fabric = 'legacy_external:${item.sourceId}';
+  } else if (item.articleId?.isNotEmpty == true) {
+    fabric = 'article:${item.articleId}';
+  } else {
+    return false;
+  }
+  final target = Uri(path: '/app/chat/room', queryParameters: {
+    'fabric_id': fabric,
+    if (propose) 'propose': '1',
+  }).toString();
+  if (await requireLiveAuthentication(context,
+      next: target, actionLabel: 'ouvrir cet échange')) {
+    if (context.mounted) await context.push(target);
+  }
+  return true;
+}
 
 class LiveRadarScanSnapshot {
   const LiveRadarScanSnapshot({
@@ -174,7 +204,7 @@ class LiveRadarService {
       final response = await client
           .from('waouh_unified_catalog')
           .select(
-              'id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,vendeur_phone,vendeur_whatsapp,verified,last_seen_at,qualite_score')
+              'id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,verified,last_seen_at,qualite_score')
           .eq('is_active', true)
           .gte('lat', bounds.minLat)
           .lte('lat', bounds.maxLat)
@@ -265,7 +295,6 @@ class LiveRadarService {
       freshnessMs: Duration(milliseconds: _int(row['freshness_ms'])),
       score: _doubleOrNull(row['score']) ?? 0,
       sellerName: row['seller_name']?.toString(),
-      sellerPhone: row['seller_phone']?.toString(),
       articleId: row['article_id']?.toString(),
       raw: row,
     );
@@ -333,8 +362,6 @@ class LiveRadarService {
       score: (quality * _expDecay(freshness, const Duration(days: 3))) /
           (1 + distance),
       sellerName: row['vendeur_nom']?.toString(),
-      sellerPhone: row['vendeur_whatsapp']?.toString() ??
-          row['vendeur_phone']?.toString(),
       articleId: '${row['id']}',
       raw: row,
     );

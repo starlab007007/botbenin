@@ -162,14 +162,26 @@ async function tick(sb: any) {
     }),
     check(sb, "collectors", async () => {
       if (!enabled("radar", true)) return paused;
-      const scheduled = await rpc(sb, "waouh_guardian_collectors_enabled"),
-        types = ["site", "apify"].filter((t) => scheduled?.[t] === true);
+      const scheduled = await rpc(sb, "waouh_guardian_collectors_enabled");
+      const types = [
+        ...(scheduled?.site === true ? ["site"] : []),
+        ...(scheduled?.apify === true ? ["fb_group", "fb_marketplace"] : []),
+      ];
       if (!types.length) return paused;
       const { data, error } = await sb.from("waouh_radar_sources").select(
         "last_scan_at,scan_freq_min,config",
       ).eq("active", true).in("type", types).limit(100);
       if (error) throw error;
       if (!data?.length) return paused;
+      if (scheduled?.apify === true) {
+        const { data: provider, error: providerError } = await sb
+          .from("waouh_discovery_sources").select("operational_state")
+          .eq("source_key", "apify").maybeSingle();
+        if (providerError) throw providerError;
+        if (provider?.operational_state === "requires_config") {
+          return { status: "degraded", cause: "SOURCE_DELAYED" };
+        }
+      }
       return data.some((s: any) =>
           s.config?.retry_after &&
             Date.parse(s.config.retry_after) > Date.now() ||

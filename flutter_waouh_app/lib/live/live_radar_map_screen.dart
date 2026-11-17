@@ -246,6 +246,7 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
       builder: (_) => _MapRadarItemSheet(item: item),
     );
     if (action == null || !mounted) return;
+    if (await openLiveRadarRoom(context, item, propose: action == _MapRadarAction.negotiate) || !mounted) return;
 
     final seed = switch (action) {
       _MapRadarAction.interest =>
