@@ -43,10 +43,16 @@ describe('Guided automatic result presentation',()=>{
   ['project','Site vitrine',{scope:'5 pages',pages:5,delivery_days:14},'Les propositions comparées','frais récurrents'],
   ['sale','Samsung S25',{quantity:1,unit:'pièce'},'Les acheteurs potentiels','ne constitue pas une offre ferme'],
  ] as const)('uses %s cards and a factual decision without sending',async(kind,title,evidence,heading,detail)=>{
-  const action=vi.fn(),contact=vi.fn();const item={...row('business',250000,title),intent:kind==='sale'?'BUY':'SELL',evidence} as NexusDiscoveryResult;
+  const action=vi.fn(),contact=vi.fn();const item={...row('business',250000,title),intent:kind==='sale'?'BUY':kind==='opportunity'?'ANNOUNCE':'SELL',evidence} as NexusDiscoveryResult;
   await act(async()=>root.render(<WaouhAutomaticOffers results={[item]} criteria={{query:title,missionKind:kind,mode:kind==='sale'?'sell':'ask'}} actionLabel="Suivre Bot" onAction={action} renderActions={()=> <button onClick={contact}>Contacter</button>}/>));
   expect(host.textContent).toContain(heading);expect(host.querySelectorAll('.wgd-tile')).toHaveLength(1);
   await act(async()=>host.querySelector<HTMLButtonElement>('.wgd-tile')!.click());expect(document.querySelector('[role=dialog]')?.textContent).toContain(detail);expect(action).not.toHaveBeenCalled();expect(contact).not.toHaveBeenCalled();if(kind==='opportunity')expect(document.querySelector('[role=dialog]')?.textContent).not.toContain('Contacter');
+ });
+
+ it('keeps a commercial service out of recruitment opportunities',async()=>{
+  const item={...row('provider',25000,'Hôtesse événementielle'),intent:'SELL',category:'Recrutement',evidence:{offer_kind:'announcement'}} as NexusDiscoveryResult;
+  await act(async()=>root.render(<WaouhAutomaticOffers results={[item]} criteria={{query:'Hôtesse événementielle',missionKind:'opportunity'}} actionLabel="Suivre Bot" onAction={()=>{}} renderActions={()=>null}/>));
+  expect(host.querySelector('.wgd-tile')).toBeNull();expect(host.textContent).toContain('Aucune offre compatible');
  });
 
 });
