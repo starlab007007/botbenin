@@ -4,6 +4,12 @@ name: WAOUH Android emulator test
 # l'application : lancement, connexion, recherche, résultats, onglets principaux.
 # Captures, journaux et rapport sont joints à l'exécution.
 on:
+  push:
+    branches: [prod]
+    paths:
+      - '.github/workflows/waouh-android-emulator-test.yml'
+      - 'scripts/android-emulator-*.py'
+      - 'scripts/android-emulator-*.sh'
   workflow_dispatch:
     inputs:
       api_level:
@@ -27,7 +33,7 @@ permissions:
 
 jobs:
   emulator:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
@@ -130,16 +136,23 @@ jobs:
           api-level: ${{ github.event.inputs.api_level || '34' }}
           target: google_apis
           arch: x86_64
-          profile: pixel_6
-          ram-size: 4096M
+          profile: pixel_2
+          ram-size: 2048M
           disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: bash scripts/android-emulator-run.sh apk/waouh-android-x64.apk
 
       - name: Summary
         if: always()
         run: test -f "$OUT_DIR/summary.md" && cat "$OUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Collect emulator resource diagnostics
+        if: failure()
+        run: |
+          free -h
+          df -h
+          sudo dmesg --level=emerg,alert,crit,err | tail -30 || true
 
       - name: Upload screenshots, video and logs
         if: always()

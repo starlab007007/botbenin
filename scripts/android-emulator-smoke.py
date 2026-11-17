@@ -23,6 +23,10 @@ os.makedirs(OUT, exist_ok=True)
 steps = []
 
 
+class DeviceUnavailable(RuntimeError):
+    pass
+
+
 def sh(*args, check=False, timeout=120):
     try:
         r = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout)
@@ -47,6 +51,9 @@ def shot(name):
 
 def dump(name=None):
     for _ in range(3):
+        if sh("get-state", timeout=8).strip() != "device":
+            time.sleep(2)
+            continue
         sh("shell", "rm", "-f", "/sdcard/ui.xml", timeout=8)
         sh("shell", "uiautomator", "dump", "/sdcard/ui.xml", timeout=15)
         raw = sh("shell", "cat", "/sdcard/ui.xml", timeout=8)
@@ -63,6 +70,8 @@ def dump(name=None):
             if parsed is not None:
                 return parsed
         time.sleep(2)
+    if sh("get-state", timeout=8).strip() != "device":
+        raise DeviceUnavailable("Émulateur déconnecté pendant la lecture de l'écran.")
     return None
 
 
@@ -288,7 +297,7 @@ def main():
 
 
 def finish():
-    log = sh("logcat", "-d", timeout=120)
+    log = sh("logcat", "-d", timeout=20)
     with open(os.path.join(OUT, "logcat.txt"), "w") as f:
         f.write(log)
     lines_all = log.splitlines()
@@ -318,4 +327,8 @@ def finish():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except DeviceUnavailable as error:
+        steps.append({"step": "émulateur", "ok": False, "critical": True, "detail": str(error)})
+        sys.exit(finish())
