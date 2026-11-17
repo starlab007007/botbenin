@@ -1,3 +1,5 @@
+import { matchVerdict, needDomain, signalDomain } from "../_shared/waouh-need-domain.ts";
+import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {loadDiscoveryRecords,discoveryBusinessFacts,publicSearchProfiles} from '../_shared/waouh-discovery-records.ts';
 import {normalizeSaleDraft,saleTextSuggestions,trustedSalePhotos,suggestSalePrice,saleCategory} from '../_shared/waouh-smart-sale.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
@@ -1324,7 +1326,10 @@ async function globalDiscoverySearch(
   },
 ) {
   const {records:data,coverage} = await loadDiscoveryRecords(sb, {query:input.query,mode:input.mode,publicSources:input.publicRead?PUBLIC_NEXUS_SOURCES:undefined});
-  const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind})).filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
+  const lookingForJob = input.missionKind === "opportunity" && needDomain(input.query) === "job";
+  const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind}))
+    .filter(row => !lookingForJob || (signalDomain(row) === "job" && matchVerdict(input.query, row, {place: input.city}).acceptable))
+    .filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,
@@ -3668,12 +3673,9 @@ Retourne uniquement JSON:
           .order("contactability_level", { ascending: false }).limit(5);
         if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
         const target = (contacts ?? []).find((contact: any) =>
-          !!contact.value_encrypted &&
-          (signalPolicy.level !== "C1" ||
-            contact.is_public_business === true ||
-            contact.consent_state === "public_business")
+          !!contact.value_encrypted && permitsExternalWhatsApp(contact)
         );
-        if (!target) throw new ApiError(404, "contact_not_found");
+        if (!target) throw new ApiError(403, "contact_not_permitted", "Utilisez le canal indiqué sur l’annonce.");
         if(!await modulePolicyAllowed(sb,['whatsapp'],ownerId,false))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
         const originalContactMessage = message;
         const contactJourney = requestedJourney ?? (await findContactJourney()).data;

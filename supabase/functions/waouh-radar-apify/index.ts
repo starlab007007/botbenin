@@ -1,3 +1,4 @@
+import { sourceScanDue } from "../_shared/waouh-source-retry.ts";
 import {moduleRequestGate} from '../_shared/waouh-module-request.ts';
 // WAOUH Radar — moissonne Facebook Marketplace + groupes publics via Apify
 const corsHeaders = {
@@ -174,6 +175,7 @@ Deno.serve(async (req) => {
     let providerBlocked = false;
     const perSource: any[] = [];
     for (const src of sources) {
+      if (!target && !sourceScanDue(src)) continue;
       let srcCount = 0;
       let srcError: string | null = null;
       const observed = { received: 0, duplicates: 0, without_content: 0, unqualified: 0, qualified: 0 };

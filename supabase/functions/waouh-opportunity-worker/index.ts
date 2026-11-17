@@ -1,3 +1,4 @@
+import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
@@ -883,12 +884,8 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   if (!await modulePolicyAllowed(sb, ['whatsapp'], mandate.owner_id, true)) return { contacted: false, reason: 'module_unavailable' };
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
-    if (row.consent_state === "revoked" || row.is_whatsapp_reachable !== true || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
-    if (level === "C1") {
-      return mandate.allow_public_business !== false &&
-        (row.is_public_business === true || row.consent_state === "public_business");
-    }
-    return ["C2","C3","C4","C5"].includes(String(row.contactability_level || level));
+    return row.is_whatsapp_reachable === true && !!row.value_encrypted &&
+      permitsExternalWhatsApp(row);
   });
   if (!target) return { contacted: false, reason: "contact_not_permitted" };
   if (level === "C1" && mandate.require_approval_for_c1 === true) return { contacted: false, reason: "c1_requires_approval" };
@@ -1006,12 +1003,8 @@ async function runExternalFollowUp(
 
   const level = String(resolved.externalSignal?.contactability_level || "C0");
   const target = resolved.contacts.find((row: any) => {
-    if (row.consent_state === "revoked" || row.is_whatsapp_reachable !== true || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
-    if (level === "C1") {
-      return mandate.allow_public_business !== false &&
-        (row.is_public_business === true || row.consent_state === "public_business");
-    }
-    return ["C2","C3","C4","C5"].includes(String(row.contactability_level || level));
+    return row.is_whatsapp_reachable === true && !!row.value_encrypted &&
+      permitsExternalWhatsApp(row);
   });
   if (!target) return { sent: false, reason: "followup_contact_unavailable" };
   if (level === "C1" && mandate.require_approval_for_c1 === true) {

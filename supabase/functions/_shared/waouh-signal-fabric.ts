@@ -67,12 +67,15 @@ export function scoreFabricSignal(input: {
   const relevance = queryTokens.length ? (hits.length / queryTokens.length) * 100 : 0;
 
   const desiredIntent = oppositeIntent(input.mode);
-  const intentScore = String(input.signal.intent ?? "").toUpperCase() === desiredIntent ? 100
-    : input.signal.intent === "ANNOUNCE" ? 45 : 0;
+  const intent = String(input.signal.intent ?? "").toUpperCase();
+  const matchesIntent = intent === desiredIntent || (desiredIntent === "BUY" && intent === "RFQ");
+  const intentScore = matchesIntent ? 100 : intent === "ANNOUNCE" ? 45 : 0;
 
   const signalCity = normalizeFabricText(input.signal.city);
   const requestedCity = normalizeFabricText(input.city);
-  const location = requestedCity ? (signalCity.includes(requestedCity) || requestedCity.includes(signalCity) ? 100 : 45) : 70;
+  const sameCity = Boolean(signalCity && requestedCity) &&
+    (signalCity.includes(requestedCity) || requestedCity.includes(signalCity));
+  const location = requestedCity && signalCity ? (sameCity ? 100 : 45) : 70;
 
   const price = Number(input.signal.price_min ?? input.signal.price_max ?? 0);
   let priceScore = 70;

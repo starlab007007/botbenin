@@ -2,7 +2,7 @@ import {missionDate} from './waouh-mission-domain.ts';
 import { redactPublicContacts, safeSourceUrl } from "./waouh-signal-fabric.ts";
 /** Public browsing only: no contact, mission, provider refresh or personal history. */
 export const isPublicNexusRead = (action: string) => ["nexus.global_discovery", "nexus.sources"].includes(action);
-export const PUBLIC_NEXUS_SOURCES = ["waouh_app", "partner", "google_places", "serpapi", "apify", "benin_directory", "facebook_business", "instagram_business", "telegram_public"];
+export const PUBLIC_NEXUS_SOURCES = ["waouh_app", "partner", "google_places", "serpapi", "apify", "benin_directory", "facebook_business", "instagram_business", "telegram_public", "benin_government_jobs", "benin_government_procurement", "waemu_bceao_procurement", "waemu_boad_procurement"];
 function publicPhoto(value:unknown){
  if(typeof value!=='string')return null;
  try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||/(^|\.)localhost$|\.local$/.test(u.hostname)||/^\d{1,3}(?:\.\d{1,3}){3}$|[:\[\]]/.test(u.hostname)||u.pathname.includes('/object/sign/')||[...u.searchParams.keys()].some(k=>/token|signature|credential|authorization|api.?key|x-amz|secret|session|jwt/i.test(k)))return null;return u.href;}catch{return null;}
