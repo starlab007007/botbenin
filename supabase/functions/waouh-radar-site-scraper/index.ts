@@ -26,7 +26,8 @@ Deno.serve(async (req) => {
     return Response.json({ok:true,scheduled:data},{status:202,headers:waouhCorsHeaders});
   } catch (error) {
     console.error("[waouh-radar-site-scraper] collection unavailable",error);
-    return Response.json({ok:false,message:"Collecte momentanément indisponible."},
+    return Response.json({ok:false,message:"Collecte momentanément indisponible.",
+      code:error instanceof Error&&/^[a-z_]+$/.test(error.message)?error.message:"collection_tick_failed"},
       {status:503,headers:waouhCorsHeaders});
   }
 });
