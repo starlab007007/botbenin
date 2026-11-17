@@ -177,5 +177,3 @@ end;
 $$;
 revoke execute on function public.waouh_collection_publish_listing(uuid,uuid,text,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.waouh_collection_publish_listing(uuid,uuid,text,jsonb,jsonb) to service_role;
-
-
