@@ -1,4 +1,4 @@
-import { catalogJson, facebookCommercialPosts, facebookGroup, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
+import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookGroup, facebookListingDetails, facebookSource, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
 import { permitsExternalWhatsApp } from "./waouh-external-contact-permission.ts";
 import assert from "node:assert/strict";
 import { collectionSources, extractNotices, noticeDeadline, sourceKeyFor } from "./waouh-collection/sources.ts";
@@ -116,4 +116,47 @@ Deno.test("Apify results are limited to commercial posts in the authorized Faceb
   assert.deepEqual(rows.map(row => row.intent), ["SELL", "BUY"]);
   assert.equal(rows[0].source_url, "https://www.facebook.com/groups/market987/posts/1/");
   assert.equal(rows[1].evidence.offer_kind, "service");
+});
+
+Deno.test("CoinAfrique keeps the listing identity, seller contact and credited photo separate", () => {
+  const url="https://bj.coinafrique.com/annonce/meubles/chaise-12345";
+  const permission={attribution:"Annonce originale CoinAfrique",media_reuse_authorized:true,media_hosts:["images.coinafrique.com"]};
+  const [row]=coinAfriqueCatalog(`<article class="ad__card"><p class="ad__card-description"><a href="${url}">Chaise de bureau</a></p>
+    <span data-ad-price="38 000" data-ad-category="Meubles"></span><img class="ad__card-img" src="https://images.coinafrique.com/thumb_12345_uploaded_image1.jpg"></article>`,new URL("https://bj.coinafrique.com/"),permission);
+  assert.equal(row.price_min,38000);
+  const detail=`<link rel="canonical" href="${url}"><meta property="og:image" content="https://images.coinafrique.com/12345_uploaded_image1.jpg">
+    <a data-phone-number="+2290123456789"></a><img src="https://images.coinafrique.com/99999_other_listing.jpg">`;
+  const enriched=coinAfriqueDetails(detail,row,permission);
+  assert.deepEqual(enriched.evidence.photos,["https://images.coinafrique.com/12345_uploaded_image1.jpg"]);
+  assert.equal(enriched.evidence.photo_attribution,permission.attribution);
+  assert.equal(enriched.contacts?.filter(c=>c.channel==="phone").length,1);
+  assert.doesNotMatch(JSON.stringify(enriched.evidence),/2290123456789/);
+  assert.throws(()=>coinAfriqueDetails(detail.replace('rel="canonical"','rel="other"'),row,permission),/listing_identity_changed/);
+});
+
+Deno.test("Facebook share links bind returned posts to the requested input and preserve only post photos", () => {
+  const source=facebookSource(" https://web.facebook.com/share/g/1EnAfmcbFk/ ");
+  assert.ok(source);
+  const post={inputUrl:source.href,facebookUrl:"https://www.facebook.com/groups/market987/",
+    url:"https://www.facebook.com/groups/market987/posts/1/",text:"Disponible à vendre radio ancienne 25 000 FCFA",
+    media:[{url:"https://www.facebook.com/media/set/?set=pcb.1&type=1"},{photo_image:{uri:"https://scontent-cdg4-1.xx.fbcdn.net/radio.jpg"}}]};
+  const permission={attribution:"Publication originale",media_reuse_authorized:true};
+  const [row]=facebookCommercialPosts([post],source,permission);
+  assert.equal(row.price_min,25000);
+  assert.equal(row.evidence.photos?.length,1);
+  assert.equal(row.contacts?.[0].channel,"facebook");
+  assert.equal(facebookCommercialPosts([{...post,inputUrl:"https://web.facebook.com/share/g/foreign/"}],source,permission).length,0);
+  assert.equal(facebookSource("https://malicious.org/share/g/abc/"),null);
+});
+
+Deno.test("Facebook cards expose the actual subject, price and location instead of a phone or intro", () => {
+  assert.deepEqual(facebookListingDetails("tél +229 01 23 45 67 89\n*SUZUKI BALENO Année 2025*\nPRIX: 7.800.000 FCFA"),
+    {title:"SUZUKI BALENO Année 2025",price:7800000,category:"Automobile",city:undefined,country_code:"BJ"});
+  const villa=facebookListingDetails("*Direct à la clé*\n*VILLA PERSONNELLE DISPONIBLE À GODOMEY*\nLoyer : 200.000f");
+  assert.equal(villa.title,"VILLA PERSONNELLE DISPONIBLE À GODOMEY");assert.equal(villa.price,200000);
+  const imported=facebookListingDetails("https://www.facebook.com/groups/12345/\nPièces détachées disponibles à Abobo");
+  assert.equal(imported.country_code,"CI");assert.equal(imported.city,"Abobo");assert.doesNotMatch(imported.title,/https:/);
+  const [post]=facebookCommercialPosts([{url:"https://www.facebook.com/groups/market987/posts/99/",text:"Moto disponible à vendre. WhatsApp ou appel direct 01 23 45 67 89"}],
+    new URL("https://www.facebook.com/groups/market987/"),{attribution:"Publication originale"});
+  assert.ok(post.contacts?.some(c=>c.channel==="phone"&&c.value.replace(/\D/g,"")==="0123456789"));
 });

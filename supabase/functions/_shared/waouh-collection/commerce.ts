@@ -6,7 +6,7 @@ export type SourcePermission = {
   media_reuse_authorized?: boolean;
   media_hosts?: string[];
   attribution?: string;
-  collection_format?: "catalog_json" | "schema_org" | "directory";
+  collection_format?: "catalog_json" | "schema_org" | "directory" | "coinafrique";
   canonical_url?: string;
 };
 
@@ -22,8 +22,12 @@ export type CollectedCommerce = {
   brand?: string;
   model?: string;
   city?: string;
+  country_code?: "BJ" | "CI";
   price_min?: number;
   price_max?: number;
+  actor_name?: string;
+  is_public_business?: boolean;
+  contacts?: Array<{channel: "phone" | "whatsapp" | "facebook" | "website"; value: string}>;
   evidence: {offer_kind: "product" | "service"; availability_confirmed: false;
     source_attribution: string; photo_attribution?: string; photos?: string[]; rare_item?: true;
     provider_profile?: true; listing_license?: string};
@@ -66,7 +70,10 @@ function approvedPhotos(input: unknown, url: URL, permission: SourcePermission) 
   const hosts = new Set([url.hostname, ...(permission.media_hosts ?? [])]);
   return [...new Set(list(input).flatMap(value => {
     const image = trustedHttps(typeof value === "string" ? value : obj(value).contentUrl ?? obj(value).url, url.href);
-    return image && hosts.has(image.hostname) ? [image.href] : [];
+    const facebookMedia = url.hostname.endsWith("facebook.com") &&
+      (image?.hostname.endsWith(".fbcdn.net") || image?.hostname.endsWith(".fbsbx.com"));
+    if (facebookHosts.has(url.hostname) && !facebookMedia) return [];
+    return image && (hosts.has(image.hostname) || facebookMedia) ? [image.href] : [];
   }))].slice(0, 4);
 }
 
@@ -142,11 +149,89 @@ export function schemaOrgCatalog(html: string, origin: URL, permission: SourcePe
   return results;
 }
 
+export function coinAfriqueCatalog(html: string, origin: URL, permission: SourcePermission) {
+  if (origin.hostname !== "bj.coinafrique.com") return [];
+  const $ = load(html);
+  return $(".ad__card").toArray().flatMap(card => {
+    const item = $(card);
+    const anchor = item.find(".ad__card-description a").first();
+    const link = trustedHttps(anchor.attr("href"), origin.href);
+    if (!link || !link.pathname.startsWith("/annonce/")) return [];
+    const price = item.find("[data-ad-price]").first();
+    const row = commercialRecord({
+      url: link.href, title: anchor.attr("title") ?? anchor.text(),
+      price: price.attr("data-ad-price"), currency: "XOF",
+      category: price.attr("data-ad-category"),
+      city: item.find(".ad__card-location span").text().replace(/,?\s*Bénin\s*$/i, ""),
+      photos: [item.find(".ad__card-img").attr("src") ?? item.find(".ad__card-img").attr("data-src")],
+    }, origin, permission, link.pathname.includes("/services/") ? "service" : "product", "SELL");
+    if (!row) return [];
+    row.actor_name = trim(item.find(".pro-contact-card .title").text(), 120) || undefined;
+    row.is_public_business = item.find(".ad__card-action.is-pro").length > 0;
+    row.contacts = [{channel: "website", value: link.href}];
+    return [row];
+  });
+}
+
+export function coinAfriqueDetails(html: string, row: CollectedCommerce, permission: SourcePermission) {
+  const origin = trustedHttps(row.source_url);
+  if (!origin || origin.hostname !== "bj.coinafrique.com") return row;
+  const $ = load(html);
+  const canonical = trustedHttps($('link[rel="canonical"]').attr("href"));
+  if (canonical?.href !== origin.href) throw new Error("listing_identity_changed");
+  const phones = $("[data-phone-number], a[href^='tel:']").toArray().flatMap(node => {
+    const value = $(node).attr("data-phone-number") ?? $(node).attr("href")?.slice(4);
+    return value ? [{channel: "phone" as const, value}] : [];
+  });
+  const whatsapp = $("a[href^='https://wa.me/']").toArray().flatMap(node => {
+    const value = trustedHttps($(node).attr("href"))?.pathname.replace(/[^0-9+]/g, "");
+    return value ? [{channel: "whatsapp" as const, value}] : [];
+  });
+  const listingId = /-(\d+)$/.exec(origin.pathname)?.[1];
+  const gallery = $('meta[property="og:image"]').toArray().flatMap(node => {
+    const url = trustedHttps($(node).attr("content"));
+    return url?.hostname === "images.coinafrique.com" && listingId &&
+      url.pathname.startsWith("/" + listingId + "_") ? [url.href] : [];
+  });
+  return {...row, contacts: [...(row.contacts ?? []), ...phones, ...whatsapp],
+    raw_text: trim($('meta[property="og:description"]').attr("content"), 700) || row.raw_text,
+    evidence: {...row.evidence,
+      photos: approvedPhotos(gallery.length ? gallery : row.evidence.photos, origin, permission)}};
+}
+
 const facebookHosts = new Set(["facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com"]);
 export function facebookGroup(value: string): URL | null {
-  const url = trustedHttps(value);
+  const url = trustedHttps(value.trim());
   const group = url && /^\/groups\/([a-z\d._-]+)\/?$/i.exec(url.pathname)?.[1];
   return url && group && facebookHosts.has(url.hostname) ? new URL("https://www.facebook.com/groups/" + group + "/") : null;
+}
+
+export function facebookSource(value: string): URL | null {
+  const group = facebookGroup(value);
+  if (group) return group;
+  const url = trustedHttps(value.trim());
+  return url && facebookHosts.has(url.hostname) && /^\/share\/g\/[a-z0-9]+\/?$/i.test(url.pathname) ? url : null;
+}
+
+export function facebookListingDetails(raw:string, suppliedTitle?:unknown) {
+  const clean = (text:unknown) => trim(String(text ?? "").replace(/https?:\/\/\S+/g, " ")
+    .replace(/\[(?:téléphone|email)\]/gi," ").replace(/[*`_]/g," "),700)
+    .replace(/^\s*(?:tél(?:éphone)?\s*:?\s*)+/i,"").trim();
+  const lines = [suppliedTitle,...raw.split(/[\r\n]+|\*+/)].map(clean).filter(v=>v.length>=5);
+  const concrete = /\b(?:villa|chambre|appartement|terrain|parcelle|moto|haojue|dayang|wave|sirius|voiture|suzuki|toyota|iphone|samsung|honor|tecno|pièces détachées|réparation|installation|service)\b/i;
+  let title = lines.find(line=>concrete.test(line)) ?? lines[0] ?? clean(raw);
+  title = title.replace(/^direct à la clé\s*/i,"")
+    .replace(/\s+(?:interress[ée]|intéress[ée]|whats?app|watsapp|appelez|appel|contactez|tél(?:éphone)?|je suis le propriétaire)(?=\s|$|[,:]).*$/i,"").trim();
+  const flat=clean(raw);
+  const city = /\b(San Pedro|Abidjan|Abobo|Yopougon|Godomey|Cotonou|Abomey[- ]Calavi|Calavi|Pahou|Porto[- ]Novo|Parakou)\b/i.exec(flat)?.[1];
+  const country_code = /\b(San Pedro|Abidjan|Abobo|Yopougon|Côte d.Ivoire)\b/i.test(flat) ? "CI" as const : "BJ" as const;
+  const amount = /(?:^|[^\d])(\d{1,3}(?:[ .\u00a0]\d{3})+|\d{3,9})\s*(?:FCFA|XOF|CFA)\b/i.exec(raw)?.[1]
+    ?? /\b(?:loyer|prix)\s*:?\s*(\d{1,3}(?:[ .\u00a0]\d{3})+|\d{3,9})\s*f\b/i.exec(raw)?.[1];
+  const category = /\b(?:villa|chambre|appartement|terrain|parcelle)\b/i.test(flat) ? "Immobilier"
+    : /\b(?:moto|haojue|dayang|wave|sirius)\b/i.test(flat) ? "Motos"
+    : /\b(?:voiture|suzuki|toyota|pièces détachées)\b/i.test(flat) ? "Automobile"
+    : /\b(?:iphone|samsung|honor|tecno)\b/i.test(flat) ? "Téléphonie" : "Produits";
+  return {title:title.slice(0,160),city,country_code,category,price:priceXof(amount,"XOF")};
 }
 
 export function facebookCommercialPosts(body: unknown, group: URL, permission: SourcePermission) {
@@ -154,22 +239,38 @@ export function facebookCommercialPosts(body: unknown, group: URL, permission: S
   const output: CollectedCommerce[] = [];
   for (const row of body.slice(0, 30)) {
     const item = obj(row);
+    // A share link must be tied to the actor's original input, not an unrelated returned group.
+    const direct = facebookGroup(group.href);
+    const input = facebookSource(String(item.inputUrl ?? ""));
+    const resolved = direct ?? (input?.href === group.href ? facebookGroup(String(item.facebookUrl ?? "")) : null);
     const link = trustedHttps(item.url ?? item.postUrl ?? item.permalink);
-    if (!link || !facebookHosts.has(link.hostname) || !link.pathname.startsWith(group.pathname) ||
+    if (!resolved || !link || !facebookHosts.has(link.hostname) || !link.pathname.startsWith(resolved.pathname) ||
       !/\/(?:posts|permalink)\/[^/]+\/?$/.test(link.pathname)) continue;
-    link.hostname = group.hostname;
+    link.hostname = resolved.hostname;
     link.search = "";
     const raw = typeof (item.text ?? item.message) === "string" ? String(item.text ?? item.message) : "";
-    const sell = /\b(?:je vends|à vendre|prix de vente|en vente|disponible (?:à|au))\b/i.test(raw);
+    const sell = /(?:\b(?:je vends|prix de vente|en vente|disponible|vente)\b|à vendre)/i.test(raw);
     const buy = /\b(?:je cherche|je recherche|je veux acheter|achat recherché)\b/i.test(raw);
     if (sell === buy) continue;
     const service = /\b(?:prestation|service|réparation|installation|dépannage|devis)\b/i.test(raw);
-    const title = item.title ?? raw.split(/\r?\n/).find(s => s.trim().length >= 5)?.trim().slice(0, 160);
-    const amount = /(?:^|[^\d])(\d[\d \u00a0]{2,})\s*(?:FCFA|XOF)\b/i.exec(raw)?.[1];
-    const media = list(item.media ?? item.attachments).map(m => obj(m).photo_image ? obj(obj(m).photo_image).uri : obj(m).url ?? obj(m).imageUrl);
-    const formatted = commercialRecord({url:link.href,title,description:raw,price:amount,currency:"XOF",photos:media},
-      group, permission, service ? "service" : "product", buy ? "BUY" : "SELL");
-    if (formatted) output.push(formatted);
+    const details = facebookListingDetails(raw,item.title);
+    const media = list(item.media ?? item.attachments).flatMap(m => {
+      const image = obj(m);
+      return [obj(image.photo_image).uri, image.url, image.imageUrl, image.thumbnail,
+        obj(image.image).uri, obj(image.image).url, obj(image.photo).url];
+    });
+    const formatted = commercialRecord({url:link.href,title:details.title,description:raw,price:details.price,
+      city:details.city,category:details.category,currency:"XOF",photos:media},
+      resolved, permission, service ? "service" : "product", buy ? "BUY" : "SELL");
+    if (formatted) {
+      formatted.actor_name = trim(obj(item.user).name ?? obj(item.author).name, 120) || undefined;
+      formatted.country_code = details.country_code;
+      formatted.contacts = [{channel: "facebook", value: link.href}];
+      const published:string[] = raw.match(/(?:\+|00)(?:229|225)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8,10}\b/g) ?? [];
+      for (const match of raw.matchAll(/(?:tél(?:éphone)?|whats?app|watsapp|apel direct|appel direct|contact)\b[^\d+]{0,30}((?:01[\s.-]*)?(?:\d[\s.-]*){8})(?!\d)/gi)) published.push(match[1]);
+      formatted.contacts.push(...published.map(value => ({channel: "phone" as const, value})));
+      output.push(formatted);
+    }
   }
   return output;
 }

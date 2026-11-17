@@ -1,9 +1,10 @@
-import { catalogJson, facebookCommercialPosts, facebookGroup, schemaOrgCatalog, trustedHttps,
+import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookSource, schemaOrgCatalog, trustedHttps,
   type CollectedCommerce, type SourcePermission } from "./commerce.ts";
 import { getRadarApiKey } from "../radar-api-config.ts";
 import robotsParserModule from "npm:robots-parser@3.0.1";
 import { missionDate } from "../waouh-mission-domain.ts";
-import { sha256Hex } from "../waouh-tel/crypto.ts";
+import { encryptPhone, hashPhone, sha256Hex } from "../waouh-tel/crypto.ts";
+import { normalizeE164, phoneLast4 } from "../waouh-tel/phone.ts";
 import { collectionSources, extractNotices, sourceKeyFor, type CollectionSource, type VerifiedNotice } from "./sources.ts";
 
 const robotsParser = robotsParserModule as unknown as (
@@ -188,7 +189,7 @@ async function approvedRadarSource(db: Db, job: Job): Promise<RadarSource | null
   return source?.config?.automation_authorized === true && source.config.attribution ? source : null;
 }
 
-async function fetchCatalog(source:RadarSource, permission:SourcePermission):Promise<CollectedCommerce[]> {
+async function fetchCatalog(source:RadarSource, permission:SourcePermission, maxItems:number):Promise<CollectedCommerce[]> {
   const url = trustedHttps(permission.canonical_url ?? source.identifier);
   const original = trustedHttps(source.identifier);
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
@@ -209,14 +210,63 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission):Pro
     throw new CollectionError("source_media_invalid");
   }
   const body = await readBounded(response);
+  if (format === "coinafrique") {
+    const cards = coinAfriqueCatalog(body,url,permission).slice(0,Math.min(maxItems,5));
+    if (!cards.length) throw new CollectionError("source_format_changed");
+    const rows:CollectedCommerce[] = [];
+    // Bound detail requests so the lease covers parsing, contact encryption and publication.
+    for (const card of cards) {
+      await respectRobots(card.source_url);
+      const detail = await request(card.source_url,{accept:"text/html"});
+      if (detail.status === 404 || detail.status === 410) { await detail.body?.cancel(); continue; }
+      if (!detail.ok || !detail.headers.get("content-type")?.includes("text/html")) {
+        await detail.body?.cancel();
+        throw new CollectionError("listing_detail_unavailable",true);
+      }
+      try { rows.push(coinAfriqueDetails(await readBounded(detail),card,permission)); }
+      catch { throw new CollectionError("listing_identity_changed"); }
+    }
+    return rows;
+  }
   if (!json) return schemaOrgCatalog(body,url,permission);
   const payload = JSON.parse(body);
   if (!Array.isArray(payload?.items)) throw new CollectionError("source_format_changed");
   return catalogJson(payload,url,permission,format==="directory");
 }
 
+async function apifyAccount(db:Db) {
+  const configured = await getRadarApiKey(db,"apify","APIFY_TOKEN");
+  if (!configured.ok || !configured.key || !configured.configId) throw new CollectionError("provider_key_missing");
+  let key = configured.key;
+  const account = (token:string) => fetch("https://api.apify.com/v2/users/me",{
+    headers:{Authorization:`Bearer ${token}`},redirect:"error",signal:AbortSignal.timeout(9_000)});
+  let response = await account(key);
+  const fallback = Deno.env.get("APIFY_TOKEN");
+  if (response.status === 401 && fallback && fallback !== key) {
+    await response.body?.cancel(); key = fallback; response = await account(key);
+  }
+  if (!response.ok) { await response.body?.cancel(); throw new CollectionError("provider_credentials_invalid"); }
+  const user = JSON.parse(await readBounded(response)).data;
+  const limitsResponse = await fetch("https://api.apify.com/v2/users/me/limits",{
+    headers:{Authorization:`Bearer ${key}`},redirect:"error",signal:AbortSignal.timeout(9_000)});
+  if (!limitsResponse.ok) { await limitsResponse.body?.cancel(); throw new CollectionError("provider_credits_unavailable"); }
+  const limits = JSON.parse(await readBounded(limitsResponse)).data;
+  const included = Number(user?.plan?.monthlyUsageCreditsUsd);
+  const used = Number(limits?.current?.monthlyUsageUsd);
+  if (!Number.isFinite(included) || !Number.isFinite(used)) throw new CollectionError("provider_credits_unavailable");
+  return {key,configId:configured.configId,included,used,remaining:Math.max(0,included-used)};
+}
+
+export async function inspectCollectionProvider(db:Db) {
+  try {
+    const account = await apifyAccount(db);
+    return {ok:true,provider:"apify",included_credits_usd:account.included,
+      used_credits_usd:account.used,remaining_credits_usd:account.remaining};
+  } catch(error) { return {ok:false,provider:"apify",reason:error instanceof CollectionError ? error.reason : "provider_unavailable"}; }
+}
+
 async function fetchApify(db:Db, job:Job, source:RadarSource, permission:SourcePermission) {
-  const group = source.type === "fb_group" && facebookGroup(permission.canonical_url ?? source.identifier);
+  const group = source.type === "fb_group" && facebookSource(permission.canonical_url ?? source.identifier);
   if (!group) throw new CollectionError("facebook_scope_not_supported");
   const {data:policy,error} = await db.from("waouh_collection_policies")
     .select("estimated_daily_cost_limit,estimated_call_cost,cost_currency")
@@ -225,18 +275,18 @@ async function fetchApify(db:Db, job:Job, source:RadarSource, permission:SourceP
   const cap = Number(policy?.estimated_call_cost);
   if (policy?.estimated_daily_cost_limit == null || policy.cost_currency !== "USD" ||
       !Number.isFinite(cap) || cap <= 0) throw new CollectionError("provider_budget_not_configured");
-  const key = await getRadarApiKey(db,"apify","APIFY_TOKEN");
-  if (!key.ok || !key.key || !key.configId) throw new CollectionError("provider_key_missing");
+  const key = await apifyAccount(db);
+  if (key.remaining < cap) throw new CollectionError("provider_included_credits_exhausted");
   if (!await rpc(db,"waouh_collection_reserve",{p_job:job.id,p_token:job.lease_token,p_config:key.configId,p_delta:1}))
     throw new CollectionError("provider_quota_exhausted");
   const url = new URL("https://api.apify.com/v2/acts/apify~facebook-groups-scraper/run-sync-get-dataset-items");
-  url.searchParams.set("timeout","35");
+  url.searchParams.set("timeout","65");
   url.searchParams.set("limit",String(Math.min(job.max_items,8)));
   url.searchParams.set("maxTotalChargeUsd",String(cap));
   const response = await fetch(url,{method:"POST",redirect:"error",
     headers:{Authorization:`Bearer ${key.key}`,"Content-Type":"application/json"},
-    body:JSON.stringify({startUrls:[{url:group.href}],resultsLimit:Math.min(job.max_items,8),includeComments:false}),
-    signal:AbortSignal.timeout(42_000)});
+    body:JSON.stringify({startUrls:[{url:group.href}],resultsLimit:Math.min(job.max_items,8),onlyPostsNewerThan:"7 days",includeComments:false}),
+    signal:AbortSignal.timeout(75_000)});
   if (!response.ok) {
     await response.body?.cancel();
     if (response.status===429) throw new CollectionError("provider_rate_limited");
@@ -244,7 +294,27 @@ async function fetchApify(db:Db, job:Job, source:RadarSource, permission:SourceP
     // A timeout does not prove the Actor failed to start. Avoid replaying a paid request automatically.
     throw new CollectionError("provider_execution_unconfirmed");
   }
-  return facebookCommercialPosts(JSON.parse(await readBounded(response)),group,permission);
+  const dataset = JSON.parse(await readBounded(response));
+  if (Array.isArray(dataset) && dataset.some(item=>item?.error || item?.errorDescription))
+    throw new CollectionError("facebook_group_unavailable");
+  return facebookCommercialPosts(dataset,group,permission);
+}
+
+async function privateContacts(row:CollectedCommerce) {
+  const contacts = new Map<string,Record<string,unknown>>();
+  for (const contact of row.contacts ?? []) {
+    const phone = ["phone","whatsapp"].includes(contact.channel)
+      ? normalizeE164(contact.value,row.country_code === "CI" ? "+225" : "+229") : null;
+    if (["phone","whatsapp"].includes(contact.channel) && !phone) continue;
+    // Source links are usable manual routes. They never imply messaging permission or reachability.
+    const value = phone ?? (contact.value === row.source_url ? row.source_url : null);
+    if (!value) continue;
+    const hash = phone ? await hashPhone(value) : await sha256Hex(value);
+    contacts.set(contact.channel+hash,{channel:contact.channel,value_hash:hash,
+      value_encrypted:phone ? await encryptPhone(value) : null,
+      value_last4:phone ? phoneLast4(value) : null,public_value:phone ? null : value});
+  }
+  return [...contacts.values()];
 }
 
 async function processCommerce(db:Db,job:Job):Promise<Report> {
@@ -253,7 +323,7 @@ async function processCommerce(db:Db,job:Job):Promise<Report> {
   const permission = source.config;
   let candidates:CollectedCommerce[];
   try {
-    candidates = job.handler==="apify" ? await fetchApify(db,job,source,permission) : await fetchCatalog(source,permission);
+    candidates = job.handler==="apify" ? await fetchApify(db,job,source,permission) : await fetchCatalog(source,permission,job.max_items);
   } catch(error) {
     if (job.handler==="apify" && !(error instanceof CollectionError))
       return {status:"blocked",reason:"provider_execution_unconfirmed"};
@@ -263,8 +333,12 @@ async function processCommerce(db:Db,job:Job):Promise<Report> {
   const report = {received:candidates.length,qualified:selected.length,inserted:0,updated:0,unchanged:0};
   for (const row of selected) {
     try {
-      const outcome:unknown = await rpc(db,"waouh_collection_publish_catalog",{
-        p_job:job.id,p_token:job.lease_token,p_hash:await sha256Hex(JSON.stringify(row)),p_row:row});
+      const contacts = await privateContacts(row);
+      const {contacts:ignored,...safeRow} = row;
+      const stableContacts = contacts.map(({value_encrypted,...stable})=>stable);
+      const outcome:unknown = await rpc(db,"waouh_collection_publish_listing",{
+        p_job:job.id,p_token:job.lease_token,p_hash:await sha256Hex(JSON.stringify({...safeRow,contacts:stableContacts})),
+        p_row:safeRow,p_contacts:contacts});
       if (outcome==="inserted" || outcome==="updated" || outcome==="unchanged") report[outcome]++;
       else throw new CollectionError("source_write_unconfirmed",true);
     } catch(error) {
@@ -296,7 +370,7 @@ export async function runCollectionTick(db: Db) {
         ? {status: error.retryable ? "failed" : "blocked", reason: error.reason, retryable: error.retryable}
         : {status: "failed", reason: "source_request_failed", retryable: true};
     }
-    if (!await rpc(db, "waouh_collection_finish", {
+    if (!await rpc(db, "waouh_collection_finish_with_source", {
       p_job: job.id, p_token: job.lease_token, p_report: report,
     })) throw new CollectionError("collection_lease_lost");
     processed++;
