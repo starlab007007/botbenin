@@ -266,7 +266,7 @@ export function facebookCommercialPosts(body: unknown, group: URL, permission: S
       formatted.actor_name = trim(obj(item.user).name ?? obj(item.author).name, 120) || undefined;
       formatted.country_code = details.country_code;
       formatted.contacts = [{channel: "facebook", value: link.href}];
-      const published = raw.match(/(?:\+|00)(?:229|225)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8,10}\b/g) ?? [];
+      const published:string[] = raw.match(/(?:\+|00)(?:229|225)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8,10}\b/g) ?? [];
       for (const match of raw.matchAll(/(?:tél(?:éphone)?|whats?app|watsapp|apel direct|appel direct|contact)\b[^\d+]{0,30}((?:01[\s.-]*)?(?:\d[\s.-]*){8})(?!\d)/gi)) published.push(match[1]);
       formatted.contacts.push(...published.map(value => ({channel: "phone" as const, value})));
       output.push(formatted);
