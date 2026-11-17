@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
+import { hashPhone } from "../_shared/waouh-tel/crypto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -35,7 +36,10 @@ function normalizeCategory(value: string | null | undefined) {
 }
 
 function extractPhone(sig: any) {
-  return normalizeBeninPhone(sig.contact_phone) || normalizeBeninPhone(sig.raw_text) || normalizeBeninPhone(sig.contact_handle);
+  const candidate = sig.contact_phone;
+  if (typeof candidate !== "string" || !/^[+\d .()-]+$/.test(candidate)) return null;
+  const phone = normalizeBeninPhone(candidate);
+  return phone?.length === 11 ? `22901${phone.slice(3)}` : phone;
 }
 
 function extractProductPhotos(sig: any): string[] {
@@ -128,7 +132,7 @@ async function getAutoSettings(sb: any) {
   if (_settingsCache && _settingsCache.expiresAt > Date.now()) return _settingsCache.value;
   const { data } = await sb.from("waouh_radar_auto_settings").select("*").eq("id", 1).maybeSingle();
   const value = data || {
-    auto_enabled: true, auto_default_for_new_contacts: true,
+    auto_enabled: false, auto_default_for_new_contacts: false,
     quiet_hours_start: "22:00", quiet_hours_end: "07:00",
     timezone: "Africa/Porto-Novo", max_per_contact_per_day: 1,
     max_total_per_day: 200, pause_until: null,
@@ -202,6 +206,18 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
     }
   }
 
+  // Radar opt-outs and WhatsApp consent are independent. A scraped number
+  // is actionable only when the normalized endpoint matches a consent record.
+  const { data: permission, error: permissionError } = await sb.from("waouh_entity_contacts")
+    .select("id")
+    .eq("channel", "whatsapp").eq("value_hash", await hashPhone(`+${phone}`))
+    .in("consent_state", ["opt_in", "partner_contract"]).in("contactability_level", ["C3", "C4", "C5"])
+    .maybeSingle();
+  if (permissionError || !permission) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "consent_required" });
+    return false;
+  }
+
   // 3. Caps (last 24h)
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count: totalToday } = await sb.from("waouh_outbound_queue")
@@ -245,7 +261,7 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
     p_to_phone: phone,
     p_to_user_id: null,
     p_template: template,
-    p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedId, contact_id: contact?.id ?? null, scheduled_at: scheduleAt?.toISOString() ?? null },
+    p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedId, contact_id: permission.id, scheduled_at: scheduleAt?.toISOString() ?? null },
     p_image_url: extractProductPhotos(sig)[0] ?? null,
     p_channel: "whatsapp",
     p_event_type: eventType,

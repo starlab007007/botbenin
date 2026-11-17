@@ -39,7 +39,8 @@ export async function getRadarApiKey(
 export async function incrementRadarUsage(sb: any, configId: string | undefined, delta = 1) {
   if (!configId) return;
   try {
-    await sb.rpc("increment_radar_usage" as any, { p_config_id: configId, p_delta: delta }).catch(() => null);
+    const { error } = await sb.rpc("increment_radar_usage" as any, { p_config_id: configId, p_delta: delta });
+    if (!error) return;
   } catch { /* ignore */ }
   // Fallback if RPC missing
   try {

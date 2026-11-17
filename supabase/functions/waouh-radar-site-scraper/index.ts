@@ -8,6 +8,7 @@ const corsHeaders = {
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import {sourceScanDue,sourceRetryAt} from '../_shared/waouh-source-retry.ts';
+import { runCollectionTick } from "../_shared/waouh-collection/worker.ts";
 declare const EdgeRuntime: {waitUntil(task:Promise<unknown>):void};
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -57,6 +58,19 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
   const guard = await requireRuntimeOrAdmin(req, sb);
   if (!guard.ok) return guard.response;
+
+  if (req.method === "POST") {
+    const body = await req.json().catch(() => ({}));
+    if (body?.action === "collection.tick") {
+      try {
+        const report = await runCollectionTick(sb);
+        return Response.json({ ok: true, ...report });
+      } catch (error) {
+        console.error("[waouh-radar-site-scraper] collection tick", error);
+        return Response.json({ ok: false, error: "Collecte temporairement indisponible." }, { status: 503 });
+      }
+    }
+  }
 
   if (!FIRECRAWL_API_KEY) {
     return new Response(JSON.stringify({ ok: false, error: "Collecte temporairement indisponible." }), {

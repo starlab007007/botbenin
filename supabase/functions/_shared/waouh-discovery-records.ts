@@ -4,6 +4,15 @@ import { productPhotos } from './waouh-product-presentation.ts';
 import { missionEntity, missionDeadline, type MissionKind } from './waouh-mission-domain.ts';
 
 export function discoveryRecordCurrent(row: Record<string, any>, now=Date.now()) {
+  if (typeof row.source_url === "string") {
+    try {
+      const source = new URL(row.source_url);
+      const google = source.hostname === "google.com" || source.hostname === "www.google.com";
+      if (google && ["/goto", "/url", "/search"].includes(source.pathname.replace(/\/$/, ""))) return false;
+    } catch {
+      return false;
+    }
+  }
   const offer={...row,fabric_id:String(row.fabric_id??'')};
   const deadline=missionDeadline(offer);
   return missionEntity(offer)!=='announcement'||deadline===null||deadline>=now;
