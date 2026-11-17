@@ -205,6 +205,7 @@ class _LiveRadarFeedState extends State<LiveRadarFeed>
   }
 
   Future<void> _startChat(LiveRadarItem item, _RadarIntent intent) async {
+    if (!mounted || await openLiveRadarRoom(context, item, propose: intent == _RadarIntent.negotiate) || !mounted) return;
     final distance = item.distanceLabel;
     final text = switch (intent) {
       _RadarIntent.interest =>

@@ -92,8 +92,8 @@ class LiveDealRoomService {
 }
 
 class LiveDealRoomScreen extends StatefulWidget {
- const LiveDealRoomScreen({super.key,this.roomId,this.query,this.city,this.componentId,this.delegate=false,this.service,this.ownerScope,this.proposeOnOpen=false});
- final String? roomId,query,city,componentId;final bool delegate;final bool proposeOnOpen;final LiveDealRoomService? service;final String? ownerScope;
+ const LiveDealRoomScreen({super.key,this.roomId,this.query,this.city,this.componentId,this.fabricId,this.delegate=false,this.service,this.ownerScope,this.proposeOnOpen=false});
+ final String? roomId,query,city,componentId,fabricId;final bool delegate;final bool proposeOnOpen;final LiveDealRoomService? service;final String? ownerScope;
  @override State<LiveDealRoomScreen> createState()=>_LiveDealRoomScreenState();
 }
 class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBindingObserver {
@@ -126,8 +126,15 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(load());}
  Future<void> load() async {
   if(busy||refreshing||owner==null)return;refreshing=true;final v=generation;
-  try{var data=await api.call(roomId==null?'list':'get',roomId==null?{}:{'deal_room_id':roomId,'since':seen});if(data['unchanged']==true)return;if(roomId!=null)seen='${data['hash']??''}';
-   if(roomId==null&&widget.componentId!=null){data=await api.call('adopt',{'component_id':widget.componentId});}
+  try{
+   final data=roomId!=null
+    ? await api.call('get',{'deal_room_id':roomId,'since':seen})
+    : widget.fabricId!=null
+     ? await api.call('open',{'fabric_id':widget.fabricId,'confirmed':!widget.delegate})
+     : widget.componentId!=null
+      ? await api.call('adopt',{'component_id':widget.componentId})
+      : await api.call('list');
+   if(data['unchanged']==true)return;if(roomId!=null)seen='${data['hash']??''}';
    if(!mounted||generation!=v)return;
    final nextId=data['deal_room_id']?.toString();if(nextId!=null&&draftRoom!=nextId){draftRoom=nextId;final prefs=await SharedPreferences.getInstance();if(!mounted||generation!=v)return;message.text=prefs.getString('waouh.room.draft.$owner.$nextId')??'';}
    setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';}else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}

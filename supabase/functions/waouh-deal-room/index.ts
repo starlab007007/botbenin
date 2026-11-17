@@ -61,10 +61,35 @@ Deno.serve(async req=>{
  const automatic=['delegate','resume_bot','approve_step'].includes(action);
  if(!await modulePolicyAllowed(sb,automatic?['nexus','missions','avatar']:['nexus'],user.id,automatic))return jsonResponse({ok:false,error:'module_unavailable'},403);
  if (action === "open") {
-  const fabric = String(p.fabric_id || p.source?.source_ref || "");
+  let fabric = String(p.fabric_id || p.source?.source_ref || "");
   const saleArticleId = typeof p.sale_article_id === "string" ? p.sale_article_id : "";
   const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   if (saleArticleId && !uuid.test(saleArticleId)) return jsonResponse({ ok: false, error: "article_unavailable" }, 422);
+  const [family, reference] = fabric.split(":");
+  if (uuid.test(reference ?? "") && fabric === `${family}:${reference}`) {
+   if (family === "catalog") {
+    const { data: catalog } = await sb.from("waouh_unified_catalog")
+     .select("source,source_ref_id,promoted_article_id").eq("id", reference).eq("is_active", true).maybeSingle();
+    const linkedArticle = catalog?.promoted_article_id || (catalog?.source === "chat" ? catalog.source_ref_id : null);
+    if (linkedArticle) {
+     const { data: article } = await sb.from("waouh_articles").select("id").eq("id", linkedArticle).maybeSingle();
+     if (article) fabric = `article:${article.id}`;
+    }
+   } else if (family === "legacy_external") {
+    const { data: listing } = await sb.from("waouh_external_listings")
+     .select("promoted_article_id,source_url").eq("id", reference).neq("status", "ignored").maybeSingle();
+    if (listing?.promoted_article_id) {
+     fabric = `article:${listing.promoted_article_id}`;
+    } else if (listing?.source_url) {
+     const { data: duplicate } = await sb.from("waouh_radar_signals")
+      .select("id,promoted_article_id").eq("raw_url", listing.source_url).eq("intent", "SELL").neq("status", "ignored")
+      .order("captured_at", { ascending: false }).limit(1).maybeSingle();
+     if (duplicate) {
+      fabric = duplicate.promoted_article_id ? `article:${duplicate.promoted_article_id}` : `radar:${duplicate.id}`;
+     }
+    }
+   }
+  }
   const { data: signal, error } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabric).maybeSingle();
   if (error || (!signal && !fabric.startsWith("article:"))) return jsonResponse({ ok: false, error: "offer_not_found" }, 404);
   if (signal?.is_active === false || (signal?.expires_at && Date.parse(signal.expires_at) <= Date.now())) {

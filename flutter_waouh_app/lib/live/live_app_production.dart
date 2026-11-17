@@ -205,7 +205,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             initial: state.extra as LiveMatch?,
           ),
         ),
-        GoRoute(path: '/app/chat/room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
+        GoRoute(path: '/app/chat/room', builder: (_, state) => LiveDealRoomScreen(roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],fabricId:state.uri.queryParameters['fabric_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
         GoRoute(
           path: '/app/chat/:id',
           builder: (_, state) => LiveConversationScreen(

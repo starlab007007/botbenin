@@ -195,7 +195,6 @@ class LiveRadarItem {
     this.city,
     this.district,
     this.sellerName,
-    this.sellerPhone,
     this.articleId,
     this.raw = const {},
   });
@@ -221,7 +220,6 @@ class LiveRadarItem {
   final Duration freshnessMs;
   final double score;
   final String? sellerName;
-  final String? sellerPhone;
   final String? articleId;
   final Map<String, dynamic> raw;
 

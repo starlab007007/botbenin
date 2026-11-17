@@ -31,7 +31,6 @@ export interface RadarItem {
   freshnessMs: number; // age in ms
   score: number;
   sellerName?: string | null;
-  sellerPhone?: string | null;
   raw?: any;
 }
 
@@ -91,7 +90,7 @@ export function useRadarScan(
         let q: any = supabase
           .from("waouh_unified_catalog")
           .select(
-            "id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,vendeur_phone,vendeur_whatsapp,verified,last_seen_at,qualite_score"
+            "id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,verified,last_seen_at,qualite_score"
           )
           .eq("is_active", true)
           .not("lat", "is", null)
@@ -173,7 +172,6 @@ export function useRadarScan(
           freshnessMs: ageMs,
           score,
           sellerName: row.vendeur_nom,
-          sellerPhone: row.vendeur_whatsapp || row.vendeur_phone,
           raw: row,
         });
       }
@@ -211,7 +209,6 @@ export function useRadarScan(
           freshnessMs: ageMs,
           score,
           sellerName: row.author_name,
-          sellerPhone: null,
           raw: row,
         });
       }

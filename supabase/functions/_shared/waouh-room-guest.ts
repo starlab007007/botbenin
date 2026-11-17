@@ -34,6 +34,12 @@ export function roomSaleSource(sourceRef: string) {
   return match ? { articleId: match[1], fabricId: match[2] } : null;
 }
 
+function canShareSource(sourceRef: string): boolean {
+  return /^(external|legacy_external|catalog|radar):[0-9a-f-]{36}$/i.test(
+    roomSaleSource(sourceRef)?.fabricId ?? sourceRef,
+  );
+}
+
 /** Contact joignable automatiquement pour une offre, ou null. */
 /** Plafonds du premier message automatique (numéro publié dans l'annonce, après « Confier à l'avatar »). */
 export const LISTING_CONTACT_DAILY_PER_BUYER = 10;
@@ -152,7 +158,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   if (queued || existing?.last_inbound_at) return "already";
   // Annonce externe sans contact joignable : l'acheteur peut déjà écrire et proposer ; tout part dès qu'un contact est trouvé.
   const waitForContact = async () => {
-    if (pendingGuest || !(roomSaleSource(String(comp.source_ref || ""))?.fabricId ?? String(comp.source_ref || "")).startsWith("external:")) return "unreachable" as const;
+    if (pendingGuest || !canShareSource(String(comp.source_ref || ""))) return "unreachable" as const;
     const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });
     return ok === true ? ("pending" as const) : ("unreachable" as const);
   };
@@ -343,8 +349,7 @@ export async function createShareLink(sb: any, roomId: string, userId: string): 
   if (!comp) return null;
   const source = String(comp.source_ref || "");
   const sale = roomSaleSource(source);
-  const external = (sale?.fabricId ?? source).startsWith("external:");
-  if (!external && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
+  if (!canShareSource(source) && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
   if (comp.provider_id && comp.provider_id !== ROOM_GUEST_ACTOR) return null;
   if (!comp.provider_id) {
     const { data: ok } = await sb.rpc("waouh_room_attach_pending_guest", { p_room: roomId });

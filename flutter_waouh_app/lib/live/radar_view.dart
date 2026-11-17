@@ -121,6 +121,7 @@ class _RadarViewState extends State<RadarView>
   Future<void> _openItem(LiveRadarItem item) async {
     final action = await showRadarItemSheet(context, item);
     if (action == null || !mounted) return;
+    if (await openLiveRadarRoom(context, item, propose: action == RadarItemAction.negotiate) || !mounted) return;
     final controller = context.read<LiveWaouhController>();
     await controller.startNewChat();
     final counterpartUserId = liveText(

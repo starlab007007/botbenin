@@ -134,6 +134,7 @@ class _LiveRadarHeroWorkspaceState extends State<LiveRadarHeroWorkspace>
       builder: (_) => _RadarActionSheet(item: item),
     );
     if (!mounted || action == null) return;
+    if (await openLiveRadarRoom(context, item, propose: action == _RadarAction.negotiate) || !mounted) return;
     final intent = switch (action) {
       _RadarAction.interested =>
         'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}.',

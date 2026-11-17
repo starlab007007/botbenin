@@ -383,10 +383,7 @@ export default function AdminWaouhDataControlPage() {
   const openEdit = async (row: FabricRow) => {
     if (!row.catalog_id || !row.is_catalog_mutable) return;
     const { data, error } = await supabase
-      .from('waouh_unified_catalog' as any)
-      .select('id,titre,description,categorie,ville,quartier,prix_min,prix_max,vendeur_nom,vendeur_phone,vendeur_whatsapp')
-      .eq('id', row.catalog_id)
-      .maybeSingle();
+      .rpc('waouh_catalog_admin_entry' as any, { p_id: row.catalog_id });
     if (error || !data) {
       toast({ title: 'Impossible de charger cette entrée', description: error?.message || 'Entrée introuvable', variant: 'destructive' });
       return;

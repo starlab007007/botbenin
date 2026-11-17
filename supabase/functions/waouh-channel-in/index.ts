@@ -5,7 +5,7 @@ import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchang
 import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
-import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
+import { appendWhatsAppActions, richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
 import { openNegotiationsForSiblings, resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
@@ -266,13 +266,13 @@ async function sendWahaText(base: string, session: string, chatId: string, text:
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, text }),
-  });
-  if (direct.ok) return direct;
+  }, "inbound_reply");
+  if (direct.status !== 404) return direct;
   return guardedWahaFetch(`${cleanBase}/api/${session}/sendText`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, text }),
-  });
+  }, "inbound_reply");
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string) {
@@ -282,13 +282,13 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
-  });
-  if (direct.ok) return direct;
+  }, "inbound_reply");
+  if (direct.status !== 404) return direct;
   return guardedWahaFetch(`${cleanBase}/api/${session}/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
-  });
+  }, "inbound_reply");
 }
 
 async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: WaouhAction[], imageUrl?: string | null) {
@@ -301,22 +301,20 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   });
   const richBody: any = { session, chatId, body: text, footer: "WAOUH • bot.bj", buttons: richButtons };
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
-  let r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  let r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) }, "inbound_reply");
   if (r.ok) return r;
-  r = await guardedWahaFetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
+  r = await guardedWahaFetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) }, "inbound_reply");
   if (r.ok) return r;
   // Legacy fallback
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
+  r = await guardedWahaFetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) }, "inbound_reply");
   if (r.ok) return r;
   // Final fallback: keep one WhatsApp bubble only. If media buttons fail,
   // put the choices in the same image caption instead of sending a 2nd text.
   if (imageUrl) {
-    const lines = actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
-    return sendWahaImage(base, session, chatId, imageUrl, `${text}\n\n${lines}`);
+    return sendWahaImage(base, session, chatId, imageUrl, appendWhatsAppActions(text, actions, true));
   }
-  const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}`;
-  return sendWahaText(base, session, chatId, fallback);
+  return sendWahaText(base, session, chatId, appendWhatsAppActions(text, actions, true));
 }
 
 async function resolveReplyChatIds(sb: any, rawFrom: string | null, phone: string | null): Promise<string[]> {
@@ -352,8 +350,7 @@ async function sendWahaReplyDirect(base: string, session: string, chatIds: strin
       // Rich WhatsApp messages (image/buttons) can be unsupported by the provider engine: never lose the reply.
       const richBody = await res.clone().text().catch(() => "");
       console.warn("[waouh-channel-in] waha rich reply failed; sending plain text", { chatId, status: res.status, body: richBody.slice(0, 200) });
-      const plain = actions.length > 0 ? `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}` : text;
-      res = await sendWahaText(base, session, chatId, plain);
+      if (imageUrl) res = await sendWahaText(base, session, chatId, appendWhatsAppActions(text, actions, true));
     }
     if (res.ok) {
       log("waha reply sent", { chatId, status: res.status });
@@ -373,7 +370,8 @@ async function sendWahaReplyDirect(base: string, session: string, chatIds: strin
  * pour être renvoyée par le dispatcher (retry/backoff) au lieu d'être perdue.
  */
 async function sendWahaReply(base: string, session: string, chatIds: string[], rawText: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
-  const res = await sendWahaReplyDirect(base, session, chatIds, rawText, actions, imageUrl);
+  const res = await sendWahaReplyDirect(base, session, chatIds, rawText, actions, imageUrl)
+    .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : "provider_unavailable" }));
   if (res.ok) return res;
   try {
     const first = String(chatIds[0] || "");

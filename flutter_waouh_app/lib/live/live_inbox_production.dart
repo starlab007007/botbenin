@@ -1484,7 +1484,8 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
       backgroundColor: Colors.transparent,
       builder: (_) => _RadarResultSheet(item: item),
     );
-    if (action == null) return;
+    if (action == null || !mounted) return;
+    if (await openLiveRadarRoom(context, item, propose: action == _RadarAction.negotiate) || !mounted) return;
     if (!await requireLiveAuthentication(
       context,
       next: '/app/chat',

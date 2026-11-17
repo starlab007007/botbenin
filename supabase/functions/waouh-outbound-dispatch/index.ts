@@ -11,7 +11,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "../_shared/waouh-format.ts";
-import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
+import { appendWhatsAppActions, richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { governorKindFor, governorTakeWait, governorRecord, isProviderFailure, retryAtIso } from "../_shared/waouh-wa-governor.ts";
@@ -477,11 +477,8 @@ async function sendWahaText(base: string, session: string, chatId: string, rawTe
   const text = richWhatsAppText(rawText);
   const payload = JSON.stringify({ session, chatId, text });
   const first = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
-  if (first.ok) return first;
-  const second = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
-  if (second.ok) return second;
-  // La route de repli renvoie presque toujours 404 : conserver l'erreur réelle du premier essai pour le diagnostic.
-  return first.status === 404 ? second : first;
+  if (first.status !== 404) return first;
+  return wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, rawCaption: string, headers: Record<string, string>) {
@@ -528,8 +525,9 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
-  return sendWahaText(base, session, chatId, text, headers);
+  const fallback = appendWhatsAppActions(text, actions);
+  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, fallback, headers);
+  return sendWahaText(base, session, chatId, fallback, headers);
 }
 
 
