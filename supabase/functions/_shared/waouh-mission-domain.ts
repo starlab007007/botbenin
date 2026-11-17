@@ -59,7 +59,7 @@ export function missionEntity(o:MissionOffer){
 export function missionMatches(o:MissionOffer,c:MissionCriteria){
  const kind=c.missionKind;if(!kind||kind==='purchase')return true;
  const entity=missionEntity(o),e=o.evidence??{},f=missionFacts(o);
- if(kind==='opportunity')return entity==='announcement'&&e.eligible!==false&&e.eligibility_status!=='ineligible'&&(f.deadline===null||f.deadline>=(c.now??Date.now()));
+ if(kind==='opportunity')return entity==='announcement'&&!['SELL','BUY','RFQ'].includes(String(o.intent??'').toUpperCase())&&e.eligible!==false&&e.eligibility_status!=='ineligible'&&(f.deadline===null||f.deadline>=(c.now??Date.now()));
  if(kind==='service'||kind==='project'){
   if(entity!=='service')return false;
   if(kind==='project'&&c.maxDays&&f.duration!==null&&f.duration>c.maxDays)return false;

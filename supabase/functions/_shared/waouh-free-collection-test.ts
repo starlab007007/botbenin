@@ -69,6 +69,7 @@ Deno.test("ranking rejects wrong domains and a city or hidden contact placeholde
  assert.equal(score('formation informatique','Formation en couture'),0);
  assert.ok(score('fuite d’eau','Plombier pour une plomberie')>0);
  assert.equal(scoreFabricSignal({query:'iPhone 13',mode:'find_sellers',signal:{subject:'iPhone 11',model:'11',intent:'SELL'}}).relevance_score,0);
+ assert.equal(score('Samsung S10','Samsung S25 neuf'),0);
  assert.ok(score('réparer mon téléphone','Réparation de téléphones')>0);
 });
 
@@ -87,9 +88,12 @@ Deno.test("a public purchase notice becomes an RFQ for sellers while employment 
  const plan=freeDiscoveryPlan('plombier à Cotonou budget 25000 FCFA',{});
  assert.equal(plan.city,'Cotonou');assert.equal(plan.budget_max,25000);assert.equal(plan.domain,'service');
  assert.doesNotMatch(plan.normalized_query,/25000/);
+ const phone=freeDiscoveryPlan('Samsung S10 Cotonou 150 000 FCFA',{});
+ assert.equal(phone.budget_max,150000);assert.equal(phone.normalized_query,'Samsung S10 Cotonou');
 });
 
 Deno.test("published identities and academic years are preserved without inventing models",()=>{
+ assert.equal(missionMatches({fabric_id:'legacy:1',intent:'SELL',category:'Recrutement',subject:'Hôtesse événementielle'},{missionKind:'opportunity'}),false);
  assert.deepEqual(productIdentity('Samsung Galaxy S20 128gb'),{brand:'Samsung',model:'Galaxy S20'});
  assert.equal(productIdentity('Objet inconnu').model,undefined);
  assert.equal(redactPublicContacts('Bourses 2026-2027 · +229 01 12 34 56 78'),'Bourses 2026-2027 · [téléphone]');

@@ -68,7 +68,8 @@ export function scoreFabricSignal(input: {
   const hits = queryTokens.filter((token) => haystack.includes(token));
   const verdict=matchVerdict(input.query,input.signal,{place:input.city});
   const requestedModelNumbers=(normalizeFabricText(input.query).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
-  const offeredModelNumbers=(normalizeFabricText(input.signal.model).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
+  // Older records may expose the model only in their actual title.
+  const offeredModelNumbers=(normalizeFabricText(input.signal.model||input.signal.subject).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
   const modelMismatch=requestedModelNumbers.length>0&&offeredModelNumbers.length>0&&!requestedModelNumbers.some(n=>offeredModelNumbers.includes(n));
   const relevance = verdict.acceptable && !modelMismatch ? Math.max(verdict.coverage,queryTokens.length ? (hits.length / queryTokens.length) * 100 : 0) : 0;
 

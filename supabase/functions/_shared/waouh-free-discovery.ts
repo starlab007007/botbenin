@@ -4,10 +4,11 @@ import {type FabricSignal} from "./waouh-signal-fabric.ts";
 
 /** A local plan works without an API key, model download or paid search request. */
 export function freeDiscoveryPlan(query:string,options:{mode?:"find_sellers"|"find_buyers"|null;city?:string|null;budgetMax?:number|null;kind?:MissionKind}) {
-  const amount=/(?:budget(?:\s+max(?:imum)?)?|moins de|maximum|jusqu.[aà])\s*(?:de\s*)?([\d .\u00a0]+)\s*(?:fcfa|xof|cfa)\b/i.exec(query)?.[1];
+  const pricePattern=/(?:\b(?:budget(?:\s+max(?:imum)?)?|moins de|maximum|jusqu.[aà])\s*(?:de\s*)?)?\b(\d[\d .\u00a0]*)\s*(?:fcfa|xof|cfa)\b/i;
+  const amount=pricePattern.exec(query)?.[1];
   const budget=amount?Number(amount.replace(/\D/g,"")):null;
   const city=options.city??/\b(Cotonou|Abomey[- ]Calavi|Porto[- ]Novo|Godomey|Parakou|Pahou|Bohicon|Ouidah)\b/i.exec(query)?.[1]??null;
-  const normalized=query.replace(/(?:budget(?:\s+max(?:imum)?)?|moins de|maximum|jusqu.[aà])\s*(?:de\s*)?[\d .\u00a0]+\s*(?:fcfa|xof|cfa)\b/gi,"").trim();
+  const normalized=query.replace(pricePattern,"").trim();
   return {mode:options.mode??(options.kind==="sale"?"find_buyers":"find_sellers"),normalized_query:normalized||query,city,
     budget_max:options.budgetMax??(budget&&Number.isFinite(budget)?budget:null),
     priorities:["domain","relevance","model","price","distance","freshness","contactability"],
