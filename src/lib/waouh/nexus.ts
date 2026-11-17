@@ -402,6 +402,7 @@ export type NexusDiscoveryResult = {
   observed_at?: string | null;
   source_url?: string | null;
   evidence?: Record<string, unknown> | null;
+  public_facts?: Record<string, unknown> | null;
   scores: {
     total_score: number;
     relevance_score: number;

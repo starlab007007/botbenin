@@ -537,6 +537,7 @@ class _LiveAutomaticOffersState extends State<LiveAutomaticOffers> {
                         color: avatarPremiumMuted,
                       ),
                     ),
+                    LiveSourceCredit(item: o),
                     LiveProductFacts(
                       product: LiveProductData({
                         'title': o.title,

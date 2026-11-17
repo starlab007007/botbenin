@@ -321,11 +321,18 @@ class NexusDiscoveryItem {
     return facts.join(' · ');
   }
 
-  String get sourceLabel {
+  String? get sourceAttribution {
     if (sourceKey == 'benin_open_places') {
       return '© OpenStreetMap contributors · ODbL';
     }
-    final attribution = _evidenceText(['photo_attribution', 'source_attribution']);
+    return _evidenceText([
+      if (photoUrls.isNotEmpty) 'photo_attribution',
+      'source_attribution',
+    ]);
+  }
+
+  String get sourceLabel {
+    final attribution = sourceAttribution;
     if (attribution != null) return attribution;
     final key = sourceKey.toLowerCase();
     if (key.contains('partner')) return 'Partenaire';
@@ -343,7 +350,8 @@ class NexusDiscoveryItem {
     final maxRaw = json['price_max'];
     final evidence = {
       // Lecture publique (sans compte) : les faits déclarés arrivent sous public_facts.
-      ..._map(json['evidence'] ?? json['public_facts']),
+      ..._map(json['public_facts']),
+      ..._map(json['evidence']),
       'photos': liveProductPhotos(json),
       for (final key in [
         'brand',

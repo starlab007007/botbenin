@@ -4,10 +4,18 @@ import { maskPhone } from "./liveReasoning";
 const isUrl = (v: unknown): v is string => typeof v === "string" && /^https?:\/\//i.test(v.trim());
 
 /** Photos du produit (http/https uniquement), dédoublonnées. */
-type Loose = { evidence?: Record<string, unknown> | null; contact_pack?: unknown };
+type Loose = { public_facts?: Record<string, unknown> | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
 
 export function resultPhotos(result: Loose): string[] {
-  return productPhotos(result);
+  return productPhotos({ ...result, evidence: { ...result.public_facts, ...result.evidence } });
+}
+
+export function resultAttribution(result: Loose & { source_key?: string }): string | null {
+  if (result.source_key === "benin_open_places") return "© OpenStreetMap contributors · ODbL";
+  const facts = { ...result.public_facts, ...result.evidence };
+  const credit = resultPhotos(result).length && typeof facts.photo_attribution === "string"
+    ? facts.photo_attribution : facts.source_attribution;
+  return typeof credit === "string" ? credit.trim() || null : null;
 }
 
 /** Contact masqué : seuls les 4 derniers chiffres sont affichés. */

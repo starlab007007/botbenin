@@ -31,6 +31,30 @@ class LiveEssentialPhoto extends StatelessWidget {
   );
 }
 
+class LiveSourceCredit extends StatelessWidget {
+  const LiveSourceCredit({super.key, required this.item});
+  final NexusDiscoveryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final credit = item.sourceAttribution;
+    if (credit == null) return const SizedBox.shrink();
+    if (item.sourceKey == 'benin_open_places') {
+      return TextButton(
+        onPressed: () => launchUrl(
+          Uri.parse('https://www.openstreetmap.org/copyright'),
+          mode: LaunchMode.externalApplication,
+        ),
+        child: Text(credit, style: const TextStyle(fontSize: 11)),
+      );
+    }
+    return Text(
+      credit,
+      style: const TextStyle(fontSize: 11, color: essentialMuted),
+    );
+  }
+}
+
 class LiveEssentialOffers extends StatefulWidget {
   const LiveEssentialOffers({
     super.key,
@@ -455,6 +479,7 @@ class _EssentialDetail extends StatelessWidget {
               '${essentialHint(item)} · ${item.city ?? 'Zone à confirmer'}',
               style: const TextStyle(fontSize: 12, color: essentialMuted),
             ),
+            LiveSourceCredit(item: item),
             _EssentialInsight(text: essentialAdvice(item)),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,

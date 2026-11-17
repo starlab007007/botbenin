@@ -5,7 +5,7 @@ import { offerReachable } from "@/components/waouh/WaouhOfferActions";
 import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { moneyXof } from "@/lib/waouh/agenticClient";
-import { channelLabel, resultContact, resultPhotos } from "@/lib/waouh/resultCardData";
+import { channelLabel, resultAttribution, resultContact, resultPhotos } from "@/lib/waouh/resultCardData";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 
@@ -19,10 +19,8 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
   const [photo, setPhoto] = useState(0);
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const { phone, channel } = resultContact(result);
-  const publicFacts = (result as NexusDiscoveryResult & { public_facts?: Record<string, unknown> }).public_facts;
-  const e = { ...publicFacts, ...result.evidence } as Record<string, unknown>;
-  const credits = typeof e.photo_attribution === "string" && photos.length ? e.photo_attribution
-    : typeof e.source_attribution === "string" ? e.source_attribution : null;
+  const e = { ...result.public_facts, ...result.evidence };
+  const credits = resultAttribution(result);
   const verified = e.verified === true || result.contact_pack?.verified_channel === true;
   const score = Math.round(result.scores.total_score);
   const price = result.price_min != null && result.price_max != null && result.price_min !== result.price_max
