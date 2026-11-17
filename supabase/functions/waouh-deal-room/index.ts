@@ -77,8 +77,17 @@ Deno.serve(async req=>{
     }
    } else if (family === "legacy_external") {
     const { data: listing } = await sb.from("waouh_external_listings")
-     .select("promoted_article_id").eq("id", reference).neq("status", "ignored").maybeSingle();
-    if (listing?.promoted_article_id) fabric = `article:${listing.promoted_article_id}`;
+     .select("promoted_article_id,source_url").eq("id", reference).neq("status", "ignored").maybeSingle();
+    if (listing?.promoted_article_id) {
+     fabric = `article:${listing.promoted_article_id}`;
+    } else if (listing?.source_url) {
+     const { data: duplicate } = await sb.from("waouh_radar_signals")
+      .select("id,promoted_article_id").eq("raw_url", listing.source_url).eq("intent", "SELL").neq("status", "ignored")
+      .order("captured_at", { ascending: false }).limit(1).maybeSingle();
+     if (duplicate) {
+      fabric = duplicate.promoted_article_id ? `article:${duplicate.promoted_article_id}` : `radar:${duplicate.id}`;
+     }
+    }
    }
   }
   const { data: signal, error } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabric).maybeSingle();

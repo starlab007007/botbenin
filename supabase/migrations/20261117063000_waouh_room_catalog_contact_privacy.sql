@@ -41,3 +41,31 @@ $$;
 
 REVOKE ALL ON FUNCTION public.waouh_catalog_admin_entry(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.waouh_catalog_admin_entry(uuid) TO authenticated;
+
+-- Sources that can be opened by catalog or listing reference can also use a guest link.
+CREATE OR REPLACE FUNCTION public.waouh_room_attach_pending_guest(p_room uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  component public.waouh_convergence_components;
+  owner_id uuid;
+BEGIN
+  SELECT * INTO component FROM public.waouh_convergence_components
+  WHERE id = p_room FOR UPDATE;
+  IF component.id IS NULL OR component.provider_id IS NOT NULL OR
+     coalesce(component.source_ref, '') !~* '^((external|legacy_external|catalog|radar):[0-9a-f-]{36}|sale:[0-9a-f-]{36}:external:[0-9a-f-]{36})$' THEN
+    RETURN false;
+  END IF;
+
+  SELECT link.owner_id INTO owner_id FROM public.waouh_deal_room_links link WHERE link.id = p_room;
+  IF owner_id IS NULL THEN RETURN false; END IF;
+  UPDATE public.waouh_convergence_components SET provider_id = public.waouh_room_guest_actor()
+  WHERE id = p_room;
+  INSERT INTO public.waouh_room_events(room_id, actor_id, actor_kind, event_type, payload)
+  VALUES (p_room, owner_id, 'system', 'seller_pending', '{}');
+  RETURN true;
+END;
+$$;
