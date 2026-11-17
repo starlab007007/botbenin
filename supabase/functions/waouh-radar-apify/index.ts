@@ -12,8 +12,6 @@ import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-let APIFY_TOKEN = "";
-let APIFY_CFG_ID: string | undefined;
 
 // Apify REST: actorId format is `username~actor-name` in URLs
 const ACTORS = {
@@ -21,11 +19,20 @@ const ACTORS = {
   fb_group: "apify~facebook-groups-scraper",
 };
 
-async function runActor(actor: string, input: any) {
-  const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`;
+async function apifyAuthStatus(token: string): Promise<number> {
+  const response = await fetch("https://api.apify.com/v2/users/me", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(8_000),
+  });
+  await response.body?.cancel();
+  return response.status;
+}
+
+async function runActor(actor: string, input: any, token: string) {
+  const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?timeout=120`;
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!r.ok) throw new Error(`Apify ${actor} ${r.status}: ${await r.text()}`);
@@ -93,8 +100,21 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    APIFY_TOKEN = keyRes.key!;
-    APIFY_CFG_ID = keyRes.configId;
+    let apifyToken = keyRes.key!.trim();
+    let authStatus = await apifyAuthStatus(apifyToken);
+    const runtimeToken = Deno.env.get("APIFY_TOKEN")?.trim();
+    if (authStatus === 401 && runtimeToken && runtimeToken !== apifyToken) {
+      apifyToken = runtimeToken;
+      authStatus = await apifyAuthStatus(apifyToken);
+    }
+    if (authStatus !== 200) {
+      const reason = authStatus === 401 || authStatus === 403
+        ? "apify_authentication_required"
+        : `apify_account_http_${authStatus}`;
+      await setApifyDiscoveryHealth(sb, true, reason);
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Get active sources
     const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
@@ -115,9 +135,9 @@ Deno.serve(async (req) => {
           : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
 
         console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
-        const items = await runActor(actor, input);
+        const items = await runActor(actor, input, apifyToken);
         console.log(`[apify] actor=${actor} returned ${Array.isArray(items) ? items.length : 0} items`);
-        await incrementRadarUsage(sb, APIFY_CFG_ID, 1);
+        await incrementRadarUsage(sb, keyRes.configId, 1);
         for (const it of (Array.isArray(items) ? items : []).slice(0, 30)) {
           const url = it.url || it.postUrl || it.permalink;
           if (!url) continue;
@@ -180,7 +200,7 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
-    return new Response(JSON.stringify({ ok: !providerBlocked, degraded: providerBlocked, reason: providerBlocked ? "apify_quota_exhausted" : null, sources: sources.length, signals: total, perSource }), {
+    return new Response(JSON.stringify({ ok: !degraded, degraded, reason: providerBlocked ? "apify_quota_exhausted" : allSourcesFailed ? "apify_source_errors" : null, sources: sources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
