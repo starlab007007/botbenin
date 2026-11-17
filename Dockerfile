@@ -4,7 +4,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 # Copie des fichiers de dépendances
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 # Le lockfile historique peut contenir des URLs du cache privé Lovable qui ne
 # sont pas accessibles depuis le VPS. On les remappe vers le registre npm
 # public avant l'installation, puis on garde le fallback pour les drifts du lock.
