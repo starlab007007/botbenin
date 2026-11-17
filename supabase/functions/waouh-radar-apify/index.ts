@@ -112,8 +112,16 @@ async function aiExtract(text: string): Promise<any> {
       response_format: { type: "json_object" },
     }),
   });
-  const d = await r.json();
-  try { return JSON.parse(d.choices?.[0]?.message?.content ?? "{}"); } catch { return {}; }
+  if (!r.ok) {
+    await r.body?.cancel();
+    throw new Error(`apify_extraction_http_${r.status}`);
+  }
+  const d = await r.json().catch(() => null);
+  try {
+    return JSON.parse(d?.choices?.[0]?.message?.content ?? "");
+  } catch {
+    throw new Error("apify_extraction_response_invalid");
+  }
 }
 
 Deno.serve(async (req) => {
@@ -171,6 +179,7 @@ Deno.serve(async (req) => {
     for (const src of sources) {
       let srcCount = 0;
       let srcError: string | null = null;
+      const observed = { received: 0, duplicates: 0, without_content: 0, unqualified: 0 };
       try {
         const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
         const url = groupUrls.get(src.id);
@@ -184,21 +193,32 @@ Deno.serve(async (req) => {
 
         console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input, apifyToken);
-        console.log(`[apify] actor=${actor} returned ${Array.isArray(items) ? items.length : 0} items`);
+        if (!Array.isArray(items)) throw new Error("apify_dataset_invalid");
+        observed.received = items.length;
+        console.log(`[apify] actor=${actor} returned ${items.length} items`);
         await incrementRadarUsage(sb, keyRes.configId, 1);
-        for (const it of (Array.isArray(items) ? items : []).slice(0, 30)) {
+        for (const it of items.slice(0, 30)) {
           const url = it.url || it.postUrl || it.permalink;
-          if (!url) continue;
-          const { data: exists } = await sb.from("waouh_radar_signals").select("id").eq("raw_url", url).maybeSingle();
-          if (exists) continue;
-
           const text = [it.title, it.text, it.message, it.description, it.price].filter(Boolean).join("\n");
-          if (!text) continue;
+          if (!url || !text) {
+            observed.without_content++;
+            continue;
+          }
+          const { data: exists, error: lookupError } = await sb.from("waouh_radar_signals")
+            .select("id").eq("raw_url", url).limit(1).maybeSingle();
+          if (lookupError) throw new Error("apify_signal_lookup_failed");
+          if (exists) {
+            observed.duplicates++;
+            continue;
+          }
 
           const ext = await aiExtract(text);
-          if (!ext || (ext.confidence ?? 0) < 0.4) continue;
+          if (!ext || (ext.confidence ?? 0) < 0.4) {
+            observed.unqualified++;
+            continue;
+          }
 
-          await sb.from("waouh_radar_signals").insert({
+          const { error: insertError } = await sb.from("waouh_radar_signals").insert({
             source_id: src.id,
             source_type: src.type,
             raw_text: text,
@@ -214,6 +234,7 @@ Deno.serve(async (req) => {
             confidence: ext.confidence,
             status: "extracted",
           });
+          if (insertError) throw new Error("apify_signal_insert_failed");
           total++;
           srcCount++;
         }
@@ -223,9 +244,9 @@ Deno.serve(async (req) => {
         const quotaBlocked = /monthly usage hard limit exceeded|platform-feature-disabled|usage hard limit/i.test(srcError ?? "");
         if (quotaBlocked) providerBlocked = true;
         console.error(`[apify ${src.id}]`, srcError);
-        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: 0 }).eq("id", src.id);
+        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
       }
-      perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError });
+      perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError, ...observed });
       // One account-level quota error applies to every actor/source. Do not
       // hammer Apify repeatedly during the same run.
       if (providerBlocked) break;
