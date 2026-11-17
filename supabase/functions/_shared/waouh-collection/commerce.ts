@@ -22,6 +22,7 @@ export type CollectedCommerce = {
   brand?: string;
   model?: string;
   city?: string;
+  country_code?: "BJ" | "CI";
   price_min?: number;
   price_max?: number;
   actor_name?: string;
@@ -212,6 +213,27 @@ export function facebookSource(value: string): URL | null {
   return url && facebookHosts.has(url.hostname) && /^\/share\/g\/[a-z0-9]+\/?$/i.test(url.pathname) ? url : null;
 }
 
+export function facebookListingDetails(raw:string, suppliedTitle?:unknown) {
+  const clean = (text:unknown) => trim(String(text ?? "").replace(/https?:\/\/\S+/g, " ")
+    .replace(/\[(?:téléphone|email)\]/gi," ").replace(/[*`_]/g," "),700)
+    .replace(/^\s*(?:tél(?:éphone)?\s*:?\s*)+/i,"").trim();
+  const lines = [suppliedTitle,...raw.split(/[\r\n]+|\*+/)].map(clean).filter(v=>v.length>=5);
+  const concrete = /\b(?:villa|chambre|appartement|terrain|parcelle|moto|haojue|dayang|wave|sirius|voiture|suzuki|toyota|iphone|samsung|honor|tecno|pièces détachées|réparation|installation|service)\b/i;
+  let title = lines.find(line=>concrete.test(line)) ?? lines[0] ?? clean(raw);
+  title = title.replace(/^direct à la clé\s*/i,"")
+    .replace(/\s+(?:interress[ée]|intéress[ée]|whats?app|watsapp|appelez|appel|contactez|tél(?:éphone)?|je suis le propriétaire)(?=\s|$|[,:]).*$/i,"").trim();
+  const flat=clean(raw);
+  const city = /\b(San Pedro|Abidjan|Abobo|Yopougon|Godomey|Cotonou|Abomey[- ]Calavi|Calavi|Pahou|Porto[- ]Novo|Parakou)\b/i.exec(flat)?.[1];
+  const country_code = /\b(San Pedro|Abidjan|Abobo|Yopougon|Côte d.Ivoire)\b/i.test(flat) ? "CI" as const : "BJ" as const;
+  const amount = /(?:^|[^\d])(\d{1,3}(?:[ .\u00a0]\d{3})+|\d{3,9})\s*(?:FCFA|XOF|CFA)\b/i.exec(raw)?.[1]
+    ?? /\b(?:loyer|prix)\s*:?\s*(\d{1,3}(?:[ .\u00a0]\d{3})+|\d{3,9})\s*f\b/i.exec(raw)?.[1];
+  const category = /\b(?:villa|chambre|appartement|terrain|parcelle)\b/i.test(flat) ? "Immobilier"
+    : /\b(?:moto|haojue|dayang|wave|sirius)\b/i.test(flat) ? "Motos"
+    : /\b(?:voiture|suzuki|toyota|pièces détachées)\b/i.test(flat) ? "Automobile"
+    : /\b(?:iphone|samsung|honor|tecno)\b/i.test(flat) ? "Téléphonie" : "Produits";
+  return {title:title.slice(0,160),city,country_code,category,price:priceXof(amount,"XOF")};
+}
+
 export function facebookCommercialPosts(body: unknown, group: URL, permission: SourcePermission) {
   if (!Array.isArray(body)) throw new Error("invalid_facebook_dataset");
   const output: CollectedCommerce[] = [];
@@ -231,19 +253,21 @@ export function facebookCommercialPosts(body: unknown, group: URL, permission: S
     const buy = /\b(?:je cherche|je recherche|je veux acheter|achat recherché)\b/i.test(raw);
     if (sell === buy) continue;
     const service = /\b(?:prestation|service|réparation|installation|dépannage|devis)\b/i.test(raw);
-    const title = item.title ?? raw.split(/\r?\n/).find(s => s.trim().length >= 5)?.trim().slice(0, 160);
-    const amount = /(?:^|[^\d])(\d[\d \u00a0]{2,})\s*(?:FCFA|XOF)\b/i.exec(raw)?.[1];
+    const details = facebookListingDetails(raw,item.title);
     const media = list(item.media ?? item.attachments).flatMap(m => {
       const image = obj(m);
       return [obj(image.photo_image).uri, image.url, image.imageUrl, image.thumbnail,
         obj(image.image).uri, obj(image.image).url, obj(image.photo).url];
     });
-    const formatted = commercialRecord({url:link.href,title,description:raw,price:amount,currency:"XOF",photos:media},
+    const formatted = commercialRecord({url:link.href,title:details.title,description:raw,price:details.price,
+      city:details.city,category:details.category,currency:"XOF",photos:media},
       resolved, permission, service ? "service" : "product", buy ? "BUY" : "SELL");
     if (formatted) {
       formatted.actor_name = trim(obj(item.user).name ?? obj(item.author).name, 120) || undefined;
+      formatted.country_code = details.country_code;
       formatted.contacts = [{channel: "facebook", value: link.href}];
-      const published = raw.match(/(?:\+229|00229)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8}\b/g) ?? [];
+      const published = raw.match(/(?:\+|00)(?:229|225)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8,10}\b/g) ?? [];
+      for (const match of raw.matchAll(/(?:tél(?:éphone)?|whats?app|watsapp|apel direct|appel direct|contact)\b[^\d+]{0,30}((?:01[\s.-]*)?(?:\d[\s.-]*){8})(?!\d)/gi)) published.push(match[1]);
       formatted.contacts.push(...published.map(value => ({channel: "phone" as const, value})));
       output.push(formatted);
     }

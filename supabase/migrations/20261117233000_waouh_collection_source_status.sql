@@ -6,7 +6,7 @@ declare source uuid;begin
   if not waouh_collection_finish(p_job,p_token,p_report) then return false; end if;
   select t.radar_source_id into source from waouh_collection_jobs j
     join waouh_collection_targets t on t.id=j.target_id
-    where j.id=p_job and j.handler in ('site','apify');
+    where j.id=p_job and j.lease_token=p_token and j.handler in ('site','apify');
   if source is not null then
     update waouh_radar_sources set last_scan_at=now(),config=
       (coalesce(config,'{}')-'last_error'-'last_error_code'-'retry_after')||

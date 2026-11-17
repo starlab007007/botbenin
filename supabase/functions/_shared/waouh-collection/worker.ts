@@ -303,7 +303,8 @@ async function fetchApify(db:Db, job:Job, source:RadarSource, permission:SourceP
 async function privateContacts(row:CollectedCommerce) {
   const contacts = new Map<string,Record<string,unknown>>();
   for (const contact of row.contacts ?? []) {
-    const phone = ["phone","whatsapp"].includes(contact.channel) ? normalizeE164(contact.value) : null;
+    const phone = ["phone","whatsapp"].includes(contact.channel)
+      ? normalizeE164(contact.value,row.country_code === "CI" ? "+225" : "+229") : null;
     if (["phone","whatsapp"].includes(contact.channel) && !phone) continue;
     // Source links are usable manual routes. They never imply messaging permission or reachability.
     const value = phone ?? (contact.value === row.source_url ? row.source_url : null);

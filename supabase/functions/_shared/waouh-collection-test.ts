@@ -1,4 +1,4 @@
-import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookGroup, facebookSource, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
+import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookGroup, facebookListingDetails, facebookSource, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
 import { permitsExternalWhatsApp } from "./waouh-external-contact-permission.ts";
 import assert from "node:assert/strict";
 import { collectionSources, extractNotices, noticeDeadline, sourceKeyFor } from "./waouh-collection/sources.ts";
@@ -147,4 +147,16 @@ Deno.test("Facebook share links bind returned posts to the requested input and p
   assert.equal(row.contacts?.[0].channel,"facebook");
   assert.equal(facebookCommercialPosts([{...post,inputUrl:"https://web.facebook.com/share/g/foreign/"}],source,permission).length,0);
   assert.equal(facebookSource("https://malicious.org/share/g/abc/"),null);
+});
+
+Deno.test("Facebook cards expose the actual subject, price and location instead of a phone or intro", () => {
+  assert.deepEqual(facebookListingDetails("tél +229 01 23 45 67 89\n*SUZUKI BALENO Année 2025*\nPRIX: 7.800.000 FCFA"),
+    {title:"SUZUKI BALENO Année 2025",price:7800000,category:"Automobile",city:undefined,country_code:"BJ"});
+  const villa=facebookListingDetails("*Direct à la clé*\n*VILLA PERSONNELLE DISPONIBLE À GODOMEY*\nLoyer : 200.000f");
+  assert.equal(villa.title,"VILLA PERSONNELLE DISPONIBLE À GODOMEY");assert.equal(villa.price,200000);
+  const imported=facebookListingDetails("https://www.facebook.com/groups/12345/\nPièces détachées disponibles à Abobo");
+  assert.equal(imported.country_code,"CI");assert.equal(imported.city,"Abobo");assert.doesNotMatch(imported.title,/https:/);
+  const [post]=facebookCommercialPosts([{url:"https://www.facebook.com/groups/market987/posts/99/",text:"Moto disponible à vendre. WhatsApp ou appel direct 01 23 45 67 89"}],
+    new URL("https://www.facebook.com/groups/market987/"),{attribution:"Publication originale"});
+  assert.ok(post.contacts?.some(c=>c.channel==="phone"&&c.value.replace(/\D/g,"")==="0123456789"));
 });
