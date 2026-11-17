@@ -322,6 +322,11 @@ class NexusDiscoveryItem {
   }
 
   String get sourceLabel {
+    if (sourceKey == 'benin_open_places') {
+      return '© OpenStreetMap contributors · ODbL';
+    }
+    final attribution = _evidenceText(['photo_attribution', 'source_attribution']);
+    if (attribution != null) return attribution;
     final key = sourceKey.toLowerCase();
     if (key.contains('partner')) return 'Partenaire';
     if (key.contains('radar')) return 'Radar';
