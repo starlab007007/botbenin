@@ -369,7 +369,7 @@ export async function runCollectionTick(db: Db) {
         ? {status: error.retryable ? "failed" : "blocked", reason: error.reason, retryable: error.retryable}
         : {status: "failed", reason: "source_request_failed", retryable: true};
     }
-    if (!await rpc(db, "waouh_collection_finish", {
+    if (!await rpc(db, "waouh_collection_finish_with_source", {
       p_job: job.id, p_token: job.lease_token, p_report: report,
     })) throw new CollectionError("collection_lease_lost");
     processed++;
