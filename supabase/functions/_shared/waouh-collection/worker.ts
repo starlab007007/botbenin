@@ -1,4 +1,4 @@
-import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookSource, schemaOrgCatalog, trustedHttps,
+import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookSource, trustedHttps,
   type CollectedCommerce, type SourcePermission } from "./commerce.ts";
 import { getRadarApiKey } from "../radar-api-config.ts";
 import robotsParserModule from "npm:robots-parser@3.0.1";
@@ -6,6 +6,7 @@ import { missionDate } from "../waouh-mission-domain.ts";
 import { encryptPhone, hashPhone, sha256Hex } from "../waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "../waouh-tel/phone.ts";
 import { collectionSources, extractNotices, sourceKeyFor, type CollectionSource, type VerifiedNotice } from "./sources.ts";
+import {goAfricaProviders,rssAtomListings,structuredPublicListings,telegramPublicListings} from "./public.ts";
 
 const robotsParser = robotsParserModule as unknown as (
   url: string, content: string,
@@ -193,7 +194,8 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission, max
   const url = trustedHttps(permission.canonical_url ?? source.identifier);
   const original = trustedHttps(source.identifier);
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
-  const known = new Set(["bot.bj","www.bot.bj","bj.coinafrique.com","www.coinafrique.com","martistore.click",...hostSettings.filter(Boolean)]);
+  const known = new Set(["bot.bj","www.bot.bj","bj.coinafrique.com","www.coinafrique.com","martistore.click",
+    "www.goafricaonline.com","bourses.enseignementsuperieur.gouv.bj","t.me",...hostSettings.filter(Boolean)]);
   if (!url || !original || url.origin !== original.origin || !known.has(url.hostname))
     throw new CollectionError("source_host_not_allowed");
   await respectRobots(url.href);
@@ -205,11 +207,14 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission, max
     throw new CollectionError("source_http_" + response.status,response.status===429||response.status>=500);
   }
   const type = response.headers.get("content-type") ?? "";
-  if (json ? !type.includes("json") : !type.includes("text/html")) {
+  if (json ? !type.includes("json") : format==="rss_atom" ? !/(?:xml|rss|atom)/i.test(type) : !type.includes("text/html")) {
     await response.body?.cancel();
     throw new CollectionError("source_media_invalid");
   }
   const body = await readBounded(response);
+  if(format==="rss_atom")return rssAtomListings(body,url,permission);
+  if(format==="goafrica")return goAfricaProviders(body,url,permission);
+  if(format==="telegram_public")return telegramPublicListings(body,url,permission);
   if (format === "coinafrique") {
     const cards = coinAfriqueCatalog(body,url,permission).slice(0,Math.min(maxItems,5));
     if (!cards.length) throw new CollectionError("source_format_changed");
@@ -228,7 +233,7 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission, max
     }
     return rows;
   }
-  if (!json) return schemaOrgCatalog(body,url,permission);
+  if (!json) return structuredPublicListings(body,url,permission);
   const payload = JSON.parse(body);
   if (!Array.isArray(payload?.items)) throw new CollectionError("source_format_changed");
   return catalogJson(payload,url,permission,format==="directory");

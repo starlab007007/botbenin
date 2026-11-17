@@ -51,6 +51,7 @@ export function missionFacts(o:MissionOffer){
 export function missionEntity(o:MissionOffer){
  const e=o.evidence??{},explicit=missionText(o.offer_kind??o.kind??e.offer_kind??e.kind),known=resultKind(o),hay=missionText([o.subject,o.category,e.scope,e.description].filter(v=>typeof v==='string').join(' '));
  if(['product','article','catalog'].includes(explicit))return 'product';
+ if(['service','prestation','project'].includes(explicit))return 'service';
  if(known==='announcement'||['announcement','annonce','opportunity','job','event','formation'].includes(explicit)||/emploi|recrutement|appel.{0,12}projet|bourse|subvention|formation|opportunit/.test(hay))return 'announcement';
  if(known==='service'||['service','prestation','project'].includes(explicit)||/plombier|plomberie|fuite|reparat|nettoyage|coiff|electricien|depannage|traiteur|site vitrine|creation web|developp|agence web|graphiste|photograph|coutur|mecanicien/.test(hay))return 'service';
  return 'product';

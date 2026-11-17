@@ -51,7 +51,7 @@ export function WaouhMarketAnalysis({ results, city, budgetMax, mode = "buy", ki
         <div><strong>Analyse du marché</strong><span>Par votre avatar · {analysis.total} offre{analysis.total > 1 ? "s" : ""} comparée{analysis.total > 1 ? "s" : ""}</span></div>
       </header>
       <div className="wmk-stats">
-        <div><span><BarChart3 size={13} aria-hidden="true" />Prix</span><b>{money(analysis.low)}</b><small>à {money(analysis.high)} · médiane {money(analysis.median)}</small></div>
+        <div><span><BarChart3 size={13} aria-hidden="true" />{mode === "sell" ? "Budgets acheteurs" : "Prix"}</span><b>{money(analysis.low)}</b><small>à {money(analysis.high)} · médiane {money(analysis.median)}</small></div>
         <div><span><ShieldCheck size={13} aria-hidden="true" />Joignables</span><b>{analysis.contactable}/{analysis.total}</b><small>{(["waouh", "whatsapp", "email", "phone"] as const).filter((c) => analysis.byChannel[c] > 0).map((c) => `${analysis.byChannel[c]} ${channelName(c)}`).join(" · ") || "aucun contact"}</small></div>
         <div><span><MapPin size={13} aria-hidden="true" />Votre zone</span><b>{analysis.inZone}</b><small>{city || "toutes zones"}</small></div>
       </div>

@@ -5,7 +5,8 @@ import {normalizeSaleDraft,saleTextSuggestions,trustedSalePhotos,suggestSalePric
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import { withJourneyProducts, withMandateProducts, missionJourneyLimit } from '../_shared/waouh-mission-feed.ts';
 import {modulePolicyAllowed,modulesForAction} from '../_shared/waouh-module-policy.ts';
-import {MISSION_KINDS,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
+import {MISSION_KINDS,normalizeMissionKind,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
+import {freeDiscoveryPlan,marketReference} from '../_shared/waouh-free-discovery.ts';
 import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused,automaticFollowBlock} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
@@ -2556,29 +2557,19 @@ Retourne uniquement JSON:
         const limit = integer(payload.limit, "limit", 20, 1, 50);
         const refreshExternal = !publicRead && bool(payload.refresh_external, true);
         const allSources = bool(payload.all_sources, false);
-        const smart = !publicRead && bool(payload.smart, true);
+        const paidSources = !publicRead && bool(payload.use_paid_sources, false);
+        const smart = paidSources && bool(payload.smart, true);
 
-        const discoveryKind=payload.discovery_kind===undefined?undefined:pickEnum(payload.discovery_kind,'discovery_kind',MISSION_KINDS,'purchase');
+        const discoveryKind=payload.discovery_kind===undefined?normalizeMissionKind(undefined,queryText,requestedMode):pickEnum(payload.discovery_kind,'discovery_kind',MISSION_KINDS,'purchase');
         const missionContext=discoveryKind?normalizeMissionContext(payload.mission_context,discoveryKind,queryText):undefined;
         const forcedMode: DiscoveryMode | null = discoveryKind?(discoveryKind==='sale'?'find_buyers':'find_sellers'):requestedMode === "auto" ? null : requestedMode;
-        const intelligence = (!publicRead && (smart || requestedMode === "auto"))
+        const intelligence = (paidSources && (smart || requestedMode === "auto"))
           ? await planNexusGoal(queryText, {
               mode: forcedMode,
               city: suppliedCity,
               budgetMax: suppliedBudgetMax,
             })
-          : {
-              mode: forcedMode ?? "find_sellers",
-              normalized_query: queryText,
-              city: suppliedCity,
-              budget_max: suppliedBudgetMax,
-              priorities: ["relevance", "trust", "price", "distance", "freshness", "contactability"],
-              source_families: ["waouh", "partners", "web_public", "scout"],
-              missing: [],
-              next_actions: ["Comparer les résultats", "Préparer le contact sous contrôle"],
-              confidence: 1,
-              rationale: "Mode manuel appliqué sans replanification IA.",
-            } satisfies NexusSmartDiscoveryPlan;
+          : freeDiscoveryPlan(queryText,{mode:forcedMode,city:suppliedCity,budgetMax:suppliedBudgetMax,kind:discoveryKind}) satisfies NexusSmartDiscoveryPlan;
 
         const mode: DiscoveryMode = forcedMode ?? intelligence.mode;
         const semanticQuery = intelligence.normalized_query || queryText;
@@ -2588,7 +2579,11 @@ Retourne uniquement JSON:
           : null;
 
         const refresh: Record<string, unknown> = publicRead ? { google_places: { status: "not_requested", reason: "authentication_required_for_refresh" }, serpapi: { status: "not_requested", reason: "authentication_required_for_refresh" } } : {};
-        if (refreshExternal) {
+        if (refreshExternal && !paidSources) {
+          const {data:scheduled,error}=await sb.rpc('waouh_collection_schedule',{p_handler:'site'});
+          refresh.public_sources={configured:true,inserted:0,scheduled:scheduled??0,status:error?'unavailable':'queued',cost:0};
+        }
+        if (refreshExternal && paidSources) {
           const sourcePlan = new Set(intelligence.source_families ?? []);
           const useMaps = discoveryKind!=="opportunity" && mode === "find_sellers" && (allSources || sourcePlan.size === 0 || sourcePlan.has("maps"));
           const usePublicWeb = allSources || sourcePlan.size === 0 || [
@@ -2617,6 +2612,9 @@ Retourne uniquement JSON:
           publicRead,
           missionKind:discoveryKind,missionContext,
         });
+        const comparableOffers=mode==='find_buyers'
+          ? (await loadDiscoveryRecords(sb,{query:semanticQuery,mode:'find_sellers',publicSources:publicRead?PUBLIC_NEXUS_SOURCES:undefined})).records : [];
+        const priceReference=mode==='find_buyers'?marketReference(semanticQuery,comparableOffers,city):null;
         const sourceMix = results.reduce((acc: Record<string, number>, row: any) => {
           const key = String(row.source_key ?? "unknown");
           acc[key] = (acc[key] ?? 0) + 1;
@@ -2631,6 +2629,7 @@ Retourne uniquement JSON:
           budget_max: budgetMax,
           result_count: results.length,
           source_mix: sourceMix,
+          market_reference:priceReference,
           ai_confidence: intelligence.confidence,
         });
         return jsonResponse({ ok: true, data: {
@@ -2643,6 +2642,7 @@ Retourne uniquement JSON:
           budget_max: budgetMax,
           results,
           source_mix: sourceMix,
+          market_reference:priceReference,
           refresh,
           intelligence: {
             ...intelligence,

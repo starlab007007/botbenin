@@ -2,6 +2,7 @@ import { normalizeFabricText } from './waouh-signal-fabric.ts';
 import { publicBusinessEvidence } from './waouh-public-discovery.ts';
 import { productPhotos } from './waouh-product-presentation.ts';
 import { missionEntity, missionDeadline, type MissionKind } from './waouh-mission-domain.ts';
+import {procurementBuyerSignal} from './waouh-free-discovery.ts';
 
 export function discoveryRecordCurrent(row: Record<string, any>, now=Date.now()) {
   if (typeof row.source_url === "string") {
@@ -23,7 +24,7 @@ export async function loadDiscoveryRecords(
   db: { from: (table: string) => any },
   input: {query: string; mode: string; publicSources?: readonly string[]; internalOnly?: boolean},
 ) {
-  const desired = input.mode === 'find_buyers' ? ['BUY', 'RFQ'] : ['SELL', 'ANNOUNCE'];
+  const desired = input.mode === 'find_buyers' ? ['BUY', 'RFQ', 'ANNOUNCE'] : ['SELL', 'ANNOUNCE'];
   // Drop query operators before constructing PostgREST filters. Search the description too:
   // a provider's title may be a business name rather than the service being requested.
   const terms = [...new Set(normalizeFabricText(input.query).split(/\s+/)
@@ -41,7 +42,8 @@ export async function loadDiscoveryRecords(
   const [a, b] = await Promise.all([recent, targeted ?? Promise.resolve({data: [], error: null})]);
   if (a.error || b.error) throw new Error('discovery_records_unavailable');
   const candidates = [...new Map([...(b.data ?? []), ...(a.data ?? [])].map(r => [r.fabric_id, r])).values()] as Record<string, any>[];
-  const records=candidates.filter(r=>discoveryRecordCurrent(r));
+  const records=candidates.filter(r=>discoveryRecordCurrent(r)).map(r=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
+    .filter(r=>input.mode!=='find_buyers'||['BUY','RFQ'].includes(r.intent));
   return {records, coverage: {inspected: records.length, targeted: b.data?.length ?? 0, recent: a.data?.length ?? 0, exhaustive: false}};
 }
 

@@ -1164,9 +1164,20 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Widget buildSearch() {
     final results = discovery?.results ?? const <NexusDiscoveryItem>[];
+    final reference = discovery?.marketReference;
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 8, 22, 32),
       children: [
+        if (_lastKind == 'sale' && reference != null &&
+            reference['minimum'] is num && reference['maximum'] is num &&
+            reference['median'] is num)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'Vendeurs comparables · ${(reference['minimum'] as num).round()} à ${(reference['maximum'] as num).round()} F CFA · médiane ${(reference['median'] as num).round()} F CFA (${reference['sample_size']} annonces). Prix demandés, hors frais et négociation.',
+              style: const TextStyle(fontSize: 12, color: avatarPremiumMuted),
+            ),
+          ),
         if (!_started) ...[
           _searchEditor(),
         ] else ...[

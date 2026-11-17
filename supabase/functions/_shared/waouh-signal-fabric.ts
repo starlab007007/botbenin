@@ -1,3 +1,4 @@
+import {matchVerdict} from "./waouh-need-domain.ts";
 export type FabricIntent = "BUY" | "SELL" | "ANNOUNCE" | "RFQ" | "UNKNOWN";
 export type Contactability = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 
@@ -14,6 +15,7 @@ export type FabricSignal = {
   condition?: string | null;
   price_min?: number | null;
   price_max?: number | null;
+  currency?: string | null;
   city?: string | null;
   canonical_key?: string | null;
   contactability_level?: Contactability | string | null;
@@ -64,7 +66,8 @@ export function scoreFabricSignal(input: {
     input.signal.canonical_key,
   ].filter(Boolean).join(" "));
   const hits = queryTokens.filter((token) => haystack.includes(token));
-  const relevance = queryTokens.length ? (hits.length / queryTokens.length) * 100 : 0;
+  const verdict=matchVerdict(input.query,input.signal,{place:input.city});
+  const relevance = verdict.acceptable ? Math.max(verdict.coverage,queryTokens.length ? (hits.length / queryTokens.length) * 100 : 0) : 0;
 
   const desiredIntent = oppositeIntent(input.mode);
   const intent = String(input.signal.intent ?? "").toUpperCase();
@@ -106,8 +109,10 @@ export function scoreFabricSignal(input: {
   );
 
   const reasons: string[] = [];
-  if (relevance >= 70) reasons.push("Produit très pertinent");
-  else if (relevance >= 40) reasons.push("Produit compatible");
+  const label=verdict.domain==='goods'||verdict.domain==='unknown'?'Produit':'Besoin';
+  if (relevance >= 70) reasons.push(label+" très pertinent");
+  else if (relevance >= 40) reasons.push(label+" compatible");
+  if(verdict.domain!=="unknown")reasons.push("Même domaine");
   if (priceScore >= 95 && input.budgetMax != null) reasons.push("Dans le budget");
   if (location >= 95 && input.city) reasons.push("Même zone");
   if (trust >= 80) reasons.push("Source de confiance");
@@ -171,6 +176,10 @@ export function extractPublicContactHints(text: unknown) {
   const urls = [...new Set(value.match(/https?:\/\/[^\s<>"']+/gi) ?? [])].map((url) => url.replace(/[),.;]+$/g, "")).slice(0, 8);
   const phones = [...new Set(value.match(/(?:\+?229[\s.-]?)?(?:01[\s.-]?)?(?:\d[\s.-]?){8,10}/g) ?? [])]
     .map((phone) => phone.trim())
+    .filter(phone=>{
+      const years=/^(20\d{2})\s*-\s*(20\d{2})$/.exec(phone);
+      return !years || Number(years[2])!==Number(years[1])+1;
+    })
     .filter((phone) => phone.replace(/\D/g, "").length >= 8)
     .slice(0, 5);
   return { phones, emails, urls };

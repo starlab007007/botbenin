@@ -6,18 +6,21 @@ export type SourcePermission = {
   media_reuse_authorized?: boolean;
   media_hosts?: string[];
   attribution?: string;
-  collection_format?: "catalog_json" | "schema_org" | "directory" | "coinafrique";
+  collection_format?: "catalog_json" | "schema_org" | "directory" | "coinafrique" | "rss_atom" | "goafrica" | "telegram_public";
   canonical_url?: string;
+  category?: string;
+  collection_transport?: "direct";
+  country_scope?: "BJ";
 };
 
-export type CommerceKind = "product" | "service" | "provider" | "rare_item";
+export type CommerceKind = "product" | "service" | "provider" | "rare_item" | "announcement";
 export type CollectedCommerce = {
   source_external_id: string;
   source_url: string;
   product_name: string;
   raw_text?: string;
   intent: "SELL" | "BUY" | "ANNOUNCE" | "RFQ";
-  actor_type: "buyer" | "seller" | "business";
+  actor_type: "buyer" | "seller" | "business" | "announcer";
   category: string;
   brand?: string;
   model?: string;
@@ -28,9 +31,10 @@ export type CollectedCommerce = {
   actor_name?: string;
   is_public_business?: boolean;
   contacts?: Array<{channel: "phone" | "whatsapp" | "facebook" | "website"; value: string}>;
-  evidence: {offer_kind: "product" | "service"; availability_confirmed: false;
+  evidence: {offer_kind: "product" | "service" | "announcement"; availability_confirmed: false;
     source_attribution: string; photo_attribution?: string; photos?: string[]; rare_item?: true;
-    provider_profile?: true; listing_license?: string};
+    provider_profile?: true; listing_license?: string; deadline?: string; published_at?: string;
+    organization?: string; deadline_status?: "not_published"};
 };
 type ObjectValue = Record<string, unknown>;
 const obj = (v: unknown): ObjectValue => v && typeof v === "object" && !Array.isArray(v) ? v as ObjectValue : {};
@@ -77,7 +81,7 @@ function approvedPhotos(input: unknown, url: URL, permission: SourcePermission) 
   }))].slice(0, 4);
 }
 
-function commercialRecord(input: ObjectValue, origin: URL, permission: SourcePermission,
+export function commercialRecord(input: ObjectValue, origin: URL, permission: SourcePermission,
   kind: CommerceKind, intent: CollectedCommerce["intent"], requireSameOrigin = true): CollectedCommerce | null {
   const url = trustedHttps(input.url, origin.href);
   const title = trim(input.title ?? input.name);
@@ -86,7 +90,7 @@ function commercialRecord(input: ObjectValue, origin: URL, permission: SourcePer
   const price = priceXof(input.price, input.currency);
   const photos = approvedPhotos(input.photos ?? input.image, url, permission);
   const evidence: CollectedCommerce["evidence"] = {
-    offer_kind: kind === "provider" || kind === "service" ? "service" : "product",
+    offer_kind: kind === "announcement" ? "announcement" : kind === "provider" || kind === "service" ? "service" : "product",
     availability_confirmed: false,
     source_attribution: trim(permission.attribution),
     ...(kind === "provider" ? {provider_profile:true} : {}),
@@ -103,7 +107,7 @@ function commercialRecord(input: ObjectValue, origin: URL, permission: SourcePer
     product_name: title,
     raw_text: trim(input.description, 700),
     intent,
-    actor_type: intent === "BUY" || intent === "RFQ" ? "buyer" : kind === "provider" ? "business" : "seller",
+    actor_type: intent === "BUY" || intent === "RFQ" ? "buyer" : kind === "announcement" ? "announcer" : kind === "provider" ? "business" : "seller",
     category: trim(input.category, 120) || (kind === "provider" ? "Prestataire" : kind === "service" ? "Service" : "Produits"),
     ...(brand ? {brand} : {}), ...(model ? {model} : {}), ...(city ? {city} : {}),
     ...(price === undefined ? {} : {price_min:price,price_max:price}),
@@ -158,13 +162,18 @@ export function coinAfriqueCatalog(html: string, origin: URL, permission: Source
     const link = trustedHttps(anchor.attr("href"), origin.href);
     if (!link || !link.pathname.startsWith("/annonce/")) return [];
     const price = item.find("[data-ad-price]").first();
+    const category=price.attr("data-ad-category")??"";
+    const title=anchor.attr("title")??anchor.text();
+    const job=/\/(?:offres-demploi|offres-emploi|emploi|emplois|recrutement)\//i.test(link.pathname)||/recrut|\bvendeuse\b/i.test(title);
+    const service=/\/(?:[^/]*services[^/]*|cours-particuliers|travaux-bricolage-et-jardinage)\//i.test(link.pathname)
+      &&!/(?:terrain|parcelle|voiture|moto).*(?:vendre|vente)/i.test(title);
     const row = commercialRecord({
-      url: link.href, title: anchor.attr("title") ?? anchor.text(),
+      url: link.href, title,
       price: price.attr("data-ad-price"), currency: "XOF",
-      category: price.attr("data-ad-category"),
+      category,
       city: item.find(".ad__card-location span").text().replace(/,?\s*Bénin\s*$/i, ""),
       photos: [item.find(".ad__card-img").attr("src") ?? item.find(".ad__card-img").attr("data-src")],
-    }, origin, permission, link.pathname.includes("/services/") ? "service" : "product", "SELL");
+    }, origin, permission, job?"announcement":service?"service":"product", job?"ANNOUNCE":"SELL");
     if (!row) return [];
     row.actor_name = trim(item.find(".pro-contact-card .title").text(), 120) || undefined;
     row.is_public_business = item.find(".ad__card-action.is-pro").length > 0;
@@ -194,9 +203,22 @@ export function coinAfriqueDetails(html: string, row: CollectedCommerce, permiss
       url.pathname.startsWith("/" + listingId + "_") ? [url.href] : [];
   });
   return {...row, contacts: [...(row.contacts ?? []), ...phones, ...whatsapp],
+    ...productIdentity(row.product_name),
     raw_text: trim($('meta[property="og:description"]').attr("content"), 700) || row.raw_text,
     evidence: {...row.evidence,
+      ...(row.intent==='ANNOUNCE'?{deadline_status:'not_published' as const}:{}),
       photos: approvedPhotos(gallery.length ? gallery : row.evidence.photos, origin, permission)}};
+}
+
+/** Identity comes from published text. A model is never inferred from the price. */
+export function productIdentity(title:string):{brand?:string;model?:string} {
+  const brands:Record<string,string>={samsung:"Samsung",iphone:"Apple",apple:"Apple",tecno:"Tecno",infinix:"Infinix",xiaomi:"Xiaomi",redmi:"Xiaomi",honor:"Honor",huawei:"Huawei",nokia:"Nokia",toyota:"Toyota",suzuki:"Suzuki",infiniti:"Infiniti",haojue:"Haojue",dayang:"Dayang",lenovo:"Lenovo",dell:"Dell",hp:"HP"};
+  const matched=/\b(samsung|iphone|apple|tecno|infinix|xiaomi|redmi|honor|huawei|nokia|toyota|suzuki|infiniti|haojue|dayang|lenovo|dell|hp)\b/i.exec(title);
+  if(!matched)return {};
+  const tail=title.slice(matched.index).replace(/^(?:Samsung|Apple)\s+/i,"");
+  const model=/^(?:(?:iPhone|Galaxy|Redmi|Honor|Tecno|Infinix|Nokia|Huawei)\s*)?(?:[a-z]{0,6}\s*)?\d{1,3}[a-z]?(?:\s*(?:pro\s*max|pro|plus|ultra|s))?\b/i.exec(tail)?.[0]
+    ?? /\b(?:Corolla|Baleno|QX\d{2}[a-z]?|Lucky|Sirius)\b/i.exec(title)?.[0];
+  return {brand:brands[matched[1].toLowerCase()],...(model?{model:model.replace(/\s+/g," ").trim()}: {})};
 }
 
 const facebookHosts = new Set(["facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com"]);
@@ -264,6 +286,7 @@ export function facebookCommercialPosts(body: unknown, group: URL, permission: S
       resolved, permission, service ? "service" : "product", buy ? "BUY" : "SELL");
     if (formatted) {
       formatted.actor_name = trim(obj(item.user).name ?? obj(item.author).name, 120) || undefined;
+      Object.assign(formatted,productIdentity(details.title));
       formatted.country_code = details.country_code;
       formatted.contacts = [{channel: "facebook", value: link.href}];
       const published:string[] = raw.match(/(?:\+|00)(?:229|225)[\s.-]*(?:01[\s.-]*)?(?:\d[\s.-]*){8,10}\b/g) ?? [];
