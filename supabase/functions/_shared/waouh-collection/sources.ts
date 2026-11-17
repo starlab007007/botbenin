@@ -3,6 +3,7 @@ import { redactPublicContacts } from "../waouh-signal-fabric.ts";
 
 const government = "https://www.gouv.bj";
 const centralBank = "https://www.bceao.int";
+const developmentBank = "https://www.boad.org";
 export const collectionSources = {
   "benin_government_jobs": {
     url: government + "/opportunites/offres-emploi/",
@@ -19,6 +20,14 @@ export const collectionSources = {
     country: "BJ",
     adapter: "government",
     zoneOffset: "+01:00",
+  },
+  "waemu_boad_procurement": {
+    url: developmentBank + "/fr/opportunites/appels-doffre",
+    category: "Marchés publics",
+    organization: "BOAD",
+    country: "TG",
+    adapter: "boad",
+    zoneOffset: "+00:00",
   },
   "waemu_bceao_procurement": {
     url: centralBank + "/fr/appels-offres/appels-offres-marches-publics-achats",
@@ -74,9 +83,46 @@ export function sourceKeyFor(url: string): CollectionSourceKey | undefined {
   return (Object.keys(collectionSources) as CollectionSourceKey[]).find(key => collectionSources[key].url === url);
 }
 
+type BoadIndexRow = {
+  id?: number;
+  link?: string;
+  title?: string;
+  acf?: { end_at?: string | null };
+  project_status?: Array<{ slug?: string }>;
+};
+
+function extractBoadNotices(html: string, source: CollectionSource) {
+  const $ = load(html);
+  const payload = $("[data-page]").first().attr("data-page");
+  if (!payload) return {candidates: 0, notices: []};
+  const data: unknown = JSON.parse(payload)?.props?.tenders?.data;
+  if (!Array.isArray(data)) return {candidates: 0, notices: []};
+  const notices: VerifiedNotice[] = [];
+  for (const row of data as BoadIndexRow[]) {
+    if (!Number.isSafeInteger(row?.id) || !row.link || !row.title ||
+        !row.project_status?.some(status => ["starting", "tender_notice"].includes(status.slug ?? ""))) continue;
+    const parsed = row.acf?.end_at?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!parsed) continue;
+    const date = `${parsed[3]}-${parsed[2]}-${parsed[1]}`;
+    const time = Date.parse(date + "T00:00:00Z");
+    if (!Number.isFinite(time) || new Date(time).toISOString().slice(0, 10) !== date) continue;
+    let url: URL;
+    try { url = new URL(row.link, source.url); } catch { continue; }
+    if (url.origin !== new URL(source.url).origin || url.username || url.password ||
+        !/^\/fr\/opportunites\/appels-doffre\/[^/]+\/?$/.test(url.pathname)) continue;
+    url.search = "";
+    url.hash = "";
+    const title = redactPublicContacts(load(row.title).text().replace(/\s+/g, " ").trim()).slice(0, 300);
+    if (title.length < 10) continue;
+    notices.push({id: String(row.id), url: url.href, title, deadline: date});
+  }
+  return {candidates: data.length, notices};
+}
+
 // This returns facts from the publisher's own dated index. No text, contact,
 // general site image or inferred availability from third parties is imported.
 export function extractNotices(html: string, source: CollectionSource) {
+  if (source.adapter === "boad") return extractBoadNotices(html, source);
   const $ = load(html);
   const index = new URL(source.url);
   const result = new Map<string, VerifiedNotice>();

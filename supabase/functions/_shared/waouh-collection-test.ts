@@ -1,3 +1,4 @@
+import { permitsExternalWhatsApp } from "./waouh-external-contact-permission.ts";
 import assert from "node:assert/strict";
 import { collectionSources, extractNotices, noticeDeadline, sourceKeyFor } from "./waouh-collection/sources.ts";
 import { discoveryRecordCurrent } from "./waouh-discovery-records.ts";
@@ -30,4 +31,14 @@ Deno.test("publisher links remain canonical and notices expose a source-only act
   assert.equal(publicRow.source_url, result.notices[0].url);
   assert.equal(discoveryRecordCurrent(row, Date.parse("2026-11-18T10:59:00Z")), true);
   assert.equal(discoveryRecordCurrent(row, Date.parse("2026-11-18T11:01:00Z")), false);
+});
+
+Deno.test("external WhatsApp needs channel-specific authorization", () => {
+  const authorized = {channel: "whatsapp", consent_state: "opt_in", contactability_level: "C3"};
+  assert.equal(permitsExternalWhatsApp(authorized), true);
+  assert.equal(permitsExternalWhatsApp({...authorized, consent_state: "unknown"}), false);
+  assert.equal(permitsExternalWhatsApp({...authorized, consent_state: "public_business"}), false);
+  assert.equal(permitsExternalWhatsApp({...authorized, consent_state: "revoked"}), false);
+  assert.equal(permitsExternalWhatsApp({...authorized, channel: "phone"}), false);
+  assert.equal(permitsExternalWhatsApp({...authorized, contactability_level: "C0"}), false);
 });

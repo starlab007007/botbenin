@@ -1,3 +1,4 @@
+import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
@@ -862,8 +863,11 @@ Deno.serve(async (req) => {
       if (it.template === "nexus_discovery_outreach") {
         let blocked: string | null = null;
         if (it.payload?.contact_id) {
-          const { data: contact, error } = await sb.from("waouh_entity_contacts").select("consent_state").eq("id", it.payload.contact_id).maybeSingle();
-          if (error || !contact || contact.consent_state === "revoked") blocked = "contact_permission_unavailable";
+          const { data: contact, error } = await sb.from("waouh_entity_contacts")
+            .select("channel,consent_state,contactability_level").eq("id", it.payload.contact_id).maybeSingle();
+          if (error || !permitsExternalWhatsApp(contact)) blocked = "contact_permission_unavailable";
+        } else if (!it.payload?.request_id) {
+          blocked = "contact_permission_unavailable";
         }
         if (it.payload?.mandate_id && !it.payload?.request_id) {
           const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata,owner_id").eq("id", it.payload.mandate_id).maybeSingle();
