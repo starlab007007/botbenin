@@ -2,16 +2,18 @@
 // n'est pas une prestation. Sans cette distinction, une recherche d'emploi renvoie des
 // produits « les plus proches », ce qui n'a aucun sens pour la personne.
 
-export type NeedDomain = "job" | "property" | "vehicle" | "service" | "goods" | "unknown";
+export type NeedDomain = "job" | "training" | "property" | "vehicle" | "service" | "goods" | "unknown";
 
 const DIACRITICS = /[̀-ͯ]/g;
 
 export function foldText(value: unknown): string {
   return String(value ?? "")
+    .replace(/\[(?:téléphone|email)\]/gi," ")
     .normalize("NFD").replace(DIACRITICS, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
+    .replace(/\b(?:fuite d eau|fuite eau|robinet qui fuit)\b/g,"plomberie")
     .trim();
 }
 
@@ -48,15 +50,20 @@ const JOB = /\b(emploi|emplois|job|jobs|travail|boulot|poste|postes|recrut\w*|em
 const PROPERTY = /\b(maison|maisons|appartement\w*|appart|villa|villas|terrain|terrains|parcelle\w*|studio|studios|chambre|chambres|duplex|immeuble|boutique a louer|magasin a louer|location|louer|bail|loyer|logement|habitation|immobilier|hectare\w*)\b/;
 const VEHICLE = /\b(voiture|voitures|auto|autos|vehicule\w*|moto|motos|scooter|tricycle|camion|camions|bus|minibus|taxi|berline|4x4|pick up|remorque|velo|velos)\b/;
 const SERVICE = /\b(plombi\w*|electricien\w*|macon\w*|mecanicien\w*|coiffure|coiffeu\w*|menuisier\w*|peintre\w*|repar\w*|depann\w*|install\w*|nettoyage|menage|lessive|livraison|livreur|cours|professeur|repetiteur|traiteur|cuisinier\w*|photograph\w*|camerama\w*|demenag\w*|couturi\w*|tailleur|jardini\w*|gardiennage|securite|soudure|carrelage|climatis\w*|forage|massage|esthetique|manucure|tresse\w*|maquillage|gommage|soin|soins|formation|consultation|entretien|prestation\w*|service a domicile)\b/;
+const TRAINING=/\b(formation\w*|bourse\w*|allocation\w*|seminaire\w*|apprendre|apprentissage|cours|certification\w*)\b/;
+const GOODS=/\b(iphone|galaxy|samsung|smartphone\w*|telephone\w*|portable\w*|ordinateur\w*|ventilateur\w*|moustiquaire\w*|chaise\w*|meuble\w*|imprimante\w*|perceuse\w*)\b/;
 
 /** Domaine lu dans un texte libre. « unknown » quand rien ne le dit clairement. */
 export function needDomain(value: unknown): NeedDomain {
   const text = ` ${foldText(value)} `;
   if (!text.trim()) return "unknown";
   if (JOB.test(text)) return "job";
-  if (PROPERTY.test(text)) return "property";
-  if (VEHICLE.test(text)) return "vehicle";
+  if (TRAINING.test(text)) return "training";
+  // A repair targets a service even when it mentions a car, phone or house.
   if (SERVICE.test(text)) return "service";
+  if (VEHICLE.test(text)) return "vehicle";
+  if (PROPERTY.test(text)) return "property";
+  if (GOODS.test(text)) return "goods";
   return "unknown";
 }
 
@@ -64,8 +71,10 @@ export function needDomain(value: unknown): NeedDomain {
 export function signalDomain(signal: {
   subject?: unknown; raw_text?: unknown; category?: unknown; brand?: unknown; model?: unknown;
 }): NeedDomain {
-  const fromText = needDomain([signal.subject, signal.raw_text].filter(Boolean).join(" "));
+  const fromText = needDomain(signal.subject);
   if (fromText !== "unknown") return fromText;
+  const fromDescription=needDomain(signal.raw_text);
+  if(fromDescription!=="unknown")return fromDescription;
   const fromCategory = needDomain(signal.category);
   if (fromCategory !== "unknown") return fromCategory;
   // Une marque ou un modèle annoncés désignent un bien matériel.
@@ -128,8 +137,12 @@ export function matchVerdict(need: unknown, candidate: {
     ...contentWords(options.place),
     ...contentWords(candidate.city),
   ]);
-  const words = contentWords(need).filter((word) => !placeWords.has(word));
-  const shared = sharedWords(need, [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" "));
+  const meaningful = contentWords(need).filter((word) => !placeWords.has(word));
+  const domainWords=new Set(['emploi','emplois','job','jobs','travail','poste','recrutement','recrute','stage','formation','formations','cours','bourse','bourses','service','services','prestation','prestataire','agent','produit','moto','voiture']);
+  const topics=meaningful.filter(word=>!domainWords.has(word));
+  const words=topics.length?topics:meaningful;
+  const found = new Set(sharedWords(need, [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" ")));
+  const shared = words.filter(word=>found.has(word));
   const coverage = words.length ? Math.round((shared.length / words.length) * 100) : 0;
   const compatible = domainsCompatible(domain, candidateDomain);
   // Un besoin sans mot propre (« je cherche ») ne permet aucun rapprochement sérieux.

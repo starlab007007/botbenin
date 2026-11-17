@@ -487,6 +487,7 @@ class NexusDiscoveryResponse {
     this.normalizedQuery,
     this.explanation,
     this.intelligence,
+    this.marketReference,
   });
 
   final String mode;
@@ -496,6 +497,7 @@ class NexusDiscoveryResponse {
   final List<NexusDiscoveryItem> results;
   final Map<String, int> sourceMix;
   final Map<String, dynamic> refresh;
+  final Map<String, dynamic>? marketReference;
 
   bool get findSellers => mode != 'find_buyers';
 
@@ -520,6 +522,7 @@ class NexusDiscoveryResponse {
         json['source_mix'],
       ).map((key, value) => MapEntry(key, _number(value).round())),
       refresh: _map(json['refresh']),
+      marketReference: json['market_reference'] is Map ? _map(json['market_reference']) : null,
     );
   }
 }

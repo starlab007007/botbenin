@@ -35,6 +35,7 @@ export type NexusScores = {
   availability_score: number;
   reasons: string[];
 };
+export type NexusMarketReference={minimum:number;maximum:number;median:number;currency:'XOF';sample_size:number;basis:string};
 
 export type NexusSearchItem = {
   kind: "article" | "catalog";
@@ -454,6 +455,7 @@ export async function globalNexusDiscovery(input: {
   limit?: number;
   refresh_external?: boolean;
   all_sources?: boolean;
+  use_paid_sources?: boolean;
   smart?: boolean;
   discovery_kind?:MissionKind;mission_context?:MissionContext;
 }) {
@@ -466,6 +468,7 @@ export async function globalNexusDiscovery(input: {
     budget_max?: number | null;
     results: NexusDiscoveryResult[];
     source_mix: Record<string, number>;
+    market_reference?:NexusMarketReference|null;
     refresh: Record<string, {
       configured?: boolean;
       inserted?: number;

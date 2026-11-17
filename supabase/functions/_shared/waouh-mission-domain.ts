@@ -51,6 +51,7 @@ export function missionFacts(o:MissionOffer){
 export function missionEntity(o:MissionOffer){
  const e=o.evidence??{},explicit=missionText(o.offer_kind??o.kind??e.offer_kind??e.kind),known=resultKind(o),hay=missionText([o.subject,o.category,e.scope,e.description].filter(v=>typeof v==='string').join(' '));
  if(['product','article','catalog'].includes(explicit))return 'product';
+ if(['service','prestation','project'].includes(explicit))return 'service';
  if(known==='announcement'||['announcement','annonce','opportunity','job','event','formation'].includes(explicit)||/emploi|recrutement|appel.{0,12}projet|bourse|subvention|formation|opportunit/.test(hay))return 'announcement';
  if(known==='service'||['service','prestation','project'].includes(explicit)||/plombier|plomberie|fuite|reparat|nettoyage|coiff|electricien|depannage|traiteur|site vitrine|creation web|developp|agence web|graphiste|photograph|coutur|mecanicien/.test(hay))return 'service';
  return 'product';
@@ -58,7 +59,7 @@ export function missionEntity(o:MissionOffer){
 export function missionMatches(o:MissionOffer,c:MissionCriteria){
  const kind=c.missionKind;if(!kind||kind==='purchase')return true;
  const entity=missionEntity(o),e=o.evidence??{},f=missionFacts(o);
- if(kind==='opportunity')return entity==='announcement'&&e.eligible!==false&&e.eligibility_status!=='ineligible'&&(f.deadline===null||f.deadline>=(c.now??Date.now()));
+ if(kind==='opportunity')return entity==='announcement'&&!['SELL','BUY','RFQ'].includes(String(o.intent??'').toUpperCase())&&e.eligible!==false&&e.eligibility_status!=='ineligible'&&(f.deadline===null||f.deadline>=(c.now??Date.now()));
  if(kind==='service'||kind==='project'){
   if(entity!=='service')return false;
   if(kind==='project'&&c.maxDays&&f.duration!==null&&f.duration>c.maxDays)return false;

@@ -77,6 +77,7 @@ async function discoverPersistentIntentWithNexus(
           budget_max: discoveryMode === "find_sellers" ? intent.budget_max : null,
           limit,
           refresh_external: refreshExternal,
+          use_paid_sources: mandate.metadata?.use_paid_sources === true,
           smart: false,
           ...(mandate.metadata?.discovery_kind?{discovery_kind:mandate.metadata.discovery_kind,mission_context:mandate.metadata.mission_context}:{}),
         },
