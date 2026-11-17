@@ -13,11 +13,13 @@ import RadarApiConfigPanel from "./RadarApiConfigPanel";
 import RadarAutoControlPanel from "@/components/admin/RadarAutoControlPanel";
 
 import { userFacingErrorText } from "@/lib/userFacingError";
-type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number };
+type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number; config?: Record<string, any> };
 type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
 type Profile = { id: string; contact_phone: string; display_name: string | null; role: string; categories: string[]; cities: string[]; signals_count: number; reliability_score: number; last_seen_at: string | null };
 
 const fmtPrice = (n: number | null) => n ? new Intl.NumberFormat("fr-FR").format(n) + " FCFA" : "—";
+const formatLabels:Record<string,string>={rss_atom:'RSS / Atom',schema_org:'Données structurées',coinafrique:'CoinAfrique',goafrica:'Annuaire professionnel',telegram_public:'Telegram public',catalog_json:'Catalogue public',directory:'Annuaire ouvert'};
+const collectionLabels:Record<string,string>={live:'Collecte opérationnelle',requires_source_url:'URL à compléter',domain_parked:'Domaine indisponible',blocked:'Collecte bloquée',failed:'Collecte à relancer',partial:'À vérifier'};
 
 export default function WaouhRadarTab() {
   const [tab, setTab] = useState("signals");
@@ -60,23 +62,30 @@ export default function WaouhRadarTab() {
   };
 
   const toggleSource = async (id: string, active: boolean) => {
-    await supabase.from("waouh_radar_sources").update({ active }).eq("id", id);
+    const {error}=await supabase.from("waouh_radar_sources").update({ active }).eq("id", id);
+    if(error)return toast.error(userFacingErrorText(error,"save"));
     load();
   };
 
   const deleteSource = async (id: string) => {
     if (!confirm("Supprimer cette source ?")) return;
-    await supabase.from("waouh_radar_sources").delete().eq("id", id);
+    const {error}=await supabase.from("waouh_radar_sources").delete().eq("id", id);
+    if(error)return toast.error(userFacingErrorText(error,"save"));
     load();
   };
 
   const triggerScan = async (fn: string) => {
-    toast.loading(`Lancement ${fn}…`, { id: fn });
-    const { data, error } = await supabase.functions.invoke(fn, { body: {} });
-    toast.dismiss(fn);
-    if (error) toast.error(userFacingErrorText(error, "save"));
-    else toast.success("Analyse terminée. Les données Radar ont été actualisées.");
-    load();
+    setBusyId(fn);
+    toast.loading('Planification de la collecte…', { id: fn });
+    try{
+      const {data,error}=await supabase.functions.invoke(fn,{body:{}});
+      if(error||data?.ok===false)throw error??new Error('collection_unavailable');
+      if(typeof data?.scheduled==='number')toast.success(data.scheduled>0?`${data.scheduled} collecte(s) mises en file. Les fiches apparaîtront après traitement.`:'Aucune source arrivée à échéance. Les prochaines collectes restent programmées.');
+      else if(typeof data?.processed==='number')toast.success(`${data.processed} tâche(s) traitée(s). Consultez les fiches et l’état des sources.`);
+      else toast.success('Demande prise en compte. Consultez l’état des sources pour suivre le traitement.');
+      await load();
+    }catch(error){toast.error(userFacingErrorText(error,'save'));}
+    finally{toast.dismiss(fn);setBusyId(null);}
   };
 
   const promoteSignal = async (id: string) => {
@@ -103,9 +112,11 @@ export default function WaouhRadarTab() {
           <p className="text-xs text-muted-foreground">Détection vendeurs/acheteurs (sites BJ, Facebook, WhatsApp) — promu vers la base unifiée WAOUH.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-serpapi-scout")}>SerpAPI</Button>
-          <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-radar-apify")}>Apify</Button>
-          <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-radar-process")}>Process queue</Button>
+          <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => triggerScan("waouh-radar-site-scraper")}>Collecte gratuite</Button>
+          <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => triggerScan("waouh-serpapi-scout")}>SerpAPI · crédits</Button>
+          <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => triggerScan("waouh-radar-apify")}>Apify · crédits</Button>
+          <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => triggerScan("waouh-radar-process")}>Traiter la file Radar</Button>
+          <Button variant="outline" size="sm" asChild><a href="/admin/waouh/data-control">Voir les fiches NEXUS</a></Button>
           <Button variant="outline" size="icon" onClick={load}><RefreshCw className="w-4 h-4" /></Button>
         </div>
       </div>
@@ -117,6 +128,7 @@ export default function WaouhRadarTab() {
         <Card className="p-3"><div className="text-xs text-muted-foreground">Promus 24h</div><div className="text-2xl font-bold">{signals.filter(s => (s.promoted_article_id || s.promoted_buyer_profile_id) && Date.now() - new Date(s.captured_at).getTime() < 86400000).length}</div></Card>
       </div>
       <RadarAutoControlPanel />
+      <p className="text-xs text-muted-foreground">Les sites publics, flux et annuaires raccordés sont collectés gratuitement. Les API ci-dessous sont optionnelles et peuvent consommer des crédits. Ajouter une source ne suffit pas : son format et son autorisation doivent être configurés avant activation.</p>
       <RadarApiConfigPanel />
 
 
@@ -188,6 +200,12 @@ export default function WaouhRadarTab() {
               <div>
                 <div className="flex items-center gap-2"><Badge>{s.type}</Badge><span className="font-medium text-sm">{s.label || s.identifier}</span></div>
                 <div className="text-xs text-muted-foreground">{s.identifier} · scan {s.scan_freq_min}min · last: {s.last_scan_at ? new Date(s.last_scan_at).toLocaleString("fr-FR") : "jamais"} · {s.last_signal_count} signaux</div>
+                <div className="flex gap-2 flex-wrap mt-1 text-xs">
+                  {s.config?.collection_transport==='direct'&&<Badge variant="outline">Collecte gratuite</Badge>}
+                  {formatLabels[String(s.config?.collection_format)]&&<Badge variant="outline">{formatLabels[String(s.config?.collection_format)]}</Badge>}
+                  <Badge variant="outline">{!s.active?'En pause':collectionLabels[String(s.config?.collection_status)]??'À configurer / première collecte à vérifier'}</Badge>
+                  {typeof s.config?.last_error==='string'&&<span className="text-muted-foreground">{s.config.last_error}</span>}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={s.active} onCheckedChange={(v) => toggleSource(s.id, v)} />
