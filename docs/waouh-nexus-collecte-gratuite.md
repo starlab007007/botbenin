@@ -40,6 +40,10 @@ Exemple de configuration pour le flux officiel existant :
 
 Une nouvelle source doit être vérifiée avant activation : URL réelle, format public, conditions de collecte, attribution et portée des contacts. Le moteur n’ouvre pas les groupes privés et ne contourne aucune connexion. Facebook conserve son connecteur existant à crédits plafonnés ; il ne devient pas illimité ou gratuit du fait de cette extension.
 
+Le domaine doit aussi être autorisé côté serveur : les domaines raccordés sont intégrés au worker ; un nouveau domaine public vérifié s’ajoute à `WAOUH_COLLECTION_SITE_HOSTS`. Le format, l’attribution et les autorisations restent requis dans la configuration de la source. Une URL ajoutée seule au Radar n’active pas un collecteur.
+
+Dans **Administration → WAOUH → Radar**, « Collecte gratuite » planifie uniquement les sources arrivées à échéance. Le message de mise en file ne signifie pas que les fiches sont déjà publiées. L’onglet Sources affiche le format et l’état ; « Voir les fiches NEXUS » ouvre la file commune. Les boutons SerpAPI et Apify sont explicitement identifiés comme des API à crédits.
+
 ## Recherche et qualité
 
 Le domaine est déterminé avant classement : emploi, formation, service, véhicule, immobilier ou biens. La ville seule ne justifie pas un résultat. Les modèles de téléphone explicitement demandés doivent être présents dans le titre ou le modèle de l’offre. Un budget en FCFA est extrait même sans le mot « budget ».
