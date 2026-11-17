@@ -70,6 +70,7 @@ Deno.test("ranking rejects wrong domains and a city or hidden contact placeholde
  assert.ok(score('fuite d’eau','Plombier pour une plomberie')>0);
  assert.equal(scoreFabricSignal({query:'iPhone 13',mode:'find_sellers',signal:{subject:'iPhone 11',model:'11',intent:'SELL'}}).relevance_score,0);
  assert.equal(score('Samsung S10','Samsung S25 neuf'),0);
+ assert.equal(scoreFabricSignal({query:'Samsung S10',mode:'find_sellers',signal:{subject:'Samsung S25 neuf',model:'corve pro',intent:'SELL'}}).relevance_score,0);
  assert.ok(score('réparer mon téléphone','Réparation de téléphones')>0);
 });
 
