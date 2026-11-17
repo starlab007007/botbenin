@@ -105,7 +105,7 @@ declare
 begin
   select * into strict current_job from cron.job where jobname = 'waouh-collection-worker-1m';
   if current_job.command not like '%/functions/v1/waouh-radar-site-scraper%'
-    or current_job.command not like '%x-waouh-internal%' then
+    or current_job.command not ilike '%x-waouh-internal%' then
     raise exception 'Unexpected WAOUH collection cron configuration';
   end if;
   if position('collection.tick' in current_job.command) > 0 then return; end if;

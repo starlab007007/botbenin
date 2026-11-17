@@ -1,8 +1,11 @@
-import robotsParser from "npm:robots-parser@3.0.1";
+import robotsParserModule from "npm:robots-parser@3.0.1";
 import { missionDate } from "../waouh-mission-domain.ts";
 import { sha256Hex } from "../waouh-tel/crypto.ts";
 import { collectionSources, extractNotices, sourceKeyFor } from "./sources.ts";
 
+const robotsParser = robotsParserModule as unknown as (
+  url: string, content: string,
+) => { isAllowed: (url: string, userAgent: string) => boolean | undefined };
 const agent = "WAOUHBot/1.0 (+https://bot.bj/)";
 const maxBytes = 1_200_000;
 
@@ -136,7 +139,7 @@ async function processFeed(db: Db, job: Job): Promise<Report> {
       trust_score: 95,
     };
     try {
-      const outcome = await rpc(db, "waouh_collection_publish_official", {
+      const outcome: unknown = await rpc(db, "waouh_collection_publish_official", {
         p_job: job.id, p_token: job.lease_token, p_hash: await sha256Hex(JSON.stringify(row)), p_row: row,
       });
       if (outcome === "inserted" || outcome === "updated" || outcome === "unchanged") report[outcome]++;
