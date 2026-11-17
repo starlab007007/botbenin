@@ -1,7 +1,7 @@
 import robotsParserModule from "npm:robots-parser@3.0.1";
 import { missionDate } from "../waouh-mission-domain.ts";
 import { sha256Hex } from "../waouh-tel/crypto.ts";
-import { collectionSources, extractNotices, sourceKeyFor } from "./sources.ts";
+import { collectionSources, extractNotices, sourceKeyFor, type CollectionSource, type VerifiedNotice } from "./sources.ts";
 
 const robotsParser = robotsParserModule as unknown as (
   url: string, content: string,
@@ -86,6 +86,15 @@ async function rpc(db: Db, name: string, args: Record<string, unknown> = {}) {
   return data;
 }
 
+function publicationCutoff(item: VerifiedNotice, source: CollectionSource) {
+  if (item.deadline.length === 10) {
+    // The source did not state an hour. Avoid keeping a notice advertised as
+    // open through the last day when it may close first thing that morning.
+    return Date.parse(item.deadline + "T00:00:00" + source.zoneOffset);
+  }
+  return missionDate(item.deadline) ?? 0;
+}
+
 async function processFeed(db: Db, job: Job): Promise<Report> {
   const { data: target, error } = await db.from("waouh_collection_targets")
     .select("enabled,url,etag,last_modified").eq("id", job.target_id).maybeSingle();
@@ -113,8 +122,8 @@ async function processFeed(db: Db, job: Job): Promise<Report> {
   if (!extracted.candidates || !extracted.notices.length) {
     return {status: "failed", reason: "source_format_changed", received: extracted.candidates};
   }
-  const active = extracted.notices.filter(item => (missionDate(item.deadline) ?? 0) > Date.now())
-    .sort((a,b) => missionDate(a.deadline)! - missionDate(b.deadline)!).slice(0, job.max_items);
+  const active = extracted.notices.filter(item => publicationCutoff(item, source) > Date.now())
+    .sort((a,b) => publicationCutoff(a, source) - publicationCutoff(b, source)).slice(0, job.max_items);
   const report = {received: extracted.candidates, qualified: active.length, inserted: 0, updated: 0, unchanged: 0};
 
   for (const item of active) {
@@ -134,7 +143,7 @@ async function processFeed(db: Db, job: Job): Promise<Report> {
         deadline: item.deadline,
         availability_confirmed: false,
       },
-      expires_at: new Date(missionDate(item.deadline)!).toISOString(),
+      expires_at: new Date(publicationCutoff(item, source)).toISOString(),
       confidence: 1,
       trust_score: 95,
     };
