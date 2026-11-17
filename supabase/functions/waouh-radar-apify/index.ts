@@ -8,10 +8,10 @@ const corsHeaders = {
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { chatCompletion } from "../_shared/agent-ai.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 // Apify REST: actorId format is `username~actor-name` in URLs
 const ACTORS = {
@@ -100,25 +100,21 @@ async function setApifyDiscoveryHealth(
 }
 
 async function aiExtract(text: string): Promise<any> {
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
-      messages: [
-        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
-        { role: "user", content: text.slice(0, 2000) },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!r.ok) {
-    await r.body?.cancel();
-    throw new Error(`apify_extraction_http_${r.status}`);
-  }
-  const d = await r.json().catch(() => null);
+  let raw: string;
   try {
-    return JSON.parse(d?.choices?.[0]?.message?.content ?? "");
+    raw = await chatCompletion({
+      system: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}.",
+      messages: [{ role: "user", content: text.slice(0, 2000) }],
+      jsonMode: true,
+      temperature: 0.2,
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    const status = error instanceof Error ? /^Gemini chat (\d{3}):/.exec(error.message)?.[1] : null;
+    throw new Error(status ? `apify_extraction_http_${status}` : "apify_extraction_unavailable");
+  }
+  try {
+    return JSON.parse(raw);
   } catch {
     throw new Error("apify_extraction_response_invalid");
   }
@@ -158,7 +154,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const target = typeof body?.source_id === "string" ? body.source_id : null;
-    if (target && !/^[0-9a-f-]{36}$/i.test(target)) {
+    const verifyOnly = body?.verify_only === true;
+    if ((verifyOnly && !target) || (target && !/^[0-9a-f-]{36}$/i.test(target))) {
       return new Response(JSON.stringify({ ok: false, reason: "invalid_source_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -179,7 +176,7 @@ Deno.serve(async (req) => {
     for (const src of sources) {
       let srcCount = 0;
       let srcError: string | null = null;
-      const observed = { received: 0, duplicates: 0, without_content: 0, unqualified: 0 };
+      const observed = { received: 0, duplicates: 0, without_content: 0, unqualified: 0, qualified: 0 };
       try {
         const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
         const url = groupUrls.get(src.id);
@@ -217,6 +214,8 @@ Deno.serve(async (req) => {
             observed.unqualified++;
             continue;
           }
+          observed.qualified++;
+          if (verifyOnly) continue;
 
           const { error: insertError } = await sb.from("waouh_radar_signals").insert({
             source_id: src.id,
@@ -225,7 +224,7 @@ Deno.serve(async (req) => {
             raw_url: url,
             raw_payload: it,
             intent: ext.intent || "UNKNOWN",
-            product: ext,
+            product: { ...ext, name: ext.title ?? ext.name },
             category: ext.category,
             price: ext.price,
             city: ext.city,
@@ -238,13 +237,13 @@ Deno.serve(async (req) => {
           total++;
           srcCount++;
         }
-        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
+        if (!verifyOnly) await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
       } catch (e: any) {
         srcError = e?.message || String(e);
         const quotaBlocked = /monthly usage hard limit exceeded|platform-feature-disabled|usage hard limit/i.test(srcError ?? "");
         if (quotaBlocked) providerBlocked = true;
         console.error(`[apify ${src.id}]`, srcError);
-        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
+        if (!verifyOnly) await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
       }
       perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError, ...observed });
       // One account-level quota error applies to every actor/source. Do not
@@ -254,11 +253,13 @@ Deno.serve(async (req) => {
 
     const allSourcesFailed = perSource.length > 0 && perSource.every((row) => !!row.error);
     const degraded = providerBlocked || allSourcesFailed;
-    await setApifyDiscoveryHealth(
-      sb,
-      degraded,
-      providerBlocked ? "apify_quota_exhausted" : (allSourcesFailed ? "apify_source_errors" : null),
-    );
+    if (!verifyOnly) {
+      await setApifyDiscoveryHealth(
+        sb,
+        degraded,
+        providerBlocked ? "apify_quota_exhausted" : (allSourcesFailed ? "apify_source_errors" : null),
+      );
+    }
 
     // Trigger processing
     if (total > 0) {
