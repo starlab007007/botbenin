@@ -136,6 +136,33 @@ def type_text(value):
     sh("shell", "input", "text", value.replace(" ", "%s"))
 
 
+def login_submit():
+    root = dump()
+    button = find_lowest(root, r"^\s*Se connecter\s*$")
+    if button is not None:
+        return button, root
+
+    keyboard = sh("shell", "dumpsys", "input_method", timeout=8)
+    if re.search(r"\b(?:mInputShown|mImeWindowVisible)\s*=\s*true\b", keyboard):
+        sh("shell", "input", "keyevent", "4", timeout=10)
+        time.sleep(1)
+        root = dump()
+        button = find_lowest(root, r"^\s*Se connecter\s*$")
+        if button is not None:
+            return button, root
+
+    # The keyboard can leave the login button below Flutter's scrollable form.
+    form = next((node for node in nodes(root) if node.get("scrollable") == "true"), None)
+    if form is not None:
+        left, top, right, bottom = map(int, re.findall(r"\d+", form.get("bounds", "[0,0][0,0]")))
+        x = (left + right) // 2
+        margin = (bottom - top) // 6
+        sh("shell", "input", "swipe", str(x), str(bottom - margin), str(x), str(top + margin), "450", timeout=10)
+        root = dump()
+        button = find_lowest(root, r"^\s*Se connecter\s*$")
+    return button, root
+
+
 def alive():
     return bool(sh("shell", "pidof", PKG, timeout=8).strip())
 
@@ -222,22 +249,29 @@ def main():
             if email_field is not None and pass_field is not None:
                 tap(email_field); time.sleep(1); type_text(EMAIL)
                 tap(pass_field); time.sleep(1); type_text(PASSWORD)
-                sh("shell", "input", "keyevent", "111")  # fermer le clavier
-                time.sleep(1)
-                root = dump()
-                submit = find_lowest(root, r"^\s*Se connecter\s*$") or find_lowest(root, r"Se connecter|Connexion")
-                if submit is not None:
-                    tap(submit)
+                submit, root = login_submit()
+                if submit is None:
+                    step("connexion", False, "Le bouton de connexion reste inaccessible après la saisie", root, critical=True)
+                    return finish()
+                tap(submit)
                 signed_in_page = r"Avatar|Acheter|Vendre|Missions|Que cherchez|Bonjour"
                 root = wait_for(signed_in_page, 60, "after_login")
                 logged = find(root, signed_in_page) is not None and find(
                     root, r"Mot de passe|Continuer avec Email|Mode invité"
                 ) is None
                 step("connexion", logged, "Connexion avec le compte de test" if logged else "Écran de connexion toujours affiché", root, critical=True)
+                if not logged:
+                    return finish()
             else:
                 step("connexion", False, "Champs e-mail / mot de passe introuvables", root, critical=True)
         else:
             step("connexion", False, "Bouton « Continuer avec Email » introuvable", root, critical=True)
+
+    deep_link("/app/deal-room")
+    room_screen = r"Que cherchez-vous|Vos échanges"
+    root = wait_for(room_screen, 45, "deal_room")
+    step("deal_room", alive() and find(root, room_screen) is not None,
+         "Ouverture de la Deal Room après connexion", root, critical=True)
 
     # Recherche d'un produit puis écran des résultats.
     deep_link("/app/avatar/acheter")
@@ -288,8 +322,7 @@ def main():
 
     for path, name, rx in [("/app/missions", "missions", r"Mission|Suivi|Bot"),
                            ("/app/chat", "chat", r"Chat|Message|Discussion|WAOUH"),
-                           ("/app/notifications", "notifications", r"Notification|Aucune"),
-                           ("/app/deal-room", "deal_room", r"échange|Recherche|Que cherchez")]:
+                           ("/app/notifications", "notifications", r"Notification|Aucune")]:
         deep_link(path)
         root = wait_for(rx, 40, name)
         step(name, alive() and root is not None and len(visible_text(root)) > 0, f"Écran {path} affiché", root, critical=True)
