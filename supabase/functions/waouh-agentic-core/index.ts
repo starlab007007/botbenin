@@ -2700,6 +2700,7 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
       case "nexus.mandate.create": {
+        const paidSources=bool(payload.use_paid_sources,false);
         const {data:avatarPrefs,error:avatarPrefsError}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
         if(avatarPrefsError)throw new ApiError(503,'avatar_rules_unavailable');
         const automatic=payload.automatic_follow===true;
@@ -2807,6 +2808,7 @@ Retourne uniquement JSON:
               ...(autonomyRules?{autonomy_settings:autonomyRules,starts_at:startsAt.toISOString()}:{}),
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               automatic_follow: automatic,
+              use_paid_sources: paidSources,
               comparison_priority: comparisonPriority,
               ...(context?{discovery_kind:discoveryKind,mission_context:context}:{}),
               ...(saleArticle?{article_snapshot:{...productSnapshot(saleArticle),price:saleArticle.price}}:{}),
@@ -2828,7 +2830,7 @@ Retourne uniquement JSON:
         const mandate=createdMandate;
         const discoveryMode: DiscoveryMode = mode === "sell" ? "find_buyers" : "find_sellers";
         const initialRefresh: Record<string, unknown> = {};
-        if(!automatic){
+        if(!automatic&&paidSources){
         try {
           if (discoveryMode === "find_sellers" && discoveryKind!=="opportunity") {
             const places = await refreshGooglePlaces(
@@ -2866,6 +2868,10 @@ Retourne uniquement JSON:
           console.warn("[Opportunity OS] initial mandate refresh", refreshError);
         }
 
+        }
+        if(!paidSources){
+          const {data:scheduled,error}=await sb.rpc('waouh_collection_schedule',{p_handler:'site'});
+          initialRefresh.public_sources={configured:true,scheduled:scheduled??0,status:error?'unavailable':'queued',cost:0};
         }
         const intent = automatic?await ensureAutomaticIntent(sb,automaticIntentValues(mandate)):await queryOne<any>(
           sb.from("waouh_persistent_intents").insert({
