@@ -67,11 +67,11 @@ export function scoreFabricSignal(input: {
   ].filter(Boolean).join(" "));
   const hits = queryTokens.filter((token) => haystack.includes(token));
   const verdict=matchVerdict(input.query,input.signal,{place:input.city});
-  const requestedModelNumbers=(normalizeFabricText(input.query).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
+  const requestedModelNumbers=[...normalizeFabricText(input.query).matchAll(/\b(?:iphone|galaxy|samsung|pixel|redmi|note|oppo|tecno|itel|infinix|nokia)\s+(?:galaxy\s+)?[a-z]*\s*(\d{1,3})(?!\d)/g)].map(m=>m[1]);
   // Older records may expose the model only in their actual title.
   const titleNumbers=(normalizeFabricText(input.signal.subject).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
   const offeredModelNumbers=titleNumbers.length?titleNumbers:(normalizeFabricText(input.signal.model).match(/\d+/g)??[]).filter(n=>Number(n)<1000);
-  const modelMismatch=['goods','vehicle'].includes(verdict.domain)&&requestedModelNumbers.length>0&&offeredModelNumbers.length>0&&!requestedModelNumbers.some(n=>offeredModelNumbers.includes(n));
+  const modelMismatch=verdict.domain==='goods'&&requestedModelNumbers.length>0&&!requestedModelNumbers.some(n=>offeredModelNumbers.includes(n));
   const relevance = verdict.acceptable && !modelMismatch ? Math.max(verdict.coverage,queryTokens.length ? (hits.length / queryTokens.length) * 100 : 0) : 0;
 
   const desiredIntent = oppositeIntent(input.mode);

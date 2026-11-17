@@ -1,8 +1,15 @@
-import { normalizeFabricText } from './waouh-signal-fabric.ts';
+import { normalizeFabricText,redactPublicContacts } from './waouh-signal-fabric.ts';
 import { publicBusinessEvidence } from './waouh-public-discovery.ts';
 import { productPhotos } from './waouh-product-presentation.ts';
 import { missionEntity, missionDeadline, type MissionKind } from './waouh-mission-domain.ts';
 import {procurementBuyerSignal} from './waouh-free-discovery.ts';
+
+/** Older search imports used the user's goal as title: retain the actual source title. */
+export function discoveryRecordIdentity(row:Record<string,any>){
+  const title=row.evidence?.title;
+  return row.evidence?.discovered_via==='serpapi'&&typeof title==='string'&&title.trim().length>=3
+    ?{...row,subject:redactPublicContacts(title).slice(0,240)}:row;
+}
 
 export function discoveryRecordCurrent(row: Record<string, any>, now=Date.now()) {
   if (typeof row.source_url === "string") {
@@ -42,7 +49,7 @@ export async function loadDiscoveryRecords(
   const [a, b] = await Promise.all([recent, targeted ?? Promise.resolve({data: [], error: null})]);
   if (a.error || b.error) throw new Error('discovery_records_unavailable');
   const candidates = [...new Map([...(b.data ?? []), ...(a.data ?? [])].map(r => [r.fabric_id, r])).values()] as Record<string, any>[];
-  const records=candidates.filter(r=>discoveryRecordCurrent(r)).map(r=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
+  const records=candidates.map(discoveryRecordIdentity).filter(r=>discoveryRecordCurrent(r)).map(r=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
     .filter(r=>input.mode!=='find_buyers'||['BUY','RFQ'].includes(r.intent));
   return {records, coverage: {inspected: records.length, targeted: b.data?.length ?? 0, recent: a.data?.length ?? 0, exhaustive: false}};
 }
