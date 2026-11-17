@@ -24,7 +24,12 @@ steps = []
 
 
 def sh(*args, check=False, timeout=120):
-    r = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout)
+    try:
+        r = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if check:
+            raise
+        return ""
     if check and r.returncode != 0:
         raise RuntimeError(f"adb {' '.join(args)} -> {r.stdout}{r.stderr}")
     return r.stdout
@@ -33,14 +38,18 @@ def sh(*args, check=False, timeout=120):
 def shot(name):
     path = os.path.join(OUT, f"{len(steps) + 1:02d}_{name}.png")
     with open(path, "wb") as f:
-        f.write(subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=60).stdout)
+        try:
+            f.write(subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=15).stdout)
+        except subprocess.TimeoutExpired:
+            pass
     return path
 
 
 def dump(name=None):
     for _ in range(3):
-        sh("shell", "uiautomator", "dump", "/sdcard/ui.xml", timeout=60)
-        raw = sh("shell", "cat", "/sdcard/ui.xml")
+        sh("shell", "rm", "-f", "/sdcard/ui.xml", timeout=8)
+        sh("shell", "uiautomator", "dump", "/sdcard/ui.xml", timeout=15)
+        raw = sh("shell", "cat", "/sdcard/ui.xml", timeout=8)
         if raw.strip().startswith("<?xml"):
             if name:
                 with open(os.path.join(OUT, f"{len(steps) + 1:02d}_{name}.xml"), "w") as f:
@@ -119,7 +128,7 @@ def type_text(value):
 
 
 def alive():
-    return bool(sh("shell", "pidof", PKG).strip())
+    return bool(sh("shell", "pidof", PKG, timeout=8).strip())
 
 
 def wait_for(pattern, timeout=60, name=None):
@@ -210,13 +219,16 @@ def main():
                 submit = find_lowest(root, r"^\s*Se connecter\s*$") or find_lowest(root, r"Se connecter|Connexion")
                 if submit is not None:
                     tap(submit)
-                root = wait_for(r"Avatar|Acheter|Vendre|Missions|Que cherchez|Bonjour", 60, "after_login")
-                logged = root is not None and not find(root, r"Mot de passe")
-                step("connexion", logged, "Connexion avec le compte de test" if logged else "Écran de connexion toujours affiché", root)
+                signed_in_page = r"Avatar|Acheter|Vendre|Missions|Que cherchez|Bonjour"
+                root = wait_for(signed_in_page, 60, "after_login")
+                logged = find(root, signed_in_page) is not None and find(
+                    root, r"Mot de passe|Continuer avec Email|Mode invité"
+                ) is None
+                step("connexion", logged, "Connexion avec le compte de test" if logged else "Écran de connexion toujours affiché", root, critical=True)
             else:
-                step("connexion", False, "Champs e-mail / mot de passe introuvables", root)
+                step("connexion", False, "Champs e-mail / mot de passe introuvables", root, critical=True)
         else:
-            step("connexion", False, "Bouton « Continuer avec Email » introuvable", root)
+            step("connexion", False, "Bouton « Continuer avec Email » introuvable", root, critical=True)
 
     # Recherche d'un produit puis écran des résultats.
     deep_link("/app/avatar/acheter")

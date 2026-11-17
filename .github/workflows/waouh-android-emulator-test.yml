@@ -2,13 +2,17 @@ name: WAOUH Android emulator test
 
 # Installe l'APK publié (bot.bj/android) sur un émulateur Android et parcourt
 # l'application : lancement, connexion, recherche, résultats, onglets principaux.
-# Captures, vidéo, journaux et rapport sont joints à l'exécution.
+# Captures, journaux et rapport sont joints à l'exécution.
 on:
   workflow_dispatch:
     inputs:
       api_level:
         description: "Version Android de l'émulateur (API)"
         default: "34"
+      capture_video:
+        description: "Enregistrer également une vidéo"
+        type: boolean
+        default: false
   workflow_run:
     workflows: ["WAOUH Flutter Muse NEXUS CI"]
     types: [completed]
@@ -121,6 +125,7 @@ jobs:
         env:
           TEST_EMAIL: ${{ steps.account.outputs.email }}
           TEST_PASSWORD: ${{ steps.account.outputs.password }}
+          CAPTURE_SCREEN_VIDEO: ${{ inputs.capture_video && '1' || '0' }}
         with:
           api-level: ${{ github.event.inputs.api_level || '34' }}
           target: google_apis
