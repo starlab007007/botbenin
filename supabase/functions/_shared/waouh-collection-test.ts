@@ -1,4 +1,4 @@
-import { catalogJson, facebookCommercialPosts, facebookGroup, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
+import { catalogJson, coinAfriqueCatalog, coinAfriqueDetails, facebookCommercialPosts, facebookGroup, facebookSource, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
 import { permitsExternalWhatsApp } from "./waouh-external-contact-permission.ts";
 import assert from "node:assert/strict";
 import { collectionSources, extractNotices, noticeDeadline, sourceKeyFor } from "./waouh-collection/sources.ts";
@@ -116,4 +116,35 @@ Deno.test("Apify results are limited to commercial posts in the authorized Faceb
   assert.deepEqual(rows.map(row => row.intent), ["SELL", "BUY"]);
   assert.equal(rows[0].source_url, "https://www.facebook.com/groups/market987/posts/1/");
   assert.equal(rows[1].evidence.offer_kind, "service");
+});
+
+Deno.test("CoinAfrique keeps the listing identity, seller contact and credited photo separate", () => {
+  const url="https://bj.coinafrique.com/annonce/meubles/chaise-12345";
+  const permission={attribution:"Annonce originale CoinAfrique",media_reuse_authorized:true,media_hosts:["images.coinafrique.com"]};
+  const [row]=coinAfriqueCatalog(`<article class="ad__card"><p class="ad__card-description"><a href="${url}">Chaise de bureau</a></p>
+    <span data-ad-price="38 000" data-ad-category="Meubles"></span><img class="ad__card-img" src="https://images.coinafrique.com/thumb_12345_uploaded_image1.jpg"></article>`,new URL("https://bj.coinafrique.com/"),permission);
+  assert.equal(row.price_min,38000);
+  const detail=`<link rel="canonical" href="${url}"><meta property="og:image" content="https://images.coinafrique.com/12345_uploaded_image1.jpg">
+    <a data-phone-number="+2290123456789"></a><img src="https://images.coinafrique.com/99999_other_listing.jpg">`;
+  const enriched=coinAfriqueDetails(detail,row,permission);
+  assert.deepEqual(enriched.evidence.photos,["https://images.coinafrique.com/12345_uploaded_image1.jpg"]);
+  assert.equal(enriched.evidence.photo_attribution,permission.attribution);
+  assert.equal(enriched.contacts?.filter(c=>c.channel==="phone").length,1);
+  assert.doesNotMatch(JSON.stringify(enriched.evidence),/2290123456789/);
+  assert.throws(()=>coinAfriqueDetails(detail.replace('rel="canonical"','rel="other"'),row,permission),/listing_identity_changed/);
+});
+
+Deno.test("Facebook share links bind returned posts to the requested input and preserve only post photos", () => {
+  const source=facebookSource(" https://web.facebook.com/share/g/1EnAfmcbFk/ ");
+  assert.ok(source);
+  const post={inputUrl:source.href,facebookUrl:"https://www.facebook.com/groups/market987/",
+    url:"https://www.facebook.com/groups/market987/posts/1/",text:"Disponible à vendre radio ancienne 25 000 FCFA",
+    media:[{url:"https://www.facebook.com/media/set/?set=pcb.1&type=1"},{photo_image:{uri:"https://scontent-cdg4-1.xx.fbcdn.net/radio.jpg"}}]};
+  const permission={attribution:"Publication originale",media_reuse_authorized:true};
+  const [row]=facebookCommercialPosts([post],source,permission);
+  assert.equal(row.price_min,25000);
+  assert.equal(row.evidence.photos?.length,1);
+  assert.equal(row.contacts?.[0].channel,"facebook");
+  assert.equal(facebookCommercialPosts([{...post,inputUrl:"https://web.facebook.com/share/g/foreign/"}],source,permission).length,0);
+  assert.equal(facebookSource("https://malicious.org/share/g/abc/"),null);
 });

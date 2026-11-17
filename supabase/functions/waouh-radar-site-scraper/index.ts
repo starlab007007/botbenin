@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { moduleRequestGate } from "../_shared/waouh-module-request.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { waouhCorsHeaders } from "../_shared/waouh-auth.ts";
-import { runCollectionTick } from "../_shared/waouh-collection/worker.ts";
+import { inspectCollectionProvider, runCollectionTick } from "../_shared/waouh-collection/worker.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:waouhCorsHeaders});
@@ -14,6 +14,9 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body=await req.json().catch(()=>({}));
   try {
+    if (body?.action === "collection.inspect") {
+      return Response.json(await inspectCollectionProvider(db),{headers:waouhCorsHeaders});
+    }
     if (body?.action==="collection.tick") {
       const report=await runCollectionTick(db);
       return Response.json({ok:true,...report},{headers:waouhCorsHeaders});

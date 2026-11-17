@@ -9,6 +9,8 @@ on:
       - "supabase/functions/list-users-admin/**"
       - "supabase/functions/_shared/admin-users.ts"
       - "supabase/functions/_shared/waouh-tel/**"
+      - "supabase/functions/_shared/waouh-collection/**"
+      - "supabase/functions/_shared/waouh-collection-test.ts"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
       - "supabase/functions/waouh-native-simulator/**"
@@ -69,6 +71,8 @@ on:
       - "supabase/functions/list-users-admin/**"
       - "supabase/functions/_shared/admin-users.ts"
       - "supabase/functions/_shared/waouh-tel/**"
+      - "supabase/functions/_shared/waouh-collection/**"
+      - "supabase/functions/_shared/waouh-collection-test.ts"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
       - "supabase/functions/waouh-native-simulator/**"
@@ -304,6 +308,7 @@ jobs:
           deno test --no-config supabase/functions/_shared/waouh-opportunity-os-test.ts
           deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-collection-test.ts
           deno test --no-config --allow-env supabase/functions/_shared/waouh-external-exchange-test.ts supabase/functions/_shared/waouh-central-whatsapp-test.ts
           deno test --no-config supabase/functions/_shared/waouh-whatsapp-rich-test.ts
           deno run --no-config supabase/functions/_shared/waouh-phone-test.ts
