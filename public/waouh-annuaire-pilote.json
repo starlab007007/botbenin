@@ -1,0 +1,145 @@
+{
+  "dataset": "Annuaire ouvert du Bénin",
+  "attribution": "© OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "license_url": "https://www.openstreetmap.org/copyright",
+  "source": "https://download.geofabrik.de/africa/benin.html",
+  "source_timestamp": "2026-11-16T21:22:36Z",
+  "items": [
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Quincaillerie Générale",
+      "category": "Quincaillerie",
+      "city": "Abomey-Calavi",
+      "url": "https://www.openstreetmap.org/node/4815647198",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "ETS GNITO’S PEINTURE",
+      "category": "Quincaillerie",
+      "city": "Bohicon (zone)",
+      "url": "https://www.openstreetmap.org/node/7743705485",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Castro Négoce Inter",
+      "category": "Informatique",
+      "city": "Cotonou",
+      "url": "https://www.openstreetmap.org/node/9300909540",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Chez Léonie - couturière",
+      "category": "Couture",
+      "city": "Natitingou (zone)",
+      "url": "https://www.openstreetmap.org/node/5000083621",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Haute Couture",
+      "category": "Couture",
+      "city": "Ouidah (zone)",
+      "url": "https://www.openstreetmap.org/node/3926195346",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "TYR- ARTS",
+      "category": "Cordonnerie",
+      "city": "Parakou (zone)",
+      "url": "https://www.openstreetmap.org/node/11075681062",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Cordonnier",
+      "category": "Cordonnerie",
+      "city": "Porto-Novo (zone)",
+      "url": "https://www.openstreetmap.org/node/10980403916",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Chez Jean",
+      "category": "Cordonnerie",
+      "city": "Abomey-Calavi (zone)",
+      "url": "https://www.openstreetmap.org/node/5509482983",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Garage camion",
+      "category": "Réparation automobile",
+      "city": "Bohicon (zone)",
+      "url": "https://www.openstreetmap.org/node/12247839171",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Tolerie",
+      "category": "Réparation automobile",
+      "city": "Cotonou",
+      "url": "https://www.openstreetmap.org/node/5219682948",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Ets Glory aka \"les syrien\" aka \"les libanais\" aka \"les indien\"",
+      "category": "Quincaillerie",
+      "city": "Natitingou (zone)",
+      "url": "https://www.openstreetmap.org/node/1750968278",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Ets Le Saint Esprit Educateur",
+      "category": "Informatique",
+      "city": "Ouidah (zone)",
+      "url": "https://www.openstreetmap.org/node/5981084904",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Express couture",
+      "category": "Couture",
+      "city": "Parakou (zone)",
+      "url": "https://www.openstreetmap.org/node/10970453760",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Tailleur",
+      "category": "Couture",
+      "city": "Porto-Novo (zone)",
+      "url": "https://www.openstreetmap.org/node/10980382570",
+      "license": "ODbL-1.0"
+    },
+    {
+      "kind": "provider",
+      "intent": "ANNOUNCE",
+      "title": "Haute couture Miguel New Fashion",
+      "category": "Couture",
+      "city": "Abomey-Calavi (zone)",
+      "url": "https://www.openstreetmap.org/node/5631089727",
+      "license": "ODbL-1.0"
+    }
+  ]
+}

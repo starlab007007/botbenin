@@ -19,7 +19,10 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
   const [photo, setPhoto] = useState(0);
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const { phone, channel } = resultContact(result);
-  const e = (result.evidence ?? {}) as Record<string, unknown>;
+  const publicFacts = (result as NexusDiscoveryResult & { public_facts?: Record<string, unknown> }).public_facts;
+  const e = { ...publicFacts, ...result.evidence } as Record<string, unknown>;
+  const credits = typeof e.photo_attribution === "string" && photos.length ? e.photo_attribution
+    : typeof e.source_attribution === "string" ? e.source_attribution : null;
   const verified = e.verified === true || result.contact_pack?.verified_channel === true;
   const score = Math.round(result.scores.total_score);
   const price = result.price_min != null && result.price_max != null && result.price_min !== result.price_max
@@ -46,6 +49,10 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
             {result.city && <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500"><MapPin className="h-3 w-3" />{result.city}</span>}
           </div>
         </div>
+
+        {result.source_key === "benin_open_places"
+          ? <a className="text-xs text-slate-600 underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors · ODbL</a>
+          : credits && <p className="text-xs text-slate-600">{credits}</p>}
 
         {facts.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

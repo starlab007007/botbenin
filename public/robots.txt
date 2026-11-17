@@ -5,6 +5,7 @@ Disallow: /admin/
 Disallow: /api/
 Disallow: /dashboard/private/
 Disallow: /*.json$
+Allow: /waouh-annuaire-pilote.json$
 
 # Bots spécifiques
 User-agent: Googlebot

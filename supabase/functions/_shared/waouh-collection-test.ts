@@ -1,3 +1,4 @@
+import { catalogJson, facebookCommercialPosts, facebookGroup, schemaOrgCatalog, trustedHttps } from "./waouh-collection/commerce.ts";
 import { permitsExternalWhatsApp } from "./waouh-external-contact-permission.ts";
 import assert from "node:assert/strict";
 import { collectionSources, extractNotices, noticeDeadline, sourceKeyFor } from "./waouh-collection/sources.ts";
@@ -57,4 +58,62 @@ Deno.test("a BOAD notice retains an explicitly published closing time and timezo
     source_url: notice.url, evidence: {deadline: "2027-01-19"}, expires_at: "2027-01-19T00:00:00Z" });
   assert.equal(result.contact_policy.label, "Voir l’avis officiel");
   assert.equal(result.public_facts.expires_at, undefined);
+});
+
+Deno.test("catalogue qualifies the four commercial intents and preserves authorized credit", () => {
+  const origin = new URL("https://bot.bj/catalogue.json");
+  const permissions = { automation_authorized: true, media_reuse_authorized: true, attribution: "Partenaire pilote",
+    media_hosts: ["photos.bot.bj"] };
+  const items = [
+    { kind: "product", intent: "SELL", url: "/vente/1?utm_source=p", title: "Perceuse professionnelle", price: "18000.00", currency: "XOF" },
+    { kind: "product", intent: "BUY", url: "/achat/1", title: "Achat de perceuse", description: "Écrire à perso@outlook.com" },
+    { kind: "service", intent: "RFQ", url: "/devis/1", title: "Réparation de moteur", price: 50, currency: "EUR" },
+    { kind: "rare_item", intent: "SELL", url: "/rare/1", title: "Machine à écrire ancienne",
+      photos: ["https://photos.bot.bj/rare.jpg", "https://photos.bot.bj/rare.jpg", "https://photos.bot.bj/privé.jpg?signature=abc", "https://foreign.org/photo.jpg"] },
+    { kind: "product", intent: "SELL", url: "https://foreign.org/vente/1", title: "Copie hors du catalogue" },
+  ];
+  const rows = catalogJson({items}, origin, permissions);
+  assert.deepEqual(rows.map(row => row.intent), ["SELL", "BUY", "RFQ", "SELL"]);
+  assert.equal(rows[0].price_min, 18000);
+  assert.equal(rows[0].source_url, "https://bot.bj/vente/1");
+  assert.equal(rows[1].actor_type, "buyer");
+  assert.doesNotMatch(rows[1].raw_text ?? "", /perso@outlook/);
+  assert.equal(rows[2].evidence.offer_kind, "service");
+  assert.equal(rows[2].price_min, undefined);
+  assert.equal(rows[3].evidence.rare_item, true);
+  assert.deepEqual(rows[3].evidence.photos, ["https://photos.bot.bj/rare.jpg"]);
+  assert.equal(rows[3].evidence.photo_attribution, permissions.attribution);
+  assert.equal(catalogJson({items}, origin, {...permissions, media_reuse_authorized:false})[3].evidence.photos, undefined);
+  assert.equal(trustedHttps("https://127.0.0.1/source"), null);
+});
+
+Deno.test("structured site listings require an offer and keep the original provider credit", () => {
+  const origin = new URL("https://bot.bj/catalogue/");
+  const permissions = {attribution: "Partenaire pilote"};
+  const html = '<script type="application/ld+json">' + JSON.stringify({"@graph":[
+    {"@type":"Service",name:"Réparation automobile",url:"/services/10",offers:{"@type":"Offer",price:"20 000",priceCurrency:"XOF"}},
+    {"@type":"Product",name:"Produit sans offre",url:"/produits/11"},
+  ]}) + '</script>';
+  assert.deepEqual(schemaOrgCatalog(html, origin, permissions).map(row => [row.evidence.offer_kind, row.price_min]), [["service", 20000]]);
+  const directory = catalogJson({items:[{kind:"provider",intent:"ANNOUNCE",title:"Atelier du Centre",city:"Cotonou",
+    category:"Couture",license:"ODbL-1.0",url:"https://www.openstreetmap.org/node/100"}]}, origin,
+    {attribution:"© OpenStreetMap contributors · ODbL"}, true);
+  assert.equal(directory[0].evidence.provider_profile, true);
+  assert.equal(directory[0].evidence.listing_license, "ODbL-1.0");
+  assert.ok(!directory[0].evidence.availability_confirmed);
+});
+
+Deno.test("Apify results are limited to commercial posts in the authorized Facebook group", () => {
+  const group = facebookGroup("https://m.facebook.com/groups/market987?utm_source=search");
+  assert.ok(group);
+  assert.equal(facebookGroup("https://www.facebook.com/marketplace/"), null);
+  const rows = facebookCommercialPosts([
+    {url:"https://m.facebook.com/groups/market987/posts/1/?tracking=x",text:"Je vends une radio ancienne"},
+    {url:"https://www.facebook.com/groups/foreign/posts/2/",text:"Je cherche une radio"},
+    {url:"https://www.facebook.com/groups/market987/posts/3/",text:"Je cherche un service de dépannage"},
+    {url:"https://www.facebook.com/groups/market987/posts/4/",text:"Bon dimanche à tous"},
+  ], group, {attribution:"Groupe pilote"});
+  assert.deepEqual(rows.map(row => row.intent), ["SELL", "BUY"]);
+  assert.equal(rows[0].source_url, "https://www.facebook.com/groups/market987/posts/1/");
+  assert.equal(rows[1].evidence.offer_kind, "service");
 });
