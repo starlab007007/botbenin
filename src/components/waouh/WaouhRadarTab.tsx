@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, RefreshCw, Radar, Users, Activity, Trash2, ArrowUpRight, Target } from "lucide-react";
 import { toast } from "sonner";
 import RadarApiConfigPanel from "./RadarApiConfigPanel";
+import RadarPublicSourceForm from "./RadarPublicSourceForm";
 import RadarAutoControlPanel from "@/components/admin/RadarAutoControlPanel";
 
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -56,7 +57,7 @@ export default function WaouhRadarTab() {
 
   const addSource = async () => {
     if (!newSrc.identifier) return toast.error("Identifiant requis");
-    const { error } = await supabase.from("waouh_radar_sources").insert(newSrc);
+    const { error } = await supabase.from("waouh_radar_sources").insert({...newSrc,active:false});
     if (error) toast.error(userFacingErrorText(error, "save"));
     else { toast.success("Source ajoutée"); setNewSrc({ type: "fb_marketplace", identifier: "", label: "" }); load(); }
   };
@@ -211,6 +212,7 @@ export default function WaouhRadarTab() {
                 <Switch checked={s.active} onCheckedChange={(v) => toggleSource(s.id, v)} />
                 <Button variant="ghost" size="icon" onClick={() => deleteSource(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
               </div>
+              {s.type==='site'&&<RadarPublicSourceForm source={s} onSaved={load}/>}
             </Card>
           ))}
         </TabsContent>

@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
 import WaouhContactHubPanel, { type HubContact } from '@/components/admin/WaouhContactHubPanel';
+import WaouhCollectionControlPanel from '@/components/admin/WaouhCollectionControlPanel';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
@@ -584,6 +585,8 @@ export default function AdminWaouhDataControlPage() {
         <StatCard label="NEXUS externe" value={stats.nexus_external} color="text-violet-700" />
         <StatCard label="Contactables C1+" value={stats.contactable} color="text-cyan-700" />
       </div>
+
+      <WaouhCollectionControlPanel />
 
       <Tabs defaultValue="search">
         <TabsList>

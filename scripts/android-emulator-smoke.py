@@ -149,6 +149,32 @@ def search_submit_button(root, field):
     return min(adjacent, key=lambda node: center(node)[0]) if adjacent else None
 
 
+def search_form_fields(root):
+    fields = [n for n in nodes(root) if "EditText" in (n.get("class") or "")]
+    city = next((n for n in fields if re.search(r"Cotonou|Ville", label(n), re.I)), None)
+    product = next((n for n in fields if n is not city and re.search(r"Produit|cherchez|besoin", label(n), re.I)), None)
+    return product, city
+
+
+def scroll_to_offers(root, max_scrolls=10):
+    """Find actual cards below the reasoning, using the live scrollable bounds."""
+    for _ in range(max_scrolls + 1):
+        if root is not None and find(root, r"Confier à Bot|Continuer manuellement|Intéressé") is not None:
+            return root
+        pane = next((n for n in nodes(root) if n.get("scrollable") == "true"), None)
+        if pane is None:
+            return root
+        box = list(map(int, re.findall(r"\d+", pane.get("bounds", ""))))
+        if len(box) != 4:
+            return root
+        left, top, right, bottom = box
+        x = (left + right) // 2
+        sh("shell", "input", "swipe", str(x), str(bottom - 100), str(x), str(top + 100), "550")
+        time.sleep(1)
+        root = dump()
+    return root
+
+
 def tap(n):
     x, y = center(n)
     sh("shell", "input", "tap", str(x), str(y))
@@ -313,8 +339,10 @@ def main():
             step("requete_soumise", False, "Requête complète ou bouton d'envoi introuvable", root, critical=True)
             return finish()
         tap(go)
-        root = wait_for(r"Intéressé|Demander un devis|Postuler|Confier|Bot recommande|Continuer manuellement", 120, "results")
-        has_results = root is not None and find(root, r"Intéressé|Confier|Bot recommande|Continuer manuellement") is not None
+        root = wait_for(r"Bilan|Recherche terminée|Aucune offre assez proche", 120)
+        root = scroll_to_offers(root)
+        dump("results")
+        has_results = root is not None and find(root, r"Intéressé|Confier à Bot|Continuer manuellement") is not None and find(root, r"Samsung.*S10|S10.*Samsung") is not None
         step("resultats", has_results,
              "Offres Samsung S10 affichées avec les actions (Intéressé / Bot)" if has_results else "Aucun résultat visible après 2 minutes", root, critical=True)
     else:
@@ -323,10 +351,10 @@ def main():
     # Recherche depuis l'écran d'échange : le raisonnement doit s'afficher en direct.
     deep_link("/app/deal-room")
     root = wait_for(r"Que cherchez-vous", 45)
-    fields = [n for n in nodes(root) if "EditText" in (n.get("class") or "")]
-    if len(fields) >= 2:
-        tap(fields[0]); time.sleep(1); type_text("un bic")
-        tap(fields[1]); time.sleep(1)
+    product_field, city_field = search_form_fields(root)
+    if product_field is not None and city_field is not None:
+        tap(product_field); time.sleep(1); type_text("un bic")
+        tap(city_field); time.sleep(1)
         sh("shell", "input", "keyevent", "123")  # fin du champ
         for _ in range(30):
             sh("shell", "input", "keyevent", "67")  # efface la ville

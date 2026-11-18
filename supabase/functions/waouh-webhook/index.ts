@@ -1,3 +1,4 @@
+import {freeDiscoveryPlan,freeDiscoveryResultFits} from "../_shared/waouh-free-discovery.ts";
 import { CENTRAL_WAHA_SESSION, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
 import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
 import { handleRoomGuestInbound } from "../_shared/waouh-room-guest.ts";
@@ -1854,6 +1855,16 @@ Deno.serve(async (req) => {
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
       });
 
+      // Filter before rendering and persisting last_matches so numeric selections
+      // always address the same visible offer. A budget is not a model number.
+      const searchPlan=freeDiscoveryPlan(text,{});
+      const searchScope={mode:"find_sellers" as const,city:searchPlan.city??city,budgetMax:searchPlan.budget_max};
+      matches=(matches??[]).filter((m:any)=>freeDiscoveryResultFits(text,m,searchScope));
+      partnerMatches=partnerMatches.filter((p:any)=>freeDiscoveryResultFits(text,
+        {...p,title:p.titre,price_min:p.prix_min,price_max:p.prix_max,city:p.ville},searchScope));
+      radarSellers=radarSellers.filter((r:any)=>freeDiscoveryResultFits(text,
+        {...r,title:r.product?.title??r.product?.name,description:r.raw_text},searchScope));
+
       const totalCount = (matches?.length || 0) + radarSellers.length + partnerMatches.length;
       if ((intent as any).__short_circuit) {
         // reply déjà défini ci-dessus (message de précision). Skip totalement le rendu.
@@ -2041,7 +2052,7 @@ Deno.serve(async (req) => {
         ];
 
         const radarHint = radarTop.length > 0
-          ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
+          ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Ouvrez un échange ou confiez la prise de contact à Bot.`
           : "";
         const totalShown = partnerTop.length + matchesTop.length + radarTop.length;
         const interestList = Array.from({ length: totalShown }, (_, i) => `*intéressé ${i + 1}*`).join(", ");
@@ -2099,46 +2110,9 @@ Deno.serve(async (req) => {
           nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
         }
 
-        const radarAsync = (async () => {
-          try {
-            for (const r of radarSellers) {
-              // L'article promu (si succès synchrone ci-dessus) sert à enrichir le payload
-              const promoted = radarPromotedArticles.find((a: any) => a.radar_signal_id === r.id);
-              // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
-              const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
-              if (!e164) continue;
-              const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-              const { data: recent } = await sb.from("waouh_outbound_queue")
-                .select("id").eq("to_phone", e164).eq("template", "radar_seller_outreach")
-                .gte("created_at", since).limit(1).maybeSingle();
-              if (recent) continue;
-              const title = r.product?.title || (r.raw_text || "").slice(0, 60) || "votre annonce";
-              const priceTxt = r.price ? ` à ${fmt(Number(r.price))}` : "";
-              try {
-                await sb.rpc("waouh_enqueue_outbound_v2", {
-                  p_to_phone: e164,
-                  p_to_user_id: null,
-                  p_template: "radar_seller_outreach",
-                  p_payload: {
-                    text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
-                    radar_signal_id: r.id,
-                    // v11 — Inclure article_id pour que findRadarSellerOutreachContext
-                    // hydrate le contexte du vendeur sans round-trip via le signal.
-                    article_id: promoted?.id ?? null,
-                    source_url: r.raw_url,
-                  },
-                  p_channel: "whatsapp",
-                  p_image_url: extractProductPhotos(r)[0] ?? null,
-                });
-              } catch (e) { console.warn("[radar outreach]", e); }
-            }
-          } catch (e) { console.warn("[radar async block]", e); }
-        })();
-        // @ts-ignore - EdgeRuntime fourni par Supabase
-        if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
-          // @ts-ignore
-          (EdgeRuntime as any).waitUntil(radarAsync);
-        }
+        // Discovery never sends a vendor message. Contact is executed by the
+        // explicit mandate / Deal Room flow, with its limits and consent policy.
+
       }
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;

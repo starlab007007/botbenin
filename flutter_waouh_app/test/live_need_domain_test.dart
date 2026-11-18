@@ -27,6 +27,13 @@ void main() {
     expect(liveMatchVerdict('je cherche', Map<String, dynamic>.from(phone)).acceptable, false);
   });
 
+  test('free-form budget is not a model and repairs remain services', () {
+    expect(liveNeedDomain('réparer une moto'), 'service');
+    expect(liveNeedDomain('formation informatique'), 'training');
+    expect(liveMatchVerdict('Samsung S10 Cotonou budget 150000 FCFA',
+        {'subject': 'Samsung S10', 'city': 'Cotonou'}, place: 'Cotonou').exact, true);
+  });
+
   test('vente : le prix demandé est situé face au marché', () {
     final high = liveSellerPriceVerdict({'asking_price': 30000, 'comparable_count': 5, 'low': 18000, 'median': 20000, 'high': 26000});
     expect(high?.tone, 'high');

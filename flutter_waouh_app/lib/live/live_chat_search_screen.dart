@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
+import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation;
 import 'live_guided_ask.dart';
@@ -107,6 +108,12 @@ class LiveChatSearchScreen extends StatefulWidget {
 }
 
 class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
+  LiveChatGoalFacts get _goalFacts {
+    final intelligence = _reply?.meta['intelligence'];
+    final city = intelligence is Map && intelligence['city'] is String ? intelligence['city'] as String : null;
+    final budget = intelligence is Map && intelligence['budget_max'] is num ? (intelligence['budget_max'] as num).toInt() : null;
+    return LiveChatGoalFacts(widget.goal, city: widget.city ?? city, budget: widget.budget ?? budget, selling: _sell);
+  }
   final List<ReasonStep> _steps = <ReasonStep>[];
   final List<ReasonStep> _queue = <ReasonStep>[];
   Timer? _reveal;
@@ -123,7 +130,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   @override
   void initState() {
     super.initState();
-    _enqueue(planSteps(ReasonContext(query: widget.goal, city: widget.city)));
+    _enqueue(planSteps(ReasonContext(query: widget.goal, city: _goalFacts.city)));
     widget.messages.addListener(_check);
     _timeout = Timer(const Duration(seconds: 70), () {
       if (_reply == null && mounted) {
@@ -190,12 +197,12 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
 
   bool _zone(String? city) {
     final a = (city ?? '').toLowerCase().trim();
-    final b = (widget.city ?? '').toLowerCase().trim();
+    final b = (_goalFacts.city ?? '').toLowerCase().trim();
     return a.isNotEmpty && b.isNotEmpty && (a.contains(b) || b.contains(a));
   }
 
   List<ReasonStep> _outcome(LiveMessage m, List<Map<String, dynamic>> rows) {
-    final ctx = ReasonContext(query: widget.goal, city: widget.city);
+    final ctx = ReasonContext(query: widget.goal, city: _goalFacts.city);
     if (rows.isEmpty) {
       _summary = const ReasonSummary(
         found: 0,
@@ -328,8 +335,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     try {
       final article = await _saleArticle();
       final response = await _service.createMandate(
-        mode: _sell ? 'sell' : 'buy', goal: widget.goal, articleId: article, city: widget.city,
-        budgetMax: _sell ? null : widget.budget?.toDouble(), autonomyMode: 'assisted',
+        mode: _sell ? 'sell' : 'buy', goal: widget.goal, articleId: article, city: _goalFacts.city,
+        budgetMax: _sell ? null : _goalFacts.budget?.toDouble(), autonomyMode: 'assisted',
         completionGoal: 'recommendations', maxFollowups: 0, allowWaouh: false, allowBlindMessage: false,
       );
       final mandate = response['mandate'];
@@ -350,7 +357,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final ok = await confirmBotDelegation(
       context,
       alternates: alternates.length,
-      budgetMax: widget.budget,
+      budgetMax: _goalFacts.budget,
     );
     if (!ok || !mounted) return;
     await _delegateFabric(
@@ -364,26 +371,26 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
     if (_delegating || fabricId.trim().isEmpty) return;
     if (!confirmed) {
-      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: widget.budget, selling: _sell);
+      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: _goalFacts.budget, selling: _sell);
       if (!ok || !mounted) return;
     }
     setState(() => _delegating = true);
     try {
       final saleArticle = await _saleArticle();
       final api = LiveDealRoomService(legacy.supabase);
-      final askedCity = (widget.city ?? '').trim();
+      final askedCity = (_goalFacts.city ?? '').trim();
       final city = askedCity.isNotEmpty ? askedCity : (fabricCity ?? '');
       final opened = await api.call('open', <String, dynamic>{
         'fabric_id': fabricId,
         if (saleArticle != null) 'sale_article_id': saleArticle,
         if (city.isNotEmpty) 'city': city,
-        'budget_max': _sell ? null : widget.budget,
+        'budget_max': _sell ? null : _goalFacts.budget,
         'confirmed': false,
       });
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
-        'budget_max': _sell ? null : widget.budget,
+        'budget_max': _sell ? null : _goalFacts.budget,
         if (cascade.isNotEmpty) 'cascade_candidates': cascade,
         if (cascade.isNotEmpty) 'cascade_step': 1,
         if (cascade.isNotEmpty) 'cascade_max_steps': 1 + cascade.length,
@@ -418,7 +425,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
     final canonicalRows = rows.where((row) => _roomFabric(row) != null).toList();
     final brief = revealed && rows.isNotEmpty && !_sell
-        ? liveChatMarketBrief(rows, city: widget.city, budget: widget.budget)
+        ? liveChatMarketBrief(rows, city: _goalFacts.city, budget: _goalFacts.budget)
         : null;
     // Vente : le prix demandé face au marché et les acheteurs qui correspondent vraiment.
     final priceReference = reply?.meta['price_reference'];
@@ -426,7 +433,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         ? liveSellerBrief(
             rows,
             reference: priceReference is Map ? <String, dynamic>{for (final e in priceReference.entries) '${e.key}': e.value} : null,
-            city: widget.city,
+            city: _goalFacts.city,
             query: widget.goal,
           )
         : null;
@@ -462,8 +469,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          LiveSearchChips(city: widget.city, budget: widget.budget),
-          if ((widget.city ?? '').trim().isNotEmpty || widget.budget != null) const SizedBox(height: 10),
+          LiveSearchChips(city: _goalFacts.city, budget: _goalFacts.budget),
+          if ((_goalFacts.city ?? '').trim().isNotEmpty || _goalFacts.budget != null) const SizedBox(height: 10),
           LiveSearchStageBar(stage: stage),
           const SizedBox(height: 14),
           LiveReasoningFeed(
@@ -478,7 +485,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             if (seller != null) ...[
               LiveSellerBriefCard(
                 brief: seller,
-                city: widget.city,
+                city: _goalFacts.city,
                 delegating: _delegating,
                 delegated: _delegatedRoom != null,
                 onDelegate: () => _delegateBuyers(seller.buyers),
@@ -489,8 +496,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             if (brief != null && brief.total > 0) ...[
               LiveChatMarketBriefCard(
                 brief: brief,
-                city: widget.city,
-                budget: widget.budget,
+                city: _goalFacts.city,
+                budget: _goalFacts.budget,
                 kind: widget.kind,
                 delegating: _delegating,
                 delegated: _delegatedRoom != null,
