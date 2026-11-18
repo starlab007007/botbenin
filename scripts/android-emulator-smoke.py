@@ -126,6 +126,29 @@ def find_lowest(root, pattern):
     return max(hits, key=lambda n: center(n)[1]) if hits else None
 
 
+def search_submit_button(root, field):
+    """Prefer the send control, never the Avatar's 'Chercher' shortcut."""
+    named = find_lowest(root, r"^\s*(Envoyer(?:\s+(?:le\s+)?message)?|Rechercher|Lancer(?:\s+la\s+recherche)?)\s*$")
+    if named is not None:
+        return named
+    if field is None:
+        return None
+    bounds = list(map(int, re.findall(r"\d+", field.get("bounds", ""))))
+    if len(bounds) != 4:
+        return None
+    _, top, right, bottom = bounds
+    # The released Flutter chat has an unlabelled upward arrow immediately
+    # to the right of the composer. Use its live accessibility bounds.
+    adjacent = []
+    for node in nodes(root):
+        if node.get("clickable") != "true" or node.get("enabled") == "false":
+            continue
+        box = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+        if len(box) == 4 and box[0] >= right and top <= center(node)[1] <= bottom:
+            adjacent.append(node)
+    return min(adjacent, key=lambda node: center(node)[0]) if adjacent else None
+
+
 def tap(n):
     x, y = center(n)
     sh("shell", "input", "tap", str(x), str(y))
@@ -279,19 +302,23 @@ def main():
     step("parcours_acheter", alive() and root is not None, "Écran d'achat ouvert", root, critical=True)
     field = next((n for n in nodes(root) if "EditText" in (n.get("class") or "")), None)
     if field is not None:
-        tap(field); time.sleep(1); type_text("iPhone 13 Cotonou")
-        sh("shell", "input", "keyevent", "66")
-        time.sleep(3)
+        # This model is present in the real, newly collected CoinAfrique data.
+        tap(field); time.sleep(1); type_text("Je cherche un Samsung S10 Cotonou budget 150000 FCFA")
+        sh("shell", "input", "keyevent", "111")  # hide the keyboard without submitting twice
+        time.sleep(1)
         root = dump()
-        go = find(root, r"^\s*(Rechercher|Chercher|Envoyer|Lancer)")
-        if go is not None:
-            tap(go)
-        root = wait_for(r"Intéressé|Demander un devis|Postuler|Confier|Aucun vendeur|Bot recommande", 120, "results")
-        has_results = root is not None and find(root, r"Intéressé|Confier|Aucun vendeur joignable|Bot recommande") is not None
+        field = find(root, r"Samsung.*S10", "EditText")
+        go = search_submit_button(root, field) if field is not None else None
+        if go is None:
+            step("requete_soumise", False, "Requête complète ou bouton d'envoi introuvable", root, critical=True)
+            return finish()
+        tap(go)
+        root = wait_for(r"Intéressé|Demander un devis|Postuler|Confier|Bot recommande|Continuer manuellement", 120, "results")
+        has_results = root is not None and find(root, r"Intéressé|Confier|Bot recommande|Continuer manuellement") is not None
         step("resultats", has_results,
-             "Résultats affichés avec les actions (Intéressé / Bot)" if has_results else "Aucun résultat visible après 2 minutes", root)
+             "Offres Samsung S10 affichées avec les actions (Intéressé / Bot)" if has_results else "Aucun résultat visible après 2 minutes", root, critical=True)
     else:
-        step("resultats", False, "Champ de recherche introuvable sur l'écran d'achat", root)
+        step("resultats", False, "Champ de recherche introuvable sur l'écran d'achat", root, critical=True)
 
     # Recherche depuis l'écran d'échange : le raisonnement doit s'afficher en direct.
     deep_link("/app/deal-room")

@@ -10,6 +10,13 @@ on:
       - '.github/workflows/waouh-android-emulator-test.yml'
       - 'scripts/android-emulator-*.py'
       - 'scripts/android-emulator-*.sh'
+      - 'scripts/tests/test_android_emulator_smoke.py'
+  pull_request:
+    branches: [prod]
+    paths:
+      - '.github/workflows/waouh-android-emulator-test.yml'
+      - 'scripts/android-emulator-smoke.py'
+      - 'scripts/tests/test_android_emulator_smoke.py'
   workflow_dispatch:
     inputs:
       api_level:
@@ -32,8 +39,18 @@ permissions:
   contents: write
 
 jobs:
+  driver-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m py_compile scripts/android-emulator-smoke.py
+      - run: python3 -m unittest discover -s scripts/tests -p test_android_emulator_smoke.py
+
   emulator:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: driver-tests
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
