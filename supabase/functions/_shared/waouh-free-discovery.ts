@@ -22,6 +22,8 @@ export type MarketReference={minimum:number;maximum:number;median:number;currenc
 /** Recheck historical and current cards alike; upstream match flags are not evidence. */
 export function freeDiscoveryResultFits(query:string,row:Record<string,any>,options:{mode:"find_sellers"|"find_buyers";city?:string|null;budgetMax?:number|null}) {
   const plan=freeDiscoveryPlan(query,options);
+  const intent=String(row.intent??"").toUpperCase();
+  if(intent&&!(options.mode==="find_buyers"?["BUY","RFQ"]:["SELL","ANNOUNCE"]).includes(intent))return false;
   const actualTitle=row.evidence?.discovered_via==="serpapi"?row.evidence?.title:null;
   const signal={...row,subject:actualTitle??row.subject??row.title??row.product_name,
     raw_text:row.raw_text??row.description,price_min:row.price_min??row.price,price_max:row.price_max??row.price};

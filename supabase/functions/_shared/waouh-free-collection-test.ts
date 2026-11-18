@@ -122,3 +122,10 @@ Deno.test("collection controls only allow supported providers and bounded cadenc
  assert.throws(()=>collectionControlPatch({action:'collection.cadence',target_id:'00000000-0000-0000-0000-000000000001',minutes:1}));
  assert.equal(collectionControlPatch({action:'collection.cadence',target_id:'00000000-0000-0000-0000-000000000001',minutes:720}).patch.interval_minutes,720);
 });
+
+Deno.test("buyer discovery rejects seller cards and expired historical cards",()=>{
+ const buyer={mode:"find_buyers" as const};
+ assert.equal(freeDiscoveryResultFits('Samsung S10',{title:'Samsung S10',intent:'SELL'},buyer),false);
+ assert.equal(freeDiscoveryResultFits('Samsung S10',{title:'Je cherche Samsung S10',intent:'RFQ'},buyer),true);
+ assert.equal(freeDiscoveryResultFits('Samsung S10',{title:'Samsung S10',evidence:{expires_at:'2020-01-01'}},{mode:'find_sellers'}),false);
+});

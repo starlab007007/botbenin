@@ -29,6 +29,7 @@ Deno.serve(async (req) => {
       const report=await runCollectionTick(db);
       return Response.json({ok:true,...report},{headers:waouhCorsHeaders});
     }
+    if(body?.action!=null)throw new Error("invalid_collection_action");
     const {data,error}=await db.rpc("waouh_collection_schedule",{p_handler:"site"});
     if (error) throw error;
     return Response.json({ok:true,scheduled:data},{status:202,headers:waouhCorsHeaders});
@@ -36,6 +37,6 @@ Deno.serve(async (req) => {
     console.error("[waouh-radar-site-scraper] collection unavailable",error);
     return Response.json({ok:false,message:"Collecte momentanément indisponible.",
       code:error instanceof Error&&/^[a-z_]+$/.test(error.message)?error.message:"collection_tick_failed"},
-      {status:503,headers:waouhCorsHeaders});
+      {status:error instanceof Error&&error.message.startsWith("invalid_collection_")?400:503,headers:waouhCorsHeaders});
   }
 });

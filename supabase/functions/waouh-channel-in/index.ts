@@ -646,7 +646,7 @@ async function enrichChatWithSignalFabric(
     };
 
     // Enrichit les cartes historiques sans modifier leur ordre ni leur action.
-    // L'index métier reste donc parfaitement aligné avec last_matches.
+    // Le moteur a filtré avant de persister last_matches.
     const enrichedCore = input.coreResults.filter(row=>freeDiscoveryResultFits(query,row,{mode,city:scoringCity,budgetMax})).map((row: any) => {
       const matched =
         (row?.id != null ? rankedByRecordId.get(String(row.id)) : null) ??
@@ -658,6 +658,7 @@ async function enrichChatWithSignalFabric(
       return {
         ...row,
         ...explanation,
+        title: matched.subject ?? row.title,
         quality: row.quality ?? matched.quality ?? null,
         entity_kind: row.entity_kind ?? matched.quality?.entity_kind ?? null,
         fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
@@ -2498,6 +2499,15 @@ Deno.serve(async (req) => {
       core?.contactability_level ??
       core?.contactability ??
       nexus.contactability_level;
+
+    if(nexus.intelligence&&results.length>0&&coreResults.length===0) {
+      reply=[`${results.length} fiche(s) correspondent à votre demande.`,
+        ...results.slice(0,5).map((row:any)=>[row.title,
+          Number(row.price_min??row.price)>0?`${row.price_min??row.price} FCFA`:"Prix à confirmer",
+          row.city,row.source_url].filter(Boolean).join(" · ")),
+        "Ouvrez une fiche dans l’application pour démarrer un échange, continuer manuellement ou confier la suite à Bot.",
+        "https://bot.bj/app/deal-room"].join("\n\n");
+    }
 
     // Rien ne correspond au besoin : on le dit, au lieu de proposer des fiches hors sujet.
     // La personne garde une suite utile : confier la recherche à Bot, qui prévient dès qu'il trouve.
