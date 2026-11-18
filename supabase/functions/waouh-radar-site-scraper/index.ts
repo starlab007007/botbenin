@@ -3,7 +3,7 @@ import { moduleRequestGate } from "../_shared/waouh-module-request.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { inspectCollectionProvider, runCollectionTick } from "../_shared/waouh-collection/worker.ts";
-import {collectionOverview,collectionControlPatch} from '../_shared/waouh-collection/control.ts';
+import {collectionOverview,collectionControlPatch,publicSourceConfiguration} from '../_shared/waouh-collection/control.ts';
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:waouhCorsHeaders});
@@ -15,6 +15,15 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body=await req.json().catch(()=>({}));
   try {
+    if(body?.action==='collection.source.configure') {
+      if(typeof body.source_id!=='string'||!/^[0-9a-f-]{36}$/i.test(body.source_id))throw new Error('invalid_collection_source');
+      const {data:source,error:readError}=await db.from('waouh_radar_sources').select('identifier,config').eq('id',body.source_id).eq('type','site').single();
+      if(readError||!source)throw new Error('invalid_collection_source');
+      const config=publicSourceConfiguration(body,source,(Deno.env.get('WAOUH_COLLECTION_SITE_HOSTS')??'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean));
+      const {data,error}=await db.from('waouh_radar_sources').update({config}).eq('id',body.source_id).eq('type','site').select('id');
+      if(error)throw error;
+      return Response.json({ok:true,updated:data?.length??0},{headers:waouhCorsHeaders});
+    }
     if(body?.action==='collection.overview')return Response.json(await collectionOverview(db),{headers:waouhCorsHeaders});
     if(['collection.policy','collection.cadence'].includes(body?.action)) {
       const change=collectionControlPatch(body);

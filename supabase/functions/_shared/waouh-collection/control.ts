@@ -1,7 +1,22 @@
 import {assessQuality} from '../waouh-unified-quality.ts';
+import {trustedHttps} from './commerce.ts';
 
 type Db={from:(table:string)=>any};
 const providers=new Set(['public_feed','apify','serpapi','firecrawl','google_places']);
+
+export function publicSourceConfiguration(body:Record<string,unknown>,current:Record<string,any>,extraHosts:string[]=[]){
+  const url=trustedHttps(body.url),prior=trustedHttps(current.identifier);
+  const hosts=['bot.bj','www.bot.bj','bj.coinafrique.com','www.coinafrique.com','www.goafricaonline.com','bourses.enseignementsuperieur.gouv.bj','t.me',...extraHosts];
+  const formats=['rss_atom','schema_org','catalog_json','directory','coinafrique','goafrica','telegram_public'];
+  if(!url||!prior||url.origin!==prior.origin||!hosts.includes(url.hostname)||!formats.includes(String(body.format))||
+    body.authorized!==true||typeof body.attribution!=='string'||body.attribution.trim().length<5)throw new Error('invalid_collection_source');
+  if((body.format==='coinafrique'&&!['bj.coinafrique.com','www.coinafrique.com'].includes(url.hostname))||
+    (body.format==='goafrica'&&url.hostname!=='www.goafricaonline.com')||
+    (body.format==='telegram_public'&&(url.hostname!=='t.me'||!/^\/s\/[a-zA-Z0-9_]+\/?$/.test(url.pathname))))throw new Error('invalid_collection_source');
+  return {...current.config,collection_transport:'direct',collection_format:body.format,canonical_url:url.href,
+    automation_authorized:true,attribution:body.attribution.trim().slice(0,240),
+    category:typeof body.category==='string'?body.category.trim().slice(0,120):'',country_scope:'BJ',collection_status:'pending',last_error:null};
+}
 
 /** Strict mutation whitelist: credentials, reservations and leases are never client writable. */
 export function collectionControlPatch(body:Record<string,unknown>) {

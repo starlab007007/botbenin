@@ -68,3 +68,7 @@ Le panneau « Alimentation et fraîcheur NEXUS » est disponible dans `/admin/wa
 - Les clés et quotas API restent dans la configuration Radar. Les réservations, contacts privés et baux de tâches ne sont pas modifiables depuis le navigateur. Toutes les commandes passent par la passerelle administrateur.
 
 Le chat, le moteur interactif et le suivi utilisent le même chargeur de fiches et la date de clôture réelle. Le chat revérifie également les cartes historiques ; un ancien indicateur « exact » ne peut pas contourner le contrôle du modèle et du budget. Le parcours Flutter extrait la ville et le budget d’une phrase libre et les transmet à l’affichage et à l’ouverture de l’échange. Les prix comparables du vendeur restent séparés des budgets d’acheteurs.
+
+Dans Radar → Sources, « Configurer la collecte gratuite » permet de choisir le modèle, l’URL publique sur le domaine déjà raccordé, la catégorie et l’attribution. Les nouvelles sources sont créées en pause. Enregistrer un modèle ne donne pas de permission de réutiliser les photos. Un nouveau domaine doit être ajouté à l’autorisation serveur avant toute collecte.
+
+Une recherche simple n’envoie plus de message de prospection Radar. La prise de contact passe par le mandat explicite ou la Deal Room. Le moteur filtre avant d’enregistrer les positions des offres : « intéressé 1 » conserve la cible de la fiche n°1.

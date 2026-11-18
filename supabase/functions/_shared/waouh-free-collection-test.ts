@@ -129,3 +129,13 @@ Deno.test("buyer discovery rejects seller cards and expired historical cards",()
  assert.equal(freeDiscoveryResultFits('Samsung S10',{title:'Je cherche Samsung S10',intent:'RFQ'},buyer),true);
  assert.equal(freeDiscoveryResultFits('Samsung S10',{title:'Samsung S10',evidence:{expires_at:'2020-01-01'}},{mode:'find_sellers'}),false);
 });
+
+Deno.test("source configuration keeps trusted origin and never invents media permissions",async()=>{
+ const {publicSourceConfiguration:configure}=await import('./waouh-collection/control.ts');
+ const source={identifier:'https://t.me/s/market',config:{media_reuse_authorized:false}};
+ const body={url:'https://t.me/s/market',format:'telegram_public',authorized:true,attribution:'Publication originale'};
+ const config=configure(body,source);
+ assert.equal(config.collection_transport,'direct');assert.equal(config.media_reuse_authorized,false);
+ for(const change of [{url:'https://unknown.bj/feed'},{url:'https://t.me/private_group'},{authorized:false},{attribution:''}])
+   assert.throws(()=>configure({...body,...change},source));
+});
