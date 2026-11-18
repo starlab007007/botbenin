@@ -3,6 +3,7 @@ import { moduleRequestGate } from "../_shared/waouh-module-request.ts";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { inspectCollectionProvider, runCollectionTick } from "../_shared/waouh-collection/worker.ts";
+import {collectionOverview,collectionControlPatch} from '../_shared/waouh-collection/control.ts';
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:waouhCorsHeaders});
@@ -14,6 +15,13 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body=await req.json().catch(()=>({}));
   try {
+    if(body?.action==='collection.overview')return Response.json(await collectionOverview(db),{headers:waouhCorsHeaders});
+    if(['collection.policy','collection.cadence'].includes(body?.action)) {
+      const change=collectionControlPatch(body);
+      const {data,error}=await db.from(change.table).update(change.patch).eq(change.key,change.value).select(change.key);
+      if(error)throw error;
+      return Response.json({ok:true,updated:data?.length??0},{headers:waouhCorsHeaders});
+    }
     if (body?.action === "collection.inspect") {
       return Response.json(await inspectCollectionProvider(db),{headers:waouhCorsHeaders});
     }

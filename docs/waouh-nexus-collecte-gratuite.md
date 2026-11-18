@@ -57,3 +57,14 @@ Les photos autorisées gardent leur attribution et leur lien original. Les annua
 ## Contrôles
 
 Les tests de collecte et de classement sont dans `supabase/functions/_shared/waouh-free-collection-test.ts`. Le workflow Native les exécute avec les tests de collecte existants. Les contrôles Web et Flutter vérifient les parcours et l’affichage des références de prix. La santé et les rapports de chaque cible restent visibles dans la file commune et la configuration des sources.
+
+## Pilotage et contrôle des données
+
+Le panneau « Alimentation et fraîcheur NEXUS » est disponible dans `/admin/waouh/data-control` :
+
+- Totaux exacts des fiches exploitables, contrôlées depuis sept jours, anciennes, sans date, nouvelles et externes expirées. Les éléments externes expirés restent dans l’historique et sont exclus des résultats.
+- Qualité sur les 500 fiches les plus récemment contrôlées, avec effectif explicite : photos, prix et contacts manquants. Une absence de prix pour une prestation n’est pas remplacée par un montant inventé.
+- Pause/reprise de chaque fournisseur, plafonds et motifs de blocage, cadence de chaque cible (30 minutes à 7 jours), dernier succès, échéance et dernières tâches. Une cadence choisie désactive l’adaptation pour cette cible.
+- Les clés et quotas API restent dans la configuration Radar. Les réservations, contacts privés et baux de tâches ne sont pas modifiables depuis le navigateur. Toutes les commandes passent par la passerelle administrateur.
+
+Le chat, le moteur interactif et le suivi utilisent le même chargeur de fiches et la date de clôture réelle. Le chat revérifie également les cartes historiques ; un ancien indicateur « exact » ne peut pas contourner le contrôle du modèle et du budget. Le parcours Flutter extrait la ville et le budget d’une phrase libre et les transmet à l’affichage et à l’ouverture de l’échange. Les prix comparables du vendeur restent séparés des budgets d’acheteurs.

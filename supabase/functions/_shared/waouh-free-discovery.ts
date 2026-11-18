@@ -1,6 +1,6 @@
 import {matchVerdict,needDomain,foldText} from "./waouh-need-domain.ts";
-import {type MissionKind} from "./waouh-mission-domain.ts";
-import {type FabricSignal} from "./waouh-signal-fabric.ts";
+import {missionDeadline,type MissionKind} from "./waouh-mission-domain.ts";
+import {scoreFabricSignal,type FabricSignal} from "./waouh-signal-fabric.ts";
 
 /** A local plan works without an API key, model download or paid search request. */
 export function freeDiscoveryPlan(query:string,options:{mode?:"find_sellers"|"find_buyers"|null;city?:string|null;budgetMax?:number|null;kind?:MissionKind}) {
@@ -18,6 +18,22 @@ export function freeDiscoveryPlan(query:string,options:{mode?:"find_sellers"|"fi
 }
 
 export type MarketReference={minimum:number;maximum:number;median:number;currency:"XOF";sample_size:number;basis:string};
+
+/** Recheck historical and current cards alike; upstream match flags are not evidence. */
+export function freeDiscoveryResultFits(query:string,row:Record<string,any>,options:{mode:"find_sellers"|"find_buyers";city?:string|null;budgetMax?:number|null}) {
+  const plan=freeDiscoveryPlan(query,options);
+  const actualTitle=row.evidence?.discovered_via==="serpapi"?row.evidence?.title:null;
+  const signal={...row,subject:actualTitle??row.subject??row.title??row.product_name,
+    raw_text:row.raw_text??row.description,price_min:row.price_min??row.price,price_max:row.price_max??row.price};
+  const expires=Date.parse(row.evidence?.expires_at??row.expires_at??"");
+  const deadline=missionDeadline({...signal,fabric_id:String(row.fabric_id??"legacy")});
+  if((Number.isFinite(expires)&&expires<=Date.now())||(deadline!=null&&deadline<=Date.now()))return false;
+  const scores=scoreFabricSignal({query:plan.normalized_query,mode:options.mode,city:plan.city,
+    budgetMax:plan.budget_max,signal});
+  const price=Number(signal.price_min??signal.price_max);
+  const withinBudget=options.mode!=="find_sellers"||plan.budget_max==null||!(price>0)||price<=plan.budget_max;
+  return scores.relevance_score>=18&&withinBudget;
+}
 /** Published asking prices are comparable only with the same model and known scope. */
 export function marketReference(query:string,offers:FabricSignal[],city?:string|null):MarketReference|null {
   const unique=new Map<string,number>();

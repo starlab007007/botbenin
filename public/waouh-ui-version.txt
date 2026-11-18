@@ -1,7 +1,7 @@
 2026.10.28.1
 ui=essentiel-v1+convergence-v1+fiches-eclairees-v1+opportunity-os-v1+signal-fabric-admin+responsive-premium+avatar-mission-e2e+bot-onboarding+quick-ask
 chat=bot-copilot-v2+focus-premium+compact-header+scrollable-context
-flutter=18.51.0+1794956661
+flutter=18.51.1+1794965424
 backend=convergence-v1+opportunity-os-v1+contact-pack+channel-router+conversation-bus
 
 avatar=premium-live-autonomy-18.34.0
@@ -28,3 +28,5 @@ pertinence=domaine-et-lieu-18.48.0
 vente=prix-marche-et-acheteurs-18.48.0
 suivi=bot-delegation-18.48.0
 collection=free-domain-routed-18.51.0
+
+collection-control=freshness-and-cadence-18.51.1

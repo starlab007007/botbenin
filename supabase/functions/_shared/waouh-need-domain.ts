@@ -39,7 +39,7 @@ const EMPTY_WORDS = new Set([
 
 export function contentWords(value: unknown): string[] {
   return [...new Set(
-    foldText(value).split(" ").filter((word) =>
+    foldText(String(value??"").replace(/(?:\b(?:budget(?:\s+max(?:imum)?)?|moins de|maximum)\s*)?\b\d[\d .\u00a0]*\s*(?:fcfa|xof|cfa)\b/gi," ")).split(" ").filter((word) =>
       // Les chiffres distinguent les modèles (13 et 11 ne sont pas le même téléphone) : on les garde.
       (/\d/.test(word) || word.length > 2) && !EMPTY_WORDS.has(word)
     ),

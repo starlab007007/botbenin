@@ -21,6 +21,7 @@ String liveFoldText(Object? value) {
   return buffer
       .toString()
       .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .replaceAll(RegExp(r'\b(?:fuite d eau|fuite eau|robinet qui fuit)\b'), 'plomberie')
       .trim();
 }
 
@@ -43,7 +44,7 @@ const _emptyWords = {
 
 List<String> liveContentWords(Object? value) {
   final seen = <String>{};
-  for (final word in liveFoldText(value).split(' ')) {
+  for (final word in liveFoldText('${value ?? ''}'.replaceAll(RegExp(r'(?:\b(?:budget(?:\s+max(?:imum)?)?|moins de|maximum)\s*)?\b\d[\d .\u00a0]*\s*(?:fcfa|xof|cfa)\b', caseSensitive: false), ' ')).split(' ')) {
     if (word.isEmpty) continue;
     final hasDigit = RegExp(r'\d').hasMatch(word);
     if ((hasDigit || word.length > 2) && !_emptyWords.contains(word)) seen.add(word);
@@ -65,9 +66,11 @@ String liveNeedDomain(Object? value) {
   final text = ' ${liveFoldText(value)} ';
   if (text.trim().isEmpty) return 'unknown';
   if (_job.hasMatch(text)) return 'job';
-  if (_property.hasMatch(text)) return 'property';
-  if (_vehicle.hasMatch(text)) return 'vehicle';
+  if (RegExp(r'\b(formation\w*|bourse\w*|allocation\w*|seminaire\w*|apprendre|apprentissage|cours|certification\w*)\b').hasMatch(text)) return 'training';
   if (_service.hasMatch(text)) return 'service';
+  if (_vehicle.hasMatch(text)) return 'vehicle';
+  if (_property.hasMatch(text)) return 'property';
+  if (RegExp(r'\b(iphone|galaxy|samsung|smartphone\w*|telephone\w*|portable\w*|ordinateur\w*|ventilateur\w*|moustiquaire\w*|chaise\w*|meuble\w*|imprimante\w*|perceuse\w*)\b').hasMatch(text)) return 'goods';
   return 'unknown';
 }
 

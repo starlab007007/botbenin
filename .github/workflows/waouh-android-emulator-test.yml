@@ -50,7 +50,8 @@ jobs:
 
   emulator:
     needs: driver-tests
-    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    # Push validates the driver; the full run waits for the freshly published Flutter APK.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
@@ -128,13 +129,21 @@ jobs:
           password = "Ci-" + secrets.token_urlsafe(18).replace("-", "x").replace("_", "y")
           print("::add-mask::" + password)
           body = json.dumps({"email": email, "password": password, "email_confirm": True,
+                             "app_metadata": {"waouh_validation": True},
                              "user_metadata": {"full_name": "Test Android CI"}}).encode()
           req = urllib.request.Request(f"https://{ref}.supabase.co/auth/v1/admin/users", data=body, method="POST",
               headers={"Authorization": "Bearer " + service, "apikey": service, "Content-Type": "application/json"})
           user = json.load(urllib.request.urlopen(req, timeout=60))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"email={email}\npassword={password}\nuser_id={user['id']}\n")
-          print("Compte de test créé :", email)
+          prefs=json.dumps({"auth_user_id": user['id'], "autonomy_settings": {
+              "paused": True, "mode": "assisted", "allow_contact": False,
+              "allow_negotiate": False, "allow_whatsapp": False}}).encode()
+          req=urllib.request.Request(f"https://{ref}.supabase.co/rest/v1/waouh_avatar_prefs?on_conflict=auth_user_id",
+              data=prefs,method="POST",headers={"Authorization":"Bearer "+service,"apikey":service,
+                  "Content-Type":"application/json","Prefer":"resolution=merge-duplicates"})
+          urllib.request.urlopen(req,timeout=60).close()
+          print("Compte de test créé, autonomie suspendue :", email)
           PY
 
       - name: Enable KVM

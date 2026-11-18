@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 with tempfile.TemporaryDirectory() as output:
@@ -37,6 +38,19 @@ class SearchSubmissionTest(unittest.TestCase):
               <node clickable="true" enabled="{enabled}" bounds="{bounds}"/>
             </hierarchy>''')
             self.assertIsNone(smoke.search_submit_button(root, smoke.find(root, "Samsung", "EditText")))
+
+    def test_exchange_form_uses_labels_instead_of_field_order(self):
+        root=ET.fromstring('<hierarchy><node text="Cotonou" class="EditText"/><node text="Produit" class="EditText"/></hierarchy>')
+        product,city=smoke.search_form_fields(root)
+        self.assertEqual(product.get("text"),"Produit")
+        self.assertEqual(city.get("text"),"Cotonou")
+
+    def test_results_below_reasoning_are_reached_by_scrolling(self):
+        initial=ET.fromstring('<hierarchy><node text="Bilan"/><node scrollable="true" bounds="[0,100][1080,1900]"/></hierarchy>')
+        cards=ET.fromstring('<hierarchy><node text="Samsung S10"/><node text="Confier à Bot"/></hierarchy>')
+        with patch.object(smoke,"sh") as adb, patch.object(smoke,"dump",return_value=cards), patch.object(smoke.time,"sleep"):
+            self.assertIs(smoke.scroll_to_offers(initial),cards)
+            self.assertIn("swipe",adb.call_args.args)
 
 
 if __name__ == "__main__":

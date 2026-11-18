@@ -35,6 +35,8 @@ import {
 import { extractOfferAmount } from "../_shared/waouh-negotiation-intent.ts";
 import { negotiationActionsV3 } from "../_shared/waouh-commands.ts";
 import { renderCatalog, unavailableKey } from "../_shared/waouh-message-catalog.ts";
+import {freeDiscoveryPlan,freeDiscoveryResultFits,marketReference} from "../_shared/waouh-free-discovery.ts";
+import {loadDiscoveryRecords} from "../_shared/waouh-discovery-records.ts";
 import { matchVerdict } from "../_shared/waouh-need-domain.ts";
 import {
   contactabilityPolicy,
@@ -469,16 +471,12 @@ async function enrichChatWithSignalFabric(
   }
 
   const mode: ChatNexusMode = intent === "BUY" ? "find_sellers" : "find_buyers";
-  const desired = mode === "find_sellers" ? ["SELL", "ANNOUNCE"] : ["BUY", "RFQ"];
-  const budgetMax = chatBudgetMax(input.text, mode);
-
+  const plan=freeDiscoveryPlan(input.text,{mode,city:freeDiscoveryPlan(input.text,{}).city??input.city,
+    budgetMax:chatBudgetMax(input.text,mode)});
+  const budgetMax=mode==="find_sellers"?plan.budget_max:null;
+  const query=plan.normalized_query;
   try {
-    const { data, error } = await sb.from("waouh_signal_fabric")
-      .select("*")
-      .in("intent", desired)
-      .order("observed_at", { ascending: false })
-      .limit(2500);
-    if (error) throw error;
+    const {records:data}=await loadDiscoveryRecords(sb,{query,mode});
 
     const fold = (value: unknown) =>
       String(value ?? "")
@@ -496,12 +494,12 @@ async function enrichChatWithSignalFabric(
       const cityToken = fold(candidate);
       return cityToken.length >= 3 && foldedText.includes(cityToken);
     }) as string | undefined;
-    const scoringCity = explicitCity ?? input.city ?? null;
+    const scoringCity = plan.city ?? explicitCity ?? input.city ?? null;
 
     const scored = (data ?? [])
       .map((signal: FabricSignal) => {
         const scores = scoreFabricSignal({
-          query: input.text,
+          query,
           mode,
           city: scoringCity,
           budgetMax,
@@ -521,14 +519,14 @@ async function enrichChatWithSignalFabric(
     // (un emploi n'est pas un téléphone) et au moins un mot du besoin réellement présent.
     // Sans cela, une recherche sans réponse renvoyait « les plus proches », c'est-à-dire n'importe quoi.
     const eligible = scored.filter((row: any) => {
-      const verdict = matchVerdict(input.text, row, { place: scoringCity });
+      const verdict = matchVerdict(query, row, { place: scoringCity });
       row.match_verdict = verdict;
       return verdict.acceptable;
     });
     // Parmi les annonces qui répondent au besoin : les plus proches d'abord, puis les autres.
     const STRICT = (row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32;
     const strictRows = eligible.filter(STRICT);
-    const pool = strictRows.length >= 6 ? strictRows : eligible;
+    const pool = strictRows;
     // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points ;
     // aucune source ne peut occuper plus de 4 places (traitement équitable de toutes les sources).
     // Ce qui répond précisément au besoin passe devant ce qui n'en est que proche.
@@ -649,7 +647,7 @@ async function enrichChatWithSignalFabric(
 
     // Enrichit les cartes historiques sans modifier leur ordre ni leur action.
     // L'index métier reste donc parfaitement aligné avec last_matches.
-    const enrichedCore = input.coreResults.map((row: any) => {
+    const enrichedCore = input.coreResults.filter(row=>freeDiscoveryResultFits(query,row,{mode,city:scoringCity,budgetMax})).map((row: any) => {
       const matched =
         (row?.id != null ? rankedByRecordId.get(String(row.id)) : null) ??
         rankedByKey.get(chatSignalKey(row)) ??
@@ -759,19 +757,8 @@ async function enrichChatWithSignalFabric(
 
     // Dernier filtre, toutes sources confondues : aucune fiche hors sujet ne doit
     // atteindre la personne, même venue du moteur historique.
-    const relevant = [...enrichedCore, ...appended].filter((row: any) => {
-      if (row?.match_verdict?.acceptable != null) return row.match_verdict.acceptable;
-      if (row?.match_exact != null || row?.match_coverage != null) return true;
-      const verdict = matchVerdict(input.text, {
-        subject: row?.subject ?? row?.title,
-        raw_text: row?.raw_text ?? row?.description,
-        category: row?.category,
-        brand: row?.brand,
-        model: row?.model,
-        city: row?.city,
-      }, { place: scoringCity });
-      return verdict.acceptable;
-    });
+    const relevant = [...enrichedCore, ...appended].filter((row: any) =>
+      freeDiscoveryResultFits(query,row,{mode,city:scoringCity,budgetMax}));
     const results = relevant.map(
       (row: any, index: number) => ({ ...row, index: index + 1 }),
     );
@@ -786,30 +773,11 @@ async function enrichChatWithSignalFabric(
     let priceReference: Record<string, unknown> | null = null;
     if (mode === "find_buyers") {
       const asking = chatAskingPrice(input.text);
-      const { data: comparables } = await sb.from("waouh_signal_fabric")
-        .select("subject,raw_text,category,brand,model,price_min,price_max,city,observed_at")
-        .in("intent", ["SELL", "ANNOUNCE"])
-        .order("observed_at", { ascending: false })
-        .limit(1200);
-      const comparablePrices = (comparables ?? [])
-        .filter((row: any) => matchVerdict(input.text, row, { place: scoringCity }).acceptable)
-        .map((row: any) => Number(row.price_min ?? row.price_max ?? 0))
-        .filter((value: number) => Number.isFinite(value) && value > 0)
-        .sort((a: number, b: number) => a - b);
-      if (comparablePrices.length >= 2 || asking !== null) {
-        const middle = comparablePrices.length
-          ? (comparablePrices.length % 2
-            ? comparablePrices[(comparablePrices.length - 1) / 2]
-            : (comparablePrices[comparablePrices.length / 2 - 1] + comparablePrices[comparablePrices.length / 2]) / 2)
-          : null;
-        priceReference = {
-          asking_price: asking,
-          comparable_count: comparablePrices.length,
-          low: comparablePrices[0] ?? null,
-          median: middle,
-          high: comparablePrices[comparablePrices.length - 1] ?? null,
-        };
-      }
+      const {records:comparables}=await loadDiscoveryRecords(sb,{query,mode:"find_sellers"});
+      const reference=marketReference(query,comparables,scoringCity);
+      if(reference||asking!==null)priceReference={asking_price:asking,
+        comparable_count:reference?.sample_size??0,low:reference?.minimum??null,
+        median:reference?.median??null,high:reference?.maximum??null};
     }
 
     return {
@@ -818,7 +786,7 @@ async function enrichChatWithSignalFabric(
       nothing_relevant: results.length === 0,
       intelligence: {
         mode,
-        normalized_query: input.text.trim().slice(0, 700),
+        normalized_query: query.slice(0, 700),
         city: scoringCity,
         budget_max: budgetMax,
         priorities: [
@@ -862,7 +830,7 @@ async function enrichChatWithSignalFabric(
   } catch (error) {
     console.warn("[waouh-channel-in] Signal Fabric enrichment failed", error);
     return {
-      results: input.coreResults,
+      results: input.coreResults.filter(row=>freeDiscoveryResultFits(query,row,{mode,city:plan.city,budgetMax})),
       price_reference: null,
       nothing_relevant: false,
       intelligence: null,
@@ -2521,11 +2489,11 @@ Deno.serve(async (req) => {
     // Une valeur explicite du moteur reste prioritaire ; sinon NEXUS fournit
     // l'intelligence de découverte au Chat sans casser les anciens moteurs.
     const intelligence =
-      core?.intelligence ?? core?.nexus_intelligence ?? nexus.intelligence;
+      nexus.intelligence ? {...(core?.intelligence ?? core?.nexus_intelligence ?? {}),...nexus.intelligence} : core?.intelligence ?? core?.nexus_intelligence ?? null;
     const sourceMix =
-      core?.source_mix ?? core?.sourceMix ?? nexus.source_mix;
+      nexus.source_mix ?? core?.source_mix ?? core?.sourceMix;
     const signalFabric =
-      core?.signal_fabric ?? core?.signalFabric ?? nexus.signal_fabric;
+      nexus.signal_fabric ?? core?.signal_fabric ?? core?.signalFabric;
     const contactability =
       core?.contactability_level ??
       core?.contactability ??

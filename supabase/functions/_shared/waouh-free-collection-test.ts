@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {goAfricaProviders,publicDeadline,rssAtomListings,structuredPublicListings,telegramPublicListings} from "./waouh-collection/public.ts";
 import {productIdentity,coinAfriqueCatalog} from "./waouh-collection/commerce.ts";
-import {freeDiscoveryPlan,marketReference,procurementBuyerSignal} from "./waouh-free-discovery.ts";
+import {freeDiscoveryResultFits,freeDiscoveryPlan,marketReference,procurementBuyerSignal} from "./waouh-free-discovery.ts";
 import {scoreFabricSignal,redactPublicContacts} from "./waouh-signal-fabric.ts";
 import {missionMatches} from "./waouh-mission-domain.ts";
 import {discoveryRecordIdentity} from "./waouh-discovery-records.ts";
@@ -105,4 +105,20 @@ Deno.test("published identities and academic years are preserved without inventi
  assert.equal(redactPublicContacts('Bourses 2026-2027 · +229 01 12 34 56 78'),'Bourses 2026-2027 · [téléphone]');
  const [row]=coinAfriqueCatalog('<article class="ad__card"><p class="ad__card-description"><a href="/annonce/cours-particuliers/cours-1">Cours d’espagnol</a></p></article>',new URL('https://bj.coinafrique.com/categorie/services'),credit);
  assert.equal(row.evidence.offer_kind,'service');
+});
+
+Deno.test("chat revalidates old match flags, inline budgets and exact models",()=>{
+ const query="Je cherche un Samsung S10 Cotonou budget 150000 FCFA",o={mode:"find_sellers" as const};
+ assert.equal(freeDiscoveryResultFits(query,{title:"Samsung S25",price:20000,match_exact:true},o),false);
+ assert.equal(freeDiscoveryResultFits(query,{title:"Samsung S10",price:160000,match_exact:true},o),false);
+ assert.equal(freeDiscoveryResultFits(query,{title:"Samsung S10",price:85000},o),true);
+ assert.equal(freeDiscoveryResultFits("plombier Cotonou",{title:"Téléphone à vendre",match_coverage:100},o),false);
+});
+
+Deno.test("collection controls only allow supported providers and bounded cadences",async()=>{
+ const {collectionControlPatch}=await import('./waouh-collection/control.ts');
+ assert.deepEqual(collectionControlPatch({action:'collection.policy',provider:'public_feed',paused:true,secret:'ignored'}).patch,{paused:true});
+ assert.throws(()=>collectionControlPatch({action:'collection.policy',provider:'unknown',paused:true}));
+ assert.throws(()=>collectionControlPatch({action:'collection.cadence',target_id:'00000000-0000-0000-0000-000000000001',minutes:1}));
+ assert.equal(collectionControlPatch({action:'collection.cadence',target_id:'00000000-0000-0000-0000-000000000001',minutes:720}).patch.interval_minutes,720);
 });
