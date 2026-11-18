@@ -496,7 +496,7 @@ async function enrichChatWithSignalFabric(
     }) as string | undefined;
     const scoringCity = plan.city ?? explicitCity ?? input.city ?? null;
 
-    const scored = (data ?? [])
+    const scored: any[] = (data ?? [])
       .map((signal: FabricSignal) => {
         const scores = scoreFabricSignal({
           query,
