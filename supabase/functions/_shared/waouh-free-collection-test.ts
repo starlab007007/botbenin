@@ -139,3 +139,9 @@ Deno.test("source configuration keeps trusted origin and never invents media per
  for(const change of [{url:'https://unknown.bj/feed'},{url:'https://t.me/private_group'},{authorized:false},{attribution:''}])
    assert.throws(()=>configure({...body,...change},source));
 });
+
+Deno.test("an explicit free-form budget does not require a currency suffix",()=>{
+ const plan=freeDiscoveryPlan('Samsung S10 Cotonou budget : 150000',{});
+ assert.equal(plan.budget_max,150000);assert.equal(plan.normalized_query,'Samsung S10 Cotonou');
+ assert.equal(freeDiscoveryPlan('Samsung S10',{}).budget_max,null);
+});
