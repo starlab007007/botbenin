@@ -108,7 +108,12 @@ class LiveChatSearchScreen extends StatefulWidget {
 }
 
 class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
-  LiveChatGoalFacts get _goalFacts => LiveChatGoalFacts(widget.goal, city: widget.city, budget: widget.budget, selling: _sell);
+  LiveChatGoalFacts get _goalFacts {
+    final intelligence = _reply?.meta['intelligence'];
+    final city = intelligence is Map && intelligence['city'] is String ? intelligence['city'] as String : null;
+    final budget = intelligence is Map && intelligence['budget_max'] is num ? (intelligence['budget_max'] as num).toInt() : null;
+    return LiveChatGoalFacts(widget.goal, city: widget.city ?? city, budget: widget.budget ?? budget, selling: _sell);
+  }
   final List<ReasonStep> _steps = <ReasonStep>[];
   final List<ReasonStep> _queue = <ReasonStep>[];
   Timer? _reveal;

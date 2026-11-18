@@ -494,7 +494,7 @@ async function enrichChatWithSignalFabric(
       const cityToken = fold(candidate);
       return cityToken.length >= 3 && foldedText.includes(cityToken);
     }) as string | undefined;
-    const scoringCity = plan.city ?? explicitCity ?? input.city ?? null;
+    const scoringCity = freeDiscoveryPlan(input.text,{}).city ?? explicitCity ?? input.city ?? null;
 
     const scored: any[] = (data ?? [])
       .map((signal: FabricSignal) => {
