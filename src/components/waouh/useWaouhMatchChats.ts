@@ -241,6 +241,11 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
     migrateLegacyKeys(sessionId, loadOpen(sessionId))
   );
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
+  const ownerScope = `${sessionId}:${authUserId ?? ''}`;
+  const ownerRef = useRef(ownerScope);
+  ownerRef.current = ownerScope;
+  const matchesRef = useRef(matches);
+  matchesRef.current = matches;
   const [activeKey, setActiveKeyState] = useState<string>(() => {
     const saved = loadActive(sessionId);
     const open = loadOpen(sessionId);
@@ -332,8 +337,9 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
   // Open handler — canonical key, merges with existing tab, drains pending buffer.
   const openMatchFromDetail = useCallback(
     async (detail: any) => {
+      const owner = ownerRef.current;
       let articleId: string | null = detail?.article_id ?? null;
-      if (detail?.thread_id) {
+      if (detail?.thread_id && !articleId) {
         try {
           const { data: thread } = await supabase.from("waouh_chat_threads")
             .select("id,article_id,buyer_user_id,seller_user_id").eq("id", detail.thread_id).maybeSingle();
@@ -345,27 +351,19 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
           }
         } catch { /* Authenticated history can still resolve a supplied article + thread. */ }
       }
-      if (!articleId) return;
+      if (!articleId || owner !== ownerRef.current) return;
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
       // v13: les DEUX côtés discriminent par contrepartie — une fenêtre
       // correspond toujours à 1 article × 1 interlocuteur.
       const counterpartForKey: string | null =
         detail.counterpart_user_id ??
         (role === "buyer" ? (detail.seller_user_id ?? null) : null);
-      const key = matchKey(articleId, role, counterpartForKey, detail.thread_id);
+      const existingThread = detail.thread_id ? matchesRef.current.find(m => m.thread_id === detail.thread_id && m.kind === role) : null;
+      const key = existingThread?.key ?? matchKey(articleId, role, counterpartForKey, detail.thread_id);
 
       const notificationId: string | null = detail.notification_id ?? null;
 
 
-      let art: any = null;
-      try {
-        const res = await supabase
-          .from("waouh_articles")
-          .select("id,title,description,brand,model,condition,price,currency,city,photos")
-          .eq("id", articleId)
-          .maybeSingle();
-        art = res.data;
-      } catch {}
 
       setMatches((prev) => {
         const existing = prev.find((m) => m.key === key);
@@ -391,13 +389,12 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
           deal_id: detail.deal_id ?? existing?.deal_id ?? null,
           buyer_user_id: detail.buyer_user_id ?? existing?.buyer_user_id ?? null,
           seller_user_id: detail.seller_user_id ?? detail.seller_id ?? existing?.seller_user_id ?? null,
-          title: art?.title || detail.title || existing?.title || "Annonce",
-          price: art?.price ?? detail.price ?? existing?.price ?? null,
-          city: art?.city ?? detail.city ?? existing?.city ?? null,
-          photos: productPhotos(art??detail.product_snapshot??{photos:detail.photos??existing?.photos??[detail.photo??existing?.photo]}),
-          product_snapshot: productSnapshot(art??detail.product_snapshot??existing?.product_snapshot??detail),
+          title: detail.title || existing?.title || "Annonce",
+          price: detail.price ?? existing?.price ?? null,
+          city: detail.city ?? existing?.city ?? null,
+          photos: productPhotos(detail.product_snapshot??{photos:detail.photos??existing?.photos??[detail.photo??existing?.photo]}),
+          product_snapshot: productSnapshot(detail.product_snapshot??existing?.product_snapshot??detail),
           photo:
-            (Array.isArray(art?.photos) && art!.photos[0]) ||
             detail.photo ||
             existing?.photo ||
             null,
@@ -441,6 +438,24 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       window.dispatchEvent(
         new CustomEvent("waouh:match-updated", { detail: { article_id: articleId } })
       );
+
+      // Metadata must not delay the selected tab or reactivate an older tab when it arrives.
+      void Promise.resolve(supabase.from("waouh_articles")
+        .select("id,title,description,brand,model,condition,price,currency,city,photos")
+        .eq("id", articleId).maybeSingle()).then(({ data: article }) => {
+          if (!article || owner !== ownerRef.current) return;
+          setMatches(previous => {
+            const next = previous.map(m => m.key === key ? {
+              ...m, title: article.title || m.title, price: article.price ?? m.price,
+              city: article.city ?? m.city,
+              photos: productPhotos(article).length ? productPhotos(article) : m.photos,
+              photo: productPhotos(article)[0] ?? m.photo,
+              product_snapshot: productSnapshot(article),
+            } : m);
+            saveOpen(sessionId, next);
+            return next;
+          });
+        }).catch(() => {});
 
       if (role === "buyer" && articleId && !detail.thread_id && shouldSendBuyerInterest(sessionId, articleId)) {
         supabase.functions

@@ -1,4 +1,5 @@
 import 'live_deal_room.dart';
+import 'live_legacy_interest.dart';
 import 'live_smart_sale.dart';
 import 'live_smart_sale_data.dart';
 import 'live_product_presentation.dart';
@@ -813,6 +814,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     final sale = _activeKind == 'sale' ? _articleId : null;
     if (_activeKind == 'sale' && sale == null) { notice('Choisissez votre article à vendre.'); return; }
     try {
+      if (sale == null && _activeKind != 'opportunity') {
+        await openLiveInterestedDiscussion(context, item);
+        return;
+      }
       final result = await LiveDealRoomService(legacy.supabase).call('open', {
         'fabric_id': item.fabricId, 'confirmed': true, if (sale != null) 'sale_article_id': sale,
       });

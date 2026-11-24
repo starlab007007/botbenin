@@ -1,4 +1,5 @@
 import 'live_deal_room.dart';
+import 'live_legacy_interest.dart';
 import 'live_product_presentation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -770,8 +771,12 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _continue(NexusDiscoveryItem item, {bool proposePrice = false}) async {
-    // Vendeur WAOUH : parcours de négociation historique ; sinon Deal Room (propriétaire hors WAOUH).
-    if(widget.mode!=LiveAvatarCommerceMode.sell){try{final d=await LiveDealRoomService(legacy.supabase).call('open',{'fabric_id':item.fabricId,'confirmed':true});if(mounted)context.push('/app/deal-room?room_id=${d['deal_room_id']}${proposePrice?'&propose=1':''}');}catch(e){if(mounted)setState(()=>_error='$e');}return;}
+    if (widget.mode != LiveAvatarCommerceMode.sell) {
+      try { await openLiveInterestedDiscussion(context, item); }
+      catch (e) { if (mounted) setState(() => _error = roomError(e)); }
+      return;
+    }
+    // The sale workflow keeps its explicit seller/article context.
 
     if (!proposePrice && !essentialPrimaryNeedsPrice(item)) {
       await _mediatedContact(item);

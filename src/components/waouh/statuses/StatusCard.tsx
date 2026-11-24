@@ -1,3 +1,5 @@
+import { openInterestedDiscussion } from '@/lib/waouh/interestNavigation';
+import { toast } from 'sonner';
 import { Eye, MapPin, MessageCircle, Tag, Trash2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -47,6 +49,15 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
     status.type === "buy" ? "l'acheteur" : status.type === "announce" ? "l'annonceur" : "le vendeur";
 
   const openChat = async () => {
+    if (status.article_id && status.type !== 'buy') {
+      try { await openInterestedDiscussion({
+        fabric_id: `article:${status.article_id}`, source_key: 'status', subject: status.title,
+        raw_text: '', price_min: status.price_fcfa ?? null, price_max: null,
+        city: status.location ?? null, evidence: { photos },
+      }, navigate); }
+      catch (e) { toast.error(e instanceof Error ? e.message : 'Cet échange n’a pas pu être ouvert. Réessayez.'); }
+      return;
+    }
     const article_id = status.article_id ?? status.id;
     const kind: "buyer" | "seller" = status.type === "buy" ? "seller" : "buyer";
     const priceLine =

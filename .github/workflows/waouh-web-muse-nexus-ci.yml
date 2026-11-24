@@ -152,7 +152,12 @@ jobs:
             src/lib/waouh/__tests__/identityIds.test.ts \
             src/lib/waouh/__tests__/sessionCache.test.ts \
             src/components/waouh/__tests__/WaouhAvatarGuideBar.test.tsx \
-            src/app-mobile/screens/__tests__/ProfileScreen.test.tsx
+            src/app-mobile/screens/__tests__/ProfileScreen.test.tsx \
+            src/lib/waouh/__tests__/interestNavigation.test.ts \
+            src/components/waouh/__tests__/interest-entry.test.tsx \
+            src/components/waouh/__tests__/interest-chat-tab.test.tsx \
+            src/components/waouh/__tests__/offer-actions.test.tsx \
+            src/components/waouh/__tests__/buyerInterestOnce.test.ts
 
       - name: Deno
         uses: denoland/setup-deno@v2

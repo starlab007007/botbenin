@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import { openInterestedDiscussion } from '@/lib/waouh/interestNavigation';
 import { useEffect, useMemo, useState } from "react";
 import { WaouhCityField } from "./WaouhCityField";
 import {
@@ -31,7 +33,6 @@ import {
   type ExternalDiscovery, type ReasonSummary,
 } from "@/lib/waouh/liveReasoning";
 import {
-  expressNexusInterest,
   globalNexusDiscovery,
   getNexusSummary,
   getSellerOpportunities,
@@ -64,6 +65,7 @@ function Stat({ icon: Icon, value, label }: { icon: typeof Bot; value: number; l
 export type NexusActivity = { state: "idle" | "thinking" | "talking"; line: string };
 
 export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: string) => void; onActivity?: (activity: NexusActivity) => void }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [tab, setTab] = useState("buy");
@@ -200,12 +202,12 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
     const key = `interest:${item.article_id ?? item.catalog_id}`;
     setBusy(key);
     try {
-      await expressNexusInterest(item);
-      toast({
-        title: "Vendeur contacté",
-        description: "Votre intérêt est enregistré et WAOUH a lancé le parcours de mise en relation.",
-      });
-      if (onAsk) onAsk(`Je veux négocier ${item.title}${item.price ? ` affiché à ${moneyXof(item.price)}` : ""}. Conseille-moi une offre raisonnable.`);
+      await openInterestedDiscussion({
+        fabric_id: item.article_id ? `article:${item.article_id}` : `catalog:${item.catalog_id}`,
+        source_key: 'nexus', subject: item.title, raw_text: '',
+        price_min: item.price ?? null, price_max: null, city: item.city ?? null,
+        evidence: { photos: item.photos ?? [] },
+      }, navigate);
     } catch (error) {
       toast({ title: "Contact impossible", description: err(error), variant: "destructive" });
     } finally {

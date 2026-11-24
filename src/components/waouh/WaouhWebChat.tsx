@@ -784,7 +784,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       // v13 — la négociation ne reste jamais dans le fil principal : on ouvre
       // (ou on ré-active) la fenêtre dédiée (article × interlocuteur).
-      if (respArticleId && respIntent && DEDICATED_INTENTS.has(respIntent)) {
+      const explicitInterest = /^(?:je\s+suis\s+)?int[eé]ress[eé]/i.test(text.trim()) ||
+        /^(?:buyer[_ -])?interest(?:ed)?$/i.test(String(metaOverride.action || respIntent || ''));
+      if (respArticleId && ((respIntent && DEDICATED_INTENTS.has(respIntent)) || (data?.thread_id && explicitInterest))) {
         setChatSearch(null);
         window.dispatchEvent(
           new CustomEvent("waouh:open-match-chat", {
@@ -796,7 +798,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               deal_id: (data as any)?.deal_id ?? null,
               buyer_user_id: (data as any)?.buyer_user_id ?? null,
               seller_user_id: (data as any)?.seller_user_id ?? null,
-              kind: "buyer",
+              kind: data?.role === "seller" || respIntent === "match_seller" ? "seller" : "buyer",
               seed_text: (data as any)?.reply ?? null,
             },
           })

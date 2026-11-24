@@ -1,7 +1,7 @@
 import {ProductGallery} from './WaouhProductPresentation';
 import { useState } from "react";
 import {Link} from "react-router-dom";
-import { offerReachable } from "@/components/waouh/WaouhOfferActions";
+import { offerDealRoomPath, offerReachable } from "@/components/waouh/WaouhOfferActions";
 import { BadgeCheck, ImageOff, MapPin, Phone, Sparkles } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { moneyXof } from "@/lib/waouh/agenticClient";
@@ -75,7 +75,7 @@ export function WaouhNexusResultCard({ result, mode, articleId, onHandled }: { r
           <WaouhDelegateButton result={result} mode={mode} articleId={articleId} onHandled={onHandled} />
           <div className="[&_button]:h-12 [&_button]:w-full [&_button]:rounded-2xl">
             {offerReachable(result)
-                ? <Link className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" to={`/app/chat?${new URLSearchParams({fabric_id:result.fabric_id})}`}>Intéressé</Link>
+                ? <Link className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" to={offerDealRoomPath(result, mode === "sell" ? "sale" : undefined, articleId)}>Intéressé</Link>
                 : result.source_url
                   ? <a className="flex h-12 items-center justify-center rounded-2xl border border-blue-200 text-sm font-semibold text-blue-700" href={result.source_url} target="_blank" rel="noopener noreferrer">Voir l’annonce</a>
                   : <span className="flex h-12 items-center justify-center rounded-2xl border border-slate-200 text-xs font-semibold text-slate-500">Contact non disponible</span>}
