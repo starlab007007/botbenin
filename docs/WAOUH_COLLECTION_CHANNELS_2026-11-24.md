@@ -19,6 +19,8 @@ Pilotage : [Administration des données](https://bot.bj/admin/waouh/data-control
 - Première preuve de reprise : quatre tâches Facebook réussies et douze nouvelles fiches. Deux autres tâches ont été bloquées ; les plafonds restent appliqués. À 23 h 16, GUARDIAN indiquait `SOURCE_DELAYED` pendant le rattrapage, au lieu de `POLICY_PAUSED`.
 - Apify : plafond conservé de 0,05 USD par appel et 0,20 USD par jour ; utilisation des crédits inclus seulement. Le contrôle du compte indiquait environ 0,37 USD de crédits inclus restants. Aucun achat ni relèvement de plafond effectué.
 
+Suivi à 23 h 20 : les quatre index officiels ont été parcourus. La BCEAO a publié deux nouvelles fiches et confirmé neuf fiches inchangées ; la BOAD a confirmé une fiche inchangée. Les index Emploi et Marchés publics du Gouvernement n’ont pas fourni de nouvelle annonce encore valide. Le total publié depuis la reprise atteint donc quatorze nouvelles fiches (douze Facebook et deux BCEAO). Les premiers passages CoinAfrique (racine et Services) ont rencontré une réponse HTTP 502 du site et ont été remis en attente par la reprise automatique. Le rattrapage des onze autres cibles gratuites n’est pas encore intégralement terminé.
+
 ## Inventaire des 40 entrées du registre
 
 | Canal | Clé | Mode | Configuration enregistrée |
