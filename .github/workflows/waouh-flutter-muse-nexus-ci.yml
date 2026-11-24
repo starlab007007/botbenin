@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: waouh-flutter-muse-nexus-${{ github.ref }}
+  group: waouh-flutter-muse-nexus-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
