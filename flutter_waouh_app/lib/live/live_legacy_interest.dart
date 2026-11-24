@@ -49,7 +49,7 @@ Future<void> openLiveLegacyInterest(
     source: source,
   );
   if (!context.mounted) return;
-  await _showInterestedMatch(context, match);
+  await showLiveInterestedMatch(context, match);
 }
 
 final _pendingInterests = <String, Future<LiveMatch>>{};
@@ -193,17 +193,19 @@ Future<bool> openLiveExternalInterest(
         city: item.city,
       );
       if (!context.mounted) return true;
-      await _showInterestedMatch(context, match);
+      await showLiveInterestedMatch(context, match);
       return true;
   }
 }
 
-Future<void> _showInterestedMatch(BuildContext context, LiveMatch match) async {
+Future<void> showLiveInterestedMatch(
+    BuildContext context, LiveMatch match) async {
   if (!context.mounted) return;
   final path = '/app/chat/match/${Uri.encodeComponent(match.key)}';
-  if (GoRouterState.of(context).uri.path == path) return;
-  // Use the existing chat route and its existing negotiation renderer.
-  context.go(path, extra: match);
+  final router = GoRouter.of(context);
+  if (router.routeInformationProvider.value.uri.path == path) return;
+  // A Radar sheet or a Navigator page need not have its own GoRouterState.
+  router.go(path, extra: match);
 }
 
 /// Common entry for results, Radar and existing fabric links. No additional Deal Room.
@@ -237,7 +239,7 @@ Future<void> openLiveInterestedDiscussion(
     );
   }
   if (!context.mounted) return;
-  await _showInterestedMatch(
+  await showLiveInterestedMatch(
     context,
     LiveMatch(
       key: liveMatchKey(articleId, 'buyer', null, threadId),
