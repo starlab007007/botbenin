@@ -19,6 +19,11 @@ describe('Interest enters the existing chat negotiation', () => {
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ thread_id: 'existing', negotiation_id: 'n', article_id: 'a', title: 'Mercedes', kind: 'buyer' }), navigate);
     expect(mocks.commerce).not.toHaveBeenCalled();
   });
+  it('uses the selected catalog reference instead of a stale promoted article in its metadata', async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true, article_id: 'fresh', thread_id: 'same' } });
+    await openInterestedDiscussion({ ...offer('catalog:chosen'), evidence: { article_id: 'stale' } }, vi.fn());
+    expect(mocks.invoke.mock.calls[0][1].body).toEqual({ catalog_id: 'chosen', source: 'results_interested' });
+  });
   it('deduplicates simultaneous requests while allowing the active caller to open the result', async () => {
     let resolve!: (value: unknown) => void;
     mocks.invoke.mockReturnValue(new Promise(r => { resolve = r; }));

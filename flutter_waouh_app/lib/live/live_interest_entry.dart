@@ -39,10 +39,11 @@ class _LiveInterestEntryState extends State<LiveInterestEntry> {
         }),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = 'Cet échange n’a pas pu être ouvert. Réessayez.',
         );
+      }
     } finally {
       if (mounted) setState(() => opening = false);
     }
@@ -50,27 +51,27 @@ class _LiveInterestEntryState extends State<LiveInterestEntry> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Votre échange'),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () => context.go('/app/chat'),
-      ),
-    ),
-    body: Center(
-      child: error == null
-          ? const CircularProgressIndicator()
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(error!),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: opening ? null : open,
-                  child: const Text('Réessayer'),
+        appBar: AppBar(
+          title: const Text('Votre échange'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/app/chat'),
+          ),
+        ),
+        body: Center(
+          child: error == null
+              ? const CircularProgressIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(error!),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: opening ? null : open,
+                      child: const Text('Réessayer'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-    ),
-  );
+        ),
+      );
 }

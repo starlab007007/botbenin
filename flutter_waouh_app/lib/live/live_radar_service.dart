@@ -1,10 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'live_guest_action_gate.dart';
+import 'live_legacy_interest.dart';
+import 'live_nexus_service.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
 
@@ -30,7 +31,20 @@ Future<bool> openLiveRadarRoom(
   }).toString();
   if (await requireLiveAuthentication(context,
       next: target, actionLabel: 'ouvrir cet échange')) {
-    if (context.mounted) await context.push(target);
+    if (context.mounted) {
+      await openLiveInterestedDiscussion(
+          context,
+          NexusDiscoveryItem.fromJson({
+            'fabric_id': fabric,
+            'source_key': item.source,
+            'subject': item.title,
+            'intent': 'SELL',
+            'price_min': item.priceMin,
+            'price_max': item.priceMax,
+            'city': item.city,
+            'evidence': {...item.raw, 'photos': item.photoUrls},
+          }));
+    }
   }
   return true;
 }
@@ -76,21 +90,24 @@ class LiveRadarService {
     required double longitude,
     required LiveRadarFilters filters,
   }) {
-    final key = '${latitude.toStringAsFixed(3)}:${longitude.toStringAsFixed(3)}:${filters.toJson()}';
+    final key =
+        '${latitude.toStringAsFixed(3)}:${longitude.toStringAsFixed(3)}:${filters.toJson()}';
     final cached = _cache[key];
     if (cached != null &&
         DateTime.now().difference(cached.scannedAt) <
             const Duration(seconds: 20)) {
       return Future.value(cached);
     }
-    return _inFlight.putIfAbsent(key, () => _scanFresh(
-          latitude: latitude,
-          longitude: longitude,
-          filters: filters,
-        ).then((value) {
-          _cache[key] = value;
-          return value;
-        }).whenComplete(() => _inFlight.remove(key)));
+    return _inFlight.putIfAbsent(
+        key,
+        () => _scanFresh(
+              latitude: latitude,
+              longitude: longitude,
+              filters: filters,
+            ).then((value) {
+              _cache[key] = value;
+              return value;
+            }).whenComplete(() => _inFlight.remove(key)));
   }
 
   Future<LiveRadarScanSnapshot> _scanFresh({

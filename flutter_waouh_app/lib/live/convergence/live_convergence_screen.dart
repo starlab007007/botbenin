@@ -1,4 +1,6 @@
 import '../live_deal_room.dart';
+import '../live_legacy_interest.dart';
+import '../live_nexus_service.dart';
 import '../live_product_presentation.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -172,6 +174,16 @@ class _LiveConvergenceScreenState extends State<LiveConvergenceScreen> with Widg
     final uid=client.auth.currentUser?.id, mid=mission['id'], cid=c['id'];
     setState((){busy=true;error='';});
     try{
+      final fabric = '${c['source_ref'] ?? ''}';
+      if(c['kind']=='product' && RegExp(r'^(article|catalog|external|radar|legacy_external):').hasMatch(fabric)) {
+        final snapshot = convergenceMap(c['source_snapshot']);
+        await openLiveInterestedDiscussion(context, NexusDiscoveryItem.fromJson({
+          'fabric_id': fabric, 'source_key': 'mission', 'subject': c['title'],
+          'price_min': c['amount'], 'city': mission['city'], 'intent': 'SELL',
+          'evidence': convergenceMap(snapshot['product']),
+        }));
+        return;
+      }
       final ids={'mission_id':mid,'component_id':cid};
       final data=convergenceMap(await api('business.open',{...ids,'confirmed':true}));
       if(!mounted||client.auth.currentUser?.id!=uid)return;

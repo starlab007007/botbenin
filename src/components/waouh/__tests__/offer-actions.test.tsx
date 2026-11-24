@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const interest = vi.hoisted(() => ({ open: vi.fn(async (_item, navigate) => navigate('/app/chat')) }));
 vi.mock('@/lib/waouh/interestNavigation', () => ({ openInterestedDiscussion: interest.open }));

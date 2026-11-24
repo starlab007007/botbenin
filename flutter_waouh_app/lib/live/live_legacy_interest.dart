@@ -8,7 +8,6 @@ import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_models.dart';
 import 'live_nexus_service.dart';
-import 'live_thread_flow.dart';
 
 /// Offre d'un vendeur WAOUH (article publié ou catalogue partenaire) : « Intéressé »
 /// suit le parcours historique — intérêt transmis au vendeur (web, application,
@@ -16,8 +15,9 @@ import 'live_thread_flow.dart';
 /// Même règle que le web (`legacyDealCandidate`).
 bool liveLegacyDealCandidate(NexusDiscoveryItem item) {
   final source = item.sourceKey.toLowerCase();
-  if (!const ['waouh_app', 'partner', 'whatsapp'].contains(source))
+  if (!const ['waouh_app', 'partner', 'whatsapp'].contains(source)) {
     return false;
+  }
   return item.fabricId.startsWith('article:') ||
       item.fabricId.startsWith('catalog:');
 }
@@ -61,7 +61,8 @@ Future<LiveMatch> prepareLiveLegacyInterest(
   String source = 'results_interested',
 }) async {
   final owner = client.auth.currentUser?.id;
-  final key = '${identityHashCode(client)}:$owner:${item.fabricId}';
+  final key =
+      '${identityHashCode(client)}:$owner:${item.fabricId}:${offer ?? 'interest'}';
   final pending = _pendingInterests[key];
   if (pending != null) return pending;
   final request = _prepareLiveLegacyInterest(
@@ -88,10 +89,14 @@ Future<LiveMatch> _prepareLiveLegacyInterest(
   double? offer,
   String source = 'results_interested',
 }) async {
-  final articleId = _id(item.articleId, 'article:', item.fabricId);
-  final catalogId = articleId == null
-      ? _id(item.catalogId, 'catalog:', item.fabricId)
-      : null;
+  final owner = client.auth.currentUser?.id;
+  final articleId = item.fabricId.startsWith('catalog:')
+      ? null
+      : item.fabricId.startsWith('article:')
+          ? item.fabricId.substring(8)
+          : _id(item.articleId, 'article:', item.fabricId);
+  final catalogId =
+      articleId == null ? _id(item.catalogId, 'catalog:', item.fabricId) : null;
   final amount = offer != null && offer > 0 ? offer.roundToDouble() : null;
   final response = await client.functions.invoke(
     'waouh-buyer-interest',
@@ -103,6 +108,9 @@ Future<LiveMatch> _prepareLiveLegacyInterest(
       if (amount != null) 'initial_offer_amount': amount,
     },
   );
+  if (client.auth.currentUser?.id != owner) {
+    throw const LiveLegacyInterestException('Votre compte a changé.');
+  }
   final data = response.data is Map
       ? Map<String, dynamic>.from(response.data as Map)
       : <String, dynamic>{};

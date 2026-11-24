@@ -13,8 +13,9 @@ const unavailable = () => new LegacyInterestError('Cet échange n’a pas pu êt
 
 async function resolveInterest(item: Offer): Promise<Record<string, unknown>> {
   const evidence = item.evidence || {};
-  const article = String(evidence.article_id || evidence.promoted_article_id || (item.fabric_id.startsWith('article:') ? item.fabric_id.slice(8) : ''));
-  const catalog = String(evidence.catalog_id || (item.fabric_id.startsWith('catalog:') ? item.fabric_id.slice(8) : ''));
+  const family = item.fabric_id.split(':')[0];
+  const article = family === 'article' ? item.fabric_id.slice(8) : ['catalog', 'external'].includes(family) ? '' : String(evidence.article_id || evidence.promoted_article_id || '');
+  const catalog = family === 'catalog' ? item.fabric_id.slice(8) : family === 'external' ? '' : String(evidence.catalog_id || '');
   const presentation = {
     title: item.subject || item.raw_text || 'Annonce', price: item.price_min ?? item.price_max ?? null,
     city: item.city ?? null, photos: productPhotos(item), kind: 'buyer', source: 'results_interested',

@@ -786,7 +786,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       // (ou on ré-active) la fenêtre dédiée (article × interlocuteur).
       const explicitInterest = /^(?:je\s+suis\s+)?int[eé]ress[eé]/i.test(text.trim()) ||
         /^(?:buyer[_ -])?interest(?:ed)?$/i.test(String(metaOverride.action || respIntent || ''));
-      if (respArticleId && ((respIntent && DEDICATED_INTENTS.has(respIntent)) || (data?.thread_id && explicitInterest))) {
+      if ((respArticleId && respIntent && DEDICATED_INTENTS.has(respIntent)) || (data?.thread_id && explicitInterest)) {
         setChatSearch(null);
         window.dispatchEvent(
           new CustomEvent("waouh:open-match-chat", {
