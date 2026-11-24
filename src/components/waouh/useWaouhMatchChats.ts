@@ -339,7 +339,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
     async (detail: any) => {
       const owner = ownerRef.current;
       let articleId: string | null = detail?.article_id ?? null;
-      if (detail?.thread_id && !articleId) {
+      if (detail?.thread_id) {
         try {
           const { data: thread } = await supabase.from("waouh_chat_threads")
             .select("id,article_id,buyer_user_id,seller_user_id").eq("id", detail.thread_id).maybeSingle();
