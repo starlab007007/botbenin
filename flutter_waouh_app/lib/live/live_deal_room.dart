@@ -1,5 +1,6 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'live_market_analysis.dart';
+import 'live_legacy_interest.dart';
 import 'live_offer_channels.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -154,6 +155,13 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    if(mounted&&v==generation){final base=buildSummary(const [],d,ctx);final reach=d.results.where(liveOfferReachable).length;final summary=ReasonSummary(found:base.found,inZone:base.inZone,contactable:reach,bestPrice:base.bestPrice,nextSteps:[if(reach>0)'Choisissez une offre ou confiez-la à Bot : il écrit et négocie.' else 'Ouvrez l’annonce d’origine pour joindre le vendeur.',...base.nextSteps.where((t)=>!t.startsWith('Choisissez une offre')&&!t.startsWith('Je peux contacter'))].take(3).toList());setState((){offers=d.results;reasonSummary=summary;});pushReason([...discoveryResultSteps(d.results,ctx,reachable:liveOfferReachable),summaryStep(summary,ctx)]);}}
   catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
+  if(!delegate && kind!='opportunity'){
+   if(busy)return;setState(()=>busy=true);
+   try{await openLiveInterestedDiscussion(context,item);}
+   catch(e){if(mounted)setState(()=>error=roomError(e));}
+   finally{if(mounted)setState(()=>busy=false);}
+   return;
+  }
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
   final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();
   // « Intéressé » : la proposition d'offre s'ouvre aussitôt (prix de l'annonce prérempli), sans étape intermédiaire.

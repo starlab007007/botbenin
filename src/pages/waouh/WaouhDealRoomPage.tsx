@@ -17,6 +17,7 @@ import {useNavigate} from 'react-router-dom';
 import {supabase} from '@/integrations/supabase/client';
 import {compressImage,uploadOptions} from '@/lib/imageOptimize';
 import {getWaouhSessionId} from '@/app-mobile/hooks/useWaouhIdentity';
+import {openInterestedDiscussion} from '@/lib/waouh/interestNavigation';
 import './deal-room.css';
 const money=(n:any)=>n==null?'Prix à préciser':`${new Intl.NumberFormat('fr-FR').format(Number(n))} F`;
 const mergeMessages=(old:any[]=[],fresh:any[]=[])=>[...new Map([...old,...fresh].map(m=>[m.id,m])).values()].sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at))||String(a.id).localeCompare(String(b.id)));
@@ -71,6 +72,7 @@ export default function WaouhDealRoomPage(){
    if(current()){setResults(d.results);const base=buildSummary(null,{results:d.results},ctx),reach=d.results.filter(offerReachable).length;const summary={...base,contactable:reach,nextSteps:[reach?'Choisissez une offre ou confiez-la à Bot : il écrit et négocie.':'Ouvrez l’annonce d’origine pour joindre le vendeur.',...base.nextSteps.filter(t=>!t.startsWith('Choisissez une offre')&&!t.startsWith('Je peux contacter'))].slice(0,3)};setReasonSummary(summary);feed.push([...discoveryResultSteps(d.results,ctx,offerReachable),summaryStep(summary,ctx)]);}}
   catch{if(current()){setError('Recherche partielle. Les résultats déjà reçus restent disponibles.');feed.push([{id:'res-partial',tone:'warn',text:'Une partie n’a pas répondu. Les offres reçues restent affichées.'}]);}}finally{setSearching(false);}};
  const open=async(item:any,delegate=false)=>{
+  if(!delegate&&kind!=='opportunity'){setBusy(true);setError('');try{await openInterestedDiscussion(item,navigate);}catch(e){setError(e instanceof Error?e.message:'Cet échange n’a pas pu être ouvert. Réessayez.');}finally{setBusy(false);}return;}
   // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
 delegateIntent.current=delegate;const d=await act('open',{fabric_id:item.fabric_id,city,budget_max:budget?Number(budget):null,confirmed:!delegate});if(d){setDetail(null);setRules(r=>({...r,budget_max:budget}));if(delegate)setPanel('mandate');else if(d.allowed_actions?.includes('propose')){const price=item.price_min??item.price_max;setOfferVersion(d.current_offer_version??0);setTerms(t=>({...t,amount:price?String(Math.round(Number(price))):t.amount,scope:d.title||item.subject||'',expected_result:d.title||item.subject||''}));setPanel('offer');}}};
  const propose=()=>{setOfferVersion(room?.current_offer_version??0);const a=room?.agreement?.terms;setDelivery({mode:a?.delivery_mode==='delivery'?'delivery':'pickup',address:String(a?.delivery_address||''),fee:a?.delivery_fee?String(a.delivery_fee):''});setTerms({amount:String(a?.amount??room?.price??''),quantity:String(a?.quantity??1),scope:a?.scope||room?.title||'',deadline:a?.deadline||'Sous 48 h',exclusions:a?.exclusions||'À préciser',expected_result:a?.expected_result||room?.title||'',payment:a?.payment||'À la remise'});setPanel('offer');};

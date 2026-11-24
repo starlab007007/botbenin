@@ -1,7 +1,10 @@
 import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const interest = vi.hoisted(() => ({ open: vi.fn(async (_item, navigate) => navigate('/app/chat')) }));
+vi.mock('@/lib/waouh/interestNavigation', () => ({ openInterestedDiscussion: interest.open }));
 
 const legacy = vi.hoisted(() => ({ open: vi.fn(async () => ({ thread_id: 't1' })) }));
 vi.mock('@/lib/waouh/legacyInterest', async (orig) => ({ ...(await orig() as object), openLegacyInterest: legacy.open }));
@@ -40,7 +43,8 @@ it('“Intéressé” goes to the Deal Room, “Bot” keeps the other offers as
   expect(button('Bot').dataset.alternates).toBe('article:b,article:c');
   await act(async () => button('Détails').click()); expect(details).toHaveBeenCalledTimes(1);
   await act(async () => button('Intéressé').click());
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Aa&offer=50000');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
+  expect(interest.open).toHaveBeenCalledWith(expect.objectContaining({ fabric_id: 'article:a' }), expect.any(Function));
 });
 
 it('asks to sign in instead of opening the Deal Room when signed out', async () => {
@@ -81,7 +85,7 @@ it('opens a manual room for a listing without an automatic contact', async () =>
   expect(host.textContent).toContain('Contact non disponible');
   expect(host.textContent).not.toContain('Bot');
   await act(async () => button('Ouvrir l’échange').click());
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=external%3Ay&offer=50000');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
 });
 
 it('the banner hands Bot only reachable offers, and says so when none is', async () => {
@@ -93,7 +97,7 @@ it('the banner hands Bot only reachable offers, and says so when none is', async
   expect(host.querySelector('button')).toBeNull();
 });
 
-it('“Intéressé” ouvre toujours le Deal Room, jamais la négociation historique', async () => {
+it('“Intéressé” opens the existing chat tab without another room URL', async () => {
   legacy.open.mockClear();
   const member = { ...(offer('article:m') as object), source_key: 'waouh_app' } as never;
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
@@ -102,7 +106,8 @@ it('“Intéressé” ouvre toujours le Deal Room, jamais la négociation histor
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Am&offer=50000');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
+  expect(interest.open).toHaveBeenCalledWith(expect.objectContaining({ fabric_id: 'article:m' }), expect.any(Function));
 });
 
 it('an opportunity keeps its application process in the Deal Room', async () => {

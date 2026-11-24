@@ -15,6 +15,7 @@ import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
 import {openBusinessInterest,interestMessage,interestNumber} from '@/lib/waouh/businessInterest';
 import {roomCall} from '@/lib/waouh/dealRoom';
+import {openInterestedDiscussion} from '@/lib/waouh/interestNavigation';
 import './business-journey.css';
 const money=(v:unknown)=>v==null?'À préciser':new Intl.NumberFormat('fr-FR').format(Number(v))+' F CFA';
 const phases=['Recherche','Sélection','Échange','Accord','Suivi'];
@@ -52,6 +53,15 @@ export default function WaouhPremiumJourneyPage(){
     componentId=selected.selected_component_id;
    }
    if(!componentId)throw new Error('offer');
+   const fabric=row?.fabric_id||String(part?.source_ref||'');
+   if(mission.kind==='product'&&!mission.criteria?.includes('workflow:sale')&&/^(article|catalog|external|radar|legacy_external):/.test(fabric)){
+    await openInterestedDiscussion(row||{
+      fabric_id:fabric,source_key:'mission',subject:part?.title||mission.goal,raw_text:'',
+      price_min:part?.amount??null,price_max:null,city:mission.city??null,
+      evidence:part?.source_snapshot?.product||{},
+    },navigate,()=>account.current===owner&&revision.current===v);
+    return;
+   }
    // A component-scoped stable request avoids repeating the opening message on retry.
    const key=`waouh-interest:${owner}:${mid}:${componentId}`;
    let requestId=sessionStorage.getItem(key);if(!requestId){requestId=crypto.randomUUID();sessionStorage.setItem(key,requestId);}

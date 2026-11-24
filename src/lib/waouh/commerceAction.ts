@@ -25,6 +25,8 @@ export interface CommerceActionBody {
   action: CommerceActionName;
   idem: string;
   article_id?: string | null;
+  catalog_id?: string | null;
+  source_id?: string | null;
   /** Résultat Nexus (`external:<uuid>`) : le serveur le matérialise en article puis ouvre la Deal Room. */
   fabric_id?: string | null;
   thread_id?: string | null;

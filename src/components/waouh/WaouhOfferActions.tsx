@@ -8,6 +8,8 @@ import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import { WaouhDirectContact } from "./WaouhDirectContact";
 import "./waouh-market.css";
 import { offerChannels } from "@/lib/waouh/offerChannels";
+import { openInterestedDiscussion } from '@/lib/waouh/interestNavigation';
+import { toast } from 'sonner';
 
 type Mode = "buy" | "sell" | "ask";
 
@@ -84,13 +86,19 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   contactAction?: ReactNode;
 }) {
   const navigate = useNavigate();
+  const [opening, setOpening] = useState(false);
   const { mode, kind, requireAuth } = shared;
   const reachable = offerReachable(result);
   const canOpen = !!result.fabric_id && (mode !== "sell" || !!shared.articleId);
   const primary = canOpen ? (
-    <button type="button" className="wgd-offer-primary" onClick={() => {
+    <button type="button" className="wgd-offer-primary" disabled={opening} onClick={async () => {
       const path = offerDealRoomPath(result, mode === "sell" ? "sale" : kind, shared.articleId);
-      if (requireAuth(path)) navigate(path);
+      if (!requireAuth(path)) return;
+      if (mode === 'sell' || kind === 'opportunity') { navigate(path); return; }
+      setOpening(true);
+      try { await openInterestedDiscussion(result, navigate); }
+      catch (error) { toast.error(error instanceof Error ? error.message : 'Cet échange n’a pas pu être ouvert. Réessayez.'); }
+      finally { setOpening(false); }
     }}>
       <HeartHandshake size={16} aria-hidden="true" />{reachable ? offerPrimaryLabel(mode === "sell" ? "sale" : kind) : "Ouvrir l’échange"}
     </button>

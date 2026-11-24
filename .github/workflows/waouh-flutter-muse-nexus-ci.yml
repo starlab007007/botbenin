@@ -139,6 +139,7 @@ jobs:
           flutter test test/live_bot_home_test.dart
           flutter test test/live_guided_ask_test.dart
           flutter test test/live_interest_identity_promotion_test.dart
+          flutter test test/live_interest_navigation_test.dart test/live_legacy_interest_test.dart
           flutter test test/live_chat_premium_cards_test.dart
           flutter test test/live_chat_scroll_test.dart
           flutter test test/live_chat_history_service_test.dart
