@@ -9,6 +9,7 @@ from provision import query
 MIGRATIONS=[
     ('20261029014011','waouh_guardian',"to_regclass('public.waouh_guardian_settings') is not null"),
     ('20261029081414','waouh_guardian_autonomy',"exists(select 1 from information_schema.columns where table_schema='public' and table_name='waouh_guardian_incidents' and column_name='notified_states')"),
+    ('20261124221419','waouh_collector_resume_health',"to_regclass('public.waouh_collection_active_jobs') is not null and to_regclass('public.waouh_collection_open_attempts') is not null and exists(select 1 from cron.job where jobname='waouh-collection-worker-1m' and command like '%timeout_milliseconds := 180000%')"),
 ]
 def literal(value): return "'"+value.replace("'","''")+"'"
 def apply(version,name,installed):

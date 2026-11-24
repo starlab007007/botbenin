@@ -48,4 +48,41 @@ await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await 
 await one("update public.waouh_guardian_actions set status='succeeded',finished_at=now()-interval '21 minutes' where incident_id=$1",[repair]);await one("update public.waouh_guardian_incidents set status='verifying' where id=$1",[repair]);
 await db.exec('select public.waouh_guardian_housekeeping()');assert.equal((await one('select cause_code from public.waouh_guardian_incidents where id=$1',[repair])).cause_code,'RECOVERY_UNCONFIRMED');assert.equal(await notices(),afterLost+3);
 await db.exec('select public.waouh_guardian_housekeeping()');assert.equal(await notices(),afterLost+3);
-console.log('GUARDIAN database: access isolation, deduplication, confirmation, recovery, maintenance, independent evidence, repair budgets, lost result and rate limits passed');await db.close();
+// The common queue replaced the retired six-hour schedulers. Preserve pauses.
+await db.exec(`
+alter table cron.job add column command text;
+create function cron.alter_job(job_id bigint,command text) returns void language sql security definer
+as $$update cron.job set command=$2 where jobid=$1$$;
+insert into cron.job(jobname,active,command) values('waouh-collection-worker-1m',true,
+  'select net.http_post(url := ''https://example.test/functions/v1/waouh-radar-site-scraper'', headers := (select null from vault.decrypted_secrets), body := ''{"action":"collection.tick"}''::jsonb);');
+create table public.waouh_collection_jobs(id uuid,status text,handler text,priority int,created_at timestamptz);
+create table public.waouh_collection_attempts(job_id uuid,finished_at timestamptz);
+create table public.waouh_collection_policies(provider text primary key,paused boolean);
+create table public.waouh_collection_targets(provider text,handler text,enabled boolean);
+insert into public.waouh_collection_policies values('public_feed',false),('apify',false);
+insert into public.waouh_collection_targets values('public_feed','site',true),('apify','apify',true);
+`);
+const resumeSql=fs.readFileSync('supabase/migrations/20261124221419_waouh_collector_resume_health.sql','utf8');
+await db.exec(resumeSql);
+const collectors=async()=>(await one('select public.waouh_guardian_collectors_enabled() as flags')).flags;
+assert.deepEqual(await collectors(),{site:true,apify:true});
+assert.ok((await one("select command from cron.job where jobname='waouh-collection-worker-1m'")).command.includes('timeout_milliseconds := 180000'));
+await db.exec("update public.waouh_collection_policies set paused=true where provider='apify'");
+assert.deepEqual(await collectors(),{site:true,apify:false});
+await db.exec("update public.waouh_collection_targets set enabled=false where handler='site'");
+assert.deepEqual(await collectors(),{site:false,apify:false});
+await db.exec("update public.waouh_collection_policies set paused=false;update public.waouh_collection_targets set enabled=true;update cron.job set active=false where jobname='waouh-collection-worker-1m'");
+await db.exec(resumeSql); // Idempotent; applying it never lifts an operator pause.
+assert.deepEqual(await collectors(),{site:false,apify:false});
+await db.exec("insert into cron.job(jobname,active) values('waouh-radar-site-scraper-6h',true),('waouh-radar-apify-6h',true)");
+assert.deepEqual(await collectors(),{site:true,apify:true});
+await db.exec("update cron.job set active=false where jobname in ('waouh-radar-site-scraper-6h','waouh-radar-apify-6h')");
+for(const role of ['anon','authenticated']){
+  await db.exec('set role '+role);
+  await assert.rejects(collectors());
+  await db.exec('reset role');
+}
+await db.exec('set role service_role');
+assert.deepEqual(await collectors(),{site:false,apify:false});
+await db.exec('reset role');
+console.log('GUARDIAN database: access isolation, deduplication, confirmation, recovery, maintenance, independent evidence, repair budgets, lost result, rate limits and collector availability passed');await db.close();
