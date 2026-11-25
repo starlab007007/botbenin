@@ -1,75 +1,121 @@
-import React,{useEffect,useState} from 'react';
-import {supabase} from '@/integrations/supabase/client';
-import {Card} from '@/components/ui/card';
+import React,{useEffect,useMemo,useState} from 'react';
+import {ArrowRight,Check,Globe2,Loader2,Pause,Play,Search,Settings2,SlidersHorizontal} from 'lucide-react';
 import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Skeleton} from '@/components/ui/skeleton';
+import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle} from '@/components/ui/alert-dialog';
 import {toast} from 'sonner';
 import {WaouhProductPresentation} from '@/components/waouh/WaouhProductPresentation';
+import {cadenceLabel,engineLabel,explainCollectionReason,formatDate,platformProgress} from '@/lib/admin/collectionControl';
+import {invokeCollection,useCollectionControl,useCollectionResource} from './collection/CollectionControlContext';
 type Platform={transport:string;platform_key:string;hostname:string;label:string;access_state:string;rights_reference:string;attribution:string;media_authorized:boolean;media_hosts:string[];engine_key:string;adapter_key:string;discovery_minutes:number;recheck_minutes:number;daily_page_limit:number};
-type Entry={entry_no:number;platform_key:string;label:string;url:string;alias_of:number|null;target_id:string|null;test_status:string|null;test_at:string|null;test_report?:{reason?:string;preview?:any[]}};
-type Snapshot={platforms:Platform[];entries:Entry[];indexed_documents:number;documents:{id:string;target_id:string;url:string;state:string;last_error:string|null;last_checked_at:string|null;next_due_at:string}[]};
-const states:Record<string,string>={review:'À valider',authorized:'Autorisation renseignée',paused:'En pause',unverified:'Adresse à vérifier',partner_only:'Accès partenaire / API'};
-const date=(v:string|null)=>v?new Date(v).toLocaleString('fr-FR'):'Jamais';
-export default function WaouhSourceCatalogPanel(){
- const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[draft,setDraft]=useState<Platform|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+type Entry={entry_no:number;platform_key:string;label:string;url:string;alias_of:number|null;target_id:string|null;test_status:string|null;test_at:string|null;test_report?:{reason?:string;discovery_only?:boolean;preview?:any[]};audit_note?:string};
+type Snapshot={platforms:Platform[];entries:Entry[];indexed_documents:number;targets?:any[];documents:{id:string;target_id:string;url:string;state:string;last_error:string|null;last_checked_at:string|null;next_due_at:string}[]};
+const states:Record<string,string>={review:'À valider',authorized:'Accès renseigné',paused:'En pause',unverified:'Adresse à vérifier',partner_only:'Accès partenaire / API'};
+const adapters:Record<string,string>={none:'À raccorder',classifieds:'Petites annonces',coinafrique:'CoinAfrique',goafrica:'Annuaire Go Africa',schema_org:'Données structurées',rss_atom:'Flux RSS / Atom'};
+const settingsKey=(p:Platform)=>JSON.stringify([p.transport,p.access_state,p.rights_reference,p.attribution,p.media_authorized,p.media_hosts,p.engine_key,p.adapter_key,p.discovery_minutes,p.recheck_minutes,p.daily_page_limit]);
+export default function WaouhSourceCatalogPanel({initialPlatformKey,onPlatformChange}:{initialPlatformKey?:string|null;onPlatformChange?:(key:string)=>void}={}){
+ const {data,error,loading,refresh}=useCollectionResource('catalog');const snapshot=data as Snapshot|null;
+ const shared=useCollectionControl();const targets=snapshot?.targets??shared?.resources.collection.data?.targets??[];
+ const [selected,setSelected]=useState<string|null>(initialPlatformKey??null),[draft,setDraft]=useState<Platform|null>(null),[base,setBase]=useState('');
+ const [pendingSelection,setPendingSelection]=useState<string|null>(null),[filter,setFilter]=useState('all'),[needle,setNeedle]=useState(''),[busy,setBusy]=useState<string|null>(null);
+ const [urlDrafts,setUrlDrafts]=useState<Record<number,string>>({});
  const [keep,setKeep]=useState(''),[alias,setAlias]=useState(''),[reason,setReason]=useState(''),[sameOffer,setSameOffer]=useState(false);
  const [query,setQuery]=useState(''),[results,setResults]=useState<any[]|null>(null),[total,setTotal]=useState(0),[offset,setOffset]=useState(0),[next,setNext]=useState<number|null>(null);
- const call=async(body:Record<string,unknown>)=>{const {data,error}=await supabase.functions.invoke('waouh-radar-site-scraper',{body});
-  if(error||!data?.ok)throw Error(data?.code??'Administration du catalogue indisponible.');return data;};
- const load=async()=>{try{const s=await call({action:'collection.catalog.overview'});setSnapshot(s);setDraft(old=>old??s.platforms[0]??null);setError('');}catch(e){setError((e as Error).message);}};
- useEffect(()=>{void load();},[]);
- const command=async(body:Record<string,unknown>)=>{setBusy(true);try{const r=await call(body);
-  if(body.action==='collection.catalog.test')r.passed?toast.success(r.discovery_only?'Liens découverts. Les détails et photos restent à enrichir avec Apify.':'Extraction vérifiée, aucune publication.'):toast.error(`Test à corriger : ${r.reason}`);
-  else toast.success('Modification enregistrée.');await load();
- }catch(e){toast.error((e as Error).message);}finally{setBusy(false);}};
- const search=async(page=0)=>{setBusy(true);try{const r=await call({action:'collection.catalog.search',query,offset:page});setResults(r.records);setTotal(r.total);setOffset(page);setNext(r.next_offset);}catch(e){toast.error((e as Error).message);}finally{setBusy(false);}};
+ const dirty=!!draft&&settingsKey(draft)!==base;
+ const settingError=!draft?'':draft.access_state==='authorized'&&draft.rights_reference.trim().length<5?'Ajoutez une référence d’autorisation d’au moins 5 caractères.':draft.access_state==='authorized'&&draft.attribution.trim().length<5?'Renseignez le nom de la source à afficher (5 caractères minimum).':!Number.isInteger(draft.daily_page_limit)||draft.daily_page_limit<1||draft.daily_page_limit>1000?'Le plafond doit être compris entre 1 et 1 000 requêtes par jour.':draft.media_hosts.some(h=>!/^[a-z0-9.-]+$/.test(h))?'Indiquez uniquement les domaines des images, sans https:// ni chemin.':'';
+ const saved=snapshot?.platforms.find(p=>p.platform_key===selected)??snapshot?.platforms[0];
+ useEffect(()=>{if(initialPlatformKey&&!dirty)setSelected(initialPlatformKey);},[initialPlatformKey]);
+ useEffect(()=>{if(saved&&(!dirty||draft?.platform_key!==saved.platform_key)){setDraft(saved);setBase(settingsKey(saved));if(!selected)setSelected(saved.platform_key);}},[saved]);
+ const select=(key:string)=>{if(dirty){setPendingSelection(key);return;}setSelected(key);onPlatformChange?.(key);};
+ const command=async(body:Record<string,unknown>)=>{const action=String(body.action);setBusy(`${action}:${body.entry_no??''}`);try{
+  const r=await invokeCollection(body);
+  if(action==='collection.catalog.test')r.passed?toast.success(r.discovery_only?'Liens découverts. Les détails et photos restent à enrichir avec Apify.':'Extraction vérifiée, aucune publication.'):toast.error(explainCollectionReason(r.reason).title);
+  else toast.success(action==='collection.catalog.connect'?'Source raccordée. Sa cadence est enregistrée.':action==='collection.catalog.pause'?'Collecte de cette rubrique mise en pause.':'Modification enregistrée.');
+  if(action==='collection.catalog.configure')setBase(settingsKey(draft!));
+  if(action==='collection.catalog.url')setUrlDrafts(old=>{const next={...old};delete next[Number(body.entry_no)];return next;});
+  await refresh();if(shared)await shared.refresh('collection');return true;
+ }catch(e){toast.error((e as Error).message);return false;}finally{setBusy(null);}};
  const patch=(value:Partial<Platform>)=>setDraft(old=>old?{...old,...value}:old);
  const entries=snapshot?.entries.filter(e=>e.platform_key===draft?.platform_key)??[];
- return <Card className="p-4 space-y-4">
-  <div className="flex flex-wrap justify-between gap-2"><h2 className="font-semibold">Sources et catalogue unifié</h2><Button variant="outline" size="sm" disabled={busy} onClick={()=>void load()}>Actualiser le catalogue</Button></div>
-  <p className="text-sm text-muted-foreground">Les sources alimentent la même base de recherche. Chaque fiche conserve sa provenance et sa galerie complète. Les tests ne publient aucune annonce.</p>
-  {error&&<p role="alert">{error}</p>}
+ const progress=draft?platformProgress(saved??draft,entries,targets):null;
+ const platforms=useMemo(()=>snapshot?.platforms.filter(p=>{
+  const own=snapshot.entries.filter(e=>e.platform_key===p.platform_key),state=platformProgress(p,own,targets);
+  const match=(p.label+' '+p.hostname).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(needle.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase());
+  return match&&(filter==='all'||filter==='attention'&&state.tone==='warning'||filter==='linked'&&state.linked>0||filter==='paused'&&(p.access_state==='paused'||state.label==='Cible en pause'));
+ })??[],[snapshot,targets,needle,filter]);
+ const canTest=!!saved&&saved.adapter_key!=='none'&&!['paused','unverified'].includes(saved.access_state)&&(saved.transport!=='direct'||saved.access_state==='authorized'&&saved.rights_reference.trim().length>=5);
+ const search=async(page=0)=>{setBusy('search');try{const r=await invokeCollection({action:'collection.catalog.search',query,offset:page});setResults(r.records);setTotal(r.total);setOffset(page);setNext(r.next_offset);}catch(e){toast.error((e as Error).message);}finally{setBusy(null);}};
+ return <div className="space-y-5">
+  <div className="wcc-section-heading"><div><h2 className="text-lg font-semibold">Mes sources</h2><p>{snapshot?`${snapshot.platforms.length} plateformes · ${snapshot.entries.length} entrées · ${snapshot.indexed_documents} fiches dans l’index commun`:'Le registre de vos sites et rubriques de collecte.'}</p></div><Button variant="outline" size="sm" disabled={!!busy||loading} onClick={()=>void refresh()}>{loading&&<Loader2 size={14} className="mr-2 animate-spin"/>}Actualiser le catalogue</Button></div>
+  {error&&<div className="wcc-notice" role="alert"><div><strong>{error}</strong>{snapshot&&<p>Le dernier relevé est conservé. Son état peut être ancien.</p>}</div><Button variant="outline" size="sm" onClick={()=>void refresh()}>Réessayer</Button></div>}
+  {!snapshot&&!error&&<div className="wcc-source-layout" aria-label="Chargement des sources"><Skeleton className="h-80 w-full"/><Skeleton className="h-96 w-full"/></div>}
   {snapshot&&<>
-   <p className="text-sm">{snapshot.platforms.length} plateformes · {snapshot.entries.length} entrées · {snapshot.indexed_documents} fiches dans l’index commun</p>
-   <label className="block text-sm">Plateforme<select className="block border rounded p-2 w-full" aria-label="Plateforme de collecte" value={draft?.platform_key??''} disabled={busy} onChange={e=>setDraft(snapshot.platforms.find(p=>p.platform_key===e.target.value)??null)}>
-    {snapshot.platforms.map(p=><option key={p.platform_key} value={p.platform_key}>{p.label} · {states[p.access_state]}</option>)}</select></label>
-   {draft&&<>
-    <div className="grid gap-3 md:grid-cols-2">
-     <label className="text-sm">Accès à la source<select className="block border rounded p-2 w-full" value={draft.transport} onChange={e=>patch({transport:e.target.value})}><option value="direct">Collecte directe autorisée</option><option value="apify">API Apify : fiches et galeries</option><option value="serpapi">API SerpAPI : découverte de liens</option></select></label>
-     <label className="text-sm">État d’accès<select className="block border rounded p-2 w-full" aria-label="État d’accès" value={draft.access_state} onChange={e=>patch({access_state:e.target.value})}>{Object.entries(states).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
-     <label className="text-sm">Adaptateur<select className="block border rounded p-2 w-full" value={draft.adapter_key} onChange={e=>patch({adapter_key:e.target.value})}>{['none','classifieds','coinafrique','goafrica','schema_org','rss_atom'].map(k=><option key={k} value={k}>{k==='none'?'À raccorder':k==='classifieds'?'Petites annonces : index et détails':k}</option>)}</select></label>
-     <label className="text-sm">Référence d’autorisation<input className="block border rounded p-2 w-full" aria-label="Référence d’autorisation" value={draft.rights_reference} maxLength={1000} onChange={e=>patch({rights_reference:e.target.value})}/></label>
-     <label className="text-sm">Attribution à afficher<input className="block border rounded p-2 w-full" value={draft.attribution} maxLength={240} onChange={e=>patch({attribution:e.target.value})}/></label>
-     <label className="text-sm">Moteur<select className="block border rounded p-2 w-full" value={draft.engine_key} onChange={e=>patch({engine_key:e.target.value})}>{['cheerio','crawlee','playwright','scrapy','beautifulsoup','crawl4ai'].map(k=><option key={k}>{k}</option>)}</select></label>
-     <label className="text-sm">Découverte, en minutes<input type="number" className="block border rounded p-2 w-full" min={30} max={10080} value={draft.discovery_minutes} onChange={e=>patch({discovery_minutes:Number(e.target.value)})}/></label>
-     <label className="text-sm">Recontrôle des fiches, en minutes<input type="number" className="block border rounded p-2 w-full" min={60} max={43200} value={draft.recheck_minutes} onChange={e=>patch({recheck_minutes:Number(e.target.value)})}/></label>
-     <label className="text-sm">Requêtes maximales par jour<input type="number" className="block border rounded p-2 w-full" min={1} max={1000} value={draft.daily_page_limit} onChange={e=>patch({daily_page_limit:Number(e.target.value)})}/></label>
-     <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={draft.media_authorized} onChange={e=>patch({media_authorized:e.target.checked})}/>Réutilisation des photos autorisée</label>
-     <label className="text-sm">Domaines des images autorisés<input className="block border rounded p-2 w-full" placeholder="images.exemple.com, cdn.exemple.com" value={draft.media_hosts.join(', ')} onChange={e=>patch({media_hosts:e.target.value.split(',').map(h=>h.trim().toLowerCase()).filter(Boolean)})}/></label>
-    </div>
-    <Button size="sm" disabled={busy} onClick={()=>void command({action:'collection.catalog.configure',...draft})}>Enregistrer cette plateforme</Button>
-    <p className="text-xs text-muted-foreground">Renseignez l’accès autorisé et l’attribution, puis testez chaque rubrique avant de la raccorder. Le plafond commun des nouveaux collecteurs est de 300 requêtes par jour. SerpAPI découvre des liens ; Apify est nécessaire pour extraire les détails et les galeries. Les plafonds et crédits des fournisseurs restent appliqués.</p>
-    <div className="space-y-3">{entries.map(e=><section key={e.entry_no} className="border rounded p-3 space-y-2">
-     <strong className="text-sm">{e.entry_no}. {e.label}</strong>
-     {e.alias_of?<p className="text-sm">Même source que l’entrée {e.alias_of} : collecte partagée.</p>:<>
-      <input aria-label={`URL de collecte ${e.entry_no}`} className="block border rounded p-2 w-full text-xs" defaultValue={e.url} key={e.url} onBlur={event=>{if(event.target.value!==e.url)void command({action:'collection.catalog.url',entry_no:e.entry_no,url:event.target.value});}}/>
-      <p className="text-xs">{e.target_id?'Cible existante':'Non raccordée'} · Test : {e.test_status==='passed'?'réussi':e.test_status==='failed'?e.test_report?.reason??'échoué':'à effectuer'} · {date(e.test_at)}</p>
-      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={()=>void command({action:'collection.catalog.test',entry_no:e.entry_no})}>Tester l’extraction</Button>
-       <Button size="sm" disabled={busy||e.test_status!=='passed'} onClick={()=>void command({action:'collection.catalog.connect',entry_no:e.entry_no})}>Raccorder / reprendre</Button>
-       {e.target_id&&<><Button size="sm" variant="outline" disabled={busy} onClick={()=>void command({action:'collection.catalog.pause',entry_no:e.entry_no})}>Mettre la cible en pause</Button><Button size="sm" variant="outline" disabled={busy} onClick={()=>void command({action:'collection.catalog.recheck',entry_no:e.entry_no})}>Recontrôler les fiches</Button></>}</div>
-      {e.test_report?.preview?.map((p,i)=><WaouhProductPresentation key={i} value={p} label="Aperçu du test"/>)}
-     </>}
-    </section>)}</div>
-   </>}
-   <details><summary>Recherche dans la base commune</summary><form className="flex gap-2 my-3" onSubmit={e=>{e.preventDefault();void search();}}><input aria-label="Recherche dans le catalogue commun" className="border rounded p-2 flex-1 min-w-0" value={query} onChange={e=>setQuery(e.target.value)}/><Button size="sm" disabled={busy}>Rechercher</Button></form>
-    {results&&<><p className="text-sm">{total} fiches correspondantes · page {Math.floor(offset/20)+1}</p>{results.map(r=><div key={r.fabric_id}><small>{r.source_key} · {r.fabric_id}</small><WaouhProductPresentation value={r} label="Fiche unifiée"/></div>)}<div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy||!offset} onClick={()=>void search(Math.max(0,offset-20))}>Précédente</Button><Button size="sm" variant="outline" disabled={busy||next===null} onClick={()=>void search(next!)}>Suivante</Button></div></>}
+   <div className="wcc-source-layout">
+    <aside className="wcc-source-list" aria-label="Liste des plateformes">
+     <label className="relative block"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><Input className="pl-9 text-xs" aria-label="Rechercher une plateforme" placeholder="Trouver un site…" value={needle} onChange={e=>setNeedle(e.target.value)}/></label>
+     <div className="wcc-filters" aria-label="Filtrer les plateformes">{[['all','Toutes'],['attention','À traiter'],['linked','Raccordées'],['paused','En pause']].map(([key,label])=><button key={key} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+     <span className="text-[10px] text-slate-400 px-2">{platforms.length} plateforme{platforms.length>1?'s':''}</span>
+     <div role="list">{platforms.map(p=>{const own=snapshot.entries.filter(e=>e.platform_key===p.platform_key),state=platformProgress(p,own,targets);return <div role="listitem" key={p.platform_key}><button className="wcc-source-button" disabled={!!busy} aria-pressed={saved?.platform_key===p.platform_key} onClick={()=>select(p.platform_key)}><strong>{p.label}</strong><small>{p.hostname}</small><span className={`wcc-chip wcc-chip-${state.tone}`}>{state.label}</span></button></div>;})}</div>
+     {!platforms.length&&<div className="wcc-empty"><Search size={20}/><span>Aucune plateforme avec ces filtres.</span><button className="wcc-text-action" onClick={()=>{setNeedle('');setFilter('all');}}>Effacer les filtres</button></div>}
+    </aside>
+    {draft&&saved&&progress&&<div className="wcc-source-detail">
+     <section className="wcc-surface"><div className="wcc-source-title"><div><span className="wcc-eyebrow"><Globe2 size={12}/>Source de collecte</span><h3 className="mt-2">{saved.label}</h3><p>{saved.hostname}</p></div><span className={`wcc-chip wcc-chip-${progress.tone}`}>{progress.label}</span></div>
+      <div className="wcc-steps" aria-label="Étapes du raccordement">{['Configurer','Tester','Raccorder'].map((label,i)=><div className="wcc-step" key={label} data-done={progress.stage>i} data-current={progress.stage===i}><span>{progress.stage>i?<Check size={12}/>:i+1}</span>{label}</div>)}</div>
+      <dl className="wcc-source-summary"><div><dt>Accès</dt><dd>{saved.transport==='direct'?'Direct':saved.transport==='apify'?'API Apify':'API SerpAPI · liens'}</dd></div><div><dt>Découverte</dt><dd>Toutes les {cadenceLabel(saved.discovery_minutes)}</dd></div><div><dt>Recontrôle des fiches</dt><dd>Toutes les {cadenceLabel(saved.recheck_minutes)}</dd></div></dl>
+     </section>
+     <details className="wcc-disclosure" key={saved.platform_key} open={progress.stage===0||dirty||undefined}>
+      <summary><Settings2 size={14} className="inline mr-2"/>1. Configurer l’accès et la cadence</summary>
+      <div className="wcc-form-grid">
+       <label className="wcc-field">Mode de collecte<select value={draft.transport} onChange={e=>patch({transport:e.target.value})}><option value="direct">Accès direct</option><option value="apify">API Apify · fiches et photos</option><option value="serpapi">API SerpAPI · découverte de liens</option></select><small>{draft.transport==='serpapi'?'Les liens découverts devront être enrichis pour obtenir les fiches et les galeries.':draft.transport==='apify'?'Utilise les crédits et plafonds du fournisseur.':'Lecture des pages ou flux autorisés du site.'}</small></label>
+       <label className="wcc-field">État d’accès<select aria-label="État d’accès" value={draft.access_state} onChange={e=>patch({access_state:e.target.value})}>{Object.entries(states).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+       <label className="wcc-field">Référence d’autorisation<input aria-label="Référence d’autorisation" value={draft.rights_reference} maxLength={1000} onChange={e=>patch({rights_reference:e.target.value})} placeholder="Accord, licence ou accès autorisé"/></label>
+       <label className="wcc-field">Nom de la source à afficher<input value={draft.attribution} maxLength={240} onChange={e=>patch({attribution:e.target.value})} placeholder={saved.label}/></label>
+       <label className="wcc-field">Nouvelle découverte<select value={draft.discovery_minutes} onChange={e=>patch({discovery_minutes:Number(e.target.value)})}>{[...new Set([30,60,180,360,720,1440,10080,draft.discovery_minutes])].sort((a,b)=>a-b).map(n=><option key={n} value={n}>Toutes les {cadenceLabel(n)}</option>)}</select></label>
+       <label className="wcc-field">Vérification des fiches<select value={draft.recheck_minutes} onChange={e=>patch({recheck_minutes:Number(e.target.value)})}>{[...new Set([60,360,720,1440,4320,10080,43200,draft.recheck_minutes])].sort((a,b)=>a-b).map(n=><option key={n} value={n}>Toutes les {cadenceLabel(n)}</option>)}</select></label>
+      </div>
+      <details className="mt-5"><summary className="text-xs text-slate-500 cursor-pointer"><SlidersHorizontal size={13} className="inline mr-2"/>Réglages avancés et photos</summary><div className="wcc-form-grid mt-4">
+       <label className="wcc-field">Format du site<select value={draft.adapter_key} onChange={e=>patch({adapter_key:e.target.value})}>{Object.entries(adapters).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
+       <label className="wcc-field">Moteur d’extraction<select value={draft.engine_key} onChange={e=>patch({engine_key:e.target.value})}>{['cheerio','crawlee','playwright','scrapy','beautifulsoup','crawl4ai'].map(key=><option key={key} value={key}>{engineLabel(key)}</option>)}</select></label>
+       <label className="wcc-field">Requêtes maximales par jour<input type="number" min={1} max={1000} value={draft.daily_page_limit} onChange={e=>patch({daily_page_limit:Number(e.target.value)})}/><small>Le plafond commun des nouveaux collecteurs reste de 300 lectures par jour.</small></label>
+       <label className="wcc-field">Domaines des images autorisés<input placeholder="images.exemple.com, cdn.exemple.com" value={draft.media_hosts.join(', ')} onChange={e=>patch({media_hosts:e.target.value.split(',').map(h=>h.trim().toLowerCase()).filter(Boolean)})}/></label>
+       <label className="text-xs flex gap-2 items-center"><input type="checkbox" checked={draft.media_authorized} onChange={e=>patch({media_authorized:e.target.checked})}/>Réutilisation des photos autorisée</label>
+      </div><p className="wcc-help">Toutes les photos autorisées et disponibles sont conservées. La disponibilité de l’objet reste à confirmer.</p></details>
+      <div className="wcc-form-actions"><span className="text-xs text-slate-500">{dirty?'Modifications non enregistrées':'Configuration enregistrée'}</span><div className="flex gap-2">{dirty&&<Button size="sm" variant="ghost" onClick={()=>{setDraft(saved);setBase(settingsKey(saved));}}>Annuler</Button>}<Button size="sm" disabled={!!busy||!dirty||!!settingError} onClick={()=>void command({action:'collection.catalog.configure',...draft})}>{busy?.startsWith('collection.catalog.configure')&&<Loader2 size={14} className="mr-2 animate-spin"/>}Enregistrer cette plateforme</Button></div></div>
+      <p role="status" className="text-xs text-amber-700">{dirty?settingError:null}</p><p className="wcc-help">Un changement d’accès, de moteur ou de photos peut suspendre la collecte jusqu’à un nouveau test.</p>
+     </details>
+     <section className="wcc-surface"><div className="wcc-section-heading"><div><h3>2. Tester, puis raccorder</h3><p>Le test vérifie une extraction sans publier d’annonce. Un test API peut consommer des crédits inclus dans vos plafonds.</p></div></div>
+      {dirty&&<p className="wcc-test-error" role="status">Enregistrez la configuration avant de tester ou de raccorder.</p>}
+      {!canTest&&!dirty&&<p className="wcc-help">Complétez l’accès et le format de la source pour rendre le test disponible.</p>}
+      {entries.map(entry=>{
+       const target=targets.find((t:any)=>t.id===entry.target_id),fresh=entry.test_status==='passed'&&!!entry.test_at&&Date.parse(entry.test_at)>Date.now()-86400000;
+       const canConnect=fresh&&saved.access_state==='authorized'&&saved.rights_reference.trim().length>=5&&saved.attribution.trim().length>=5&&saved.adapter_key!=='none';
+       const changedUrl=urlDrafts[entry.entry_no]!==undefined&&urlDrafts[entry.entry_no]!==entry.url;
+       return <article className="wcc-entry" key={entry.entry_no}><div className="wcc-entry-heading"><h4>{entry.label}</h4><span className="wcc-chip">#{entry.entry_no}</span></div>
+        {entry.alias_of?<p className="wcc-help">Même source que l’entrée {entry.alias_of} : collecte partagée.</p>:<>
+         <p className="wcc-help">{entry.target_id?(target?target.enabled?'Collecte activée':'Cible en pause':'Cible existante · état à vérifier'):'Non raccordée'} · Test : {entry.test_status==='passed'?(fresh?'réussi':'à renouveler'):entry.test_status==='failed'?'à corriger':'à effectuer'} · {formatDate(entry.test_at)}</p>
+         {entry.test_report?.reason&&<div className="wcc-test-error"><strong>{explainCollectionReason(entry.test_report.reason).title}</strong><p>{explainCollectionReason(entry.test_report.reason).detail}</p><details><summary className="cursor-pointer mt-2 text-[10px]">Détail technique</summary><code className="wcc-detail-code">{entry.test_report.reason}</code></details></div>}
+         {entry.test_report?.discovery_only&&<p className="wcc-help">Découverte de liens uniquement. Les détails et photos restent à enrichir.</p>}
+         <div className="wcc-entry-actions"><Button size="sm" variant={canConnect?'outline':'default'} disabled={!!busy||dirty||changedUrl||!canTest} onClick={()=>void command({action:'collection.catalog.test',entry_no:entry.entry_no})}>{busy===`collection.catalog.test:${entry.entry_no}`?<Loader2 size={13} className="mr-2 animate-spin"/>:<Play size={13} className="mr-2"/>}Tester l’extraction</Button>
+          <Button size="sm" disabled={!!busy||dirty||changedUrl||!canConnect} onClick={()=>void command({action:'collection.catalog.connect',entry_no:entry.entry_no})}>Raccorder / reprendre<ArrowRight size={13} className="ml-2"/></Button>
+          {entry.target_id&&<><Button size="sm" variant="ghost" disabled={!!busy} onClick={()=>void command({action:'collection.catalog.pause',entry_no:entry.entry_no})}><Pause size={13} className="mr-1"/>Mettre la cible en pause</Button><Button size="sm" variant="ghost" disabled={!!busy||target?.enabled===false} onClick={()=>void command({action:'collection.catalog.recheck',entry_no:entry.entry_no})}>Recontrôler les fiches</Button></>}
+         </div>
+         {!canConnect&&fresh&&<p className="wcc-help">Le test a réussi. Complétez les informations d’accès avant le raccordement.</p>}
+         <details className="mt-4"><summary className="text-[11px] text-slate-500 cursor-pointer">Adresse et informations de la rubrique</summary><label className="wcc-field mt-3">URL de collecte<input aria-label={`URL de collecte ${entry.entry_no}`} value={urlDrafts[entry.entry_no]??entry.url} onChange={e=>setUrlDrafts(old=>({...old,[entry.entry_no]:e.target.value}))}/></label>{changedUrl&&<Button className="mt-2" size="sm" variant="outline" disabled={!!busy} onClick={()=>void command({action:'collection.catalog.url',entry_no:entry.entry_no,url:urlDrafts[entry.entry_no]})}>Enregistrer l’adresse</Button>}{entry.audit_note&&<p className="wcc-help">{entry.audit_note}</p>}</details>
+         {!!entry.test_report?.preview?.length&&<details className="mt-4"><summary className="text-xs cursor-pointer">Voir les {entry.test_report.preview.length} fiche(s) du test</summary><div className="space-y-3 mt-3">{entry.test_report.preview.map((p,i)=><WaouhProductPresentation key={i} value={p} label="Aperçu du test"/>)}</div></details>}
+        </>}
+       </article>;
+      })}
+     </section>
+    </div>}
+   </div>
+   <details className="wcc-disclosure"><summary>Vérifier le catalogue unifié et ses références</summary>
+    <form className="flex gap-2 my-3" onSubmit={e=>{e.preventDefault();void search();}}><Input aria-label="Recherche dans le catalogue commun" placeholder="Rechercher une fiche dans la base commune…" value={query} onChange={e=>setQuery(e.target.value)}/><Button size="sm" disabled={!!busy}>Rechercher</Button></form>
+    {results&&<><p className="wcc-help">{total} fiches correspondantes · page {Math.floor(offset/20)+1}</p>{!results.length&&<p className="wcc-help">Aucune fiche ne correspond à cette recherche.</p>}{results.map(r=><div key={r.fabric_id}><small className="wcc-detail-code">{r.source_key} · {r.fabric_id}</small><WaouhProductPresentation value={r} label="Fiche unifiée"/></div>)}<div className="flex gap-2 mt-3"><Button size="sm" variant="outline" disabled={!!busy||!offset} onClick={()=>void search(Math.max(0,offset-20))}>Précédente</Button><Button size="sm" variant="outline" disabled={!!busy||next===null} onClick={()=>void search(next!)}>Suivante</Button></div></>}
+    <details className="mt-5"><summary className="text-xs cursor-pointer">Regrouper les références d’une même offre</summary><p className="wcc-help">Même vendeur et même objet uniquement. Les sources sont conservées et le regroupement est réversible.</p><div className="wcc-form-grid"><label className="wcc-field">Référence principale<input aria-label="Référence principale" placeholder="external:…" value={keep} onChange={e=>setKeep(e.target.value)}/></label><label className="wcc-field">Référence à rattacher<input aria-label="Référence à rattacher" placeholder="external:…" value={alias} onChange={e=>setAlias(e.target.value)}/></label><label className="wcc-field">Éléments de vérification<input value={reason} onChange={e=>setReason(e.target.value)}/></label></div><label className="flex gap-2 text-xs my-3"><input type="checkbox" checked={sameOffer} onChange={e=>setSameOffer(e.target.checked)}/>Même vendeur et même offre confirmés</label><div className="flex gap-2"><Button size="sm" disabled={!!busy||!sameOffer||reason.trim().length<10||!keep||!alias} onClick={()=>void command({action:'collection.catalog.group',keep,alias,reason,same_offer:sameOffer})}>Regrouper les références</Button><Button size="sm" variant="outline" disabled={!!busy||!alias} onClick={()=>void command({action:'collection.catalog.ungroup',alias})}>Détacher la référence</Button></div></details>
    </details>
-   <details><summary>Regrouper les références d’une même offre</summary><p className="text-sm my-2">Confirmez qu’il s’agit du même vendeur et du même objet. Les annonces sources sont conservées ; le regroupement est réversible.</p>
-    <div className="grid gap-2 md:grid-cols-2"><input className="border rounded p-2 text-sm" placeholder="Identifiant external:… à conserver" aria-label="Référence principale" value={keep} onChange={e=>setKeep(e.target.value)}/><input className="border rounded p-2 text-sm" placeholder="Identifiant external:… à rattacher" aria-label="Référence à rattacher" value={alias} onChange={e=>setAlias(e.target.value)}/></div>
-    <input className="border rounded p-2 w-full text-sm mt-2" placeholder="Éléments ayant permis de vérifier le doublon" value={reason} onChange={e=>setReason(e.target.value)}/>
-    <label className="flex gap-2 text-sm my-2"><input type="checkbox" checked={sameOffer} onChange={e=>setSameOffer(e.target.checked)}/>Même vendeur et même offre confirmés</label>
-    <div className="flex gap-2"><Button size="sm" disabled={busy||!sameOffer||reason.trim().length<10||!keep||!alias} onClick={()=>void command({action:'collection.catalog.group',keep,alias,reason,same_offer:sameOffer})}>Regrouper les références</Button><Button size="sm" variant="outline" disabled={busy||!alias} onClick={()=>void command({action:'collection.catalog.ungroup',alias})}>Détacher la référence</Button></div>
-   </details>
-   <details><summary>Derniers contrôles de pages ({snapshot.documents.length})</summary><div className="overflow-x-auto"><table className="text-xs w-full"><thead><tr><th>Page</th><th>État</th><th>Dernier contrôle</th><th>Prochain contrôle</th></tr></thead><tbody>{snapshot.documents.map(d=><tr className="border-t" key={d.id}><td className="max-w-xs truncate">{d.url}</td><td>{d.state}{d.last_error?' · '+d.last_error:''}</td><td>{date(d.last_checked_at)}</td><td>{date(d.next_due_at)}</td></tr>)}</tbody></table></div></details>
+   <details className="wcc-disclosure"><summary>Derniers contrôles de pages ({snapshot.documents.length})</summary><div className="wcc-scroll-table"><table><thead><tr><th>Page</th><th>État</th><th>Dernier contrôle</th><th>Prochain contrôle</th></tr></thead><tbody>{snapshot.documents.map(d=><tr key={d.id}><td>{d.url}</td><td>{d.state}{d.last_error&&<span className="block">{explainCollectionReason(d.last_error).title}</span>}</td><td>{formatDate(d.last_checked_at)}</td><td>{formatDate(d.next_due_at)}</td></tr>)}</tbody></table>{!snapshot.documents.length&&<p className="wcc-help">Aucune page suivie pour le moment. Les pages apparaîtront après le raccordement et le passage d’un collecteur.</p>}</div></details>
   </>}
- </Card>;
+  <AlertDialog open={!!pendingSelection} onOpenChange={open=>{if(!open)setPendingSelection(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Conserver vos modifications ?</AlertDialogTitle><AlertDialogDescription>La configuration de cette plateforme n’est pas encore enregistrée.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Revenir aux réglages</AlertDialogCancel><AlertDialogAction onClick={()=>{const key=pendingSelection!;setBase('');setDraft(null);setSelected(key);onPlatformChange?.(key);setPendingSelection(null);}}>Changer sans enregistrer</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+ </div>;
 }

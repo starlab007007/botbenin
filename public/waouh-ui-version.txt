@@ -34,3 +34,5 @@ collection-control=freshness-and-cadence-18.51.1
 interest=existing-chat-tab-18.51.2
 
 collection=unified-index-source-registry-complete-galleries-18.52.0
+
+admin=smart-collection-control-v1
