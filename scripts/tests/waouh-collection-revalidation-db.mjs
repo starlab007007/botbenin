@@ -26,4 +26,16 @@ for(const role of ['anon','authenticated']){
  await db.exec('set role '+role);await assert.rejects(db.query('select waouh_collection_expire_stale()'));await db.exec('reset role');
 }
 assert.equal((await db.query('select waouh_collection_expire_stale() n')).rows[0].n,0);
-await db.close();console.log('PASS: bounded legacy freshness, business window, original facts preserved, authorized revalidation only, idempotent seeds and private execution');
+await db.exec(`create table waouh_collection_jobs(id uuid primary key default gen_random_uuid(),target_id integer,provider text,handler text,inline boolean default false,status text,not_before timestamptz default now(),lease_until timestamptz,priority integer default 1,created_at timestamptz default now());
+create table waouh_collection_policies(provider text primary key,paused boolean default false,cooldown_until timestamptz);
+create function waouh_collection_claim(uuid) returns jsonb language sql as 'select jsonb_build_object(''id'',$1)';
+insert into waouh_collection_policies(provider) values('serpapi');
+insert into waouh_collection_jobs(target_id,provider,handler,status) values(1,'serpapi','web','queued');`);
+await db.exec(fs.readFileSync('supabase/migrations/20261125130308_waouh_collection_web_claim.sql','utf8'));
+assert.ok((await db.query("select waouh_collection_claim_targeted(array['web']) j")).rows[0].j.id);
+assert.equal((await db.query("select waouh_collection_claim_targeted(array['site']) j")).rows[0].j,null);
+await db.exec("update waouh_collection_policies set paused=true");
+assert.equal((await db.query("select waouh_collection_claim_targeted(array['web']) j")).rows[0].j,null);
+await db.exec("update waouh_collection_policies set paused=false,cooldown_until=now()+interval '1 hour'");
+assert.equal((await db.query("select waouh_collection_claim_targeted(array['web']) j")).rows[0].j,null);
+await db.close();console.log('Web jobs claimable; handler filters, provider pauses and cooldowns enforced.');console.log('PASS: bounded legacy freshness, business window, original facts preserved, authorized revalidation only, idempotent seeds and private execution');
