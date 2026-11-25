@@ -5,7 +5,7 @@ import 'package:waouh_app_native/live/live_mission_feed.dart';
 
 void main() {
   final photos = List.generate(7, (i) => 'https://images.example/$i.jpg');
-  test('product photos stay ordered, unique and limited to four', () {
+  test('product photos stay ordered, unique and complete', () {
     expect(
       liveProductPhotos({
         'evidence': {
@@ -19,7 +19,7 @@ void main() {
           ],
         },
       }),
-      [photos[2], photos[0], photos[1], photos[3]],
+      [photos[2], photos[0], photos[1], ...photos.skip(3)],
     );
   });
   test('a journey uses its own product snapshot at any stage', () {
@@ -46,7 +46,7 @@ void main() {
         },
       });
       expect(p.title, 'Produit A');
-      expect(p.photos, photos.take(4));
+      expect(p.photos, photos);
       expect(p.price, '250 000 F CFA');
       expect(p.attributes['Capacité'], '256 Go');
     }
@@ -67,7 +67,7 @@ void main() {
     expect(missionRetryDelay(5), const Duration(seconds: 30));
   });
   testWidgets(
-    'four-picture gallery fits a narrow screen and changes pictures',
+    'complete gallery fits a narrow screen and changes pictures',
     (tester) async {
       tester.view.physicalSize = const Size(320, 780);
       tester.view.devicePixelRatio = 1;
@@ -87,12 +87,12 @@ void main() {
           ),
         ),
       );
-      expect(find.text('1 / 4'), findsOneWidget);
+      expect(find.text('1 / 7'), findsOneWidget);
       expect(find.byTooltip('Photo suivante'), findsOneWidget);
       await tester.tap(find.byTooltip('Photo suivante'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('2 / 4'), findsOneWidget);
+      expect(find.text('2 / 7'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(
         MaterialApp(

@@ -28,30 +28,24 @@ export function discoveryRecordCurrent(row: Record<string, any>, now=Date.now())
 
 /** One candidate loader for interactive search, the catalogue and background follow-up. */
 export async function loadDiscoveryRecords(
-  db: { from: (table: string) => any },
-  input: {query: string; mode: string; publicSources?: readonly string[]; internalOnly?: boolean},
+  db: { from: (table: string) => any;rpc?: (name:string,args:Record<string,unknown>)=>PromiseLike<{data:any;error:any}> },
+  input: {query: string; mode: string; publicSources?: readonly string[]; internalOnly?: boolean;city?:string|null;budgetMax?:number|null;domain?:string|null;country?:string|null;limit?:number;offset?:number},
 ) {
-  const desired = input.mode === 'find_buyers' ? ['BUY', 'RFQ', 'ANNOUNCE'] : ['SELL', 'ANNOUNCE'];
-  // Drop query operators before constructing PostgREST filters. Search the description too:
-  // a provider's title may be a business name rather than the service being requested.
-  const terms = [...new Set(normalizeFabricText(input.query).split(/\s+/)
-    .filter(t => /^[a-z0-9]{3,30}$/.test(t)))].slice(0, 8);
-  const base = () => {
-    let q = db.from('waouh_signal_fabric').select('*').in('intent', desired);
-    if (input.publicSources) q = q.in('source_key', input.publicSources);
-    if (input.internalOnly) q = q.or('fabric_id.like.article:%,fabric_id.like.catalog:%');
-    return q;
-  };
-  const recent = base().order('observed_at', {ascending: false}).limit(1000);
-  const targeted = terms.length ? base().or(terms.flatMap(t =>
-    ['subject', 'raw_text', 'category'].map(field => `${field}.ilike.%${t}%`)).join(','))
-    .order('observed_at', {ascending: false}).limit(1000) : null;
-  const [a, b] = await Promise.all([recent, targeted ?? Promise.resolve({data: [], error: null})]);
-  if (a.error || b.error) throw new Error('discovery_records_unavailable');
-  const candidates = [...new Map([...(b.data ?? []), ...(a.data ?? [])].map(r => [r.fabric_id, r])).values()] as Record<string, any>[];
-  const records=candidates.map(discoveryRecordIdentity).filter(r=>discoveryRecordCurrent(r)).map(r=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
-    .filter(r=>input.mode!=='find_buyers'||['BUY','RFQ'].includes(r.intent));
-  return {records, coverage: {inspected: records.length, targeted: b.data?.length ?? 0, recent: a.data?.length ?? 0, exhaustive: false}};
+  if(!db.rpc)throw new Error('unified_search_unavailable');
+  const synonyms:Record<string,string>={plombier:'plomberie',electricien:'electricite',frigo:'refrigerateur',portable:'telephone'};
+  const words=normalizeFabricText(input.query).split(/\s+/);
+  const query=[...words,...words.flatMap(w=>synonyms[w]?[synonyms[w]]:[])].join(' ');
+  const {data,error}=await db.rpc('waouh_search_unified',{
+    p_query:query.slice(0,1000),p_mode:input.mode,p_sources:input.publicSources?[...input.publicSources]:null,
+    p_internal_only:input.internalOnly??false,p_city:input.city??null,p_budget:input.budgetMax??null,
+    p_domain:input.domain??null,p_country:input.country??null,p_limit:Math.min(200,Math.max(1,input.limit??200)),p_offset:input.offset??0,
+  });
+  if(error||!data||!Array.isArray(data.records))throw new Error('discovery_records_unavailable');
+  const records=data.records.map(discoveryRecordIdentity).filter((r:Record<string,any>)=>discoveryRecordCurrent(r))
+    .map((r:Record<string,any>)=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
+    .filter((r:Record<string,any>)=>input.mode!=='find_buyers'||['BUY','RFQ'].includes(r.intent));
+  return {records,coverage:{inspected:records.length,total:data.total,offset:data.offset,next_offset:data.next_offset,
+    indexed:true,exhaustive:data.total<=data.limit}};
 }
 
 /** Persist declared business facts in the same shape for products, services and opportunities. */

@@ -186,7 +186,7 @@ export function normalizeWaouhProductV1(value: unknown): WaouhProductV1 | null {
     price_min_amount: finite(row.price_min_amount ?? row.price_min ?? row.prix_min),
     price_max_amount: finite(row.price_max_amount ?? row.price_max ?? row.prix_max),
     currency: text(row.currency) || "XOF",
-    photos: [...new Set(photos)].slice(0, 4),
+    photos: [...new Set(photos)],
     city: text(row.city, row.ville) || null,
     condition: text(row.condition, row.etat) || null,
     source: text(row.source) || null,

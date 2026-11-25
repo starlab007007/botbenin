@@ -43,7 +43,7 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
       index: index && index > 0 ? index : i + 1,
       source: label(r.source) || (catalogue ? 'catalogue' : 'waouh'),
       price: number(r.price ?? r.prix), price_min: number(r.price_min ?? r.prix_min), price_max: number(r.price_max ?? r.prix_max),
-      city: label(r.city, r.ville), photos: [...new Set(photos)].slice(0, 4),
+      city: label(r.city, r.ville), photos: [...new Set(photos)],
       source_url: label(r.source_url, r.url, r.sourceUrl) || null,
       fabric_id: label(r.fabric_id, r.fabricId) || null,
       intent: label(r.intent, r.signal_intent) || null,

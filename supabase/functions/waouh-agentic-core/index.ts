@@ -1326,7 +1326,7 @@ async function globalDiscoverySearch(
     missionContext?: ReturnType<typeof normalizeMissionContext>;
   },
 ) {
-  const {records:data,coverage} = await loadDiscoveryRecords(sb, {query:input.query,mode:input.mode,publicSources:input.publicRead?PUBLIC_NEXUS_SOURCES:undefined});
+  const {records:data,coverage} = await loadDiscoveryRecords(sb, {query:input.query,mode:input.mode,publicSources:input.publicRead?PUBLIC_NEXUS_SOURCES:undefined,city:input.city,budgetMax:input.budgetMax});
   const lookingForJob = input.missionKind === "opportunity" && needDomain(input.query) === "job";
   const preRanked = (data ?? []).filter((row:any)=>missionMatches(row,input.missionContext?missionCriteria(input.missionContext):{missionKind:input.missionKind}))
     .filter(row => !lookingForJob || (

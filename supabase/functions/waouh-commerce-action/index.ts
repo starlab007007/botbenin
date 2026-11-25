@@ -650,6 +650,11 @@ Deno.serve(async (req) => {
       .select("id,auth_user_id,phone_number,web_session_id").eq("id", actorId).maybeSingle();
     const siblings = await resolveSiblingUserIds(sb, actorRow ?? { id: actorId });
 
+    if(request.fabric_id&&!request.thread_id&&!request.negotiation_id){
+      const canonical=await sb.rpc('waouh_search_canonical',{p_id:request.fabric_id});
+      if(canonical.error)throw new Error('canonical_reference_unavailable');
+      if(typeof canonical.data==='string'&&canonical.data!==request.fabric_id)request={...request,fabric_id:canonical.data};
+    }
     const productRef = await canonicalProductRef(sb, request);
     if (productRef.articleId && productRef.articleId !== request.article_id) {
       request = {

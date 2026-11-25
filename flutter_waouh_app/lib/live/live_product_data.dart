@@ -1,4 +1,3 @@
-const productPhotoLimit = 4;
 Map<String, dynamic> productMap(dynamic value) =>
     value is Map ? Map<String, dynamic>.from(value) : {};
 String productText(dynamic value) => value is String ? value.trim() : '';
@@ -31,7 +30,6 @@ List<String> liveProductPhotos(dynamic value) {
         out.contains(url))
       continue;
     out.add(url);
-    if (out.length == productPhotoLimit) break;
   }
   return out;
 }
