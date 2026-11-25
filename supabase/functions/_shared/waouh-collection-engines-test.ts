@@ -13,6 +13,20 @@ Deno.test('engine administration rejects ordinary users and internal automated w
  const db={from:()=>{throw Error('database must not be reached');},rpc:()=>Promise.resolve({data:null,error:null})};
  for(const actor of ['user','internal','none'])await assert.rejects(engineAdmin(db,{action:'collection.engine.configure'},{actor}),/engine_admin_required/);
 });
+Deno.test('source overview works without an implicit foreign-key relationship and excludes direct RSS readers',async()=>{
+ const rows:Record<string,any[]>={
+  waouh_collection_engines:[{engine_key:'cheerio'}],waouh_collection_engine_runs:[],
+  waouh_collection_targets:[{id:'html',label:'HTML',radar_source_id:'source-html',engine_key:'cheerio',enabled:true},{id:'rss',label:'RSS',radar_source_id:'source-rss',engine_key:'cheerio',enabled:true}],
+  waouh_radar_sources:[{id:'source-html',config:{collection_format:'schema_org'}},{id:'source-rss',config:{collection_format:'rss_atom'}}],
+ };
+ const db={rpc:()=>Promise.resolve({data:null,error:null}),from:(name:string)=>({
+  select(fields:string){assert.equal(fields.includes('('),false,'use the deployed schema rather than an undeclared REST relationship');return this;},
+  eq(){return this;},order(){return this;},limit(){return this;},
+  then(resolve:any){return Promise.resolve({data:rows[name],error:null}).then(resolve);},
+ })};
+ const result:any=await engineAdmin(db,{action:'collection.engine.overview'},{actor:'service'});
+ assert.equal(result.targets[0].applicable,true);assert.equal(result.targets[1].applicable,false);
+});
 Deno.test('native Cheerio preserves a qualified listing and records execution without publishing',async()=>{
  const inserts:any[]=[];
  const db={rpc:()=>Promise.resolve({data:null,error:null}),from:(name:string)=>({
