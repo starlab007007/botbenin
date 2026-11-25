@@ -64,6 +64,7 @@ jobs:
       - name: Construire et vérifier l’image sur le runner CI
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s server/collection-engines -p test_shipping.py -v
           docker build -t "waouh-engines-ci:$GITHUB_SHA" server/collection-engines
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --memory 2g --pids-limit 256 --shm-size 256m \
@@ -89,9 +90,19 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "botbj-image.tar.gz,botbj-image.tar.gz.sha256,collection-runtime-token"
+          source: "botbj-image.tar.gz,botbj-image.tar.gz.sha256"
           target: "/tmp/botbj-ci-${{ github.sha }}"
           command_timeout: 10m
+
+      - name: Transfer private runtime credential as its owner
+        if: github.event_name != 'pull_request'
+        env:
+          RUNTIME_HOST: ${{ secrets.VPS_HOST }}
+          RUNTIME_USER: ${{ secrets.VPS_USER }}
+          RUNTIME_PORT: ${{ secrets.VPS_PORT || 22 }}
+          RUNTIME_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          RUNTIME_SHA: ${{ github.sha }}
+        run: python3 server/collection-engines/ship-token.py
 
       - name: Déployer sur le VPS avec Docker Compose
         if: github.event_name != 'pull_request'
