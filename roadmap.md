@@ -6,3 +6,6 @@
 - [x] WAOUH : diagnostic messages/notifications/photos appli ↔ WhatsApp + correctif photos reçues
 - [ ] WAOUH : reconnecter la session WhatsApp « WaouhApp » (bloqué : scan QR par l'utilisateur), puis test réel bout en bout
 - [ ] FITILA — bloqué : projet hors de ce workspace
+
+- [ ] NEXUS vague 1 CoinAfrique : site autorisé + lecture directe (fait) ; essais et raccordement des 3 rubriques à lancer par un admin
+- [ ] NEXUS vagues 2–4
