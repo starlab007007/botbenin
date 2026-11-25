@@ -33,6 +33,27 @@ services:
 
     networks:
       - web
+    volumes:
+      - waouh_engine_socket:/run/waouh-engines:ro
+
+  collection-engines:
+    image: waouh-collection-engines:latest
+    container_name: waouh-collection-engines
+    restart: always
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2g
+    cpus: 1.0
+    pids_limit: 256
+    shm_size: 256m
+    tmpfs:
+      - /tmp:size=256m,uid=10001,gid=10001
+      - /home/engines:size=128m,uid=10001,gid=10001
+    volumes:
+      - waouh_engine_socket:/run/waouh-engines
+      - /home/debian/waouh-collection-runtime/token:/run/secrets/runtime_token:ro
 
   privatai-downloads:
     image: python:3.12-alpine
@@ -86,6 +107,9 @@ services:
       - web
 
 volumes:
+  waouh_engine_socket:
+    name: waouh-collection-engine-socket
+    external: true
   privatai_download_cache:
 
 networks:

@@ -31,7 +31,7 @@ jobs:
       - run: node scripts/tests/waouh-deal-room-db.mjs
       - run: node scripts/tests/waouh-module-policy-db.mjs
       - run: node scripts/tests/waouh-discovery-db.mjs
-      - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ src/lib/admin/__tests__ src/pages/admin/__tests__
+      - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ src/lib/admin/__tests__ src/pages/admin/__tests__ src/components/admin/__tests__/collection-engines.test.tsx src/components/admin/__tests__/collection-control.test.tsx
       - run: npm run build
       - uses: denoland/setup-deno@v2
         with:

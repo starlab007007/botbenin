@@ -4,6 +4,7 @@ import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { inspectCollectionProvider, runCollectionTick } from "../_shared/waouh-collection/worker.ts";
 import {collectionOverview,collectionControlPatch,publicSourceConfiguration} from '../_shared/waouh-collection/control.ts';
+import {engineAdmin,DocumentEngineError} from '../_shared/waouh-collection/engines.ts';
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:waouhCorsHeaders});
@@ -15,6 +16,9 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body=await req.json().catch(()=>({}));
   try {
+    if(typeof body?.action==='string'&&body.action.startsWith('collection.engine.')) {
+      return Response.json(await engineAdmin(db,body,guard),{headers:waouhCorsHeaders});
+    }
     if(body?.action==='collection.source.configure') {
       if(typeof body.source_id!=='string'||!/^[0-9a-f-]{36}$/i.test(body.source_id))throw new Error('invalid_collection_source');
       const {data:source,error:readError}=await db.from('waouh_radar_sources').select('identifier,config').eq('id',body.source_id).eq('type','site').single();
@@ -46,6 +50,6 @@ Deno.serve(async (req) => {
     console.error("[waouh-radar-site-scraper] collection unavailable",error);
     return Response.json({ok:false,message:"Collecte momentanément indisponible.",
       code:error instanceof Error&&/^[a-z_]+$/.test(error.message)?error.message:"collection_tick_failed"},
-      {status:error instanceof Error&&error.message.startsWith("invalid_collection_")?400:503,headers:waouhCorsHeaders});
+      {status:error instanceof DocumentEngineError&&error.code==='engine_admin_required'?403:error instanceof Error&&/^invalid_/.test(error.message)?400:503,headers:waouhCorsHeaders});
   }
 });

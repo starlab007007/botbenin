@@ -15,6 +15,7 @@ import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
 import WaouhContactHubPanel, { type HubContact } from '@/components/admin/WaouhContactHubPanel';
 import WaouhCollectionControlPanel from '@/components/admin/WaouhCollectionControlPanel';
+import WaouhCollectionEnginesPanel from '@/components/admin/WaouhCollectionEnginesPanel';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
@@ -587,6 +588,7 @@ export default function AdminWaouhDataControlPage() {
       </div>
 
       <WaouhCollectionControlPanel />
+      <WaouhCollectionEnginesPanel />
 
       <Tabs defaultValue="search">
         <TabsList>
