@@ -69,7 +69,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (!window.confirm("Réinitialiser la session WhatsApp ? Elle sera recréée vide et un nouveau QR sera demandé.")) return;
     const data = await callWaha("session-reset");
     if (!data) return;
-    toast.success("Session réinitialisée. Le QR arrive dans quelques secondes.");
+    toast.success("Session réinitialisée. Vérifiez son démarrage avant de charger le QR.");
     setQr(null);
     setStatus("STARTING");
     setTimeout(() => void refreshStatus(true), 3000);
@@ -85,7 +85,14 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     const data = await callWaha("get-qr", undefined, silent);
     if (data?.qr) setQr(data.qr);
     else if (data?.image) setQr(data.image);
-    else if (data?.connected) setQr(null);
+    else if (data?.connected) {
+      setQr(null);
+      void refreshStatus(true);
+    } else if (data) {
+      setQr(null);
+      if (data.status) setStatus(String(data.status));
+      if (!silent) toast.info("Le QR n’est pas encore disponible. Vérifiez le statut de la session.");
+    }
   };
 
   const configureWebhook = async () => {

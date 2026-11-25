@@ -22,8 +22,11 @@ Le script reproductible est `scripts/audit-waouh-platform-reachability.py`. Les 
 - 39 tests Deno de collecte, galeries, contacts, découverte, quotas et périmètre réussis.
 - Tests SQL PGlite : fraîcheur, profils d'entreprise, conservation des faits, revalidation autorisée, idempotence, sélection des tâches Web, pauses et refroidissement fournisseur réussis.
 - Les fonctions privées restent refusées aux rôles publics et authentifiés.
-- Le déploiement Web et les contrats Convergence ont réussi. La validation Native Messaging a réussi et ses fonctions ont été publiées, mais son contrôle final WhatsApp reste en échec : la session centrale est `FAILED` après une tentative de démarrage.
+- Le déploiement Web et les contrats Convergence ont réussi. La validation Native Messaging a réussi et ses fonctions ont été publiées, mais son contrôle final WhatsApp reste en échec : la session centrale a été recréée depuis le panneau administrateur puis reste `STARTING`, sans QR.
 - La connexion du compte acheteur et la création de recherches réelles sont confirmées. Le retour visuel des résultats, le parcours à deux comptes jusqu'à l'accord, le test WhatsApp et la recette Android ne sont pas encore validés.
-- Les comptes de recette ne disposent pas du rôle administrateur ; un compte administrateur est nécessaire pour afficher le QR central. Aucun rôle supplémentaire n'a été attribué.
+- L’accès administrateur a été confirmé par le formulaire sécurisé. Aucun rôle supplémentaire n’a été attribué aux comptes de recette.
+- Le diagnostic hôte en lecture seule confirme WAHA Plus 2026.9.2, moteur WEBJS, conteneur central actif sans redémarrage, 16,9 Gio libres. Les journaux sont classés sans être publiés : `TimeoutError`, `Waiting failed: 30000ms exceeded`, `WebjsClientCore.inject`, `waitForFunction`. Le blocage d’initialisation empêche la production du QR.
+- Le problème ressemble à l’incident amont ouvert [WAHA #2379](https://github.com/devlikeapro/waha/issues/2379), également signalé sur 2026.10.1. Aucun changement global de moteur ni redémarrage des sessions des autres clients n’a été appliqué.
+- L’interface ne promet plus l’arrivée du QR après une réinitialisation et explique l’absence de QR lors d’un chargement en attente.
 
 Ne pas annoncer les 50 entrées comme 50 collecteurs opérationnels, ni présenter les recettes Web/Android/WhatsApp comme terminées.
