@@ -9,3 +9,4 @@
 
 - [ ] NEXUS vague 1 CoinAfrique : site autorisé + lecture directe (fait) ; essais et raccordement des 3 rubriques à lancer par un admin
 - [ ] NEXUS vagues 2–4
+- [x] Corriger package-lock.json (plugins vite Lovable) pour npm ci GitHub
