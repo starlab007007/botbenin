@@ -33,7 +33,7 @@ export function collectionControlPatch(body:Record<string,unknown>) {
 }
 
 export async function collectionOverview(db:Db) {
-  const cutoff=new Date(Date.now()-7*86400000).toISOString(),now=new Date().toISOString();
+  const cutoff=new Date(Date.now()-7*86400000).toISOString(),now=new Date().toISOString(),day=now.slice(0,10);
   const count=(table:string)=>db.from(table).select('*',{head:true,count:'exact'});
   const queries=[
     count('waouh_signal_fabric'),count('waouh_signal_fabric').gte('observed_at',cutoff),
@@ -44,13 +44,15 @@ export async function collectionOverview(db:Db) {
     db.from('waouh_collection_targets').select('id,label,provider,enabled,adaptive,interval_minutes,next_due_at,last_success_at,last_outcome,error_streak,empty_streak').order('label').limit(200),
     db.from('waouh_collection_jobs').select('id,provider,status,created_at,finished_at,report').order('created_at',{ascending:false}).limit(30),
     db.from('waouh_signal_fabric').select('fabric_id,price_min,price_max,contactability_level,evidence,actor_type,intent').order('observed_at',{ascending:false,nullsFirst:false}).limit(500),
+    db.from('waouh_collection_usage').select('provider,lane,units,reserved_pages,reserved_items,estimated_cost').eq('day',day),
+    db.from('waouh_radar_api_configs').select('provider,active,daily_quota,usage_today,usage_reset_at'),
   ];
   const results=await Promise.all(queries);
   if(results.some(r=>r.error))throw new Error('collection_overview_unavailable');
-  const [total,recent,old,undated,expired,added,policies,targets,jobs,sample]=results;
+  const [total,recent,old,undated,expired,added,policies,targets,jobs,sample,usage,configs]=results;
   const quality={sample_size:sample.data.length,complete:0,missing_photo:0,missing_price:0,missing_contact:0};
   for(const row of sample.data){const q=assessQuality(row);if(q.present===3)quality.complete++;
     if(!q.has_photo)quality.missing_photo++;if(!q.has_price)quality.missing_price++;if(!q.has_contact)quality.missing_contact++;}
   return {ok:true,checked_at:now,counts:{usable:total.count,recent:recent.count,old:old.count,undated:undated.count,expired:expired.count,added:added.count},
-    quality,policies:policies.data,targets:targets.data,jobs:jobs.data};
+    quality,policies:policies.data,targets:targets.data,jobs:jobs.data,usage:usage.data,provider_configs:configs.data};
 }

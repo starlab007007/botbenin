@@ -145,3 +145,15 @@ Deno.test("an explicit free-form budget does not require a currency suffix",()=>
  assert.equal(plan.budget_max,150000);assert.equal(plan.normalized_query,'Samsung S10 Cotonou');
  assert.equal(freeDiscoveryPlan('Samsung S10',{}).budget_max,null);
 });
+
+Deno.test('collection overview exposes only budget counters and safe provider settings',async()=>{
+ const {collectionOverview}=await import('./waouh-collection/control.ts');
+ const selected:string[]=[];
+ const db={from:(table:string)=>{const q:any={};q.select=(fields:string)=>{selected.push(table+':'+fields);return q;};
+  for(const method of ['gte','lt','is','or','order','limit','eq'])q[method]=()=>q;
+  q.then=(resolve:any)=>resolve({data:[],count:0,error:null});return q;}};
+ const result=await collectionOverview(db);
+ assert.deepEqual(result.usage,[]);assert.deepEqual(result.provider_configs,[]);
+ const fields=selected.find(s=>s.startsWith('waouh_radar_api_configs:'))!;
+ assert.ok(fields.includes('daily_quota'));assert.ok(!fields.includes('api_key'));assert.ok(!fields.includes('*'));
+});

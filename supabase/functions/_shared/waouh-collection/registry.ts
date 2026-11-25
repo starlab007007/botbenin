@@ -28,13 +28,14 @@ async function event(db:Db,actor:{userId?:string},action:string,details:any){awa
 export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{actor:string;userId?:string}){
  if(!['admin','service'].includes(actor.actor))throw Error('catalog_admin_required');
  if(body.action==='collection.catalog.overview'){
-  const [platforms,entries,documents,index]=await Promise.all([
+  const [platforms,entries,documents,index,targets]=await Promise.all([
    checked(db.from('waouh_collection_platforms').select('*').order('label')),
    checked(db.from('waouh_collection_entries').select('*').order('entry_no')),
    checked(db.from('waouh_collection_pages').select('id,target_id,url,state,last_checked_at,last_error,next_due_at').order('last_checked_at',{ascending:false,nullsFirst:false}).limit(50)),
    db.from('waouh_search_documents').select('*',{head:true,count:'exact'}),
+   checked(db.from('waouh_collection_targets').select('id,enabled,label,provider,last_success_at,last_outcome,next_due_at').limit(200)),
   ]);
-  if(index.error)throw Error('catalog_database_unavailable');return {ok:true,platforms,entries,documents,indexed_documents:index.count};
+  if(index.error)throw Error('catalog_database_unavailable');return {ok:true,platforms,entries,documents,targets,indexed_documents:index.count};
  }
  if(body.action==='collection.catalog.search'){
   if(typeof body.query!=='string'||body.query.length>1000)throw Error('invalid_catalog_query');

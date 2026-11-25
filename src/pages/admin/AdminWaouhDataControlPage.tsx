@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +16,14 @@ import WaouhContactHubPanel, { type HubContact } from '@/components/admin/WaouhC
 import WaouhCollectionControlPanel from '@/components/admin/WaouhCollectionControlPanel';
 import WaouhCollectionEnginesPanel from '@/components/admin/WaouhCollectionEnginesPanel';
 import WaouhSourceCatalogPanel from '@/components/admin/WaouhSourceCatalogPanel';
+import {CollectionControlProvider,useCollectionControl} from '@/components/admin/collection/CollectionControlContext';
+import WaouhCollectionOverview from '@/components/admin/collection/WaouhCollectionOverview';
+import type {CollectionSection} from '@/lib/admin/collectionControl';
+import '@/components/admin/collection/collection-control.css';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
-  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw, ClipboardCopy, Send
+  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw, ClipboardCopy, Send, LayoutDashboard, Settings2, Database, SlidersHorizontal, Activity
 } from 'lucide-react';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -153,6 +156,21 @@ const contactClass = (level?: string) => {
 };
 
 export default function AdminWaouhDataControlPage() {
+  return <CollectionControlProvider><DataControlWorkspace /></CollectionControlProvider>;
+}
+function DataControlWorkspace() {
+  const control=useCollectionControl()!;
+  const [activeTab,setActiveTab]=useState<CollectionSection>('overview');
+  const [settingsTab,setSettingsTab]=useState('policies');
+  const [selectedPlatform,setSelectedPlatform]=useState<string|null>(null);
+  const [sourcesVisited,setSourcesVisited]=useState(false);
+  const fabricLoaded=useRef({stats:false,search:false});
+  const navigate=(section:CollectionSection,platform?:string,setting?:string)=>{
+    if(platform)setSelectedPlatform(platform);
+    if(setting)setSettingsTab(setting);
+    if(section==='platforms')setSourcesVisited(true);
+    setActiveTab(section);
+  };
   const { toast } = useToast();
   const ai = useWaouhAI();
 
@@ -166,8 +184,9 @@ export default function AdminWaouhDataControlPage() {
   const [intentFilter, setIntentFilter] = useState('all');
   const [contactFilter, setContactFilter] = useState('all');
   const [sourceStateFilter, setSourceStateFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchError,setSearchError]=useState('');
 
   const [cleaning, setCleaning] = useState(false);
   const [cleanItems, setCleanItems] = useState<CleanItem[]>([]);
@@ -229,6 +248,7 @@ export default function AdminWaouhDataControlPage() {
   };
 
   const search = async () => {
+    setSearchError('');
     setSearching(true);
     const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
       body: {
@@ -248,8 +268,9 @@ export default function AdminWaouhDataControlPage() {
     });
     setSearching(false);
     if (error || !data?.ok) {
+      setSearchError('La recherche n’a pas pu être actualisée. Les derniers résultats disponibles sont conservés.');
       toast({
-        title: 'Erreur Signal Fabric',
+        title: 'Recherche indisponible',
         description: error?.message || data?.error || 'Read-model contacts indisponible',
         variant: 'destructive',
       });
@@ -334,21 +355,18 @@ export default function AdminWaouhDataControlPage() {
   };
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      await Promise.all([loadStats(), loadSources()]);
-      if (mounted) setLoading(false);
-      if (mounted) await search();
-    })();
-    return () => { mounted = false; };
-    // Chargement initial seulement ; la recherche est volontairement déclenchée par le bouton.
+    if(activeTab!=='search'&&!(activeTab==='settings'&&['registry','maintenance'].includes(settingsTab)))return;
+    const work:Promise<unknown>[]=[];
+    if(!fabricLoaded.current.stats){fabricLoaded.current.stats=true;work.push(loadStats(),loadSources());}
+    if(activeTab==='search'&&!fabricLoaded.current.search){fabricLoaded.current.search=true;work.push(search());}
+    if(work.length){setLoading(true);void Promise.allSettled(work).finally(()=>setLoading(false));}
+    // These reads start on first use. Subsequent searches are explicit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeTab,settingsTab]);
 
   const refreshAll = async () => {
     setLoading(true);
-    await Promise.all([loadStats(), loadSources(), search()]);
+    await Promise.all([loadStats(), loadSources(), search(),control.refresh()]);
     setLoading(false);
   };
 
@@ -416,7 +434,8 @@ export default function AdminWaouhDataControlPage() {
     await refreshAll();
   };
 
-  const exportRows = (kind: 'xlsx' | 'csv') => {
+  const exportRows = async (kind: 'xlsx' | 'csv') => {
+    const XLSX=await import('xlsx');
     if (!results.length) {
       toast({ title: 'Rien à exporter', variant: 'destructive' });
       return;
@@ -570,15 +589,24 @@ export default function AdminWaouhDataControlPage() {
   };
 
   return (
-    <div className="container py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Contrôle NEXUS · Signal Fabric</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vue canonique des annonces, vendeurs, acheteurs et signaux collectés par WAOUH, NEXUS et les connecteurs externes.
-        </p>
-      </div>
+    <div className="waouh-data-control">
+      <header className="wcc-page-header">
+        <div className="wcc-brand"><span className="wcc-brand-icon"><Activity size={24}/></span><div><h1>Centre de collecte</h1><p>Sources, qualité et alimentation de WAOUH.</p></div></div>
+        <div className="wcc-header-actions"><label className="wcc-auto"><input type="checkbox" checked={control.autoRefresh} onChange={e=>control.setAutoRefresh(e.target.checked)}/>Suivi auto · 1 min</label><Button size="sm" variant="outline" disabled={Object.values(control.resources).some(r=>r.loading)} onClick={()=>void(activeTab==='search'?refreshAll():control.refresh())}><RefreshCw size={14} className={`mr-2 ${Object.values(control.resources).some(r=>r.loading)?'animate-spin':''}`}/>Actualiser</Button></div>
+      </header>
+      <Tabs value={activeTab} onValueChange={value=>navigate(value as CollectionSection)}>
+        <div className="wcc-navigation"><TabsList className="wcc-tabs" aria-label="Espaces du centre de collecte">
+          <TabsTrigger value="overview"><LayoutDashboard size={16}/>Vue d’ensemble</TabsTrigger>
+          <TabsTrigger value="platforms"><Network size={16}/>Sources</TabsTrigger>
+          <TabsTrigger value="search"><Database size={16}/>Fiches</TabsTrigger>
+          <TabsTrigger value="contacts"><Phone size={16}/>Contacts</TabsTrigger>
+          <TabsTrigger value="settings"><Settings2 size={16}/>Réglages</TabsTrigger>
+        </TabsList></div>
+        <TabsContent value="overview"><WaouhCollectionOverview onNavigate={navigate}/></TabsContent>
+        {sourcesVisited&&<TabsContent value="platforms" forceMount className="data-[state=inactive]:hidden"><WaouhSourceCatalogPanel initialPlatformKey={selectedPlatform} onPlatformChange={setSelectedPlatform}/></TabsContent>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        <TabsContent value="search">
+          <details className="wcc-disclosure mb-4"><summary>Répartition des fiches par provenance</summary>      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         <StatCard label="Signal Fabric" value={stats.total} sub={`${stats.sources_with_data}/${stats.configured_sources} sources`} />
         <StatCard label="WAOUH interne" value={stats.internal} color="text-blue-700" />
         <StatCard label="Partner" value={stats.partner} color="text-emerald-700" />
@@ -588,33 +616,30 @@ export default function AdminWaouhDataControlPage() {
         <StatCard label="Contactables C1+" value={stats.contactable} color="text-cyan-700" />
       </div>
 
-      <WaouhCollectionControlPanel />
-      <WaouhCollectionEnginesPanel />
-      <WaouhSourceCatalogPanel />
-
-      <Tabs defaultValue="search">
-        <TabsList>
-          <TabsTrigger value="search"><Search className="h-4 w-4 mr-1" />Signal Fabric</TabsTrigger>
-          <TabsTrigger value="contacts"><Phone className="h-4 w-4 mr-1" />Contacts WhatsApp</TabsTrigger>
-          <TabsTrigger value="sources"><Network className="h-4 w-4 mr-1" />Sources</TabsTrigger>
-          <TabsTrigger value="clean"><Sparkles className="h-4 w-4 mr-1" />Nettoyage IA</TabsTrigger>
-          <TabsTrigger value="restore"><RefreshCw className="h-4 w-4 mr-1" />Restauration</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="search">
+</details>
           <Card>
             <CardHeader>
-              <CardTitle>Catalogue NEXUS / Signal Fabric — Annonces · Vendeurs · Acheteurs</CardTitle>
+              <CardTitle>Fiches et contacts de la base commune</CardTitle>
               <CardDescription>
-                Toutes les sources passent par le même read-model : WAOUH, Partner, WhatsApp, Radar IA, Apify, SerpAPI,
-                réseaux sociaux, Maps, Scouts et autres connecteurs. NEXUS orchestre les sources externes sans les masquer sous « Radar ».
+                Recherchez une fiche, examinez sa provenance et complétez les informations disponibles.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Input placeholder="Produit, vendeur, besoin, marque…" value={query} onChange={e => setQuery(e.target.value)} />
                 <Input placeholder="Ville" value={ville} onChange={e => setVille(e.target.value)} />
-                <select className="border rounded px-3 h-10 text-sm bg-background" value={familyFilter} onChange={e => {
+                <div className="flex gap-2">
+                  <Button onClick={search} disabled={searching} className="flex-1">
+                    {searching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                    Rechercher
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={resetFilters} title="Réinitialiser les filtres">
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <details className="wcc-disclosure"><summary>Filtres avancés</summary><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">                <select className="border rounded px-3 h-10 text-sm bg-background" value={familyFilter} onChange={e => {
                   setFamilyFilter(e.target.value);
                   setSourceFilter('all');
                 }}>
@@ -629,7 +654,7 @@ export default function AdminWaouhDataControlPage() {
                     </option>
                   ))}
                 </select>
-                <select className="border rounded px-3 h-10 text-sm bg-background" value={intentFilter} onChange={e => setIntentFilter(e.target.value)}>
+                <select aria-label="Intention de la fiche" className="border rounded px-3 h-10 text-sm bg-background" value={intentFilter} onChange={e => setIntentFilter(e.target.value)}>
                   <option value="all">Toutes intentions</option>
                   <option value="SELL">Vendeurs</option>
                   <option value="BUY">Acheteurs</option>
@@ -653,18 +678,9 @@ export default function AdminWaouhDataControlPage() {
                   <option value="disabled">Désactivée</option>
                   <option value="planned">Planifiée</option>
                 </select>
-                <div className="flex gap-2">
-                  <Button onClick={search} disabled={searching} className="flex-1">
-                    {searching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                    Rechercher
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={resetFilters} title="Réinitialiser les filtres">
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+</div></details>
 
-              <div className="flex gap-2 flex-wrap">
+              <details className="wcc-disclosure"><summary>Exports et synchronisation</summary><div className="flex gap-2 flex-wrap">
                 <Button variant="outline" onClick={syncWaha}>
                   <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
                 </Button>
@@ -675,10 +691,11 @@ export default function AdminWaouhDataControlPage() {
                   <FileSpreadsheet className="h-4 w-4 mr-2" />CSV pour Google Sheets
                 </Button>
                 <Button variant="outline" onClick={backupCatalog}>
-                  <Archive className="h-4 w-4 mr-2" />Backup catalogue historique
+                  <Archive className="h-4 w-4 mr-2" />Sauvegarder le catalogue historique
                 </Button>
-              </div>
+              </div></details>
 
+              {searchError&&<p role="alert" className="wcc-notice">{searchError}</p>}
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{results.length} résultat{results.length > 1 ? 's' : ''} · max 300</span>
                 <span>{stats.buy} intentions d'achat · {stats.sell} offres / annonces</span>
@@ -890,7 +907,7 @@ export default function AdminWaouhDataControlPage() {
                     {results.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
-                          {loading || searching ? 'Chargement du Signal Fabric…' : 'Aucun résultat — ajustez les filtres'}
+                          {searchError?'Recherche à relancer.':loading || searching ? 'Chargement des fiches…' : 'Aucun résultat — ajustez les filtres'}
                         </TableCell>
                       </TableRow>
                     )}
@@ -905,7 +922,17 @@ export default function AdminWaouhDataControlPage() {
           <WaouhContactHubPanel />
         </TabsContent>
 
-        <TabsContent value="sources">
+        <TabsContent value="settings">
+          <Tabs value={settingsTab} onValueChange={setSettingsTab}>
+            <div className="overflow-x-auto pb-3"><TabsList className="h-auto flex-wrap gap-1 bg-transparent justify-start">
+              <TabsTrigger value="policies">Fournisseurs et quotas</TabsTrigger>
+              <TabsTrigger value="engines">Moteurs</TabsTrigger>
+              <TabsTrigger value="registry">Familles de données</TabsTrigger>
+              <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+            </TabsList></div>
+            <TabsContent value="policies"><WaouhCollectionControlPanel compact /></TabsContent>
+            <TabsContent value="engines"><WaouhCollectionEnginesPanel /></TabsContent>
+            <TabsContent value="registry">
           <Card>
             <CardHeader>
               <CardTitle>Registre des sources NEXUS</CardTitle>
@@ -950,8 +977,7 @@ export default function AdminWaouhDataControlPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="clean">
+            <TabsContent value="maintenance"><div className="space-y-4"><div className="wcc-notice"><SlidersHorizontal size={18}/><div><strong>Outils de maintenance</strong><p>Ces opérations modifient le catalogue historique uniquement lorsque vous les lancez.</p></div></div>
           <Card>
             <CardHeader>
               <CardTitle>Nettoyage intelligent du catalogue historique</CardTitle>
@@ -1031,9 +1057,7 @@ export default function AdminWaouhDataControlPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="restore">
           <Card>
             <CardHeader>
               <CardTitle>Restauration et synchronisation</CardTitle>
@@ -1049,6 +1073,8 @@ export default function AdminWaouhDataControlPage() {
               </p>
             </CardContent>
           </Card>
+        </div></TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
