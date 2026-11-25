@@ -4,13 +4,16 @@ import assert from 'node:assert/strict';
 const db=new PGlite();
 await db.exec(fs.readFileSync('tests/fixtures/discovery-schema.sql','utf8'));
 await db.exec('alter role service_role bypassrls');
-for(const name of ['20261028113539_waouh_unified_discovery_facts','20261125080800_waouh_complete_galleries','20261125080808_waouh_indexed_unified_search','20261125080909_waouh_source_references'])
+for(const name of ['20261028113539_waouh_unified_discovery_facts','20261125080800_waouh_complete_galleries','20261125080808_waouh_indexed_unified_search','20261125080909_waouh_source_references','20261125082437_waouh_reference_search_recall'])
  await db.exec(fs.readFileSync('supabase/migrations/'+name+'.sql','utf8'));
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const images=Array.from({length:12},(_,i)=>`https://media.example/${i}.jpg`);
 const insert=(table,row)=>db.query(`insert into ${table}(${Object.keys(row).join(',')}) values(${Object.keys(row).map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(row));
 const search=async(query,mode='find_sellers',sources=null,internal=false,city=null,budget=null,domain=null,country=null,limit=50,offset=0)=>(await db.query('select public.waouh_search_unified($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) result',[query,mode,sources,internal,city,budget,domain,country,limit,offset])).rows[0].result;
 await insert('waouh_articles',{id:id(1),title:'iPhone 13',status:'active',price:150000,city:'Calavi',photos:images,created_at:'2020-01-01',source_channel:'web'});
+await insert('waouh_users',{id:id(20),web_session_id:'nexus-ext|'+id(2)});
+await insert('waouh_articles',{id:id(21),seller_id:id(20),title:'System mirror fridge',status:'active',price:10000,source_channel:'nexus'});
+assert.equal((await search('fridge')).total,0);
 console.log('Seeding large corpus');
 await db.exec('alter table waouh_articles disable trigger waouh_search_sync');
 await db.exec(`insert into waouh_articles(id,title,status,price,created_at) select ('10000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,'Meuble chaise '||i,'active',5000,now() from generate_series(1,1100) i`);
@@ -41,7 +44,9 @@ await insert('waouh_external_commerce_signals',{id:id(8),source_key:'partner',in
 await db.query('select waouh_search_group($1,$2,$3,true)',['external:'+id(2),'external:'+id(8),'Same seller and same exact device, checked manually']);
 assert.equal((await search('iphone')).total,1);
 assert.equal((await search('iphone')).records[0].evidence.photos.length,13);
-assert.equal((await search('iphone','find_sellers',['partner'])).total,1); // no private canonical source can hide an allowed reference
+assert.equal((await search('iphone','find_sellers',['partner'])).total,1);
+await db.query("update waouh_external_commerce_signals set product_name='iPhone 13 magenta' where id=$1",[id(8)]);
+assert.equal((await search('magenta')).total,1); // a matching alias must survive when the canonical wording differs // no private canonical source can hide an allowed reference
 assert.equal((await db.query('select waouh_search_canonical($1) id',['external:'+id(8)])).rows[0].id,'external:'+id(2));
 await db.query('delete from waouh_search_aliases where alias_id=$1',['external:'+id(8)]);
 assert.equal((await search('iphone')).total,2);

@@ -145,7 +145,11 @@ export async function materializeExternalSignal(sb: any, signalId: string, now: 
   if (blocked) return { ok: false, code: blocked as "signal_not_offer" | "signal_unavailable" };
 
   const existing = await articleOfSignal(sb, signalId);
-  if (existing) return { ok: true, articleId: existing, created: false, level };
+  if (existing) {
+    const {error} = await sb.from("waouh_articles").update({photos:publicPhotos(signal)}).eq("id",existing).eq("origin",NEXUS_ORIGIN);
+    if(error)return {ok:false,code:"materialize_failed"};
+    return { ok: true, articleId: existing, created: false, level };
+  }
 
   let stubId: string | null = null;
   const { data: stub, error: stubError } = await sb.from("waouh_users").insert({
