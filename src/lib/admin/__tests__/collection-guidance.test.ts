@@ -22,3 +22,10 @@ describe('collection guidance',()=>{
   expect(explainCollectionReason('secret_internal_error').detail).not.toContain('secret_internal');
  });
 });
+
+it('does not confuse an enabled collector with a successful last passage',()=>{
+ const state=platformProgress(platform,[{target_id:'t1'}],[{id:'t1',enabled:true,last_outcome:'blocked'}]);
+ expect(state.label).toBe('Dernier passage à vérifier');expect(state.tone).toBe('warning');expect(state.active).toBe(1);
+ const issues=collectionGuidance({policies:[],targets:[{enabled:true,last_outcome:'blocked'}]},null,null);
+ expect(issues[0].title).toContain('1 collecteur');expect(issues[0].action).toBe('Voir les collecteurs');
+});

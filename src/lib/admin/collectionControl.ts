@@ -38,6 +38,7 @@ export function platformProgress(platform:any, entries:any[], targets:any[] = []
  const failed=unique.find(e=>e.test_status==='failed');
  if(platform.access_state==='paused')return {label:'En pause',tone:'muted',stage:0,active,linked:linked.length};
  if(failed)return {label:explainCollectionReason(failed.test_report?.reason).title,tone:'warning',stage:2,active,linked:linked.length};
+ if(active&&known.some(t=>t.enabled&&['blocked','failed','partial'].includes(t.last_outcome)))return {label:'Dernier passage à vérifier',tone:'warning',stage:2,active,linked:linked.length};
  if(active)return {label:'Collecte activée',tone:'success',stage:3,active,linked:linked.length};
  if(linked.length&&known.length===linked.length&&known.every(t=>!t.enabled))return {label:'Cible en pause',tone:'muted',stage:2,active,linked:linked.length};
  if(platform.access_state!=='authorized'||platform.adapter_key==='none')return {label:platform.access_state==='unverified'?'Adresse à vérifier':'À configurer',tone:'warning',stage:0,active,linked:linked.length};
@@ -51,6 +52,8 @@ export function collectionGuidance(collection:any,catalog:any,engines:any):Guida
   if(p.estimated_daily_cost_limit!=null&&used>=Number(p.estimated_daily_cost_limit))out.push({title:`${providerLabel(p.provider)} : plafond du jour atteint`,detail:`${used.toFixed(2)} ${p.cost_currency??''} réservés. Une reprise n’augmente pas ce plafond.`,action:'Voir les quotas',section:'settings',tone:'warning'});
   else if(p.paused)out.push({title:`${providerLabel(p.provider)} en pause`,detail:'La pause est conservée jusqu’à votre décision de reprise.',action:'Voir le fournisseur',section:'settings',tone:'info'});
  }
+ const blocked=(collection?.targets??[]).filter((t:any)=>t.enabled&&['blocked','failed','partial'].includes(t.last_outcome));
+ if(blocked.length)out.push({title:`${blocked.length} collecteur(s) à vérifier`,detail:'Le dernier passage a été bloqué, a échoué ou reste partiel. Consultez son suivi avant de relancer.',action:'Voir les collecteurs',section:'settings',tone:'warning'});
  for(const p of catalog?.platforms??[]){
   const e=(catalog.entries??[]).filter((e:any)=>e.platform_key===p.platform_key&&!e.alias_of);
   const failed=e.find((e:any)=>e.test_status==='failed');
