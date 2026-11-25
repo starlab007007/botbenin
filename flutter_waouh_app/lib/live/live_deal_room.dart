@@ -84,7 +84,9 @@ class LiveDealRoomService {
   final body=Map<String,dynamic>.from(payload);
   final read=['get','events','list','delivery'].contains(action);
   if(!read){var request=prefs.getString(key);if(request==null){final random=Random.secure();final hex=List<int>.generate(16,(_)=>random.nextInt(256)).map((n)=>n.toRadixString(16).padLeft(2,'0')).join();request='${hex.substring(0,8)}-${hex.substring(8,12)}-4${hex.substring(13,16)}-8${hex.substring(17,20)}-${hex.substring(20)}';await prefs.setString(key,request);}body['request_id']=request;}
-  final result=await client.functions.invoke('waouh-deal-room',body:{'action':action,'payload':body},headers:{'Authorization':'Bearer ${session.accessToken}'});
+  final FunctionResponse result;
+  try{result=await client.functions.invoke('waouh-deal-room',body:{'action':action,'payload':body},headers:{'Authorization':'Bearer ${session.accessToken}'});}
+  on FunctionException catch(e){final d=e.details;throw StateError(d is Map&&d['error']!=null?'${d['error']}':'request_failed');}
   if(client.auth.currentUser?.id!=session.user.id)throw StateError('Votre compte a changé.');
   final data=result.data;if(data is! Map||data['ok']!=true)throw StateError('${data is Map?data['error']:'Action non confirmée'}');
   if(!read)await prefs.remove(key);

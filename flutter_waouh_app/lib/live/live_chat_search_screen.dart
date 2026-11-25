@@ -8,7 +8,7 @@ import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
 import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
-import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation;
+import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
@@ -379,21 +379,40 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final saleArticle = await _saleArticle();
       final api = LiveDealRoomService(legacy.supabase);
       final askedCity = (_goalFacts.city ?? '').trim();
-      final city = askedCity.isNotEmpty ? askedCity : (fabricCity ?? '');
-      final opened = await api.call('open', <String, dynamic>{
-        'fabric_id': fabricId,
-        if (saleArticle != null) 'sale_article_id': saleArticle,
-        if (city.isNotEmpty) 'city': city,
-        'budget_max': _sell ? null : _goalFacts.budget,
-        'confirmed': false,
-      });
+      // Candidats dans l'ordre : on saute ses propres annonces (comme le Web le fait côté résultat).
+      final candidates = <Map<String, dynamic>>[
+        {'fabric_id': fabricId, 'city': fabricCity},
+        ...cascade,
+      ];
+      Map<String, dynamic>? opened;
+      var index = 0;
+      Object? lastError;
+      for (; index < candidates.length; index++) {
+        final c = candidates[index];
+        final city = askedCity.isNotEmpty ? askedCity : '${c['city'] ?? ''}';
+        try {
+          opened = await api.call('open', <String, dynamic>{
+            'fabric_id': '${c['fabric_id']}',
+            if (saleArticle != null) 'sale_article_id': saleArticle,
+            if (city.isNotEmpty) 'city': city,
+            'budget_max': _sell ? null : _goalFacts.budget,
+            'confirmed': false,
+          });
+          break;
+        } on StateError catch (e) {
+          lastError = e;
+          if (!['own_offer', 'article_unavailable', 'offer_not_found', 'contact_unavailable'].contains(e.message)) rethrow;
+        }
+      }
+      if (opened == null) throw lastError ?? StateError('request_failed');
+      final rest = candidates.skip(index + 1).toList();
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
         'budget_max': _sell ? null : _goalFacts.budget,
-        if (cascade.isNotEmpty) 'cascade_candidates': cascade,
-        if (cascade.isNotEmpty) 'cascade_step': 1,
-        if (cascade.isNotEmpty) 'cascade_max_steps': 1 + cascade.length,
+        if (rest.isNotEmpty) 'cascade_candidates': rest,
+        if (rest.isNotEmpty) 'cascade_step': 1,
+        if (rest.isNotEmpty) 'cascade_max_steps': 1 + rest.length,
       };
       await api.call('delegate', <String, dynamic>{
         'deal_room_id': id,
@@ -406,11 +425,16 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bot s’en occupe. Vous confirmerez l’accord final.')),
       );
-    } catch (_) {
+      // Comme sur le Web : la Deal Room s'ouvre directement.
+      context.push('/app/chat/room?room_id=$id');
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de confier à Bot pour le moment. Réessayez.')),
-        );
+        final code = e is StateError ? e.message : '';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(code == 'request_failed' || code.isEmpty
+              ? 'Impossible de confier à Bot pour le moment. Réessayez.'
+              : roomError(StateError(code))),
+        ));
       }
     } finally {
       if (mounted) setState(() => _delegating = false);
@@ -522,9 +546,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   ],
                 ),
               ),
-            LiveMessageBubble(
+            if (canonicalRows.isEmpty) LiveMessageBubble(
               message: reply,
-              actionsEnabled: canonicalRows.isEmpty,
+              actionsEnabled: true,
               onPayload: (payload) {
                 Navigator.of(context).maybePop();
                 widget.onPayload(payload);
@@ -536,7 +560,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               const SizedBox(height: 14),
               const Padding(
                 padding: EdgeInsets.only(left: 2, bottom: 6),
-                child: Text('Ouvrir un échange',
+                child: Text('Choisissez une offre',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
               ),
               for (final row in canonicalRows)
@@ -574,10 +598,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                     ),
                     Column(
                       children: [
-                        TextButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Ouvrir')),
+                        TextButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Intéressé')),
                         if (_contactAllowed(row)) TextButton(
                           onPressed: _delegating ? null : () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []),
-                          child: const Text('Confier à Bot'),
+                          child: const Text('Bot'),
                         ),
                       ],
                     ),

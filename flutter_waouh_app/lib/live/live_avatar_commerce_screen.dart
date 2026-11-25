@@ -1131,31 +1131,33 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           return;
         }
       }
-      final data = await _nexus.createMandate(
-        mode: mode,
-        goal: item.title,
-        articleId: mode == 'sell' ? article : null,
-        maxContacts: 4,
-        allowPublicBusiness: true,
-        allowBlindMessage: true,
-        allowWhatsapp: item.bestChannel == 'whatsapp',
-      );
-      final mandate = data['mandate'];
-      await _nexus.startOpportunity(
-        fabricId: item.fabricId,
-        mode: mode,
-        mandateId: mandate is Map ? '${mandate['id'] ?? ''}' : '',
-      );
+      // Même parcours que le Web : ouverture de la Deal Room puis mandat Bot.
+      final api = LiveDealRoomService(legacy.supabase);
+      final opened = await api.call('open', <String, dynamic>{
+        'fabric_id': item.fabricId,
+        if (mode == 'sell' && article != null) 'sale_article_id': article,
+        'confirmed': false,
+      });
+      final id = '${opened['deal_room_id']}';
+      await api.call('delegate', <String, dynamic>{
+        'deal_room_id': id,
+        'mandate_revision': opened['mandate_revision'] ?? 0,
+        'confirmed': true,
+        'rules': <String, dynamic>{...botRoomDefaultRules, 'budget_max': null},
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bot s’en occupe. Suivez-le dans Missions.')),
+        const SnackBar(content: Text('Bot s’en occupe. Vous confirmerez l’accord final.')),
       );
-      context.go('/app/missions');
-    } catch (_) {
+      context.push('/app/chat/room?room_id=$id');
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de confier à Bot pour le moment. Réessayez.')),
-        );
+        final code = e is StateError ? e.message : '';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(code.isEmpty || code == 'request_failed'
+              ? 'Impossible de confier à Bot pour le moment. Réessayez.'
+              : roomError(StateError(code))),
+        ));
       }
     } finally {
       if (mounted) setState(() => _workingFabric = null);

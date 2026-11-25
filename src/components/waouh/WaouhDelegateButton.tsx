@@ -50,12 +50,27 @@ export function WaouhDelegateButton({ result, mode, articleId, className = "h-12
     if (article && mode === "sell") params.set("sale_article_id", article);
     if (!data.session) { navigate(`/app/chat?${params}`); return; }
     if (mode === "sell" && !article) throw new Error("sale_article_required");
-    const opened = await roomCall("open", {
-      fabric_id: result.fabric_id, city: city ?? result.city ?? undefined,
-      ...(mode === "sell" ? { sale_article_id: article } : { budget_max: budgetMax ?? null }),
-      confirmed: false,
-    });
-    const cascade = (alternates ?? []).filter(a => a.fabric_id && a.fabric_id !== result.fabric_id).slice(0, 3);
+    // Candidats dans l'ordre : une piste qui vous appartient ou qui n'est plus disponible est sautée.
+    const candidates = [{ fabric_id: result.fabric_id, city: result.city ?? null }, ...(alternates ?? []).filter(a => a.fabric_id && a.fabric_id !== result.fabric_id).slice(0, 3)];
+    const skippable = ["own_offer", "article_unavailable", "offer_not_found", "contact_unavailable"];
+    let opened: Awaited<ReturnType<typeof roomCall>> | null = null;
+    let index = 0;
+    let lastError: unknown = null;
+    for (; index < candidates.length; index++) {
+      try {
+        opened = await roomCall("open", {
+          fabric_id: candidates[index].fabric_id, city: city ?? candidates[index].city ?? undefined,
+          ...(mode === "sell" ? { sale_article_id: article } : { budget_max: budgetMax ?? null }),
+          confirmed: false,
+        });
+        break;
+      } catch (err) {
+        lastError = err;
+        if (mode === "sell" || !skippable.includes((err as Error)?.message)) throw err;
+      }
+    }
+    if (!opened) throw lastError ?? new Error("request_failed");
+    const cascade = candidates.slice(index + 1);
     const rules = {
       ...DEFAULT_RULES,
       budget_max: mode === "sell" ? null : budgetMax ?? null,
