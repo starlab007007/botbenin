@@ -3,7 +3,7 @@ import {structuredPublicListings} from './public.ts';
 
 export const engineKeys=['cheerio','crawlee','playwright','scrapy','beautifulsoup','crawl4ai'] as const;
 export type EngineKey=typeof engineKeys[number];
-type Db={from:(table:string)=>any;rpc:(name:string,args?:Record<string,unknown>)=>PromiseLike<{data:any;error:any}>};
+type Db={from:(table:string)=>any;rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{data:any;error:any}>};
 export class DocumentEngineError extends Error {
  constructor(readonly code:string,readonly retryable=false){super(code);}
 }
@@ -22,7 +22,7 @@ export const engineDemoHtml='<!doctype html><html><head><title>Test moteur WAOUH
  '@type':'Product',name:'Téléphone de démonstration WAOUH',url:'/waouh-engine-demo/telephone',model:'DEMO',offers:{price:50000,priceCurrency:'XOF'},
 })+'</script></head><body><h1>Page de démonstration locale</h1><p>Aucune annonce réelle, aucun contact et aucune publication.</p></body></html>';
 async function runtime(db:Db,path:'health'|'execute',body:Record<string,unknown>,timeout:number){
- const token=await db.rpc('waouh_collection_engine_token');
+ const token=await db.rpc('waouh_collection_engine_token',{});
  if(token.error||typeof token.data!=='string'||token.data.length<32)throw new DocumentEngineError('engine_runtime_unconfigured');
  let response:Response;
  try{response=await fetch('https://bot.bj/api/waouh-collection-runtime/'+path,{method:'POST',redirect:'error',

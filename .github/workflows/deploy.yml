@@ -16,6 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
     steps:
@@ -132,6 +133,8 @@ jobs:
 
             AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
             MIN_REQUIRED_KB=524288
+            IMAGE_TRANSFER_KB=$(du -k "$CI_IMAGE_DIR/botbj-image.tar.gz" | awk '{print $1}')
+            MIN_REQUIRED_KB=$((IMAGE_TRANSFER_KB * 4 + MIN_REQUIRED_KB))
             if [ "${AVAILABLE_KB:-0}" -lt "$MIN_REQUIRED_KB" ]; then
               echo "❌ Espace disque insuffisant dans /tmp après nettoyage. Minimum requis : 512 Mo."
               df -h / /tmp || true
@@ -217,6 +220,10 @@ jobs:
             mkdir -p /home/debian/waouh-collection-runtime
             chmod 700 /home/debian/waouh-collection-runtime
             install -m 444 "$CI_IMAGE_DIR/collection-runtime-token" /home/debian/waouh-collection-runtime/token
+            docker volume create waouh-collection-engine-socket >/dev/null
+            docker run --rm --network none --user 0 \
+              -v waouh-collection-engine-socket:/socket --entrypoint python \
+              waouh-collection-engines:latest -c 'import os; os.chmod("/socket",0o777)'
             docker compose up -d --no-build --force-recreate --remove-orphans
             rm -f "$CI_IMAGE_DIR/collection-runtime-token"
             rm -f "$CI_IMAGE_DIR/botbj-image.tar.gz" "$CI_IMAGE_DIR/botbj-image.tar.gz.sha256"
@@ -311,3 +318,13 @@ jobs:
             # Garder sept jours d’images de cette application pour le retour arrière.
             docker image prune -af --filter label=io.botbj.release=true --filter until=168h || true
             echo "✅ Déploiement production, AprèsBac IA et Web Chat public terminés"
+
+      - name: Verify installed engines through the administrator gateway
+        if: github.event_name != 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 server/collection-engines/verify.py
+
+      - name: Remove temporary runtime credential
+        if: always()
+        run: rm -f collection-runtime-token

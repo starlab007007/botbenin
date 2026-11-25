@@ -7,7 +7,7 @@ WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers PYTHONUNBUFFERED=1 \
     CRAWL4AI_DB_PATH=/tmp/crawl4ai HF_HUB_OFFLINE=1 LITELLM_LOG=ERROR
 COPY requirements.txt package.json package-lock.json ./
-RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/* && \
+RUN apt-get update && apt-get install -y --no-install-recommends chromium libatomic1 && rm -rf /var/lib/apt/lists/* && \
     pip install --no-cache-dir -r requirements.txt && \
     python -c "from playwright.sync_api import sync_playwright; from pathlib import Path; p=Path(sync_playwright().start().chromium.executable_path); p.parent.mkdir(parents=True,exist_ok=True); p.symlink_to('/usr/bin/chromium')" && \
     npm ci --ignore-scripts --no-audit --no-fund && \

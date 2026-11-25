@@ -108,6 +108,8 @@ services:
 
 volumes:
   waouh_engine_socket:
+    name: waouh-collection-engine-socket
+    external: true
   privatai_download_cache:
 
 networks:

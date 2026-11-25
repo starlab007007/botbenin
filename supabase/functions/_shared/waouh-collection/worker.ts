@@ -231,7 +231,7 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
         throw new CollectionError("listing_detail_unavailable",true);
       }
       try { rows.push(coinAfriqueDetails(await runDocumentEngine(db,job,await readBounded(detail),card.source_url),card,permission)); }
-      catch { throw new CollectionError("listing_identity_changed"); }
+      catch(error) { if(error instanceof DocumentEngineError)throw error;throw new CollectionError("listing_identity_changed"); }
     }
     return rows;
   }
