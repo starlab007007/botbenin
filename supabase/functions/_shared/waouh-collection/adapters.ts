@@ -49,15 +49,20 @@ export function listingGallery(html:string,origin:URL):string[]{
 export function extractListing(html:string,origin:URL,permission:SourcePermission):CollectedCommerce|null{
  const $=load(html),canonical=trustedHttps($('link[rel="canonical"]').attr('href'),origin.href);
  if(canonical&&canonical.href!==origin.href)throw Error('listing_identity_changed');
+ const status=$('[itemprop="availability"],.listing-status,[data-listing-status]').first();
+ if(/^(?:vendu|loué|pourvu|sold|closed|indisponible)$/i.test(status.text().trim())||/SoldOut|OutOfStock/.test(status.attr('href')??''))throw Error('listing_closed');
  if(origin.hostname==='bj.coinafrique.com'){
   const title=$('h1').first().text().trim()||$('meta[property="og:title"]').attr('content')||'';
   const details=facebookListingDetails(title+' '+$('meta[property="og:description"]').attr('content'));
-  const row=commercialRecord({url:origin.href,title,price:details.price,currency:'XOF',city:details.city,photos:listingGallery(html,origin)},
+  const row=commercialRecord({url:origin.href,title,price:facebookListingDetails(($('[itemprop="price"],meta[property="product:price:amount"],[data-ad-price],.price').first().attr('content')||$('[data-ad-price]').first().attr('data-ad-price')||$('.price').first().text())+' FCFA').price??details.price,currency:'XOF',city:details.city,photos:listingGallery(html,origin)},
    new URL('/',origin),permission,'product','SELL');
   return row?coinAfriqueDetails(html,row,permission):null;
  }
  const structured=structuredPublicListings(html,new URL('/',origin),permission).find(r=>r.source_url===origin.href);
- if(structured)return structured;
+ if(structured){
+  const gallery=commercialRecord({url:origin.href,title:structured.product_name,photos:[...(structured.evidence.photos??[]),...listingGallery(html,origin)]},new URL('/',origin),permission,structured.evidence.offer_kind,structured.intent);
+  return {...structured,evidence:{...structured.evidence,photos:gallery?.evidence.photos??[]}};
+ }
  if(!detailUrl(origin))return null;
  const title=($('h1').first().text()||$('meta[property="og:title"]').attr('content')||'').replace(/\s*[|–]\s*(?:Niosso|E-Benin|Bambaad).*$/i,'').trim();
  if(title.length<5)return null;
@@ -86,9 +91,6 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
  if(published&&Number.isFinite(Date.parse(published)))row.evidence.published_at=new Date(published).toISOString();
  const updated=$('meta[property="article:modified_time"]').attr('content');
  if(updated&&Number.isFinite(Date.parse(updated)))row.evidence.source_updated_at=new Date(updated).toISOString();
- // A form asking whether an ad is sold is not a sold status.
- const status=$('[itemprop="availability"],.listing-status,[data-listing-status]').first();
- if(/^(?:vendu|loué|pourvu|sold|closed|indisponible)$/i.test(status.text().trim())||/SoldOut|OutOfStock/.test(status.attr('href')??''))throw Error('listing_closed');
  return announce?qualifyPublicAnnouncement(row,body,published,publicDeadline(body)):row;
 }
 

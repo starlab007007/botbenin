@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const db=new PGlite();
 await db.exec(fs.readFileSync('tests/fixtures/discovery-schema.sql','utf8'));
 await db.exec('alter role service_role bypassrls');
-for(const name of ['20261028113539_waouh_unified_discovery_facts','20261125100000_waouh_complete_galleries','20261125100100_waouh_indexed_unified_search','20261125100400_waouh_source_references'])
+for(const name of ['20261028113539_waouh_unified_discovery_facts','20261125080800_waouh_complete_galleries','20261125080808_waouh_indexed_unified_search','20261125080909_waouh_source_references'])
  await db.exec(fs.readFileSync('supabase/migrations/'+name+'.sql','utf8'));
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const images=Array.from({length:12},(_,i)=>`https://media.example/${i}.jpg`);

@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:waouh_app_native/live/live_models.dart';
 import 'package:waouh_app_native/live/live_product_presentation.dart';
 import 'package:waouh_app_native/live/live_mission_feed.dart';
 
 void main() {
+  test('notification matches retain every photo before and after merging', () {
+    final images = List.generate(12, (i) => 'https://images.example/$i.jpg');
+    final first = LiveMatch.fromNotification({'id':'n1','article_id':'a1','photos':images,'payload':{'title':'Produit'}});
+    final second = LiveMatch.fromNotification({'id':'n2','article_id':'a1','photos':['https://images.example/extra.jpg'],'payload':{'title':'Produit'}});
+    expect(first.photoUrls, images);
+    expect(first.merge(second).photoUrls, [...images, 'https://images.example/extra.jpg']);
+  });
   final photos = List.generate(7, (i) => 'https://images.example/$i.jpg');
   test('product photos stay ordered, unique and complete', () {
     expect(

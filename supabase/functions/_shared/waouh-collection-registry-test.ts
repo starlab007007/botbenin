@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {discoverUrls,extractListing,listingGallery} from './waouh-collection/adapters.ts';
 import {registryPatch,catalogAdmin} from './waouh-collection/registry.ts';
 import {apiActorInput,apiSiteReader} from './waouh-collection/providers.ts';
+import {siteReader} from './waouh-collection/network.ts';
 import {publicNexusResult} from './waouh-public-discovery.ts';
 const root=new URL('https://e-benin.bj/annonces/16');
 const photos=Array.from({length:12},(_,i)=>`https://e-benin.bj/media/${i}.jpg`);
@@ -13,7 +14,7 @@ Deno.test('the complete listing gallery excludes resized thumbnails, avatars and
  assert.deepEqual(listingGallery(html,root),photos);
  const row=extractListing(html,root,{attribution:'E-Bénin',media_reuse_authorized:true});
  assert.equal(row?.price_min,150000);assert.equal(row?.evidence.photos?.length,12);assert.equal(row?.source_url,root.href);assert.equal(row?.evidence.published_at,'2026-11-20T08:00:00.000Z');
- assert.equal(extractListing(html,root,{attribution:'E-Bénin',media_reuse_authorized:false})?.evidence.photos?.length,0);
+ assert.equal((extractListing(html,root,{attribution:'E-Bénin',media_reuse_authorized:false})?.evidence.photos??[]).length,0);
 });
 Deno.test('discovery retains canonical on-site details and pagination without login or external links',()=>{
  const found=discoverUrls('<a href="/annonces/22?utm_source=x">objet</a><a href="https://other.example/annonces/23">autre</a><a href="/login">connexion</a><a rel="next" href="/annonces?page=2">suivante</a>',new URL('https://e-benin.bj/annonces'));
@@ -46,4 +47,19 @@ Deno.test('a failed API quota reservation cannot issue a paid provider request',
   q.maybeSingle=q.single=async()=>({data,error:null});return q;},rpc:async()=>({data:false,error:null})};
  try{await assert.rejects(apiSiteReader(db,{id:'job',lease_token:'token'},new URL('https://bj.coinafrique.com/'),{collection_transport:'serpapi'}),/provider_quota_exhausted/);assert.equal(network,0);}
  finally{globalThis.fetch=original;}
+});
+
+Deno.test('conditional revalidation preserves 304 and enforces robots and source scope',async()=>{
+ const original=globalThis.fetch;const calls:{url:string;headers:any}[]=[];
+ globalThis.fetch=async(input:any,init:any)=>{const url=String(input);calls.push({url,headers:init?.headers});
+  return url.endsWith('/robots.txt')?new Response('User-agent: *\nDisallow: /private'):new Response(null,{status:304});};
+ const db={rpc:async()=>({data:true,error:null})};
+ try{
+  const read=siteReader(db,new URL('https://e-benin.bj/'),{});
+  assert.equal((await read(root.href,{etag:'v1',last_modified:'Tue, 24 Nov 2026 00:00:00 GMT'})).status,304);
+  assert.equal(calls[1].headers['if-none-match'],'v1');
+  await assert.rejects(read('https://e-benin.bj/private'),/source_robots_disallowed/);
+  await assert.rejects(read('https://other.example/annonces/1'),/source_scope_invalid/);
+  assert.equal(calls.length,2);
+ }finally{globalThis.fetch=original;}
 });

@@ -30,7 +30,7 @@ create table public.waouh_collection_entries(
 );
 create index waouh_collection_entries_platform_idx on public.waouh_collection_entries(platform_key);
 create index waouh_collection_entries_target_idx on public.waouh_collection_entries(target_id);
-create table public.waouh_collection_documents(
+create table public.waouh_collection_pages(
  id uuid primary key default gen_random_uuid(),
  target_id uuid not null references public.waouh_collection_targets(id),
  url text not null check(url ~ '^https://' and length(url)<=1800),
@@ -46,11 +46,11 @@ create table public.waouh_collection_documents(
  record_id uuid,
  unique(target_id,url)
 );
-create index waouh_collection_documents_due_idx on public.waouh_collection_documents(target_id,next_due_at,last_checked_at) where state<>'removed';
-create index waouh_collection_documents_record_idx on public.waouh_collection_documents(record_id);
+create index waouh_collection_pages_due_idx on public.waouh_collection_pages(target_id,next_due_at,last_checked_at) where state<>'removed';
+create index waouh_collection_pages_record_idx on public.waouh_collection_pages(record_id);
 create table public.waouh_collection_document_versions(
  id bigint generated always as identity primary key,
- document_id uuid not null references public.waouh_collection_documents(id),
+ document_id uuid not null references public.waouh_collection_pages(id),
  content_hash text not null,
  facts jsonb not null,
  created_at timestamptz not null default now()
@@ -61,7 +61,7 @@ create table public.waouh_collection_page_usage(
  primary key(hostname,day)
 );
 do $private$ declare name text;begin
- foreach name in array array['waouh_collection_platforms','waouh_collection_entries','waouh_collection_documents','waouh_collection_document_versions','waouh_collection_page_usage'] loop
+ foreach name in array array['waouh_collection_platforms','waouh_collection_entries','waouh_collection_pages','waouh_collection_document_versions','waouh_collection_page_usage'] loop
   execute format('alter table public.%I enable row level security',name);
   execute format('revoke all on public.%I from public,anon,authenticated',name);
   execute format('grant select,insert,update,delete on public.%I to service_role',name);
@@ -121,13 +121,13 @@ exception when others then return null;end;$$;
 
 create or replace function public.waouh_collection_touch_document(p_document uuid)
 returns boolean language plpgsql set search_path='' as $$
-declare d public.waouh_collection_documents; minutes integer;
+declare d public.waouh_collection_pages; minutes integer;
 begin
- select * into strict d from public.waouh_collection_documents where id=p_document for update;
+ select * into strict d from public.waouh_collection_pages where id=p_document for update;
  select coalesce((s.config->>'recheck_minutes')::integer,1440) into minutes from public.waouh_collection_targets t
   join public.waouh_radar_sources s on s.id=t.radar_source_id where t.id=d.target_id and t.enabled and s.active;
  if minutes is null then return false;end if;
- update public.waouh_collection_documents set state='active',last_checked_at=now(),last_seen_at=now(),last_error=null,missing_count=0,
+ update public.waouh_collection_pages set state='active',last_checked_at=now(),last_seen_at=now(),last_error=null,missing_count=0,
   next_due_at=now()+make_interval(mins=>minutes) where id=p_document;
  update public.waouh_external_commerce_signals set
   evidence=evidence||jsonb_build_object('last_checked_at',now(),'first_seen_at',coalesce(evidence->>'first_seen_at',created_at::text)),
@@ -139,17 +139,17 @@ end;$$;
 
 create or replace function public.waouh_collection_commit_document(p_document uuid,p_hash text,p_etag text,p_last_modified text,p_facts jsonb)
 returns boolean language plpgsql set search_path='' as $$
-declare d public.waouh_collection_documents;signal uuid;
+declare d public.waouh_collection_pages;signal uuid;
 begin
  if p_hash !~ '^[0-9a-f]{64}$' or jsonb_typeof(p_facts)<>'object' then raise exception 'invalid_document_version';end if;
- select * into strict d from public.waouh_collection_documents where id=p_document for update;
+ select * into strict d from public.waouh_collection_pages where id=p_document for update;
  select id into signal from public.waouh_external_commerce_signals where source_url=d.url and source_key='waouh_commercial_web' limit 1;
  if signal is null then raise exception 'listing_publication_missing';end if;
  if d.content_hash is distinct from p_hash then
   insert into public.waouh_collection_document_versions(document_id,content_hash,facts)
   values(p_document,p_hash,jsonb_build_object('title',p_facts->'title','price_min',p_facts->'price_min','price_max',p_facts->'price_max','evidence',p_facts->'evidence'));
  end if;
- update public.waouh_collection_documents set record_id=signal,content_hash=p_hash,etag=left(p_etag,300),last_modified=left(p_last_modified,100) where id=p_document;
+ update public.waouh_collection_pages set record_id=signal,content_hash=p_hash,etag=left(p_etag,300),last_modified=left(p_last_modified,100) where id=p_document;
  return public.waouh_collection_touch_document(p_document);
 end;$$;
 

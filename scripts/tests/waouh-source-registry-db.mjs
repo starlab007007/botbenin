@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const db=new PGlite();
 await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+create table waouh_collection_documents(record_id bigint primary key,envelope jsonb);
+insert into waouh_collection_documents values(1,'{"legacy":true}');
 create table waouh_collection_engines(engine_key text primary key);
 insert into waouh_collection_engines values('cheerio'),('crawlee'),('playwright'),('scrapy'),('beautifulsoup'),('crawl4ai');
 create table waouh_radar_sources(id uuid primary key default gen_random_uuid(),type text,identifier text,label text,active boolean,scan_freq_min integer,config jsonb,created_at timestamptz default now());
 create table waouh_collection_targets(id uuid primary key default gen_random_uuid(),provider text,handler text,radar_source_id uuid unique,label text,enabled boolean,interval_minutes integer,adaptive boolean,engine_key text,url text);
 create table waouh_external_commerce_signals(id uuid primary key default gen_random_uuid(),source_url text,source_key text,status text,evidence jsonb,observed_at timestamptz,expires_at timestamptz,created_at timestamptz default now());`);
-await db.exec(fs.readFileSync('supabase/migrations/20261125100200_waouh_source_registry.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261125080858_waouh_source_registry.sql','utf8'));
 assert.equal((await db.query('select count(*)::int n from waouh_collection_entries')).rows[0].n,50);
 assert.equal((await db.query('select count(*)::int n from waouh_collection_platforms')).rows[0].n,37);
 assert.equal((await db.query('select count(*)::int n from waouh_collection_targets')).rows[0].n,0);
@@ -24,14 +26,14 @@ await assert.rejects(db.query('select waouh_collection_connect_entry(3,$1)',['b'
 await assert.rejects(db.query('select waouh_collection_connect_entry(40,$1)',[hash]));
 assert.equal((await db.query("select waouh_collection_reserve_page('h',1) ok")).rows[0].ok,true);
 assert.equal((await db.query("select waouh_collection_reserve_page('h',1) ok")).rows[0].ok,false);
-const doc=(await db.query("insert into waouh_collection_documents(target_id,url,kind) values($1,'https://bj.bambaad.com/annonce/test-1','detail') returning id",[first])).rows[0].id;
+const doc=(await db.query("insert into waouh_collection_pages(target_id,url,kind) values($1,'https://bj.bambaad.com/annonce/test-1','detail') returning id",[first])).rows[0].id;
 await db.query("insert into waouh_external_commerce_signals(source_url,source_key,status,evidence,observed_at) values('https://bj.bambaad.com/annonce/test-1','waouh_commercial_web','active','{}',now())");
 for(let i=0;i<2;i++)await db.query('select waouh_collection_commit_document($1,$2,null,null,$3)',[doc,hash,{title:'Test',price_min:5000,evidence:{photos:['https://media.example/a.jpg']}}]);
 assert.equal((await db.query('select count(*)::int n from waouh_collection_document_versions')).rows[0].n,1);
-assert.equal((await db.query('select state from waouh_collection_documents where id=$1',[doc])).rows[0].state,'active');
+assert.equal((await db.query('select state from waouh_collection_pages where id=$1',[doc])).rows[0].state,'active');
 for(const role of ['anon','authenticated']){
  await db.exec('set role '+role);
- for(const table of ['waouh_collection_platforms','waouh_collection_entries','waouh_collection_documents','waouh_collection_document_versions','waouh_collection_page_usage'])
+ for(const table of ['waouh_collection_platforms','waouh_collection_entries','waouh_collection_pages','waouh_collection_document_versions','waouh_collection_page_usage'])
   await assert.rejects(db.query('select * from '+table));
  await assert.rejects(db.query('select waouh_collection_connect_entry(3,$1)',[hash]));await db.exec('reset role');
 }
@@ -48,7 +50,7 @@ begin
  update waouh_collection_jobs set reserved_pages=reserved_pages+1 where id=$1;
  insert into waouh_collection_usage values(current_date,'apify','enrichment',1) on conflict(day,provider,lane) do update set reserved_pages=waouh_collection_usage.reserved_pages+1;
  return true;end;$$;`);
-await db.exec(fs.readFileSync('supabase/migrations/20261125100300_waouh_catalog_api_transport.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261125080908_waouh_catalog_api_transport.sql','utf8'));
 assert.equal((await db.query("select transport from waouh_collection_platforms where hostname='bj.coinafrique.com'")).rows[0].transport,'apify');
 const preview=(await db.query("select waouh_collection_api_preview(1,'apify') j")).rows[0].j;
 assert.equal(preview.inline,true);assert.equal(preview.max_calls,1);assert.equal(preview.max_pages,3);
@@ -62,4 +64,5 @@ await db.query('select waouh_collection_schedule(null)');
 assert.equal((await db.query('select enabled from waouh_collection_targets where id=$1',[first])).rows[0].enabled,false);
 await assert.rejects(db.query("select waouh_collection_enqueue('apify','site','watch','x','{}',null,null,$1,false)",[first]));
 assert.equal((await db.query("select waouh_collection_enqueue('public_feed','feed','watch','x','{}',null,null,null,false) j")).rows[0].j.delegated,true);
+assert.equal((await db.query('select count(*)::int n from waouh_collection_documents')).rows[0].n,1);
 await db.close();console.log('Source registry SQL: 50 entries, 37 hosts, aliases, no activation without recent matching test and rights, idempotent connection, hard quota, version dedupe, API page reservation, persistent pause and role isolation PASS');

@@ -1755,7 +1755,7 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
         subtitle: _premiumString(
           row['subtitle'] ?? row['description_short'] ?? row['summary'],
         ),
-        images: images.take(4).toList(),
+        images: images.toList(),
         price: priceText,
         city: _premiumString(row['city'] ?? row['ville'] ?? row['location']),
         category: _premiumString(
@@ -1945,7 +1945,7 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
     products.add(_PremiumProduct(
       raw: {'title':title,'price':_premiumAmount(price),'category':category,'condition':condition,'availability':availability,'recommendation':explicitRecommendation},
       title: title,
-      images: images.take(4).toList(),
+      images: images.toList(),
       price: price,
       city: city,
       category: category,

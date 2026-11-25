@@ -31,7 +31,7 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
   const [platforms,entries,documents,index]=await Promise.all([
    checked(db.from('waouh_collection_platforms').select('*').order('label')),
    checked(db.from('waouh_collection_entries').select('*').order('entry_no')),
-   checked(db.from('waouh_collection_documents').select('id,target_id,url,state,last_checked_at,last_error,next_due_at').order('last_checked_at',{ascending:false,nullsFirst:false}).limit(50)),
+   checked(db.from('waouh_collection_pages').select('id,target_id,url,state,last_checked_at,last_error,next_due_at').order('last_checked_at',{ascending:false,nullsFirst:false}).limit(50)),
    db.from('waouh_search_documents').select('*',{head:true,count:'exact'}),
   ]);
   if(index.error)throw Error('catalog_database_unavailable');return {ok:true,platforms,entries,documents,indexed_documents:index.count};
@@ -81,7 +81,7 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
  }
  if(body.action==='collection.catalog.recheck'){
   if(!entry.target_id)throw Error('invalid_catalog_target');
-  await checked(db.from('waouh_collection_documents').update({next_due_at:new Date().toISOString()}).eq('target_id',entry.target_id));
+  await checked(db.from('waouh_collection_pages').update({next_due_at:new Date().toISOString()}).eq('target_id',entry.target_id));
   await checked(db.from('waouh_collection_targets').update({next_due_at:new Date().toISOString()}).eq('id',entry.target_id));
   await event(db,actor,'catalog.recheck',{entry_no:entry.entry_no});return {ok:true};
  }
@@ -92,8 +92,9 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
  }
  if(body.action!=='collection.catalog.test')throw Error('invalid_catalog_action');
  const root=trustedHttps(entry.url);
- if(!root||root.hostname.replace(/^www\./,'')!==platform.hostname||platform.access_state!=='authorized'||platform.adapter_key==='none'||
-  platform.rights_reference.trim().length<5)throw Error('source_not_ready');
+ const apiTransport=platform.transport==='apify'||platform.transport==='serpapi';
+ if(!root||root.hostname.replace(/^www\./,'')!==platform.hostname||platform.adapter_key==='none'||['paused','unverified'].includes(platform.access_state)||
+  (!apiTransport&&(platform.access_state!=='authorized'||platform.rights_reference.trim().length<5)))throw Error('source_not_ready');
  const permission:SourcePermission={collection_transport:platform.transport,automation_authorized:true,attribution:platform.attribution,media_reuse_authorized:platform.media_authorized,
   api_browser:['playwright','crawl4ai'].includes(platform.engine_key),media_hosts:platform.media_hosts,collection_format:platform.adapter_key,category:'',country_scope:'BJ',daily_page_limit:platform.daily_page_limit};
  let records:any[]=[],reason:string|undefined,previewJob:any=null,discoveryOnly=false;

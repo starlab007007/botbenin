@@ -1,0 +1,27 @@
+name: Verify WAOUH unified catalogue
+on:
+  workflow_dispatch:
+    inputs:
+      api_preview:
+        description: 'Tester une extraction Apify bornée, sans publication'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify catalogue and selected API transport
+        env:
+          API_PREVIEW: ${{ inputs.api_preview }}
+        run: |
+          args=()
+          if [ "$API_PREVIEW" = 'true' ]; then args+=(--api-preview); fi
+          python3 scripts/verify-waouh-catalog-production.py "${args[@]}"
