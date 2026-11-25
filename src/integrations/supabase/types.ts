@@ -6094,6 +6094,8 @@ export type Database = {
           tags: string[]
           updated_at: string
           user_id: string
+          whatsapp_marketing_opt_in: boolean
+          whatsapp_marketing_opt_in_at: string | null
         }
         Insert: {
           archived?: boolean
@@ -6111,6 +6113,8 @@ export type Database = {
           tags?: string[]
           updated_at?: string
           user_id: string
+          whatsapp_marketing_opt_in?: boolean
+          whatsapp_marketing_opt_in_at?: string | null
         }
         Update: {
           archived?: boolean
@@ -6128,6 +6132,8 @@ export type Database = {
           tags?: string[]
           updated_at?: string
           user_id?: string
+          whatsapp_marketing_opt_in?: boolean
+          whatsapp_marketing_opt_in_at?: string | null
         }
         Relationships: []
       }
@@ -6538,6 +6544,7 @@ export type Database = {
           constraints: Json
           created_at: string
           current_plan_id: string | null
+          dossier_id: string | null
           goal: string
           id: string
           last_error: string | null
@@ -6554,6 +6561,7 @@ export type Database = {
           constraints?: Json
           created_at?: string
           current_plan_id?: string | null
+          dossier_id?: string | null
           goal: string
           id?: string
           last_error?: string | null
@@ -6570,6 +6578,7 @@ export type Database = {
           constraints?: Json
           created_at?: string
           current_plan_id?: string | null
+          dossier_id?: string | null
           goal?: string
           id?: string
           last_error?: string | null
@@ -6586,6 +6595,13 @@ export type Database = {
             columns: ["current_plan_id"]
             isOneToOne: false
             referencedRelation: "waouh_agent_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_agent_missions_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
             referencedColumns: ["id"]
           },
         ]
@@ -7459,6 +7475,7 @@ export type Database = {
           city: string | null
           contacted_count: number
           created_at: string
+          dossier_id: string | null
           expires_at: string
           goal: string
           id: string
@@ -7490,6 +7507,7 @@ export type Database = {
           city?: string | null
           contacted_count?: number
           created_at?: string
+          dossier_id?: string | null
           expires_at?: string
           goal: string
           id?: string
@@ -7521,6 +7539,7 @@ export type Database = {
           city?: string | null
           contacted_count?: number
           created_at?: string
+          dossier_id?: string | null
           expires_at?: string
           goal?: string
           id?: string
@@ -7540,11 +7559,20 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_avatar_mandates_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_avatar_prefs: {
         Row: {
           auth_user_id: string
+          autonomy_settings: Json | null
           cadence: string
           created_at: string
           last_briefing_at: string | null
@@ -7558,6 +7586,7 @@ export type Database = {
         }
         Insert: {
           auth_user_id: string
+          autonomy_settings?: Json | null
           cadence?: string
           created_at?: string
           last_briefing_at?: string | null
@@ -7571,6 +7600,7 @@ export type Database = {
         }
         Update: {
           auth_user_id?: string
+          autonomy_settings?: Json | null
           cadence?: string
           created_at?: string
           last_briefing_at?: string | null
@@ -7837,6 +7867,118 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_business_evidence: {
+        Row: {
+          application_outcome: string | null
+          application_outcome_at: string | null
+          application_outcome_note: string | null
+          application_prepared_at: string | null
+          application_submitted_at: string | null
+          component_id: string
+          issue: string | null
+          issue_at: string | null
+          owner_rating: number | null
+          payment_received_at: string | null
+          payment_reported_at: string | null
+          provider_rating: number | null
+          receipt_at: string | null
+          receipt_handover_at: string | null
+          receipt_handover_note: string | null
+          receipt_handover_photo_url: string | null
+          receipt_note: string | null
+          receipt_photo_url: string | null
+          version: number
+        }
+        Insert: {
+          application_outcome?: string | null
+          application_outcome_at?: string | null
+          application_outcome_note?: string | null
+          application_prepared_at?: string | null
+          application_submitted_at?: string | null
+          component_id: string
+          issue?: string | null
+          issue_at?: string | null
+          owner_rating?: number | null
+          payment_received_at?: string | null
+          payment_reported_at?: string | null
+          provider_rating?: number | null
+          receipt_at?: string | null
+          receipt_handover_at?: string | null
+          receipt_handover_note?: string | null
+          receipt_handover_photo_url?: string | null
+          receipt_note?: string | null
+          receipt_photo_url?: string | null
+          version: number
+        }
+        Update: {
+          application_outcome?: string | null
+          application_outcome_at?: string | null
+          application_outcome_note?: string | null
+          application_prepared_at?: string | null
+          application_submitted_at?: string | null
+          component_id?: string
+          issue?: string | null
+          issue_at?: string | null
+          owner_rating?: number | null
+          payment_received_at?: string | null
+          payment_reported_at?: string | null
+          provider_rating?: number | null
+          receipt_at?: string | null
+          receipt_handover_at?: string | null
+          receipt_handover_note?: string | null
+          receipt_handover_photo_url?: string | null
+          receipt_note?: string | null
+          receipt_photo_url?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_business_evidence_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_business_messages: {
+        Row: {
+          actor_id: string
+          author_kind: string
+          component_id: string
+          created_at: string
+          id: string
+          request_id: string
+          text: string
+        }
+        Insert: {
+          actor_id: string
+          author_kind?: string
+          component_id: string
+          created_at?: string
+          id?: string
+          request_id: string
+          text: string
+        }
+        Update: {
+          actor_id?: string
+          author_kind?: string
+          component_id?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_business_messages_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_buyer_profiles: {
         Row: {
           ai_intent: Json
@@ -8072,6 +8214,817 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_collection_admin_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details: Json
+          id?: never
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: never
+        }
+        Relationships: []
+      }
+      waouh_collection_attempts: {
+        Row: {
+          attempt: number
+          finished_at: string | null
+          job_id: string
+          lease_token: string
+          report: Json | null
+          started_at: string
+        }
+        Insert: {
+          attempt: number
+          finished_at?: string | null
+          job_id: string
+          lease_token: string
+          report?: Json | null
+          started_at?: string
+        }
+        Update: {
+          attempt?: number
+          finished_at?: string | null
+          job_id?: string
+          lease_token?: string
+          report?: Json | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_cost_receipts: {
+        Row: {
+          actor_id: string | null
+          amount: number
+          currency: string
+          id: number
+          period_end: string
+          period_start: string
+          provider: string
+          recorded_at: string
+          reference: string
+        }
+        Insert: {
+          actor_id?: string | null
+          amount: number
+          currency: string
+          id?: never
+          period_end: string
+          period_start: string
+          provider: string
+          recorded_at?: string
+          reference: string
+        }
+        Update: {
+          actor_id?: string | null
+          amount?: number
+          currency?: string
+          id?: never
+          period_end?: string
+          period_start?: string
+          provider?: string
+          recorded_at?: string
+          reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_cost_receipts_provider_fkey"
+            columns: ["provider"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_policies"
+            referencedColumns: ["provider"]
+          },
+        ]
+      }
+      waouh_collection_document_versions: {
+        Row: {
+          content_hash: string
+          created_at: string
+          document_id: string
+          facts: Json
+          id: number
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          document_id: string
+          facts: Json
+          id?: never
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          document_id?: string
+          facts?: Json
+          id?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_documents: {
+        Row: {
+          envelope: Json
+          job_id: string | null
+          record_id: number
+          updated_at: string
+        }
+        Insert: {
+          envelope: Json
+          job_id?: string | null
+          record_id: number
+          updated_at?: string
+        }
+        Update: {
+          envelope?: Json
+          job_id?: string | null
+          record_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_collection_documents_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: true
+            referencedRelation: "waouh_data_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_engine_runs: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          duration_ms: number
+          engine_key: string
+          error_code: string | null
+          id: string
+          job_id: string | null
+          purpose: string
+          status: string
+          target_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          duration_ms: number
+          engine_key: string
+          error_code?: string | null
+          id?: string
+          job_id?: string | null
+          purpose: string
+          status: string
+          target_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          duration_ms?: number
+          engine_key?: string
+          error_code?: string | null
+          id?: string
+          job_id?: string | null
+          purpose?: string
+          status?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_engine_runs_engine_key_fkey"
+            columns: ["engine_key"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_engines"
+            referencedColumns: ["engine_key"]
+          },
+          {
+            foreignKeyName: "waouh_collection_engine_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_collection_engine_runs_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_engines: {
+        Row: {
+          checked_at: string | null
+          enabled: boolean
+          engine_key: string
+          installed_version: string | null
+          last_check_status: string | null
+          last_test_at: string | null
+          last_test_status: string | null
+          max_document_kb: number
+          timeout_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          checked_at?: string | null
+          enabled?: boolean
+          engine_key: string
+          installed_version?: string | null
+          last_check_status?: string | null
+          last_test_at?: string | null
+          last_test_status?: string | null
+          max_document_kb?: number
+          timeout_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          checked_at?: string | null
+          enabled?: boolean
+          engine_key?: string
+          installed_version?: string | null
+          last_check_status?: string | null
+          last_test_at?: string | null
+          last_test_status?: string | null
+          max_document_kb?: number
+          timeout_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      waouh_collection_entries: {
+        Row: {
+          alias_of: number | null
+          audit_note: string
+          entry_no: number
+          label: string
+          platform_key: string
+          target_id: string | null
+          test_at: string | null
+          test_config_hash: string | null
+          test_report: Json | null
+          test_status: string | null
+          url: string
+        }
+        Insert: {
+          alias_of?: number | null
+          audit_note?: string
+          entry_no: number
+          label: string
+          platform_key: string
+          target_id?: string | null
+          test_at?: string | null
+          test_config_hash?: string | null
+          test_report?: Json | null
+          test_status?: string | null
+          url: string
+        }
+        Update: {
+          alias_of?: number | null
+          audit_note?: string
+          entry_no?: number
+          label?: string
+          platform_key?: string
+          target_id?: string | null
+          test_at?: string | null
+          test_config_hash?: string | null
+          test_report?: Json | null
+          test_status?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_entries_alias_of_fkey"
+            columns: ["alias_of"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_entries"
+            referencedColumns: ["entry_no"]
+          },
+          {
+            foreignKeyName: "waouh_collection_entries_platform_key_fkey"
+            columns: ["platform_key"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_platforms"
+            referencedColumns: ["platform_key"]
+          },
+          {
+            foreignKeyName: "waouh_collection_entries_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          dossier_id: string | null
+          estimated_cost: number
+          expires_at: string
+          finished_at: string | null
+          handler: string
+          id: string
+          inline: boolean
+          lane: string
+          lease_token: string | null
+          lease_until: string | null
+          max_calls: number
+          max_items: number
+          max_pages: number
+          not_before: string
+          owner_id: string | null
+          payload: Json
+          priority: number
+          provider: string
+          report: Json
+          reserved_calls: number
+          reserved_items: number
+          reserved_pages: number
+          started_at: string | null
+          status: string
+          target_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          dossier_id?: string | null
+          estimated_cost?: number
+          expires_at?: string
+          finished_at?: string | null
+          handler: string
+          id?: string
+          inline?: boolean
+          lane: string
+          lease_token?: string | null
+          lease_until?: string | null
+          max_calls?: number
+          max_items?: number
+          max_pages?: number
+          not_before?: string
+          owner_id?: string | null
+          payload?: Json
+          priority?: number
+          provider: string
+          report?: Json
+          reserved_calls?: number
+          reserved_items?: number
+          reserved_pages?: number
+          started_at?: string | null
+          status?: string
+          target_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          dossier_id?: string | null
+          estimated_cost?: number
+          expires_at?: string
+          finished_at?: string | null
+          handler?: string
+          id?: string
+          inline?: boolean
+          lane?: string
+          lease_token?: string | null
+          lease_until?: string | null
+          max_calls?: number
+          max_items?: number
+          max_pages?: number
+          not_before?: string
+          owner_id?: string | null
+          payload?: Json
+          priority?: number
+          provider?: string
+          report?: Json
+          reserved_calls?: number
+          reserved_items?: number
+          reserved_pages?: number
+          started_at?: string | null
+          status?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_jobs_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_observations: {
+        Row: {
+          content_hash: string
+          first_seen_at: string
+          identity_key: string
+          job_id: string | null
+          last_checked_at: string
+          record_id: string
+          record_kind: string
+        }
+        Insert: {
+          content_hash: string
+          first_seen_at?: string
+          identity_key: string
+          job_id?: string | null
+          last_checked_at?: string
+          record_id: string
+          record_kind: string
+        }
+        Update: {
+          content_hash?: string
+          first_seen_at?: string
+          identity_key?: string
+          job_id?: string | null
+          last_checked_at?: string
+          record_id?: string
+          record_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_page_usage: {
+        Row: {
+          day: string
+          hostname: string
+          pages: number
+        }
+        Insert: {
+          day?: string
+          hostname: string
+          pages?: number
+        }
+        Update: {
+          day?: string
+          hostname?: string
+          pages?: number
+        }
+        Relationships: []
+      }
+      waouh_collection_pages: {
+        Row: {
+          content_hash: string | null
+          etag: string | null
+          first_seen_at: string
+          id: string
+          kind: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_modified: string | null
+          last_seen_at: string
+          missing_count: number
+          next_due_at: string
+          record_id: string | null
+          state: string
+          target_id: string
+          url: string
+        }
+        Insert: {
+          content_hash?: string | null
+          etag?: string | null
+          first_seen_at?: string
+          id?: string
+          kind: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_modified?: string | null
+          last_seen_at?: string
+          missing_count?: number
+          next_due_at?: string
+          record_id?: string | null
+          state?: string
+          target_id: string
+          url: string
+        }
+        Update: {
+          content_hash?: string | null
+          etag?: string | null
+          first_seen_at?: string
+          id?: string
+          kind?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_modified?: string | null
+          last_seen_at?: string
+          missing_count?: number
+          next_due_at?: string
+          record_id?: string | null
+          state?: string
+          target_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_pages_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_collection_platforms: {
+        Row: {
+          access_state: string
+          adapter_key: string
+          attribution: string
+          daily_page_limit: number
+          discovery_minutes: number
+          engine_key: string
+          hostname: string
+          label: string
+          media_authorized: boolean
+          media_hosts: string[]
+          platform_key: string
+          recheck_minutes: number
+          rights_reference: string
+          transport: string
+          updated_at: string
+        }
+        Insert: {
+          access_state?: string
+          adapter_key?: string
+          attribution?: string
+          daily_page_limit?: number
+          discovery_minutes?: number
+          engine_key?: string
+          hostname: string
+          label: string
+          media_authorized?: boolean
+          media_hosts?: string[]
+          platform_key: string
+          recheck_minutes?: number
+          rights_reference?: string
+          transport?: string
+          updated_at?: string
+        }
+        Update: {
+          access_state?: string
+          adapter_key?: string
+          attribution?: string
+          daily_page_limit?: number
+          discovery_minutes?: number
+          engine_key?: string
+          hostname?: string
+          label?: string
+          media_authorized?: boolean
+          media_hosts?: string[]
+          platform_key?: string
+          recheck_minutes?: number
+          rights_reference?: string
+          transport?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_platforms_engine_key_fkey"
+            columns: ["engine_key"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_engines"
+            referencedColumns: ["engine_key"]
+          },
+        ]
+      }
+      waouh_collection_policies: {
+        Row: {
+          consumption_profile: string
+          cooldown_until: string | null
+          cost_currency: string | null
+          daily_item_limit: number | null
+          daily_page_limit: number | null
+          enrichment_pct: number
+          estimated_call_cost: number | null
+          estimated_daily_cost_limit: number | null
+          last_block_reason: string | null
+          mission_pct: number
+          paused: boolean
+          pricing_observed_at: string | null
+          pricing_reference: string | null
+          provider: string
+          retry_pct: number
+          watch_pct: number
+        }
+        Insert: {
+          consumption_profile?: string
+          cooldown_until?: string | null
+          cost_currency?: string | null
+          daily_item_limit?: number | null
+          daily_page_limit?: number | null
+          enrichment_pct?: number
+          estimated_call_cost?: number | null
+          estimated_daily_cost_limit?: number | null
+          last_block_reason?: string | null
+          mission_pct?: number
+          paused?: boolean
+          pricing_observed_at?: string | null
+          pricing_reference?: string | null
+          provider: string
+          retry_pct?: number
+          watch_pct?: number
+        }
+        Update: {
+          consumption_profile?: string
+          cooldown_until?: string | null
+          cost_currency?: string | null
+          daily_item_limit?: number | null
+          daily_page_limit?: number | null
+          enrichment_pct?: number
+          estimated_call_cost?: number | null
+          estimated_daily_cost_limit?: number | null
+          last_block_reason?: string | null
+          mission_pct?: number
+          paused?: boolean
+          pricing_observed_at?: string | null
+          pricing_reference?: string | null
+          provider?: string
+          retry_pct?: number
+          watch_pct?: number
+        }
+        Relationships: []
+      }
+      waouh_collection_targets: {
+        Row: {
+          adaptive: boolean
+          categories: string[]
+          empty_streak: number
+          enabled: boolean
+          engine_key: string
+          error_streak: number
+          etag: string | null
+          handler: string
+          id: string
+          interval_minutes: number
+          label: string
+          last_attempt_at: string | null
+          last_modified: string | null
+          last_outcome: string | null
+          last_success_at: string | null
+          last_useful_at: string | null
+          next_due_at: string
+          provider: string
+          query: string | null
+          radar_source_id: string | null
+          url: string | null
+          zones: string[]
+        }
+        Insert: {
+          adaptive?: boolean
+          categories?: string[]
+          empty_streak?: number
+          enabled?: boolean
+          engine_key?: string
+          error_streak?: number
+          etag?: string | null
+          handler: string
+          id?: string
+          interval_minutes?: number
+          label: string
+          last_attempt_at?: string | null
+          last_modified?: string | null
+          last_outcome?: string | null
+          last_success_at?: string | null
+          last_useful_at?: string | null
+          next_due_at?: string
+          provider: string
+          query?: string | null
+          radar_source_id?: string | null
+          url?: string | null
+          zones?: string[]
+        }
+        Update: {
+          adaptive?: boolean
+          categories?: string[]
+          empty_streak?: number
+          enabled?: boolean
+          engine_key?: string
+          error_streak?: number
+          etag?: string | null
+          handler?: string
+          id?: string
+          interval_minutes?: number
+          label?: string
+          last_attempt_at?: string | null
+          last_modified?: string | null
+          last_outcome?: string | null
+          last_success_at?: string | null
+          last_useful_at?: string | null
+          next_due_at?: string
+          provider?: string
+          query?: string | null
+          radar_source_id?: string | null
+          url?: string | null
+          zones?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_collection_targets_engine_key_fkey"
+            columns: ["engine_key"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_engines"
+            referencedColumns: ["engine_key"]
+          },
+          {
+            foreignKeyName: "waouh_collection_targets_provider_fkey"
+            columns: ["provider"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_policies"
+            referencedColumns: ["provider"]
+          },
+        ]
+      }
+      waouh_collection_usage: {
+        Row: {
+          day: string
+          estimated_cost: number
+          lane: string
+          provider: string
+          reserved_items: number
+          reserved_pages: number
+          units: number
+        }
+        Insert: {
+          day: string
+          estimated_cost?: number
+          lane: string
+          provider: string
+          reserved_items?: number
+          reserved_pages?: number
+          units?: number
+        }
+        Update: {
+          day?: string
+          estimated_cost?: number
+          lane?: string
+          provider?: string
+          reserved_items?: number
+          reserved_pages?: number
+          units?: number
+        }
+        Relationships: []
+      }
+      waouh_collection_worker_health: {
+        Row: {
+          details: Json
+          last_seen_at: string
+          worker: string
+        }
+        Insert: {
+          details?: Json
+          last_seen_at?: string
+          worker: string
+        }
+        Update: {
+          details?: Json
+          last_seen_at?: string
+          worker?: string
+        }
+        Relationships: []
       }
       waouh_commerce_actions: {
         Row: {
@@ -8321,6 +9274,414 @@ export type Database = {
           },
         ]
       }
+      waouh_contact_routing_decisions: {
+        Row: {
+          allowed: boolean
+          checked_at: string
+          id: number
+          journey_id: string | null
+          owner_id: string | null
+          policy_version: number
+          queue_id: string | null
+          reason: string
+          source: string | null
+        }
+        Insert: {
+          allowed: boolean
+          checked_at?: string
+          id?: never
+          journey_id?: string | null
+          owner_id?: string | null
+          policy_version?: number
+          queue_id?: string | null
+          reason: string
+          source?: string | null
+        }
+        Update: {
+          allowed?: boolean
+          checked_at?: string
+          id?: never
+          journey_id?: string | null
+          owner_id?: string | null
+          policy_version?: number
+          queue_id?: string | null
+          reason?: string
+          source?: string | null
+        }
+        Relationships: []
+      }
+      waouh_convergence_agreements: {
+        Row: {
+          component_id: string
+          created_at: string
+          id: string
+          owner_accepted_at: string | null
+          owner_completed_at: string | null
+          owner_note: string | null
+          provider_accepted_at: string | null
+          provider_completed_at: string | null
+          provider_note: string | null
+          status: string
+          terms: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          component_id: string
+          created_at?: string
+          id?: string
+          owner_accepted_at?: string | null
+          owner_completed_at?: string | null
+          owner_note?: string | null
+          provider_accepted_at?: string | null
+          provider_completed_at?: string | null
+          provider_note?: string | null
+          status?: string
+          terms: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          component_id?: string
+          created_at?: string
+          id?: string
+          owner_accepted_at?: string | null
+          owner_completed_at?: string | null
+          owner_note?: string | null
+          provider_accepted_at?: string | null
+          provider_completed_at?: string | null
+          provider_note?: string | null
+          status?: string
+          terms?: Json
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_convergence_agreements_component_id_fkey"
+            columns: ["component_id"]
+            isOneToOne: true
+            referencedRelation: "waouh_convergence_components"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_components: {
+        Row: {
+          amount: number | null
+          availability: string | null
+          created_at: string
+          exclusions: string
+          extra_cost: number | null
+          id: string
+          invite_expires_at: string | null
+          invite_hash: string | null
+          kind: string
+          mission_id: string
+          plan_id: string
+          provider_id: string | null
+          scope: string
+          source_ref: string | null
+          source_snapshot: Json
+          source_url: string | null
+          title: string
+          unit: string
+        }
+        Insert: {
+          amount?: number | null
+          availability?: string | null
+          created_at?: string
+          exclusions?: string
+          extra_cost?: number | null
+          id?: string
+          invite_expires_at?: string | null
+          invite_hash?: string | null
+          kind: string
+          mission_id: string
+          plan_id: string
+          provider_id?: string | null
+          scope?: string
+          source_ref?: string | null
+          source_snapshot?: Json
+          source_url?: string | null
+          title: string
+          unit?: string
+        }
+        Update: {
+          amount?: number | null
+          availability?: string | null
+          created_at?: string
+          exclusions?: string
+          extra_cost?: number | null
+          id?: string
+          invite_expires_at?: string | null
+          invite_hash?: string | null
+          kind?: string
+          mission_id?: string
+          plan_id?: string
+          provider_id?: string | null
+          scope?: string
+          source_ref?: string | null
+          source_snapshot?: Json
+          source_url?: string | null
+          title?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_convergence_components_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_convergence_components_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event_type: string
+          id: number
+          mission_id: string | null
+          payload: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event_type: string
+          id?: never
+          mission_id?: string | null
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event_type?: string
+          id?: never
+          mission_id?: string | null
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_convergence_events_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_missions: {
+        Row: {
+          budget_max: number | null
+          city: string
+          created_at: string
+          criteria: Json
+          deadline: string | null
+          dossier_id: string | null
+          goal: string
+          id: string
+          kind: string
+          landmark: string | null
+          owner_id: string
+          request_key: string
+          selected_plan_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          budget_max?: number | null
+          city: string
+          created_at?: string
+          criteria?: Json
+          deadline?: string | null
+          dossier_id?: string | null
+          goal: string
+          id?: string
+          kind: string
+          landmark?: string | null
+          owner_id: string
+          request_key: string
+          selected_plan_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          budget_max?: number | null
+          city?: string
+          created_at?: string
+          criteria?: Json
+          deadline?: string | null
+          dossier_id?: string | null
+          goal?: string
+          id?: string
+          kind?: string
+          landmark?: string | null
+          owner_id?: string
+          request_key?: string
+          selected_plan_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convergence_selected_plan_fk"
+            columns: ["selected_plan_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_convergence_missions_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_plans: {
+        Row: {
+          created_at: string
+          id: string
+          mission_id: string
+          origin: string
+          rationale: string | null
+          requirements: Json
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mission_id: string
+          origin?: string
+          rationale?: string | null
+          requirements?: Json
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mission_id?: string
+          origin?: string
+          rationale?: string | null
+          requirements?: Json
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_convergence_plans_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_pool_members: {
+        Row: {
+          accepted_version: number | null
+          joined_at: string
+          mission_id: string
+          owner_id: string
+          pool_id: string
+        }
+        Insert: {
+          accepted_version?: number | null
+          joined_at?: string
+          mission_id: string
+          owner_id: string
+          pool_id: string
+        }
+        Update: {
+          accepted_version?: number | null
+          joined_at?: string
+          mission_id?: string
+          owner_id?: string
+          pool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_convergence_pool_members_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_convergence_pool_members_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_convergence_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_convergence_pools: {
+        Row: {
+          city: string
+          created_at: string
+          deadline: string
+          id: string
+          invite_expires_at: string | null
+          invite_hash: string | null
+          kind: string
+          minimum_members: number
+          owner_id: string
+          provider_id: string | null
+          quote_expires_at: string | null
+          quote_scope: string | null
+          quote_version: number
+          shared_cost: number | null
+          status: string
+          topic: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          deadline: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_hash?: string | null
+          kind: string
+          minimum_members?: number
+          owner_id: string
+          provider_id?: string | null
+          quote_expires_at?: string | null
+          quote_scope?: string | null
+          quote_version?: number
+          shared_cost?: number | null
+          status?: string
+          topic: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          deadline?: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_hash?: string | null
+          kind?: string
+          minimum_members?: number
+          owner_id?: string
+          provider_id?: string | null
+          quote_expires_at?: string | null
+          quote_scope?: string | null
+          quote_version?: number
+          shared_cost?: number | null
+          status?: string
+          topic?: string
+        }
+        Relationships: []
+      }
       waouh_conversation_bus_events: {
         Row: {
           article_id: string | null
@@ -8515,6 +9876,213 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      waouh_data_records: {
+        Row: {
+          admin_note: string
+          admin_patch: Json
+          admin_state: string
+          city: string | null
+          curated_source_version: number | null
+          first_seen_at: string
+          id: number
+          kind: string
+          last_seen_at: string
+          revision: number
+          source_deleted: boolean
+          source_key: string
+          source_observed_at: string
+          source_payload: Json
+          source_record_id: string
+          source_table: string
+          source_version: number
+          subject: string
+        }
+        Insert: {
+          admin_note?: string
+          admin_patch?: Json
+          admin_state?: string
+          city?: string | null
+          curated_source_version?: number | null
+          first_seen_at?: string
+          id?: never
+          kind: string
+          last_seen_at?: string
+          revision?: number
+          source_deleted?: boolean
+          source_key: string
+          source_observed_at: string
+          source_payload: Json
+          source_record_id: string
+          source_table: string
+          source_version?: number
+          subject?: string
+        }
+        Update: {
+          admin_note?: string
+          admin_patch?: Json
+          admin_state?: string
+          city?: string | null
+          curated_source_version?: number | null
+          first_seen_at?: string
+          id?: never
+          kind?: string
+          last_seen_at?: string
+          revision?: number
+          source_deleted?: boolean
+          source_key?: string
+          source_observed_at?: string
+          source_payload?: Json
+          source_record_id?: string
+          source_table?: string
+          source_version?: number
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_data_records_source_table_fkey"
+            columns: ["source_table"]
+            isOneToOne: false
+            referencedRelation: "waouh_data_source_registry"
+            referencedColumns: ["source_table"]
+          },
+        ]
+      }
+      waouh_data_revisions: {
+        Row: {
+          actor_id: string | null
+          operation: string
+          reason: string | null
+          record_id: number
+          recorded_at: string
+          revision: number
+          snapshot: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          operation: string
+          reason?: string | null
+          record_id: number
+          recorded_at?: string
+          revision: number
+          snapshot: Json
+        }
+        Update: {
+          actor_id?: string | null
+          operation?: string
+          reason?: string | null
+          record_id?: number
+          recorded_at?: string
+          revision?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_data_revisions_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_data_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_data_source_registry: {
+        Row: {
+          backfill_cursor: string | null
+          backfill_done: boolean
+          backfilled_rows: number
+          key_column: string
+          kind: string
+          last_backfill_at: string | null
+          source_table: string
+        }
+        Insert: {
+          backfill_cursor?: string | null
+          backfill_done?: boolean
+          backfilled_rows?: number
+          key_column: string
+          kind: string
+          last_backfill_at?: string | null
+          source_table: string
+        }
+        Update: {
+          backfill_cursor?: string | null
+          backfill_done?: boolean
+          backfilled_rows?: number
+          key_column?: string
+          kind?: string
+          last_backfill_at?: string | null
+          source_table?: string
+        }
+        Relationships: []
+      }
+      waouh_deal_room_links: {
+        Row: {
+          active: boolean
+          blocked_reason: string | null
+          control_mode: string
+          counter_rounds: number
+          created_at: string
+          expires_at: string | null
+          followups: number
+          id: string
+          initial_sent: boolean
+          last_offer_actor: string | null
+          mandate: Json
+          mandate_revision: number
+          next_run_at: string | null
+          owner_id: string
+          processed_offer_version: number
+          source_ref: string
+          thread_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          blocked_reason?: string | null
+          control_mode?: string
+          counter_rounds?: number
+          created_at?: string
+          expires_at?: string | null
+          followups?: number
+          id: string
+          initial_sent?: boolean
+          last_offer_actor?: string | null
+          mandate?: Json
+          mandate_revision?: number
+          next_run_at?: string | null
+          owner_id: string
+          processed_offer_version?: number
+          source_ref: string
+          thread_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          blocked_reason?: string | null
+          control_mode?: string
+          counter_rounds?: number
+          created_at?: string
+          expires_at?: string | null
+          followups?: number
+          id?: string
+          initial_sent?: boolean
+          last_offer_actor?: string | null
+          mandate?: Json
+          mandate_revision?: number
+          next_run_at?: string | null
+          owner_id?: string
+          processed_offer_version?: number
+          source_ref?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_deal_room_links_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "waouh_convergence_components"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_deals: {
         Row: {
@@ -8853,6 +10421,75 @@ export type Database = {
           triggered_by?: string | null
         }
         Relationships: []
+      }
+      waouh_enrichment_tasks: {
+        Row: {
+          created_at: string
+          dossier_id: string | null
+          evidence: Json
+          expires_at: string
+          field: string
+          id: string
+          job_id: string | null
+          objective: string
+          owner_id: string | null
+          priority: number
+          record_id: number | null
+          resolved_at: string | null
+          source_url: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          dossier_id?: string | null
+          evidence?: Json
+          expires_at?: string
+          field: string
+          id?: string
+          job_id?: string | null
+          objective: string
+          owner_id?: string | null
+          priority?: number
+          record_id?: number | null
+          resolved_at?: string | null
+          source_url?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          dossier_id?: string | null
+          evidence?: Json
+          expires_at?: string
+          field?: string
+          id?: string
+          job_id?: string | null
+          objective?: string
+          owner_id?: string | null
+          priority?: number
+          record_id?: number | null
+          resolved_at?: string | null
+          source_url?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_enrichment_tasks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_collection_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_enrichment_tasks_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_data_records"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_entity_contacts: {
         Row: {
@@ -9271,6 +10908,373 @@ export type Database = {
           },
         ]
       }
+      waouh_frontend_module_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          id: string
+          module_key: string
+        }
+        Insert: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          module_key: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          id?: string
+          module_key?: string
+        }
+        Relationships: []
+      }
+      waouh_frontend_module_roles: {
+        Row: {
+          module_key: string
+          role_id: string
+        }
+        Insert: {
+          module_key: string
+          role_id: string
+        }
+        Update: {
+          module_key?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_frontend_module_roles_module_key_fkey"
+            columns: ["module_key"]
+            isOneToOne: false
+            referencedRelation: "waouh_frontend_modules"
+            referencedColumns: ["module_key"]
+          },
+          {
+            foreignKeyName: "waouh_frontend_module_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_frontend_modules: {
+        Row: {
+          access_enabled: boolean
+          automation_enabled: boolean
+          enabled: boolean
+          label: string
+          metadata: Json
+          module_key: string
+          section: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          access_enabled?: boolean
+          automation_enabled?: boolean
+          enabled?: boolean
+          label: string
+          metadata?: Json
+          module_key: string
+          section: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          access_enabled?: boolean
+          automation_enabled?: boolean
+          enabled?: boolean
+          label?: string
+          metadata?: Json
+          module_key?: string
+          section?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      waouh_guardian_actions: {
+        Row: {
+          action: string
+          finished_at: string | null
+          id: string
+          incident_id: string
+          reason_code: string
+          request_id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          action: string
+          finished_at?: string | null
+          id?: string
+          incident_id: string
+          reason_code?: string
+          request_id: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          action?: string
+          finished_at?: string | null
+          id?: string
+          incident_id?: string
+          reason_code?: string
+          request_id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_guardian_actions_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_guardian_incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_guardian_audit: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event: string
+          id: number
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event: string
+          id?: never
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event?: string
+          id?: never
+        }
+        Relationships: []
+      }
+      waouh_guardian_client_events: {
+        Row: {
+          code: string
+          created_at: string
+          id: number
+          platform: string
+          surface: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: never
+          platform: string
+          surface: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: never
+          platform?: string
+          surface?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      waouh_guardian_client_limits: {
+        Row: {
+          bucket: string
+          count: number
+          user_id: string
+        }
+        Insert: {
+          bucket: string
+          count: number
+          user_id: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      waouh_guardian_components: {
+        Row: {
+          cause_code: string
+          component: string
+          details: Json
+          failure_streak: number
+          first_failure_at: string | null
+          fresh_for_seconds: number
+          last_healthy_at: string | null
+          last_seen_at: string | null
+          latency_ms: number | null
+          observer: string
+          recovery_streak: number
+          status: string
+        }
+        Insert: {
+          cause_code?: string
+          component: string
+          details?: Json
+          failure_streak?: number
+          first_failure_at?: string | null
+          fresh_for_seconds: number
+          last_healthy_at?: string | null
+          last_seen_at?: string | null
+          latency_ms?: number | null
+          observer: string
+          recovery_streak?: number
+          status?: string
+        }
+        Update: {
+          cause_code?: string
+          component?: string
+          details?: Json
+          failure_streak?: number
+          first_failure_at?: string | null
+          fresh_for_seconds?: number
+          last_healthy_at?: string | null
+          last_seen_at?: string | null
+          latency_ms?: number | null
+          observer?: string
+          recovery_streak?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      waouh_guardian_incidents: {
+        Row: {
+          cause_code: string
+          component: string
+          detected_at: string
+          id: string
+          last_seen_at: string
+          notified_at: string | null
+          notified_states: string[]
+          recovery_notified_at: string | null
+          resolution_code: string | null
+          resolved_at: string | null
+          severity: string
+          status: string
+        }
+        Insert: {
+          cause_code: string
+          component: string
+          detected_at?: string
+          id?: string
+          last_seen_at?: string
+          notified_at?: string | null
+          notified_states?: string[]
+          recovery_notified_at?: string | null
+          resolution_code?: string | null
+          resolved_at?: string | null
+          severity: string
+          status?: string
+        }
+        Update: {
+          cause_code?: string
+          component?: string
+          detected_at?: string
+          id?: string
+          last_seen_at?: string
+          notified_at?: string | null
+          notified_states?: string[]
+          recovery_notified_at?: string | null
+          resolution_code?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      waouh_guardian_observations: {
+        Row: {
+          cause_code: string
+          component: string
+          latency_ms: number | null
+          observed_at: string
+          observer: string
+          report_id: string
+          status: string
+        }
+        Insert: {
+          cause_code: string
+          component: string
+          latency_ms?: number | null
+          observed_at: string
+          observer: string
+          report_id: string
+          status: string
+        }
+        Update: {
+          cause_code?: string
+          component?: string
+          latency_ms?: number | null
+          observed_at?: string
+          observer?: string
+          report_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_guardian_observations_component_observer_fkey"
+            columns: ["component", "observer"]
+            isOneToOne: false
+            referencedRelation: "waouh_guardian_components"
+            referencedColumns: ["component", "observer"]
+          },
+        ]
+      }
+      waouh_guardian_settings: {
+        Row: {
+          activated_at: string | null
+          alerts_enabled: boolean
+          auto_repair_enabled: boolean
+          id: boolean
+          maintenance_until: string | null
+          tick_lease_until: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          alerts_enabled?: boolean
+          auto_repair_enabled?: boolean
+          id?: boolean
+          maintenance_until?: string | null
+          tick_lease_until?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          alerts_enabled?: boolean
+          auto_repair_enabled?: boolean
+          id?: boolean
+          maintenance_until?: string | null
+          tick_lease_until?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       waouh_interests: {
         Row: {
           article_id: string
@@ -9311,6 +11315,62 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "waouh_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_journey_evidence_events: {
+        Row: {
+          article_id: string | null
+          deal_id: string | null
+          event_type: string
+          evidence: Json
+          id: number
+          journey_id: string
+          mandate_id: string | null
+          negotiation_id: string | null
+          owner_id: string
+          previous_stage: string | null
+          recorded_at: string
+          stage: string
+          thread_id: string | null
+        }
+        Insert: {
+          article_id?: string | null
+          deal_id?: string | null
+          event_type: string
+          evidence?: Json
+          id?: never
+          journey_id: string
+          mandate_id?: string | null
+          negotiation_id?: string | null
+          owner_id: string
+          previous_stage?: string | null
+          recorded_at?: string
+          stage: string
+          thread_id?: string | null
+        }
+        Update: {
+          article_id?: string | null
+          deal_id?: string | null
+          event_type?: string
+          evidence?: Json
+          id?: never
+          journey_id?: string
+          mandate_id?: string | null
+          negotiation_id?: string | null
+          owner_id?: string
+          previous_stage?: string | null
+          recorded_at?: string
+          stage?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_journey_evidence_events_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_opportunity_journeys"
             referencedColumns: ["id"]
           },
         ]
@@ -9598,6 +11658,230 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_mission_dossier_events: {
+        Row: {
+          data: Json
+          dossier_id: string
+          entity_id: string | null
+          entity_type: string
+          event_key: string
+          event_type: string
+          id: number
+          occurred_at: string
+          owner_id: string
+        }
+        Insert: {
+          data?: Json
+          dossier_id: string
+          entity_id?: string | null
+          entity_type: string
+          event_key: string
+          event_type: string
+          id?: never
+          occurred_at?: string
+          owner_id: string
+        }
+        Update: {
+          data?: Json
+          dossier_id?: string
+          entity_id?: string | null
+          entity_type?: string
+          event_key?: string
+          event_type?: string
+          id?: never
+          occurred_at?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_mission_dossier_events_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_mission_dossier_links: {
+        Row: {
+          dossier_id: string
+          entity_id: string
+          entity_type: string
+          owner_id: string
+        }
+        Insert: {
+          dossier_id: string
+          entity_id: string
+          entity_type: string
+          owner_id: string
+        }
+        Update: {
+          dossier_id?: string
+          entity_id?: string
+          entity_type?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_mission_dossier_links_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_mission_dossiers: {
+        Row: {
+          created_at: string
+          goal: string
+          id: string
+          mode: string
+          owner_id: string
+          request_key: string
+        }
+        Insert: {
+          created_at?: string
+          goal: string
+          id?: string
+          mode: string
+          owner_id: string
+          request_key: string
+        }
+        Update: {
+          created_at?: string
+          goal?: string
+          id?: string
+          mode?: string
+          owner_id?: string
+          request_key?: string
+        }
+        Relationships: []
+      }
+      waouh_mission_field_proofs: {
+        Row: {
+          dossier_id: string
+          expires_at: string | null
+          field: string
+          fingerprint: string
+          id: number
+          method: string
+          observed_at: string | null
+          owner_id: string
+          quote: string | null
+          recorded_at: string
+          source_ref: string
+          source_url: string | null
+          state: string
+          subject_ref: string
+          value: Json | null
+        }
+        Insert: {
+          dossier_id: string
+          expires_at?: string | null
+          field: string
+          fingerprint: string
+          id?: never
+          method: string
+          observed_at?: string | null
+          owner_id: string
+          quote?: string | null
+          recorded_at?: string
+          source_ref: string
+          source_url?: string | null
+          state: string
+          subject_ref: string
+          value?: Json | null
+        }
+        Update: {
+          dossier_id?: string
+          expires_at?: string | null
+          field?: string
+          fingerprint?: string
+          id?: never
+          method?: string
+          observed_at?: string | null
+          owner_id?: string
+          quote?: string | null
+          recorded_at?: string
+          source_ref?: string
+          source_url?: string | null
+          state?: string
+          subject_ref?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_mission_field_proofs_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_mission_usage: {
+        Row: {
+          actual_cost: number | null
+          created_at: string
+          currency: string | null
+          dossier_id: string
+          id: string
+          operation: string
+          owner_id: string
+          provider: string
+          receipt_ref: string | null
+          units: number
+        }
+        Insert: {
+          actual_cost?: number | null
+          created_at?: string
+          currency?: string | null
+          dossier_id: string
+          id?: string
+          operation: string
+          owner_id: string
+          provider: string
+          receipt_ref?: string | null
+          units: number
+        }
+        Update: {
+          actual_cost?: number | null
+          created_at?: string
+          currency?: string | null
+          dossier_id?: string
+          id?: string
+          operation?: string
+          owner_id?: string
+          provider?: string
+          receipt_ref?: string | null
+          units?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_mission_usage_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_module_revision: {
+        Row: {
+          id: number
+          revision: number
+        }
+        Insert: {
+          id: number
+          revision?: number
+        }
+        Update: {
+          id?: number
+          revision?: number
+        }
+        Relationships: []
       }
       waouh_negotiations: {
         Row: {
@@ -10003,6 +12287,7 @@ export type Database = {
           contactability_level: string
           created_at: string
           deal_id: string | null
+          dossier_id: string | null
           entity_id: string | null
           fabric_id: string
           id: string
@@ -10049,6 +12334,7 @@ export type Database = {
           contactability_level?: string
           created_at?: string
           deal_id?: string | null
+          dossier_id?: string | null
           entity_id?: string | null
           fabric_id: string
           id?: string
@@ -10095,6 +12381,7 @@ export type Database = {
           contactability_level?: string
           created_at?: string
           deal_id?: string | null
+          dossier_id?: string | null
           entity_id?: string | null
           fabric_id?: string
           id?: string
@@ -10147,6 +12434,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "waouh_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_opportunity_journeys_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
             referencedColumns: ["id"]
           },
           {
@@ -12387,6 +14681,241 @@ export type Database = {
           },
         ]
       }
+      waouh_room_deliveries: {
+        Row: {
+          agreement_version: number
+          assigned_at: string | null
+          attempts: number
+          courier_id: string | null
+          courier_name: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_address: string
+          delivery_fee: number | null
+          picked_up_at: string | null
+          pickup_city: string | null
+          room_id: string
+          status: string
+          token_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          agreement_version: number
+          assigned_at?: string | null
+          attempts?: number
+          courier_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_address: string
+          delivery_fee?: number | null
+          picked_up_at?: string | null
+          pickup_city?: string | null
+          room_id: string
+          status?: string
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agreement_version?: number
+          assigned_at?: string | null
+          attempts?: number
+          courier_id?: string | null
+          courier_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_address?: string
+          delivery_fee?: number | null
+          picked_up_at?: string | null
+          pickup_city?: string | null
+          room_id?: string
+          status?: string
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_room_deliveries_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_couriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_room_deliveries_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "waouh_deal_room_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_room_events: {
+        Row: {
+          actor_id: string
+          actor_kind: string
+          created_at: string
+          event_type: string
+          id: number
+          payload: Json
+          room_id: string
+        }
+        Insert: {
+          actor_id: string
+          actor_kind?: string
+          created_at?: string
+          event_type: string
+          id?: never
+          payload?: Json
+          room_id: string
+        }
+        Update: {
+          actor_id?: string
+          actor_kind?: string
+          created_at?: string
+          event_type?: string
+          id?: never
+          payload?: Json
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_room_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_deal_room_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_room_guests: {
+        Row: {
+          channel: string
+          consent_basis: string
+          contact_id: string | null
+          contacted_at: string
+          created_at: string
+          display_name: string | null
+          joined_at: string | null
+          last_inbound_at: string | null
+          phone_encrypted: string | null
+          phone_hash: string | null
+          phone_last4: string | null
+          reference: string
+          relayed_status: string | null
+          relayed_until: string | null
+          relayed_version: number
+          room_id: string
+          status: string
+          stopped_at: string | null
+          token_encrypted: string
+          token_expires_at: string
+          token_hash: string
+        }
+        Insert: {
+          channel?: string
+          consent_basis: string
+          contact_id?: string | null
+          contacted_at?: string
+          created_at?: string
+          display_name?: string | null
+          joined_at?: string | null
+          last_inbound_at?: string | null
+          phone_encrypted?: string | null
+          phone_hash?: string | null
+          phone_last4?: string | null
+          reference: string
+          relayed_status?: string | null
+          relayed_until?: string | null
+          relayed_version?: number
+          room_id: string
+          status?: string
+          stopped_at?: string | null
+          token_encrypted: string
+          token_expires_at: string
+          token_hash: string
+        }
+        Update: {
+          channel?: string
+          consent_basis?: string
+          contact_id?: string | null
+          contacted_at?: string
+          created_at?: string
+          display_name?: string | null
+          joined_at?: string | null
+          last_inbound_at?: string | null
+          phone_encrypted?: string | null
+          phone_hash?: string | null
+          phone_last4?: string | null
+          reference?: string
+          relayed_status?: string | null
+          relayed_until?: string | null
+          relayed_version?: number
+          room_id?: string
+          status?: string
+          stopped_at?: string | null
+          token_encrypted?: string
+          token_expires_at?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_room_guests_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "waouh_deal_room_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_room_requests: {
+        Row: {
+          actor_id: string
+          request_body: Json
+          request_id: string
+          response: Json
+        }
+        Insert: {
+          actor_id: string
+          request_body: Json
+          request_id: string
+          response: Json
+        }
+        Update: {
+          actor_id?: string
+          request_body?: Json
+          request_id?: string
+          response?: Json
+        }
+        Relationships: []
+      }
+      waouh_runtime_runs: {
+        Row: {
+          counters: Json
+          finished_at: string | null
+          id: string
+          started_at: string
+          status: string
+          worker: string
+        }
+        Insert: {
+          counters?: Json
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status: string
+          worker: string
+        }
+        Update: {
+          counters?: Json
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          worker?: string
+        }
+        Relationships: []
+      }
       waouh_scout_reports: {
         Row: {
           article_id: string | null
@@ -12473,6 +15002,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_search_aliases: {
+        Row: {
+          alias_id: string
+          canonical_id: string
+          created_at: string
+          reason: string
+        }
+        Insert: {
+          alias_id: string
+          canonical_id: string
+          created_at?: string
+          reason: string
+        }
+        Update: {
+          alias_id?: string
+          canonical_id?: string
+          created_at?: string
+          reason?: string
+        }
+        Relationships: []
+      }
+      waouh_search_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      waouh_search_documents: {
+        Row: {
+          city_normalized: string
+          country_code: string | null
+          domain: string
+          fabric_id: string
+          indexed_at: string
+          intent: string
+          observed_at: string | null
+          price_min: number | null
+          search_vector: unknown
+          source_key: string
+          title_normalized: string
+        }
+        Insert: {
+          city_normalized: string
+          country_code?: string | null
+          domain: string
+          fabric_id: string
+          indexed_at?: string
+          intent: string
+          observed_at?: string | null
+          price_min?: number | null
+          search_vector: unknown
+          source_key: string
+          title_normalized: string
+        }
+        Update: {
+          city_normalized?: string
+          country_code?: string | null
+          domain?: string
+          fabric_id?: string
+          indexed_at?: string
+          intent?: string
+          observed_at?: string | null
+          price_min?: number | null
+          search_vector?: unknown
+          source_key?: string
+          title_normalized?: string
+        }
+        Relationships: []
       }
       waouh_seller_policies: {
         Row: {
@@ -14495,6 +17102,84 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_waha_egress_audit: {
+        Row: {
+          created_at: string
+          http_status: number | null
+          id: number
+          reason: string | null
+          result: string
+          scope: string
+        }
+        Insert: {
+          created_at?: string
+          http_status?: number | null
+          id?: never
+          reason?: string | null
+          result?: string
+          scope: string
+        }
+        Update: {
+          created_at?: string
+          http_status?: number | null
+          id?: never
+          reason?: string | null
+          result?: string
+          scope?: string
+        }
+        Relationships: []
+      }
+      waouh_waha_egress_policy: {
+        Row: {
+          allow_campaigns: boolean
+          allow_cold_outreach: boolean
+          allow_contact_sync: boolean
+          allow_inbound_reply: boolean
+          allow_management: boolean
+          allow_status: boolean
+          allow_transactional: boolean
+          calls_per_day: number
+          calls_per_minute: number
+          enabled: boolean
+          id: boolean
+          pause_reason: string | null
+          paused_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          allow_campaigns?: boolean
+          allow_cold_outreach?: boolean
+          allow_contact_sync?: boolean
+          allow_inbound_reply?: boolean
+          allow_management?: boolean
+          allow_status?: boolean
+          allow_transactional?: boolean
+          calls_per_day?: number
+          calls_per_minute?: number
+          enabled?: boolean
+          id?: boolean
+          pause_reason?: string | null
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allow_campaigns?: boolean
+          allow_cold_outreach?: boolean
+          allow_contact_sync?: boolean
+          allow_inbound_reply?: boolean
+          allow_management?: boolean
+          allow_status?: boolean
+          allow_transactional?: boolean
+          calls_per_day?: number
+          calls_per_minute?: number
+          enabled?: boolean
+          id?: boolean
+          pause_reason?: string | null
+          paused_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_watch_events: {
         Row: {
           body: string | null
@@ -15931,6 +18616,33 @@ export type Database = {
           },
         ]
       }
+      waouh_mission_latest_field_proofs: {
+        Row: {
+          dossier_id: string | null
+          expires_at: string | null
+          field: string | null
+          id: number | null
+          method: string | null
+          observed_at: string | null
+          owner_id: string | null
+          quote: string | null
+          recorded_at: string | null
+          source_ref: string | null
+          source_url: string | null
+          state: string | null
+          subject_ref: string | null
+          value: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_mission_field_proofs_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_mission_dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_partner_stats_v: {
         Row: {
           ca_24h: number | null
@@ -16005,6 +18717,31 @@ export type Database = {
           source_url: string | null
           subject: string | null
           trust_score: number | null
+        }
+        Relationships: []
+      }
+      waouh_source_funnel: {
+        Row: {
+          agreed: number | null
+          contacted: number | null
+          hours_to_reply: number | null
+          replied: number | null
+          rooms: number | null
+          signals: number | null
+          source_key: string | null
+          with_contact: number | null
+        }
+        Relationships: []
+      }
+      waouh_source_health: {
+        Row: {
+          hours_since_last: number | null
+          last_7d: number | null
+          last_seen: string | null
+          source_key: string | null
+          status: string | null
+          total: number | null
+          with_contact: number | null
         }
         Relationships: []
       }
@@ -17899,6 +20636,51 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_admin_data_backfill: {
+        Args: { p_limit?: number; p_table: string }
+        Returns: Json
+      }
+      waouh_admin_data_get: {
+        Args: { p_before_revision?: number; p_id: number }
+        Returns: Json
+      }
+      waouh_admin_data_list: {
+        Args: {
+          p_cursor?: string
+          p_cursor_id?: number
+          p_limit?: number
+          p_provider?: string
+          p_query?: string
+          p_sort?: string
+          p_source?: string
+          p_state?: string
+        }
+        Returns: Json
+      }
+      waouh_admin_data_overview: { Args: never; Returns: Json }
+      waouh_admin_data_revise: {
+        Args: {
+          p_expected_revision: number
+          p_id: number
+          p_patch: Json
+          p_reason: string
+          p_state: string
+        }
+        Returns: Json
+      }
+      waouh_admin_frontend_modules_state: {
+        Args: never
+        Returns: {
+          access_enabled: boolean
+          automation_enabled: boolean
+          enabled: boolean
+          label: string
+          module_key: string
+          role_names: string[]
+          section: string
+          updated_at: string
+        }[]
+      }
       waouh_admin_reconcile_chat: { Args: { p_mode?: string }; Returns: Json }
       waouh_admin_set_module_control: {
         Args: {
@@ -17976,6 +20758,16 @@ export type Database = {
         }[]
       }
       waouh_admin_signal_fabric_stats: { Args: never; Returns: Json }
+      waouh_admin_update_module: {
+        Args: {
+          p_access?: boolean
+          p_automation?: boolean
+          p_module_key: string
+          p_role_names?: string[]
+          p_visible?: boolean
+        }
+        Returns: undefined
+      }
       waouh_admin_waha_directory: {
         Args: { p_limit?: number; p_offset?: number; p_q?: string }
         Returns: {
@@ -18009,6 +20801,18 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_append_dossier_event: {
+        Args: {
+          p_data?: Json
+          p_dossier_id: string
+          p_entity_id?: string
+          p_entity_type: string
+          p_event_key: string
+          p_event_type: string
+          p_owner_id: string
+        }
+        Returns: number
+      }
       waouh_append_opportunity_journey_event: {
         Args: {
           p_contactability_level?: string
@@ -18034,6 +20838,7 @@ export type Database = {
           contactability_level: string
           created_at: string
           deal_id: string | null
+          dossier_id: string | null
           entity_id: string | null
           fabric_id: string
           id: string
@@ -18130,7 +20935,237 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_business_bundle: {
+        Args: { p_actor: string; p_mid: string }
+        Returns: Json
+      }
+      waouh_business_command: {
+        Args: { p: Json; p_action: string; p_actor: string }
+        Returns: Json
+      }
+      waouh_business_open: { Args: { p: Json; p_actor: string }; Returns: Json }
+      waouh_catalog_admin_entry: { Args: { p_id: string }; Returns: Json }
+      waouh_collection_admin: {
+        Args: { p_action: string; p_data?: Json }
+        Returns: Json
+      }
+      waouh_collection_admin_ops: {
+        Args: { p_action: string; p_data?: Json }
+        Returns: Json
+      }
+      waouh_collection_admin_v1: {
+        Args: { p_action: string; p_data?: Json }
+        Returns: Json
+      }
+      waouh_collection_api_preview: {
+        Args: { p_entry: number; p_provider: string }
+        Returns: Json
+      }
+      waouh_collection_cancel_dossier: {
+        Args: { p_dossier: string; p_owner: string }
+        Returns: number
+      }
+      waouh_collection_claim: { Args: { p_id?: string }; Returns: Json }
+      waouh_collection_claim_feed: { Args: never; Returns: Json }
+      waouh_collection_claim_targeted: {
+        Args: { p_handlers: string[] }
+        Returns: Json
+      }
+      waouh_collection_claim_v1: { Args: { p_id?: string }; Returns: Json }
+      waouh_collection_commit_document: {
+        Args: {
+          p_document: string
+          p_etag: string
+          p_facts: Json
+          p_hash: string
+          p_last_modified: string
+        }
+        Returns: boolean
+      }
+      waouh_collection_connect_entry: {
+        Args: { p_entry: number; p_hash: string }
+        Returns: string
+      }
+      waouh_collection_connection_audit: { Args: never; Returns: Json }
+      waouh_collection_current_envelope: {
+        Args: { p_envelope: Json }
+        Returns: Json
+      }
+      waouh_collection_defer: { Args: { p_job: string }; Returns: undefined }
+      waouh_collection_engine_token: { Args: never; Returns: string }
+      waouh_collection_enqueue: {
+        Args: {
+          p_dossier?: string
+          p_handler: string
+          p_inline?: boolean
+          p_key: string
+          p_lane: string
+          p_owner?: string
+          p_payload?: Json
+          p_provider: string
+          p_target?: string
+        }
+        Returns: Json
+      }
+      waouh_collection_enqueue_before_catalog: {
+        Args: {
+          p_dossier?: string
+          p_handler: string
+          p_inline?: boolean
+          p_key: string
+          p_lane: string
+          p_owner?: string
+          p_payload?: Json
+          p_provider: string
+          p_target?: string
+        }
+        Returns: Json
+      }
+      waouh_collection_enqueue_v1: {
+        Args: {
+          p_dossier?: string
+          p_handler: string
+          p_inline?: boolean
+          p_key: string
+          p_lane: string
+          p_owner?: string
+          p_payload?: Json
+          p_provider: string
+          p_target?: string
+        }
+        Returns: Json
+      }
+      waouh_collection_expire_stale: { Args: never; Returns: number }
+      waouh_collection_field: {
+        Args: {
+          p_hours: number
+          p_observed: string
+          p_supported?: boolean
+          p_value: Json
+        }
+        Returns: Json
+      }
+      waouh_collection_finish: {
+        Args: { p_job: string; p_report: Json; p_token: string }
+        Returns: boolean
+      }
+      waouh_collection_finish_with_source: {
+        Args: { p_job: string; p_report: Json; p_token: string }
+        Returns: boolean
+      }
+      waouh_collection_heartbeat: { Args: { p_data: Json }; Returns: undefined }
+      waouh_collection_ingest_commerce: {
+        Args: { p_job: string; p_row: Json; p_token: string }
+        Returns: Json
+      }
+      waouh_collection_material_payload: { Args: { p: Json }; Returns: Json }
+      waouh_collection_observe: {
+        Args: {
+          p_data: Json
+          p_hash: string
+          p_identity: string
+          p_job: string
+          p_kind: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      waouh_collection_observe_commerce: {
+        Args: {
+          p_hash: string
+          p_item: Json
+          p_job: string
+          p_token: string
+          p_url: string
+        }
+        Returns: Json
+      }
+      waouh_collection_observe_v1: {
+        Args: {
+          p_data: Json
+          p_hash: string
+          p_identity: string
+          p_job: string
+          p_kind: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      waouh_collection_pause_entry: {
+        Args: { p_entry: number }
+        Returns: boolean
+      }
+      waouh_collection_publish_catalog: {
+        Args: { p_hash: string; p_job: string; p_row: Json; p_token: string }
+        Returns: string
+      }
+      waouh_collection_publish_listing: {
+        Args: {
+          p_contacts?: Json
+          p_hash: string
+          p_job: string
+          p_row: Json
+          p_token: string
+        }
+        Returns: string
+      }
+      waouh_collection_publish_official: {
+        Args: { p_hash: string; p_job: string; p_row: Json; p_token: string }
+        Returns: string
+      }
+      waouh_collection_reserve: {
+        Args: {
+          p_config: string
+          p_delta?: number
+          p_job: string
+          p_token: string
+        }
+        Returns: boolean
+      }
+      waouh_collection_reserve_api_site: {
+        Args: {
+          p_config: string
+          p_job: string
+          p_pages: number
+          p_token: string
+        }
+        Returns: boolean
+      }
+      waouh_collection_reserve_page: {
+        Args: { p_host: string; p_limit: number }
+        Returns: boolean
+      }
+      waouh_collection_reserve_v1: {
+        Args: {
+          p_config: string
+          p_delta?: number
+          p_job: string
+          p_token: string
+        }
+        Returns: boolean
+      }
+      waouh_collection_safe_time: { Args: { value: string }; Returns: string }
+      waouh_collection_schedule: {
+        Args: { p_handler?: string }
+        Returns: number
+      }
+      waouh_collection_source_envelope: {
+        Args: { p: Database["public"]["Tables"]["waouh_data_records"]["Row"] }
+        Returns: Json
+      }
+      waouh_collection_touch_document: {
+        Args: { p_document: string }
+        Returns: boolean
+      }
       waouh_contact_stats: { Args: never; Returns: Json }
+      waouh_convergence_bundle: {
+        Args: { p_actor: string; p_id: string }
+        Returns: Json
+      }
+      waouh_convergence_command: {
+        Args: { p?: Json; p_action: string; p_actor: string }
+        Returns: Json
+      }
       waouh_create_partner_stock_product: {
         Args: {
           p_business_id: string
@@ -18146,6 +21181,24 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_data_admin_allowed: { Args: never; Returns: boolean }
+      waouh_data_capture: {
+        Args: {
+          p_deleted?: boolean
+          p_initial?: boolean
+          p_row: Json
+          p_table: string
+        }
+        Returns: number
+      }
+      waouh_data_patch_conflicts: {
+        Args: { p: Database["public"]["Tables"]["waouh_data_records"]["Row"] }
+        Returns: boolean
+      }
+      waouh_data_require_admin: { Args: never; Returns: undefined }
+      waouh_data_sanitize: { Args: { p: Json }; Returns: Json }
+      waouh_data_timestamp: { Args: { p: string }; Returns: string }
+      waouh_discovery_facts: { Args: { value: Json }; Returns: Json }
       waouh_enqueue_outbound: {
         Args: {
           p_payload: Json
@@ -18171,6 +21224,28 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_enrichment_request: {
+        Args: {
+          p_dossier?: string
+          p_field: string
+          p_owner?: string
+          p_query?: string
+          p_record: number
+          p_url?: string
+        }
+        Returns: Json
+      }
+      waouh_enrichment_resolve: {
+        Args: {
+          p_evidence: Json
+          p_job: string
+          p_title: string
+          p_token: string
+          p_url: string
+        }
+        Returns: boolean
+      }
+      waouh_evidence_ttl_seconds: { Args: { p_field: string }; Returns: number }
       waouh_external_ack: {
         Args: { p_provider_message_id: string; p_status: string }
         Returns: boolean
@@ -18188,6 +21263,50 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_guardian_activate: { Args: never; Returns: boolean }
+      waouh_guardian_begin_tick: { Args: never; Returns: boolean }
+      waouh_guardian_claim_restart: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      waouh_guardian_client_event: {
+        Args: {
+          p_code: string
+          p_platform: string
+          p_surface: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      waouh_guardian_collectors_enabled: { Args: never; Returns: Json }
+      waouh_guardian_configure: {
+        Args: {
+          p_actor_id: string
+          p_auto_repair: boolean
+          p_maintenance_minutes: number
+        }
+        Returns: Json
+      }
+      waouh_guardian_finish_restart: {
+        Args: { p_action_id: string; p_reason: string; p_status: string }
+        Returns: Json
+      }
+      waouh_guardian_housekeeping: { Args: never; Returns: undefined }
+      waouh_guardian_metrics: { Args: never; Returns: Json }
+      waouh_guardian_observe: {
+        Args: {
+          p_cause: string
+          p_component: string
+          p_details?: Json
+          p_latency_ms?: number
+          p_observed_at: string
+          p_observer: string
+          p_report_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      waouh_guardian_probe_actor: { Args: { p_token: string }; Returns: string }
       waouh_install_background_ticks: {
         Args: { p_base_url?: string; p_public_key?: string }
         Returns: Json
@@ -18201,11 +21320,52 @@ export type Database = {
         Returns: undefined
       }
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
+      waouh_merge_duplicate_entities: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      waouh_mission_measurements: {
+        Args: { p_dossier_id: string; p_owner_id: string }
+        Returns: Json
+      }
+      waouh_module_access_allowed: { Args: { p_key: string }; Returns: boolean }
       waouh_module_control_state: {
         Args: { p_module_key: string }
         Returns: Json
       }
+      waouh_module_policy: {
+        Args: { p_user_id?: string }
+        Returns: {
+          access_enabled: boolean
+          automation_enabled: boolean
+          module_key: string
+          visible: boolean
+        }[]
+      }
       waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
+      waouh_open_mission_dossier: {
+        Args: {
+          p_dossier_id?: string
+          p_goal: string
+          p_mode: string
+          p_owner_id: string
+          p_request_key: string
+        }
+        Returns: {
+          created_at: string
+          goal: string
+          id: string
+          mode: string
+          owner_id: string
+          request_key: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_mission_dossiers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       waouh_phone_identity_key: { Args: { p_phone: string }; Returns: string }
       waouh_pick_notification_identity: {
         Args: { p_auth_user_id: string }
@@ -18214,6 +21374,7 @@ export type Database = {
           web_session_id: string
         }[]
       }
+      waouh_pipeline_cron_health: { Args: never; Returns: Json }
       waouh_point_distance_km: {
         Args: { p_lat: number; p_lng: number; p_user: string }
         Returns: number
@@ -18475,6 +21636,16 @@ export type Database = {
         }
         Returns: string
       }
+      waouh_record_mission_proofs: {
+        Args: {
+          p_dossier_id: string
+          p_fingerprint: string
+          p_owner_id: string
+          p_proofs: Json
+          p_subject_ref: string
+        }
+        Returns: undefined
+      }
       waouh_record_partner_stock_movement: {
         Args: {
           p_movement_type: string
@@ -18485,7 +21656,82 @@ export type Database = {
         }
         Returns: Json
       }
+      waouh_require_module_access: {
+        Args: { p_key: string }
+        Returns: undefined
+      }
+      waouh_reserve_mission_provider_call: {
+        Args: {
+          p_config_id: string
+          p_delta?: number
+          p_dossier_id: string
+          p_operation: string
+          p_owner_id: string
+          p_provider: string
+        }
+        Returns: boolean
+      }
+      waouh_reserve_radar_usage: {
+        Args: { p_config_id: string; p_delta?: number }
+        Returns: boolean
+      }
       waouh_resolve_phone: { Args: { input: string }; Returns: string }
+      waouh_room_assign_courier: {
+        Args: {
+          p_courier: string
+          p_room: string
+          p_text: string
+          p_token_hash: string
+        }
+        Returns: boolean
+      }
+      waouh_room_attach_guest: { Args: { p_room: string }; Returns: boolean }
+      waouh_room_attach_pending_guest: {
+        Args: { p_room: string }
+        Returns: boolean
+      }
+      waouh_room_command: {
+        Args: { p: Json; p_action: string; p_actor: string }
+        Returns: Json
+      }
+      waouh_room_contact_candidates: {
+        Args: { p_limit?: number }
+        Returns: {
+          room_id: string
+        }[]
+      }
+      waouh_room_delivery_complete: {
+        Args: { p_room: string }
+        Returns: boolean
+      }
+      waouh_room_delivery_view: {
+        Args: { p_actor: string; p_room: string }
+        Returns: Json
+      }
+      waouh_room_guest_actor: { Args: never; Returns: string }
+      waouh_room_guest_stop: { Args: { p_room: string }; Returns: undefined }
+      waouh_room_guidance: { Args: { p: Json; p_now?: string }; Returns: Json }
+      waouh_room_record_outreach_ack: {
+        Args: { p_provider_message_id: string; p_status: string }
+        Returns: undefined
+      }
+      waouh_room_reject_delivery_code: {
+        Args: { p_room: string }
+        Returns: undefined
+      }
+      waouh_room_snapshot: {
+        Args: {
+          p_actor: string
+          p_before?: number
+          p_before_message?: string
+          p_room: string
+        }
+        Returns: Json
+      }
+      waouh_room_tick: {
+        Args: { p_limit?: number; p_room_id?: string }
+        Returns: number
+      }
       waouh_same_person: {
         Args: { p_a: string; p_b: string }
         Returns: boolean
@@ -18504,54 +21750,95 @@ export type Database = {
         Args: { p_base_url?: string }
         Returns: boolean
       }
-      waouh_search_unified: {
+      waouh_search_canonical: {
+        Args: { p_id: string; p_sources?: string[] }
+        Returns: string
+      }
+      waouh_search_current: { Args: { evidence: Json }; Returns: boolean }
+      waouh_search_domain: { Args: { value: Json }; Returns: string }
+      waouh_search_group: {
         Args: {
-          in_categorie?: string
-          in_lat?: number
-          in_lng?: number
-          in_source?: string
-          in_type?: string
-          in_ville?: string
-          include_inactive?: boolean
-          max_results?: number
-          only_verified?: boolean
-          q?: string
-          radius_km?: number
+          p_alias: string
+          p_keep: string
+          p_reason: string
+          p_same_offer: boolean
         }
-        Returns: {
-          business_id: string
-          categorie: string
-          date_publication: string
-          description: string
-          devise: string
-          distance_km: number
-          expires_at: string
-          id: string
-          is_active: boolean
-          last_seen_at: string
-          lat: number
-          lng: number
-          partner_id: string
-          photos: string[]
-          priority_rank: number
-          prix_max: number
-          prix_min: number
-          qualite_score: number
-          quartier: string
-          source: Database["public"]["Enums"]["waouh_catalog_source"]
-          source_ref_id: string
-          sous_categorie: string
-          titre: string
-          type: Database["public"]["Enums"]["waouh_catalog_type"]
-          vendeur_mobile_money: string
-          vendeur_nom: string
-          vendeur_phone: string
-          vendeur_phone_norm: string
-          vendeur_whatsapp: string
-          vendeur_whatsapp_norm: string
-          verified: boolean
-          ville: string
-        }[]
+        Returns: boolean
+      }
+      waouh_search_normalize: { Args: { value: string }; Returns: string }
+      waouh_search_references: {
+        Args: { p_sources: string[]; value: Json }
+        Returns: Json
+      }
+      waouh_search_refresh_id: { Args: { p_id: string }; Returns: undefined }
+      waouh_search_unified:
+        | {
+            Args: {
+              p_budget?: number
+              p_city?: string
+              p_country?: string
+              p_domain?: string
+              p_internal_only?: boolean
+              p_limit?: number
+              p_mode?: string
+              p_offset?: number
+              p_query: string
+              p_sources?: string[]
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              in_categorie?: string
+              in_lat?: number
+              in_lng?: number
+              in_source?: string
+              in_type?: string
+              in_ville?: string
+              include_inactive?: boolean
+              max_results?: number
+              only_verified?: boolean
+              q?: string
+              radius_km?: number
+            }
+            Returns: {
+              business_id: string
+              categorie: string
+              date_publication: string
+              description: string
+              devise: string
+              distance_km: number
+              expires_at: string
+              id: string
+              is_active: boolean
+              last_seen_at: string
+              lat: number
+              lng: number
+              partner_id: string
+              photos: string[]
+              priority_rank: number
+              prix_max: number
+              prix_min: number
+              qualite_score: number
+              quartier: string
+              source: Database["public"]["Enums"]["waouh_catalog_source"]
+              source_ref_id: string
+              sous_categorie: string
+              titre: string
+              type: Database["public"]["Enums"]["waouh_catalog_type"]
+              vendeur_mobile_money: string
+              vendeur_nom: string
+              vendeur_phone: string
+              vendeur_phone_norm: string
+              vendeur_whatsapp: string
+              vendeur_whatsapp_norm: string
+              verified: boolean
+              ville: string
+            }[]
+          }
+      waouh_session_scope_allowed_for_actor: {
+        Args: { p_auth_user_id: string; p_session_id: string }
+        Returns: boolean
       }
       waouh_set_partner_stock: {
         Args: {
@@ -18687,6 +21974,10 @@ export type Database = {
         Returns: boolean
       }
       waouh_verify_tick_secret: { Args: { p_secret: string }; Returns: boolean }
+      waouh_visible_modules_for_user: {
+        Args: { p_user_id?: string }
+        Returns: string[]
+      }
       waouh_wa_governor_record: {
         Args: { p_error?: string; p_id: string; p_outcome: string }
         Returns: undefined
@@ -18696,6 +21987,11 @@ export type Database = {
         Args: { p_kind: string; p_phone?: string }
         Returns: Json
       }
+      waouh_waha_report: {
+        Args: { p_audit_id: number; p_status: number }
+        Returns: undefined
+      }
+      waouh_waha_take: { Args: { p_scope: string }; Returns: Json }
     }
     Enums: {
       waouh_catalog_source: "partner" | "chat" | "radar"
