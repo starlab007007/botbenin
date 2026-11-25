@@ -18,6 +18,7 @@ export type SourcePermission = {
   category?: string;
   collection_transport?: "direct" | "apify" | "serpapi";
   country_scope?: "BJ";
+  content_use?: 'search_reference_only'|'full_listing';
 };
 
 export type CommerceKind = "product" | "service" | "provider" | "rare_item" | "announcement";
@@ -39,6 +40,7 @@ export type CollectedCommerce = {
   is_public_business?: boolean;
   contacts?: Array<{channel: "phone" | "whatsapp" | "facebook" | "website"; value: string}>;
   evidence: {offer_kind: "product" | "service" | "announcement"; availability_confirmed: false;
+    content_use?: 'search_reference_only'; price_status?: 'conflict'; observed_price_candidates?: number[];
     source_attribution: string; photo_attribution?: string; photos?: string[]; rare_item?: true;
     provider_profile?: true; listing_license?: string; deadline?: string; published_at?: string;
     organization?: string; source_updated_at?:string; last_checked_at?:string; deadline_status?: "not_published"};
@@ -77,7 +79,7 @@ function priceXof(v: unknown, currency: unknown): number | undefined {
 }
 
 function approvedPhotos(input: unknown, url: URL, permission: SourcePermission) {
-  if (permission.media_reuse_authorized !== true || !trim(permission.attribution)) return [];
+  if (url.hostname==='bj.bambaad.com'||permission.content_use==='search_reference_only'||permission.media_reuse_authorized !== true || !trim(permission.attribution)) return [];
   const hosts = new Set([url.hostname, ...(permission.media_hosts ?? [])]);
   return [...new Set(list(input).flatMap(value => {
     const image = trustedHttps(typeof value === "string" ? value : obj(value).contentUrl ?? obj(value).url, url.href);
@@ -96,6 +98,7 @@ export function commercialRecord(input: ObjectValue, origin: URL, permission: So
     title.length < 5 || !trim(permission.attribution)) return null;
   const price = priceXof(input.price, input.currency);
   const photos = approvedPhotos(input.photos ?? input.image, url, permission);
+  const referenceOnly=permission.content_use==='search_reference_only'||url.hostname==='bj.bambaad.com';
   const evidence: CollectedCommerce["evidence"] = {
     offer_kind: kind === "announcement" ? "announcement" : kind === "provider" || kind === "service" ? "service" : "product",
     availability_confirmed: false,
@@ -104,6 +107,7 @@ export function commercialRecord(input: ObjectValue, origin: URL, permission: So
     ...(kind === "rare_item" ? {rare_item:true} : {}),
     ...(input.license === "ODbL-1.0" ? {listing_license:"ODbL-1.0"} : {}),
     ...(photos.length ? {photos, photo_attribution:trim(permission.attribution)} : {}),
+    ...(referenceOnly?{content_use:'search_reference_only'}:{}),
   };
   const brand = trim(typeof input.brand === "string" ? input.brand : obj(input.brand).name, 100);
   const model = trim(input.model ?? input.mpn, 120);
@@ -112,7 +116,7 @@ export function commercialRecord(input: ObjectValue, origin: URL, permission: So
     source_external_id: url.href,
     source_url: url.href,
     product_name: title,
-    raw_text: trim(input.description, 700),
+    raw_text: referenceOnly?'':trim(input.description, 700),
     intent,
     actor_type: intent === "BUY" || intent === "RFQ" ? "buyer" : kind === "announcement" ? "announcer" : kind === "provider" ? "business" : "seller",
     category: trim(input.category, 120) || (kind === "provider" ? "Prestataire" : kind === "service" ? "Service" : "Produits"),

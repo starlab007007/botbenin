@@ -23,6 +23,19 @@ Deno.test('discovery retains canonical on-site details and pagination without lo
  assert.deepEqual(found.details,['https://e-benin.bj/annonces/22']);assert.deepEqual(found.indexes,['https://e-benin.bj/annonces?page=2']);
 });
 const patch={transport:'direct',access_state:'authorized',adapter_key:'classifieds',engine_key:'cheerio',rights_reference:'Agreement reference',attribution:'Example publisher',media_authorized:false,media_hosts:[],discovery_minutes:360,recheck_minutes:1440,daily_page_limit:100};
+Deno.test('Bambaad reads the displayed CFA price and keeps a reference without copying descriptions or media',()=>{
+ const u=new URL('https://bj.bambaad.com/annonce/abomey-calavi-reparation-123456');
+ const row=extractListing('<main><h1>Réparation de télévision</h1><strong class="bambaad-ad-hero-price">15\u202f000\u00a0F\u202fCFA</strong><p class="price">15 000 fra</p><div class="listing-description">Service à Abomey-Calavi</div><div class="product-gallery"><img src="/1.jpg"></div></main>',u,{attribution:'Bambaad',media_reuse_authorized:true,content_use:'search_reference_only'});
+ assert.equal(row?.price_min,15000);assert.equal(row?.city,'Abomey-Calavi');assert.equal(row?.raw_text,'');assert.deepEqual(row?.evidence.photos??[],[]);assert.equal(row?.evidence.content_use,'search_reference_only');
+});
+Deno.test('contradictory source prices remain unselected rather than inventing a low offer',()=>{
+ const row=extractListing('<main><h1>Traceur intelligent neuf</h1><div>10 FCFA</div><div class="listing-description">Offre flash : 10 000 FCFA. Ancien prix : 15 000 FCFA. Cotonou</div></main>',root,{attribution:'E-Bénin'});
+ assert.equal(row?.price_min,undefined);assert.equal(row?.evidence.price_status,'conflict');assert.deepEqual(row?.evidence.observed_price_candidates,[10,10000,15000]);
+});
+Deno.test('BazarAfrique recognizes only its local timestamped listing paths',()=>{
+ const origin=new URL('https://bj.bazarafrique.com/');
+ assert.deepEqual(discoverUrls('<a href="/telephones/1778609345-modele-123">Annonce</a><a href="/about">À propos</a><a href="https://other.example/telephones/1778609345-modele-123">Autre</a>',origin).details,['https://bj.bazarafrique.com/telephones/1778609345-modele-123']);
+});
 Deno.test('settings require a bounded cadence, hostname list and documented permission',()=>{
  assert.equal(registryPatch(patch).discovery_minutes,360);
  for(const value of [{daily_page_limit:0},{discovery_minutes:1},{recheck_minutes:999999},{media_hosts:['http://127.0.0.1']},{rights_reference:''},{engine_key:'shell'},{transport:'unknown'}])assert.throws(()=>registryPatch({...patch,...value}));
@@ -108,6 +121,19 @@ Deno.test('an entirely failed discovery pass remains a visible failure',async()=
  const original=globalThis.fetch;globalThis.fetch=async()=>new Response('<h1>Changed</h1>',{headers:{'content-type':'text/html'}});
  try{await assert.rejects(managedCatalog(managedDb([{id:'index',target_id:'target',kind:'index',state:'active',url:'https://e-benin.bj/annonces'}]),
   {id:'job',lease_token:'token',target_id:'target',max_items:3},new URL('https://e-benin.bj/annonces'),{attribution:'E-Bénin'}),/source_format_changed/);
+ }finally{globalThis.fetch=original;}
+});
+Deno.test('forbidden optional pagination is never fetched and cannot block allowed detail revalidation',async()=>{
+ const original=globalThis.fetch,calls:string[]=[];
+ const pages:any[]=[{id:'pagination',target_id:'target',kind:'index',state:'active',url:'https://e-benin.bj/annonces?page=2'},
+  {id:'detail',target_id:'target',kind:'detail',state:'active',url:root.href}];
+ globalThis.fetch=async(input:any)=>{const u=String(input);calls.push(u);return u.endsWith('/robots.txt')?new Response('User-agent: *\nDisallow: /annonces?*'):
+  new Response(html,{headers:{'content-type':'text/html'}});};
+ try{
+  const rows=await managedCatalog(managedDb(pages),{id:'job',lease_token:'token',target_id:'target',max_items:3},new URL('https://e-benin.bj/annonces'),{attribution:'E-Bénin'});
+  assert.equal(rows.length,1);assert.equal(pages[0].state,'removed');assert.ok(!calls.some(u=>u.includes('?page=2')));
+  await assert.rejects(managedCatalog(managedDb([{id:'index',target_id:'target',kind:'index',state:'active',url:'https://e-benin.bj/annonces?page=2'}]),
+   {id:'job',lease_token:'token',target_id:'target',max_items:3},new URL('https://e-benin.bj/annonces?page=2'),{attribution:'E-Bénin'}),/source_robots_disallowed/);
  }finally{globalThis.fetch=original;}
 });
 

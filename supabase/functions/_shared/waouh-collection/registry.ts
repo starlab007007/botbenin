@@ -100,7 +100,7 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
  if(!root||root.hostname.replace(/^www\./,'')!==platform.hostname||platform.adapter_key==='none'||['paused','unverified'].includes(platform.access_state)||
   (!apiTransport&&(platform.access_state!=='authorized'||platform.rights_reference.trim().length<5)))throw Error('source_not_ready');
  const permission:SourcePermission={collection_transport:platform.transport,automation_authorized:true,attribution:platform.attribution,media_reuse_authorized:platform.media_authorized,
-  api_browser:['playwright','crawl4ai'].includes(platform.engine_key),media_hosts:platform.media_hosts,collection_format:platform.adapter_key,category:'',country_scope:'BJ',daily_page_limit:platform.daily_page_limit};
+  content_use:platform.content_use??'search_reference_only',api_browser:['playwright','crawl4ai'].includes(platform.engine_key),media_hosts:platform.media_hosts,collection_format:platform.adapter_key,category:'',country_scope:'BJ',daily_page_limit:platform.daily_page_limit};
  let records:any[]=[],reason:string|undefined,previewJob:any=null,discoveryOnly=false;
  try{
   let read=siteReader(db,root,permission);
@@ -131,7 +131,7 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
  const passed=!reason&&records.length>0;
  if(previewJob)await checked(db.from('waouh_collection_jobs').update({status:reason?'failed':'succeeded',finished_at:new Date().toISOString(),report:{status:reason?'failed':'succeeded',reason,published:0}}).eq('id',previewJob.id));
  const report={passed,reason,discovery_only:discoveryOnly,published:0,records:records.length,preview:records.slice(0,3).map(r=>productSnapshot({...r,title:r.product_name}))};
- await checked(db.from('waouh_collection_entries').update({test_status:passed?'passed':'failed',test_at:new Date().toISOString(),test_config_hash:hash,test_report:report}).eq('entry_no',entry.entry_no));
+ await checked(db.from('waouh_collection_entries').update({test_status:passed?'passed':'failed',test_at:new Date().toISOString(),test_config_hash:hash,test_report:{...entry.test_report,...report}}).eq('entry_no',entry.entry_no));
  await event(db,actor,'catalog.test',{entry_no:entry.entry_no,passed,reason});
  return {ok:true,...report};
 }

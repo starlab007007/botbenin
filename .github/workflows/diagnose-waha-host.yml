@@ -45,12 +45,21 @@ jobs:
                         break
                     except urllib.error.HTTPError as error: central['api_status']=error.code
                     except Exception: central['api_status']=0
+                session_counts={}
+                if central.get('api_status')==200:
+                    try:
+                        with urllib.request.urlopen(urllib.request.Request(api+'/api/sessions?all=true',headers=headers),timeout=8) as r:
+                            sessions=json.load(r)
+                        for other in sessions if isinstance(sessions,list) else []:
+                            state=str(other.get('status','UNKNOWN'))
+                            session_counts[state]=session_counts.get(state,0)+1
+                    except Exception: session_counts={'inspection_failed':1}
                 try:
                     recent=subprocess.check_output(['docker','logs','--tail','300',cid],stderr=subprocess.STDOUT,text=True)
                 except Exception: recent=''
                 categories=['Target closed','Failed to launch','No space left','EACCES','ENOENT','ProtocolError','Cannot find module','Execution context was destroyed','net::ERR','TimeoutError','Failed to create','Waiting failed: 30000ms exceeded','Cmd.refreshQR is not a function','WebjsClientCore.inject','Client.inject','Client.initialize','waitForFunction','waitForSelector','auth timeout','Navigation timeout']
                 startup_errors=[category for category in categories if category.lower() in recent.lower()]
-                found.append({'startup_errors':startup_errors,'free_disk_gib':round(shutil.disk_usage('/').free/2**30,1),'name':item['Name'].lstrip('/'),'image':image,'running':item['State']['Running'],'central':central,'version':version,
+                found.append({'session_counts':session_counts,'startup_errors':startup_errors,'free_disk_gib':round(shutil.disk_usage('/').free/2**30,1),'name':item['Name'].lstrip('/'),'image':image,'running':item['State']['Running'],'central':central,'version':version,
                     'restarts':item.get('RestartCount',0),'oom_killed':item['State'].get('OOMKilled',False),
                     'engine':(session.get('engine') or {}).get('engine') if central.get('api_status')==200 else None,
                     'engine_state':(session.get('engine') or {}).get('state') if central.get('api_status')==200 else None,

@@ -31,7 +31,7 @@ const reasons: Record<string, {title:string;detail:string}> = {
  fresh_records_missing:{title:'Fiches fraîches manquantes',detail:'Aucune fiche active et non expirée n’a été réellement recontrôlée par cette cible dans les dernières 24 heures.'},
  indexed_records_missing:{title:'Présence dans NEXUS à vérifier',detail:'Aucune fiche fraîche de cette cible n’est présente dans l’index commun.'},
  useful_records_missing:{title:'Qualité des fiches à compléter',detail:'Une fiche doit avoir un titre, une provenance et, pour une offre commerciale, un prix et une ville exploitables.'},
- actionable_records_missing:{title:'Fiche exploitable à confirmer',detail:'Une même fiche fraîche doit réunir les informations utiles, les photos attribuées si autorisées et un contact professionnel public pour une offre commerciale.'},
+ actionable_records_missing:{title:'Fiche exploitable à confirmer',detail:'Une même fiche fraîche doit réunir les informations utiles, les photos attribuées si autorisées et un contact professionnel public ou un accès manuel à la fiche source pour une offre commerciale.'},
  attributed_photos_missing:{title:'Photos attribuées manquantes',detail:'La source permet les photos, mais aucune fiche fraîche contrôlée ne contient de photo attribuée.'},
 };
 export function explainCollectionReason(code?: string | null) {

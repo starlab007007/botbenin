@@ -18,6 +18,8 @@ export function publicBusinessEvidence(value:unknown){
  for(const key of ['delivery_days','duration_days','pages','page_count','visit_fee','callout_fee','diagnostic_fee','delivery_fee','delivery_cost','revisions','revision_count','minimum_quantity','min_quantity','quantity','requested_quantity'])if(typeof e[key]==='number'&&Number.isFinite(e[key])&&Number(e[key])>=0)result[key]=e[key];
  for(const key of ['diagnostic_included','delivery_included','price_confirmed','availability_confirmed','in_stock','remote','eligible','rare_item','provider_profile'])if(typeof e[key]==='boolean')result[key]=e[key];
  if(['available','unavailable'].includes(String(e.availability)))result.availability=e.availability;
+ if(['search_reference_only','full_listing'].includes(String(e.content_use)))result.content_use=e.content_use;
+ if(e.price_status==='conflict')result.price_status='conflict';
  const photos=[e.primary_photo_url,e.image_url,...(Array.isArray(e.photos)?e.photos:[])].map(publicPhoto).filter(Boolean);
  if(photos.length)result.photos=[...new Set(photos)];
  return result;

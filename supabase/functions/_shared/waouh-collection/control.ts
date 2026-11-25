@@ -48,7 +48,8 @@ export async function collectionOverview(db:Db) {
     db.from('waouh_radar_api_configs').select('provider,active,daily_quota,usage_today,usage_reset_at'),
   ];
   const results=await Promise.all(queries);
-  if(results.some(r=>r.error))throw new Error('collection_overview_unavailable');
+  const failures=results.flatMap((r,i)=>r.error?[{query:i,code:String(r.error.code??'unknown')}]:[]);
+  if(failures.length){console.error('[collection-overview] failed queries',JSON.stringify(failures));throw new Error('collection_overview_unavailable');}
   const [total,recent,old,undated,expired,added,policies,targets,jobs,sample,usage,configs]=results;
   const quality={sample_size:sample.data.length,complete:0,missing_photo:0,missing_price:0,missing_contact:0};
   for(const row of sample.data){const q=assessQuality(row);if(q.present===3)quality.complete++;

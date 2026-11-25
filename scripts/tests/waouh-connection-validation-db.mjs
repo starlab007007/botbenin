@@ -53,5 +53,17 @@ assert.ok((await audit()).entries[0].blockers.includes('provider_quota_exhausted
 for(const role of ['anon','authenticated']){
  await db.exec('set role '+role);await assert.rejects(db.query('select waouh_collection_connection_audit()'));await db.exec('reset role');
 }
+await db.exec(`alter table waouh_external_commerce_signals add column entity_id uuid;
+ alter table waouh_collection_jobs add column created_at timestamptz default now();
+ create table waouh_entity_contacts(entity_id uuid,channel text,public_value text,metrics jsonb,consent_state text,verification_status text);
+ update waouh_collection_jobs set status='succeeded',report='{}';
+ update waouh_external_commerce_signals set entity_id='50000000-0000-4000-8000-000000000001',contact_consent_basis='unknown';
+ insert into waouh_entity_contacts values('50000000-0000-4000-8000-000000000001','website','https://example.test/annonce/1','{"source_url":"https://example.test/annonce/1","published_contact":true}','unknown','observed');`);
+await db.exec(fs.readFileSync('supabase/migrations/20261125164408_waouh_manual_source_routes.sql','utf8'));
+report=await audit();assert.equal(report.entries[0].validated,true);assert.equal(report.targets[0].facts.public_contacts,0);assert.equal(report.targets[0].facts.manual_source_routes,1);
+await db.exec("update waouh_entity_contacts set consent_state='revoked'");
+assert.equal((await audit()).entries[0].validated,false);
+await db.exec("update waouh_entity_contacts set consent_state='unknown',public_value='https://example.test/other'");
+assert.equal((await audit()).entries[0].validated,false);
 await db.close();
 console.log('PASS: complete chain, alias identity, target isolation, stale/expired records, index, contacts, discovery-only, transport mismatch, latest failure and private access');

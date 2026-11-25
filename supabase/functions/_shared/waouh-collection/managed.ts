@@ -41,6 +41,12 @@ export async function managedCatalog(db:Db,job:{id:string;lease_token:string;tar
   await check(db.from('waouh_collection_pages').update({last_checked_at:new Date().toISOString(),state:'active',etag:response.etag,last_modified:response.last_modified,
    next_due_at:new Date(Date.now()+(p.discovery_minutes??360)*60000).toISOString(),last_error:null}).eq('id',doc.id));
   }catch(error){
+   // A forbidden pagination link is excluded, not fetched. It does not revoke
+   // access to the separately authorized canonical index and detail pages.
+   if(error instanceof SourceReadError&&error.code==='source_robots_disallowed'&&doc.url!==url.href){
+    await check(db.from('waouh_collection_pages').update({state:'removed',last_checked_at:new Date().toISOString(),last_error:error.code}).eq('id',doc.id));
+    continue;
+   }
    recordIssue(error);
    await check(db.from('waouh_collection_pages').update({state:'unreachable',last_checked_at:new Date().toISOString(),last_error:(error as SourceReadError).code,
     next_due_at:new Date(Date.now()+3600000).toISOString()}).eq('id',doc.id));

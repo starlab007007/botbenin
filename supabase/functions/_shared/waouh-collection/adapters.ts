@@ -7,6 +7,7 @@ export function detailUrl(url:URL):boolean{
  if(h==='e-benin.bj')return /^\/annonces\/\d+\/?$/.test(url.pathname);
  if(h==='niosso.com')return /^\/bj\/annonces\/[^/]+\/[^/]+-\d+\/?$/.test(url.pathname);
  if(h==='bj.bambaad.com'||h==='bj.coinafrique.com')return /^\/annonce\/[^/]+/.test(url.pathname);
+ if(h==='bj.bazarafrique.com')return /^\/[^/]+\/\d{8,}-[^/]+\/?$/.test(url.pathname);
  return /\/(?:annonce|annonces|ad|ads|listing|listings|product|produit)\/[^/]+/i.test(url.pathname);
 }
 export function discoverUrls(html:string,origin:URL){
@@ -73,10 +74,15 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
  scoped.find('header,footer,nav,aside,.related,.similar-products,[data-related],script,style').remove();
  const body=scoped.text().replace(/\s+/g,' ').trim();
  const facts=facebookListingDetails(title+' '+description);
- const priceText=$('[itemprop="price"],.listing-price,.ad-price,.price').first();
+ const priceText=$('.bambaad-ad-hero-price,[itemprop="price"],.listing-price,.ad-price,.price').first();
  const explicitPrice=priceText.attr('content')||priceText.text();
- const amount=/^\d[\d .\u00a0\u202f]*$/.test(explicitPrice.trim())?explicitPrice.trim():/(\d[\d .\u00a0\u202f]*)\s*(?:FCFA|F\s*CFA|XOF)/i.exec(explicitPrice||body)?.[1];
- const price=amount?Number(amount.replace(/[ .\u00a0\u202f]/g,'')):facts.price;
+ const amount=/^\d[\d .\u00a0\u202f]*$/.test(explicitPrice.trim())?explicitPrice.trim():/(\d[\d .\u00a0\u202f]*)\s*(?:FCFA|F?\s*CFA|XOF)/i.exec(explicitPrice||body)?.[1];
+ let price=amount?Number(amount.replace(/[ .\u00a0\u202f]/g,'')):facts.price;
+ // A conflicting headline and description must not silently become a bargain.
+ const displayedPrices=[...body.matchAll(/(\d[\d .\u00a0\u202f]*)\s*(?:FCFA|F?\s*CFA|XOF)/gi)]
+  .map(m=>Number(m[1].replace(/[ .\u00a0\u202f]/g,''))).filter(n=>Number.isFinite(n)&&n>0);
+ const priceConflict=origin.hostname==='e-benin.bj'&&new Set(displayedPrices).size>1;
+ if(priceConflict)price=undefined;
  const published=$('meta[property="article:published_time"]').attr('content')||$('time[datetime]').first().attr('datetime');
  const category=$('[itemprop="category"],.breadcrumb').last().text().trim()||permission.category||facts.category;
  const announce=/recrutement|offre d.emploi|candidature|bourse|formation|appel.{0,12}projet/i.test(title+' '+category);
@@ -86,6 +92,7 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
   photos:listingGallery(html,origin),...productIdentity(title)},new URL('/',origin),permission,
   announce?'announcement':service?'service':'product',announce?'ANNOUNCE':buy?(service?'RFQ':'BUY'):'SELL');
  if(!row)return null;
+ if(priceConflict){row.evidence.price_status='conflict';row.evidence.observed_price_candidates=[...new Set(displayedPrices)].slice(0,10);}
  row.contacts=[{channel:'website',value:origin.href}];
  for(const n of scoped.find('a[href^="tel:"]').toArray())row.contacts.push({channel:'phone',value:$(n).attr('href')!.slice(4)});
  for(const n of scoped.find('a[href]').toArray()){
