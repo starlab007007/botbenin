@@ -88,6 +88,11 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
  if(!row)return null;
  row.contacts=[{channel:'website',value:origin.href}];
  for(const n of scoped.find('a[href^="tel:"]').toArray())row.contacts.push({channel:'phone',value:$(n).attr('href')!.slice(4)});
+ for(const n of scoped.find('a[href]').toArray()){
+  const contact=trustedHttps($(n).attr('href'));
+  if(contact?.hostname==='wa.me'&&/^\/\+?\d{8,15}\/?$/.test(contact.pathname))row.contacts.push({channel:'whatsapp',value:contact.pathname.replace(/[^+0-9]/g,'')});
+  if(contact?.hostname==='api.whatsapp.com'&&contact.pathname==='/send'&&/^\+?\d{8,15}$/.test(contact.searchParams.get('phone')??''))row.contacts.push({channel:'whatsapp',value:contact.searchParams.get('phone')!});
+ }
  if(published&&Number.isFinite(Date.parse(published)))row.evidence.published_at=new Date(published).toISOString();
  const updated=$('meta[property="article:modified_time"]').attr('content');
  if(updated&&Number.isFinite(Date.parse(updated)))row.evidence.source_updated_at=new Date(updated).toISOString();

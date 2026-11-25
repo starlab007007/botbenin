@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {discoverUrls,extractListing,listingGallery} from './waouh-collection/adapters.ts';
 import {registryPatch,catalogAdmin} from './waouh-collection/registry.ts';
 import {apiActorInput,apiSiteReader} from './waouh-collection/providers.ts';
+import {discoverWeb} from './waouh-collection/web.ts';
+import {managedCatalog} from './waouh-collection/managed.ts';
 import {siteReader} from './waouh-collection/network.ts';
 import {publicNexusResult} from './waouh-public-discovery.ts';
 const root=new URL('https://e-benin.bj/annonces/16');
@@ -62,4 +64,72 @@ Deno.test('conditional revalidation preserves 304 and enforces robots and source
   await assert.rejects(read('https://other.example/annonces/1'),/source_scope_invalid/);
   assert.equal(calls.length,2);
  }finally{globalThis.fetch=original;}
+});
+
+Deno.test('published WhatsApp routes are extracted only from the listing body',()=>{
+ const row=extractListing(html.replace('</main>','<a href="https://wa.me/2290165653468">WhatsApp</a></main><footer><a href="https://wa.me/2290199999999">Site owner</a></footer>'),root,{attribution:'E-Bénin'});
+ assert.ok(row?.contacts?.some(c=>c.channel==='whatsapp'&&c.value==='2290165653468'));
+ assert.ok(!row?.contacts?.some(c=>c.value==='2290199999999'));
+});
+Deno.test('CoinAfrique sold listings cannot be republished as available offers',()=>{
+ const u=new URL('https://bj.coinafrique.com/annonce/telephones/iphone-123');
+ assert.throws(()=>extractListing(`<link rel="canonical" href="${u}"><h1>iPhone 13</h1><span class="listing-status">Vendu</span>`,u,{attribution:'CoinAfrique'}),/listing_closed/);
+});
+
+function managedDb(pages:any[]){
+ const updates:any[]=[];
+ return {updates,rpc:async()=>({data:true,error:null}),from:(table:string)=>{
+  let operation='select',patch:any,filters:((r:any)=>boolean)[]=[],maximum=100;
+  const q:any={select:()=>q,upsert:()=>{operation='upsert';return q;},update:(v:any)=>{operation='update';patch=v;return q;},insert:()=>{operation='insert';return q;},
+   eq:(k:string,v:any)=>{filters.push(r=>r[k]===v);return q;},neq:(k:string,v:any)=>{filters.push(r=>r[k]!==v);return q;},
+   lte:()=>q,order:()=>q,limit:(n:number)=>{maximum=n;return q;},
+   single:async()=>({data:table==='waouh_collection_targets'?{engine_key:'cheerio'}:{enabled:true,max_document_kb:1200},error:null}),
+   then:(resolve:any)=>{const rows=pages.filter(r=>filters.every(f=>f(r))).slice(0,maximum);
+    if(operation==='update'){updates.push({table,patch,ids:rows.map(r=>r.id)});rows.forEach(r=>Object.assign(r,patch));}
+    return Promise.resolve({data:operation==='select'?rows:[],error:null}).then(resolve);}};return q;
+ }};
+}
+Deno.test('a changed index cannot prevent known detail revalidation and partial publication',async()=>{
+ const original=globalThis.fetch;
+ const pages:any[]=[{id:'index',target_id:'target',kind:'index',state:'active',url:'https://e-benin.bj/annonces'},
+  {id:'bad',target_id:'target',kind:'detail',state:'active',url:'https://e-benin.bj/annonces/17'},
+  {id:'good',target_id:'target',kind:'detail',state:'active',url:root.href}];
+ globalThis.fetch=async(input:any)=>String(input).endsWith('/robots.txt')?new Response('User-agent: *\nAllow: /'):
+  String(input).endsWith('/17')?new Response('Temporary outage',{status:502,headers:{'content-type':'text/html'}}):
+  new Response(String(input)===root.href?html:'<h1>Index changed</h1>',{headers:{'content-type':'text/html'}});
+ try{
+  const db=managedDb(pages),rows=await managedCatalog(db,{id:'job',lease_token:'token',target_id:'target',max_items:3},new URL('https://e-benin.bj/annonces'),{attribution:'E-Bénin'});
+  assert.equal(rows.length,1);assert.equal(rows[0].source_url,root.href);
+  assert.deepEqual(rows.issues,['source_format_changed','source_http_502']);
+  assert.equal(pages[0].last_error,'source_format_changed');assert.equal(pages[1].state,'unreachable');
+ }finally{globalThis.fetch=original;}
+});
+Deno.test('an entirely failed discovery pass remains a visible failure',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response('<h1>Changed</h1>',{headers:{'content-type':'text/html'}});
+ try{await assert.rejects(managedCatalog(managedDb([{id:'index',target_id:'target',kind:'index',state:'active',url:'https://e-benin.bj/annonces'}]),
+  {id:'job',lease_token:'token',target_id:'target',max_items:3},new URL('https://e-benin.bj/annonces'),{attribution:'E-Bénin'}),/source_format_changed/);
+ }finally{globalThis.fetch=original;}
+});
+
+function discoveryDb(reserve=true){
+ const writes:any[]=[];return {writes,rpc:async()=>({data:reserve,error:null}),from:(table:string)=>{
+  let mutation=false;const q:any={select:()=>q,eq:()=>q,update:(v:any)=>{mutation=true;writes.push({table,value:v});return q;},upsert:(v:any)=>{mutation=true;writes.push({table,value:v});return q;},
+   single:async()=>({data:{query:'iphone 13 Cotonou',enabled:true,provider:'serpapi'},error:null}),
+   maybeSingle:async()=>({data:{id:'config',active:true,api_key:'fake-key',daily_quota:50,usage_today:0},error:null}),
+   then:(resolve:any)=>Promise.resolve({data:mutation?[]:table==='waouh_radar_sources'?[{id:'source',identifier:'https://e-benin.bj/annonces',config:{automation_authorized:true,managed_catalog:true}}]:[{id:'destination',radar_source_id:'source',enabled:true}],error:null}).then(resolve)};return q;
+ }};
+}
+Deno.test('Web discovery uses the atomic quota and queues publisher URLs without publishing snippets',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async()=>{calls++;return Response.json({organic_results:[{link:root.href,title:'unverified title',price:1,thumbnail:'https://e-benin.bj/thumb.jpg'},{link:'https://foreign.com/annonce/12'},{link:root.href}]});};
+ try{const db=discoveryDb(),report=await discoverWeb(db,{id:'job',lease_token:'token',target_id:'web',max_items:6});
+  assert.equal(calls,1);assert.equal(report.routed,1);assert.equal(report.inserted,0);assert.equal(report.qualified,0);
+  const page=db.writes.find(w=>w.table==='waouh_collection_pages');assert.deepEqual(page.value,{target_id:'destination',url:root.href,kind:'detail'});
+  assert.ok(!db.writes.some(w=>/signals|listings/.test(w.table)));
+ }finally{globalThis.fetch=original;}
+});
+Deno.test('Web discovery cannot call SerpAPI after a rejected reservation',async()=>{
+ const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('unexpected');};
+ try{await assert.rejects(discoverWeb(discoveryDb(false),{id:'job',lease_token:'token',target_id:'web',max_items:6}),/provider_quota_exhausted/);assert.equal(calls,0);}
+ finally{globalThis.fetch=original;}
 });

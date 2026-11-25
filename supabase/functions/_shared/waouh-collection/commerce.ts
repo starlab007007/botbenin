@@ -195,6 +195,8 @@ export function coinAfriqueDetails(html: string, row: CollectedCommerce, permiss
   const $ = load(html);
   const canonical = trustedHttps($('link[rel="canonical"]').attr("href"));
   if (canonical?.href !== origin.href) throw new Error("listing_identity_changed");
+  const availability=$('[itemprop="availability"],.listing-status,[data-listing-status]').first();
+  if(/^(?:vendu|loué|pourvu|sold|closed|indisponible)$/i.test(availability.text().trim())||/SoldOut|OutOfStock/.test(availability.attr('href')??''))throw new Error('listing_closed');
   const phones = $("[data-phone-number], a[href^='tel:']").toArray().flatMap(node => {
     const value = $(node).attr("data-phone-number") ?? $(node).attr("href")?.slice(4);
     return value ? [{channel: "phone" as const, value}] : [];
@@ -203,7 +205,7 @@ export function coinAfriqueDetails(html: string, row: CollectedCommerce, permiss
     const value = trustedHttps($(node).attr("href"))?.pathname.replace(/[^0-9+]/g, "");
     return value ? [{channel: "whatsapp" as const, value}] : [];
   });
-  const listingId = /-(\d+)$/.exec(origin.pathname)?.[1];
+  const listingId = /-(\d+)\/?$/.exec(origin.pathname)?.[1];
   const gallery = $('meta[property="og:image"], .ad__image img, .ad__gallery img, .swiper-slide img, .carousel-item img').toArray().flatMap(node => {
     const el=$(node);
     const url = trustedHttps(el.attr("data-src") ?? el.attr("data-lazy") ?? el.attr("src") ?? el.attr("content"));

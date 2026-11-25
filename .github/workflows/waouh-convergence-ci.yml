@@ -33,6 +33,7 @@ jobs:
       - run: node scripts/tests/waouh-discovery-db.mjs
       - run: node scripts/tests/waouh-unified-search-db.mjs
       - run: node scripts/tests/waouh-source-registry-db.mjs
+      - run: node scripts/tests/waouh-collection-revalidation-db.mjs
       - run: npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ src/lib/admin/__tests__ src/pages/admin/__tests__ src/components/admin/__tests__/collection-engines.test.tsx src/components/admin/__tests__/collection-control.test.tsx src/components/admin/__tests__/collection-workspace.test.tsx src/components/admin/__tests__/source-catalog.test.tsx
       - run: npm run build
       - uses: denoland/setup-deno@v2

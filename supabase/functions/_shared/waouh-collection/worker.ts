@@ -10,6 +10,8 @@ import {goAfricaProviders,rssAtomListings,structuredPublicListings,telegramPubli
 import {runDocumentEngine,DocumentEngineError} from './engines.ts';
 import {managedCatalog} from './managed.ts';
 import {SourceReadError} from './network.ts';
+import {discoverWeb} from './web.ts';
+import {discoverUrls,extractListing} from './adapters.ts';
 import {publicBusinessEvidence} from '../waouh-public-discovery.ts';
 
 const robotsParser = robotsParserModule as unknown as (
@@ -77,7 +79,7 @@ type Db = {
   from: (name: string) => any;
   rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{data: any; error: unknown}>;
 };
-type Handler = "feed" | "site" | "apify";
+type Handler = "feed" | "site" | "apify" | "web";
 type Job = {id: string; lease_token: string; target_id: string; max_items: number; handler: Handler};
 type Report = {
   status: "succeeded" | "partial" | "empty" | "blocked" | "failed";
@@ -88,6 +90,7 @@ type Report = {
   inserted?: number;
   updated?: number;
   unchanged?: number;
+  issues?: string[];
 };
 
 async function rpc(db: Db, name: string, args: Record<string, unknown> = {}) {
@@ -181,7 +184,7 @@ async function processFeed(db: Db, job: Job): Promise<Report> {
 }
 
 type RadarSource = {identifier:string; type:string; config:SourcePermission | null};
-const supportedHandlers:Handler[] = ["feed","site","apify"];
+const supportedHandlers:Handler[] = ["feed","site","apify","web"];
 
 async function approvedRadarSource(db: Db, job: Job): Promise<RadarSource | null> {
   const {data:target,error} = await db.from("waouh_collection_targets")
@@ -198,7 +201,7 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
   const url = trustedHttps(permission.canonical_url ?? source.identifier);
   const original = trustedHttps(source.identifier);
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
-  if(permission.managed_catalog===true){
+  if(permission.managed_catalog===true&&permission.platform_key){
     const {data:platform,error}=await db.from('waouh_collection_platforms').select('hostname,access_state').eq('platform_key',permission.platform_key).single();
     if(error||!url||platform?.access_state!=='authorized'||url.hostname.replace(/^www\./,'')!==platform.hostname)throw new CollectionError('source_permission_missing');
     hostSettings.push(url.hostname);
@@ -227,21 +230,38 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
   if(format==="goafrica")return goAfricaProviders(body,url,permission);
   if(format==="telegram_public")return telegramPublicListings(body,url,permission);
   if (format === "coinafrique") {
-    const cards = coinAfriqueCatalog(body,url,permission).slice(0,Math.min(maxItems,5));
-    if (!cards.length) throw new CollectionError("source_format_changed");
-    const rows:CollectedCommerce[] = [];
-    // Bound detail requests so the lease covers parsing, contact encryption and publication.
-    for (const card of cards) {
-      await respectRobots(card.source_url);
-      const detail = await request(card.source_url,{accept:"text/html"});
-      if (detail.status === 404 || detail.status === 410) { await detail.body?.cancel(); continue; }
-      if (!detail.ok || !detail.headers.get("content-type")?.includes("text/html")) {
-        await detail.body?.cancel();
-        throw new CollectionError("listing_detail_unavailable",true);
+    const limit=Math.min(maxItems,5);
+    const cards = coinAfriqueCatalog(body,url,permission).slice(0,limit);
+    const urls=cards.length?cards.map(card=>card.source_url):discoverUrls(body,url).details.slice(0,limit);
+    if (!urls.length) throw new CollectionError("source_format_changed");
+    const rows:CollectedCommerce[] & {issues?:string[]} = [];
+    const issues:string[]=[];let firstError:unknown;
+    // A failed detail must not discard other qualified listings from the same index.
+    for (const sourceUrl of urls) {
+      try{
+        await respectRobots(sourceUrl);
+        const detail = await request(sourceUrl,{accept:"text/html"});
+        if (detail.status === 404 || detail.status === 410) { await detail.body?.cancel(); continue; }
+        if (!detail.ok || !detail.headers.get("content-type")?.includes("text/html")) {
+          await detail.body?.cancel();
+          throw new CollectionError("listing_detail_unavailable",detail.status===429||detail.status>=500);
+        }
+        const html=await runDocumentEngine(db,job,await readBounded(detail),sourceUrl);
+        const card=cards.find(row=>row.source_url===sourceUrl);
+        const row=card?coinAfriqueDetails(html,card,permission):extractListing(html,new URL(sourceUrl),permission);
+        if(row)rows.push(row);
+      }catch(error){
+        if(error instanceof Error&&error.message==='listing_closed'){
+          const result=await db.from('waouh_external_commerce_signals').update({status:'expired'}).eq('source_url',sourceUrl).eq('source_key','waouh_commercial_web');
+          if(result.error)throw new CollectionError('source_write_unconfirmed',true);
+          continue;
+        }
+        if(!(error instanceof CollectionError)||!error.retryable)throw error;
+        firstError??=error;issues.push(error.reason);
       }
-      try { rows.push(coinAfriqueDetails(await runDocumentEngine(db,job,await readBounded(detail),card.source_url),card,permission)); }
-      catch(error) { if(error instanceof DocumentEngineError)throw error;throw new CollectionError("listing_identity_changed"); }
     }
+    if(!rows.length&&firstError)throw firstError;
+    if(issues.length)rows.issues=[...new Set(issues)];
     return rows;
   }
   if (!json) return structuredPublicListings(body,url,permission);
@@ -369,24 +389,26 @@ async function processCommerce(db:Db,job:Job):Promise<Report> {
       throw error;
     }
   }
+  const issues=(candidates as CollectedCommerce[] & {issues?:string[]}).issues;
+  if(issues?.length)return {...report,status:"partial",reason:"source_read_incomplete",issues};
   return {...report,status:report.inserted+report.updated>0 ? "succeeded" : "empty",
     reason:selected.length ? undefined : "no_qualified_commerce"};
 }
 
-export async function runCollectionTick(db: Db) {
+export async function runCollectionTick(db: Db,handlers:Handler[]=supportedHandlers) {
   let scheduled = 0;
-  for (const handler of supportedHandlers) {
+  for (const handler of handlers) {
     scheduled += Number(await rpc(db, "waouh_collection_schedule", {p_handler: handler}));
   }
   let processed = 0;
   const outcomes: Record<string, number> = {};
   // One request per minute, up to two jobs. No inline jobs are taken over.
   for (let index = 0; index < 2; index++) {
-    const job = await rpc(db, "waouh_collection_claim_targeted", {p_handlers:supportedHandlers}) as Job | null;
+    const job = await rpc(db, "waouh_collection_claim_targeted", {p_handlers:handlers}) as Job | null;
     if (!job) break;
     let report: Report;
     try {
-      report = job.handler === "feed" ? await processFeed(db, job) : await processCommerce(db, job);
+      report = job.handler === "web" ? await discoverWeb(db,job) : job.handler === "feed" ? await processFeed(db, job) : await processCommerce(db, job);
     } catch (error) {
       report = error instanceof SourceReadError
         ? {status:error.retryable?'failed':'blocked',reason:error.code,retryable:error.retryable}
