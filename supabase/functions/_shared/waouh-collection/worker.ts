@@ -7,6 +7,7 @@ import { encryptPhone, hashPhone, sha256Hex } from "../waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "../waouh-tel/phone.ts";
 import { collectionSources, extractNotices, sourceKeyFor, type CollectionSource, type VerifiedNotice } from "./sources.ts";
 import {goAfricaProviders,rssAtomListings,structuredPublicListings,telegramPublicListings} from "./public.ts";
+import {runDocumentEngine,DocumentEngineError} from './engines.ts';
 
 const robotsParser = robotsParserModule as unknown as (
   url: string, content: string,
@@ -190,7 +191,7 @@ async function approvedRadarSource(db: Db, job: Job): Promise<RadarSource | null
   return source?.config?.automation_authorized === true && source.config.attribution ? source : null;
 }
 
-async function fetchCatalog(source:RadarSource, permission:SourcePermission, maxItems:number):Promise<CollectedCommerce[]> {
+async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourcePermission, maxItems:number):Promise<CollectedCommerce[]> {
   const url = trustedHttps(permission.canonical_url ?? source.identifier);
   const original = trustedHttps(source.identifier);
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
@@ -211,7 +212,8 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission, max
     await response.body?.cancel();
     throw new CollectionError("source_media_invalid");
   }
-  const body = await readBounded(response);
+  let body = await readBounded(response);
+  if(!json&&format!=='rss_atom')body=await runDocumentEngine(db,job,body,url.href);
   if(format==="rss_atom")return rssAtomListings(body,url,permission);
   if(format==="goafrica")return goAfricaProviders(body,url,permission);
   if(format==="telegram_public")return telegramPublicListings(body,url,permission);
@@ -228,7 +230,7 @@ async function fetchCatalog(source:RadarSource, permission:SourcePermission, max
         await detail.body?.cancel();
         throw new CollectionError("listing_detail_unavailable",true);
       }
-      try { rows.push(coinAfriqueDetails(await readBounded(detail),card,permission)); }
+      try { rows.push(coinAfriqueDetails(await runDocumentEngine(db,job,await readBounded(detail),card.source_url),card,permission)); }
       catch { throw new CollectionError("listing_identity_changed"); }
     }
     return rows;
@@ -328,7 +330,7 @@ async function processCommerce(db:Db,job:Job):Promise<Report> {
   const permission = source.config;
   let candidates:CollectedCommerce[];
   try {
-    candidates = job.handler==="apify" ? await fetchApify(db,job,source,permission) : await fetchCatalog(source,permission,job.max_items);
+    candidates = job.handler==="apify" ? await fetchApify(db,job,source,permission) : await fetchCatalog(db,job,source,permission,job.max_items);
   } catch(error) {
     if (job.handler==="apify" && !(error instanceof CollectionError))
       return {status:"blocked",reason:"provider_execution_unconfirmed"};
@@ -371,7 +373,9 @@ export async function runCollectionTick(db: Db) {
     try {
       report = job.handler === "feed" ? await processFeed(db, job) : await processCommerce(db, job);
     } catch (error) {
-      report = error instanceof CollectionError
+      report = error instanceof DocumentEngineError
+        ? {status:error.retryable?'failed':'blocked',reason:error.code,retryable:error.retryable}
+        : error instanceof CollectionError
         ? {status: error.retryable ? "failed" : "blocked", reason: error.reason, retryable: error.retryable}
         : {status: "failed", reason: "source_request_failed", retryable: true};
     }

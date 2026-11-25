@@ -223,6 +223,17 @@ server {
     }
 
     # Route API (si nécessaire pour le futur)
+    # Authenticated backend-to-backend runtime; it has no network interface.
+    # A missing runtime socket only affects this route, never the SPA.
+    location ^~ /api/waouh-collection-runtime/ {
+        include /etc/nginx/security-headers.conf;
+        client_max_body_size 1500k;
+        proxy_read_timeout 40s;
+        proxy_connect_timeout 3s;
+        proxy_request_buffering on;
+        proxy_pass http://unix:/run/waouh-engines/runner.sock:/;
+    }
+
     location /api/ {
         include /etc/nginx/security-headers.conf;
         add_header Access-Control-Allow-Origin "*" always;

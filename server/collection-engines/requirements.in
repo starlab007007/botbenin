@@ -1,0 +1,4 @@
+beautifulsoup4==4.15.0
+Scrapy==2.20.0
+crawl4ai==0.9.6
+playwright==1.65.2
