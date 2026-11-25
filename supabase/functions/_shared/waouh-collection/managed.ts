@@ -59,6 +59,10 @@ export async function managedCatalog(db:Db,job:{id:string;lease_token:string;tar
    // Validators advance only after the corresponding publication succeeds (worker commits below).
    (row as any).__document={id:doc.id,etag:response.etag,last_modified:response.last_modified};
   }catch(error){
+   if(error instanceof Error&&error.message==='listing_closed'){
+    await check(db.from('waouh_collection_documents').update({state:'removed',last_error:'listing_closed',last_checked_at:new Date().toISOString()}).eq('id',doc.id));
+    await check(db.from('waouh_external_commerce_signals').update({status:'expired'}).eq('source_url',doc.url).eq('source_key','waouh_commercial_web'));continue;
+   }
    const reason=error instanceof SourceReadError?error.code:'listing_processing_failed';
    await check(db.from('waouh_collection_documents').update({state:'unreachable',last_error:reason,next_due_at:new Date(Date.now()+3600000).toISOString()}).eq('id',doc.id));
    throw error;

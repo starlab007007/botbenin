@@ -95,7 +95,7 @@ export async function catalogAdmin(db:Db,body:Record<string,unknown>,actor:{acto
  if(!root||root.hostname.replace(/^www\./,'')!==platform.hostname||platform.access_state!=='authorized'||platform.adapter_key==='none'||
   platform.rights_reference.trim().length<5)throw Error('source_not_ready');
  const permission:SourcePermission={collection_transport:platform.transport,automation_authorized:true,attribution:platform.attribution,media_reuse_authorized:platform.media_authorized,
-  media_hosts:platform.media_hosts,collection_format:platform.adapter_key,category:'',country_scope:'BJ',daily_page_limit:platform.daily_page_limit};
+  api_browser:['playwright','crawl4ai'].includes(platform.engine_key),media_hosts:platform.media_hosts,collection_format:platform.adapter_key,category:'',country_scope:'BJ',daily_page_limit:platform.daily_page_limit};
  let records:any[]=[],reason:string|undefined,previewJob:any=null,discoveryOnly=false;
  try{
   let read=siteReader(db,root,permission);

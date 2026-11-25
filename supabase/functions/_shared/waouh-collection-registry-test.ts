@@ -12,7 +12,7 @@ const html=`<html><head><link rel="canonical" href="${root}"><meta property="og:
 Deno.test('the complete listing gallery excludes resized thumbnails, avatars and related offers',()=>{
  assert.deepEqual(listingGallery(html,root),photos);
  const row=extractListing(html,root,{attribution:'E-Bénin',media_reuse_authorized:true});
- assert.equal(row?.evidence.photos?.length,12);assert.equal(row?.source_url,root.href);assert.equal(row?.evidence.published_at,'2026-11-20T08:00:00.000Z');
+ assert.equal(row?.price_min,150000);assert.equal(row?.evidence.photos?.length,12);assert.equal(row?.source_url,root.href);assert.equal(row?.evidence.published_at,'2026-11-20T08:00:00.000Z');
  assert.equal(extractListing(html,root,{attribution:'E-Bénin',media_reuse_authorized:false})?.evidence.photos?.length,0);
 });
 Deno.test('discovery retains canonical on-site details and pagination without login or external links',()=>{

@@ -4,6 +4,7 @@ import { redactPublicContacts } from "../waouh-signal-fabric.ts";
 export type SourcePermission = {
   automation_authorized?: boolean;
   platform_key?:string;
+  api_browser?:boolean;
   managed_catalog?:boolean;
   authorization_reference?:string;
   discovery_minutes?:number;

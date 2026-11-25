@@ -35,4 +35,31 @@ for(const role of ['anon','authenticated']){
   await assert.rejects(db.query('select * from '+table));
  await assert.rejects(db.query('select waouh_collection_connect_entry(3,$1)',[hash]));await db.exec('reset role');
 }
-await db.close();console.log('Source registry SQL: 50 entries, 37 hosts, aliases, no activation without recent matching test and rights, idempotent connection, hard quota, version dedupe and role isolation PASS');
+await db.exec(`alter table waouh_collection_targets add column next_due_at timestamptz default now(),add column query text;
+create table waouh_collection_policies(provider text primary key,paused boolean default false,daily_page_limit integer);
+insert into waouh_collection_policies values('apify',false,5),('serpapi',false,5),('public_feed',false,100);
+create table waouh_collection_jobs(id uuid primary key default gen_random_uuid(),dedupe_key text unique,handler text,provider text,lane text,payload jsonb,target_id uuid,inline boolean,status text default 'queued',priority integer,max_calls integer,max_pages integer,max_items integer,lease_token uuid,lease_until timestamptz,reserved_pages integer default 0,attempts integer default 1);
+create table waouh_collection_usage(day date,provider text,lane text,reserved_pages integer default 0,primary key(day,provider,lane));
+create function waouh_data_sanitize(jsonb) returns jsonb language sql as 'select $1';
+create function waouh_collection_enqueue(text,text,text,text,jsonb,uuid,uuid,uuid,boolean) returns jsonb language sql as 'select jsonb_build_object(''delegated'',true)';
+create function waouh_collection_reserve(uuid,uuid,uuid,integer) returns boolean language plpgsql set search_path=public as $$
+begin
+ if not exists(select 1 from waouh_collection_jobs where id=$1 and lease_token=$2 and status='running' and lease_until>now()) or $3 is null then return false;end if;
+ update waouh_collection_jobs set reserved_pages=reserved_pages+1 where id=$1;
+ insert into waouh_collection_usage values(current_date,'apify','enrichment',1) on conflict(day,provider,lane) do update set reserved_pages=waouh_collection_usage.reserved_pages+1;
+ return true;end;$$;`);
+await db.exec(fs.readFileSync('supabase/migrations/20261125100300_waouh_catalog_api_transport.sql','utf8'));
+assert.equal((await db.query("select transport from waouh_collection_platforms where hostname='bj.coinafrique.com'")).rows[0].transport,'apify');
+const preview=(await db.query("select waouh_collection_api_preview(1,'apify') j")).rows[0].j;
+assert.equal(preview.inline,true);assert.equal(preview.max_calls,1);assert.equal(preview.max_pages,3);
+assert.equal((await db.query('select waouh_collection_reserve_api_site($1,$2,null,3) ok',[preview.id,preview.lease_token])).rows[0].ok,false);
+assert.equal((await db.query('select reserved_pages from waouh_collection_jobs where id=$1',[preview.id])).rows[0].reserved_pages,0);
+assert.equal((await db.query('select waouh_collection_reserve_api_site($1,$2,$3,3) ok',[preview.id,preview.lease_token,preview.id])).rows[0].ok,true);
+assert.equal((await db.query('select reserved_pages from waouh_collection_jobs where id=$1',[preview.id])).rows[0].reserved_pages,3);
+assert.equal((await db.query('select waouh_collection_reserve_api_site($1,$2,$3,1) ok',[preview.id,preview.lease_token,preview.id])).rows[0].ok,false);
+await db.query("select waouh_collection_pause_entry(3)");
+await db.query('select waouh_collection_schedule(null)');
+assert.equal((await db.query('select enabled from waouh_collection_targets where id=$1',[first])).rows[0].enabled,false);
+await assert.rejects(db.query("select waouh_collection_enqueue('apify','site','watch','x','{}',null,null,$1,false)",[first]));
+assert.equal((await db.query("select waouh_collection_enqueue('public_feed','feed','watch','x','{}',null,null,null,false) j")).rows[0].j.delegated,true);
+await db.close();console.log('Source registry SQL: 50 entries, 37 hosts, aliases, no activation without recent matching test and rights, idempotent connection, hard quota, version dedupe, API page reservation, persistent pause and role isolation PASS');

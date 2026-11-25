@@ -32,7 +32,7 @@ export function listingGallery(html:string,origin:URL):string[]{
   const container=$(gallery);
   if(container.closest('aside,footer,[data-related],.related,.similar-products').length)continue;
   const values=container.find('img').toArray().map(n=>trustedHttps(imageValue($(n)),origin.href)).filter(Boolean) as URL[];
-  const own=values.some(u=>images.includes(u.href))||container.is('.product-gallery,.ad__gallery,.ad__image,[data-listing-gallery],#listing-gallery');
+  const own=values.some(u=>images.some(v=>{const primary=new URL(v);return primary.origin===u.origin&&primary.pathname===u.pathname;}))||container.is('.product-gallery,.ad__gallery,.ad__image,[data-listing-gallery],#listing-gallery');
   if(!own)continue;
   images.push(...values.map(u=>u.href));
   break;
@@ -70,7 +70,7 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
  const facts=facebookListingDetails(title+' '+description);
  const priceText=$('[itemprop="price"],.listing-price,.ad-price,.price').first();
  const explicitPrice=priceText.attr('content')||priceText.text();
- const amount=/(\d[\d .\u00a0\u202f]*)\s*(?:FCFA|F\s*CFA|XOF)/i.exec(explicitPrice||body)?.[1];
+ const amount=/^\d[\d .\u00a0\u202f]*$/.test(explicitPrice.trim())?explicitPrice.trim():/(\d[\d .\u00a0\u202f]*)\s*(?:FCFA|F\s*CFA|XOF)/i.exec(explicitPrice||body)?.[1];
  const price=amount?Number(amount.replace(/[ .\u00a0\u202f]/g,'')):facts.price;
  const published=$('meta[property="article:published_time"]').attr('content')||$('time[datetime]').first().attr('datetime');
  const category=$('[itemprop="category"],.breadcrumb').last().text().trim()||permission.category||facts.category;
@@ -88,7 +88,7 @@ export function extractListing(html:string,origin:URL,permission:SourcePermissio
  if(updated&&Number.isFinite(Date.parse(updated)))row.evidence.source_updated_at=new Date(updated).toISOString();
  // A form asking whether an ad is sold is not a sold status.
  const status=$('[itemprop="availability"],.listing-status,[data-listing-status]').first();
- if(/^(?:vendu|loué|pourvu|sold|closed|indisponible)$/i.test(status.text().trim())||/SoldOut|OutOfStock/.test(status.attr('href')??''))return null;
+ if(/^(?:vendu|loué|pourvu|sold|closed|indisponible)$/i.test(status.text().trim())||/SoldOut|OutOfStock/.test(status.attr('href')??''))throw Error('listing_closed');
  return announce?qualifyPublicAnnouncement(row,body,published,publicDeadline(body)):row;
 }
 

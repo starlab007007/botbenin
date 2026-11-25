@@ -200,7 +200,7 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
   if(permission.managed_catalog===true){
     const {data:platform,error}=await db.from('waouh_collection_platforms').select('hostname,access_state').eq('platform_key',permission.platform_key).single();
-    if(error||platform?.access_state!=='authorized'||url?.hostname.replace(/^www\./,'')!==platform.hostname)throw new CollectionError('source_permission_missing');
+    if(error||!url||platform?.access_state!=='authorized'||url.hostname.replace(/^www\./,'')!==platform.hostname)throw new CollectionError('source_permission_missing');
     hostSettings.push(url.hostname);
   }
   const known = new Set(["bot.bj","www.bot.bj","bj.coinafrique.com","www.coinafrique.com","martistore.click",

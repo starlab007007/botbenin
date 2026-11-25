@@ -98,7 +98,7 @@ begin
  end if;
  update public.waouh_radar_sources set active=true,scan_freq_min=p.discovery_minutes,config=coalesce(config,'{}'::jsonb)||
   jsonb_build_object('collection_format',p.adapter_key,'collection_transport',p.transport,'automation_authorized',true,
-   'authorization_reference',p.rights_reference,'media_reuse_authorized',p.media_authorized,'media_hosts',to_jsonb(p.media_hosts),
+   'authorization_reference',p.rights_reference,'media_reuse_authorized',p.media_authorized,'media_hosts',to_jsonb(p.media_hosts),'api_browser',p.engine_key in('playwright','crawl4ai'),
    'attribution',p.attribution,'country_scope','BJ','canonical_url',e.url,'platform_key',p.platform_key,'managed_catalog',p.adapter_key in('classifieds','coinafrique','schema_org'),
    'discovery_minutes',p.discovery_minutes,'recheck_minutes',p.recheck_minutes,'daily_page_limit',p.daily_page_limit,'collection_status','pending') where id=s;
  insert into public.waouh_collection_targets(provider,handler,radar_source_id,label,enabled,interval_minutes,adaptive,engine_key,url)
