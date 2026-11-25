@@ -74,12 +74,14 @@ export async function engineAdmin(db:Db,body:Record<string,unknown>,actor:{actor
  if(action==='collection.engine.overview'){
   const results=await Promise.all([
    db.from('waouh_collection_engines').select('*').order('engine_key'),
-   db.from('waouh_collection_targets').select('id,label,engine_key,handler,provider,enabled,waouh_radar_sources(config)').eq('handler','site').eq('provider','public_feed').order('label'),
+   db.from('waouh_collection_targets').select('id,label,engine_key,handler,provider,enabled,radar_source_id').eq('handler','site').eq('provider','public_feed').order('label'),
    db.from('waouh_collection_engine_runs').select('id,engine_key,target_id,purpose,status,duration_ms,error_code,created_at').order('created_at',{ascending:false}).limit(50),
+   db.from('waouh_radar_sources').select('id,config').eq('type','site').limit(200),
   ]);
   if(results.some(r=>r.error))throw new DocumentEngineError('engine_overview_unavailable');
+  const sources=new Map<string,any>(results[3].data.map((s:any)=>[s.id,s]));
   return {ok:true,engines:results[0].data,targets:results[1].data.map((t:any)=>({id:t.id,label:t.label,engine_key:t.engine_key,enabled:t.enabled,
-    applicable:!['rss_atom','catalog_json','directory'].includes(t.waouh_radar_sources?.config?.collection_format)})),runs:results[2].data};
+    applicable:sources.has(t.radar_source_id)&&!['rss_atom','catalog_json','directory'].includes(sources.get(t.radar_source_id)?.config?.collection_format)})),runs:results[2].data};
  }
  if(action==='collection.engine.configure'){
   const {key,patch}=enginePatch(body);
@@ -92,8 +94,10 @@ export async function engineAdmin(db:Db,body:Record<string,unknown>,actor:{actor
   if(typeof body.target_id!=='string'||!/^[0-9a-f-]{36}$/i.test(body.target_id))throw new DocumentEngineError('invalid_engine_target');
   const ready=await configuration(db,key);
   if(key!=='cheerio'&&(ready.last_check_status!=='available'||ready.last_test_status!=='passed'))throw new DocumentEngineError('engine_not_ready');
-  const {data:target,error:readError}=await db.from('waouh_collection_targets').select('id,waouh_radar_sources(config)').eq('id',body.target_id).eq('handler','site').eq('provider','public_feed').single();
-  if(readError||!target||['rss_atom','catalog_json','directory'].includes(target.waouh_radar_sources?.config?.collection_format))throw new DocumentEngineError('invalid_engine_target');
+  const {data:target,error:readError}=await db.from('waouh_collection_targets').select('id,radar_source_id').eq('id',body.target_id).eq('handler','site').eq('provider','public_feed').single();
+  if(readError||!target?.radar_source_id)throw new DocumentEngineError('invalid_engine_target');
+  const {data:source,error:sourceError}=await db.from('waouh_radar_sources').select('config').eq('id',target.radar_source_id).eq('type','site').single();
+  if(sourceError||!source||['rss_atom','catalog_json','directory'].includes(source.config?.collection_format))throw new DocumentEngineError('invalid_engine_target');
   const {data,error}=await db.from('waouh_collection_targets').update({engine_key:key}).eq('id',body.target_id).select('id');
   if(error)throw new DocumentEngineError('engine_assignment_unavailable');
   await adminAudit(db,actor,'engine.assign',{target_id:body.target_id,engine_key:key});return {ok:true,updated:data?.length??0};
