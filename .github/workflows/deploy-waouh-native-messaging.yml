@@ -310,7 +310,7 @@ jobs:
         run: |
           deno test --no-config supabase/functions/_shared/waouh-avatar-lifecycle-test.ts supabase/functions/_shared/waouh-avatar-e2e-test.ts
           deno test --no-config supabase/functions/_shared/waouh-opportunity-os-test.ts
-          deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts supabase/functions/_shared/waouh-nexus-deal-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
           deno test --no-config supabase/functions/_shared/waouh-collection-test.ts supabase/functions/_shared/waouh-free-collection-test.ts supabase/functions/_shared/waouh-collection-engines-test.ts supabase/functions/_shared/waouh-collection-registry-test.ts
           deno test --no-config --allow-env supabase/functions/_shared/waouh-external-exchange-test.ts supabase/functions/_shared/waouh-central-whatsapp-test.ts

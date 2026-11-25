@@ -1,5 +1,8 @@
 name: Verify WAOUH unified catalogue
 on:
+  push:
+    branches: [prod]
+    paths: ['.github/workflows/verify-waouh-catalog.yml', 'scripts/verify-waouh-catalog-production.py']
   workflow_dispatch:
     inputs:
       api_preview:
@@ -20,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify catalogue and selected API transport
         env:
-          API_PREVIEW: ${{ inputs.api_preview }}
+          API_PREVIEW: ${{ github.event_name == 'push' || inputs.api_preview }}
         run: |
           args=()
           if [ "$API_PREVIEW" = 'true' ]; then args+=(--api-preview); fi

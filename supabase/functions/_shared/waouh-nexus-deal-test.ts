@@ -84,6 +84,7 @@ function fakeDb(seed: Record<string, Row[]>) {
   function query(table: string) {
     let rows = [...tables[table]];
     let del = false;
+    let patch: Row | null = null;
     let pending: Row | null = null;
     const api: any = {
       select: () => api,
@@ -98,8 +99,10 @@ function fakeDb(seed: Record<string, Row[]>) {
         if (table === "waouh_users") counters.insertedUsers += 1;
         return api;
       },
+      update: (value:Row) => { patch=value; return api; },
       delete: () => { del = true; return api; },
       then: (resolve: (v: any) => void) => {
+        if(patch)for(const row of rows)Object.assign(row,patch);
         if (del) { const ids = new Set(rows.map((r) => r.id)); tables[table] = tables[table].filter((r) => !ids.has(r.id)); }
         return resolve({ data: rows, error: null });
       },
@@ -120,7 +123,11 @@ Deno.test("matérialisation : article + vendeur stub sans coordonnées, une seul
   const stub = db.tables.waouh_users[0];
   assertEquals([stub.channel, stub.phone_number ?? null, stub.auth_user_id ?? null], ["external", null, null]);
   assertEquals(stub.display_name, "Boutique Cotonou Tech");
+  const photos=Array.from({length:12},(_,i)=>`https://cdn.exemple.bj/${i}.jpg`);
+  db.tables.waouh_external_commerce_signals[0].photo_urls=photos;
+  db.tables.waouh_external_commerce_signals[0].primary_photo_url=photos[0];
   const second = await materializeExternalSignal(db, SIG, NOW);
+  assertEquals(db.tables.waouh_articles[0].photos,photos);
   assert(second.ok);
   if (second.ok) { assertEquals(second.created, false); assertEquals(second.articleId, first.articleId); }
   assertEquals(db.tables.waouh_articles.length, 1);
