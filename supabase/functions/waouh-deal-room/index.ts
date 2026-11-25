@@ -3,6 +3,7 @@ import {notifyInApp} from '../_shared/waouh-avatar-inapp.ts';
 import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-auth.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
+import {compareMarketPrice} from '../_shared/waouh-price.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {resolveProductThread} from '../_shared/waouh-thread.ts';
 import {assignRoomDeliveries,deliveryCode,handleCourierRequest} from '../_shared/waouh-room-delivery.ts';
@@ -35,6 +36,21 @@ async function deliveryFor(sb:any,userId:string,roomId:string){
  if(error)return {error};
  if(view?.is_buyer&&['assigned','picked_up'].includes(view.status))view.code=await deliveryCode(roomId,Number(view.version));
  return {view};
+}
+// Repère marché du salon : annonces WAOUH + sites externes + verdict IA. Mis en cache 30 min par salon
+// pour ne pas ralentir les lectures répétées ; la première lecture n'attend pas plus de 6 s.
+const marketCache=new Map<string,{at:number;value:any;pending?:Promise<any>}>();
+async function roomMarket(sb:any,data:any){
+ const id=String(data?.deal_room_id||'');const title=String(data?.title||'').trim();
+ if(!id||title.length<2)return null;
+ const hit=marketCache.get(id);
+ if(hit&&!hit.pending&&Date.now()-hit.at<1800000)return hit.value;
+ const pending=hit?.pending??compareMarketPrice(sb,{query:title.slice(0,80),city:data?.product?.city??null,askedPrice:Number(data?.price)||null}).then(r=>{
+  const v=r?.stats?.median&&r.stats.n>=2?{median:r.stats.median,low:r.stats.p25??r.stats.min,high:r.stats.p75??r.stats.max,count:r.stats.n,advice:r.verdict?.advice||null,sources:[...new Set((r.samples||[]).map((x:any)=>String(x.source||'')).filter(Boolean))].slice(0,4)}:null;
+  marketCache.set(id,{at:Date.now(),value:v});return v;
+ }).catch(()=>{marketCache.set(id,{at:Date.now(),value:null});return null;});
+ if(!hit?.pending)marketCache.set(id,{at:hit?.at??0,value:hit?.value??null,pending});
+ return await Promise.race([pending,new Promise(res=>setTimeout(()=>res(hit?.value??null),6000))]);
 }
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:waouhCorsHeaders});
@@ -181,6 +197,7 @@ Deno.serve(async req=>{
  // Lecture légère : la livraison voyage avec le salon et rien n'est renvoyé tant que rien n'a changé.
  if(action==='get'&&data?.deal_room_id){
   if(data.agreement?.status==='accepted'&&data.agreement?.terms?.delivery_mode==='delivery'){const {view}=await deliveryFor(sb,user.id,String(data.deal_room_id)) as any;if(view)data.delivery=view;}
+  const market=await roomMarket(sb,data).catch(()=>null);if(market){data.market=market;data.market_median=market.median;}
   const hash=await digest(data);
   if(since&&since===hash)return jsonResponse({ok:true,data:{unchanged:true,hash,deal_room_id:data.deal_room_id}});
   data.hash=hash;

@@ -41,3 +41,51 @@ class LiveMarketVerdictLine extends StatelessWidget {
     );
   }
 }
+
+String _fcfa(num? n) => n == null ? '—' : '${n.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ' ')} F';
+
+/// Repère marché d'un échange (même rendu que le Web) : verdict, jauge, conseil, provenance.
+class LiveMarketVerdictCard extends StatelessWidget {
+  const LiveMarketVerdictCard({super.key, required this.market, required this.amount, this.amountLabel = 'Prix affiché'});
+  final Map market;
+  final num? amount;
+  final String amountLabel;
+  @override
+  Widget build(BuildContext context) {
+    final median = num.tryParse('${market['median'] ?? ''}');
+    if (median == null || median <= 0) return const SizedBox.shrink();
+    final v = liveMarketVerdict(amount, median);
+    final a = amount ?? median;
+    final lowRaw = num.tryParse('${market['low'] ?? ''}') ?? median, highRaw = num.tryParse('${market['high'] ?? ''}') ?? median;
+    final low = lowRaw < a ? lowRaw : a, high = highRaw > a ? highRaw : a;
+    final pos = high > low ? (((a - low) / (high - low)) * 100).clamp(4, 96) : 50;
+    final color = v?.tone == 'good' ? const Color(0xFF15803D) : v?.tone == 'high' ? const Color(0xFFB91C1C) : const Color(0xFF3F4756);
+    final sources = (market['sources'] as List? ?? const []).map((e) => '$e').where((e) => e.isNotEmpty).toList();
+    final count = market['count'];
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withValues(alpha: 0.22))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Text(v?.label ?? 'Repère marché', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color))),
+          if (count != null) Text('$count comparable${(count is num && count > 1) ? 's' : ''}', style: const TextStyle(fontSize: 11, color: Colors.black45)),
+        ]),
+        if (v != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text('$amountLabel ${v.gapPct == 0 ? 'au niveau du marché' : '${v.gapPct.abs()} % ${v.gapPct < 0 ? 'sous' : 'au-dessus du'} marché'}', style: const TextStyle(fontSize: 12, color: Colors.black54))),
+        const SizedBox(height: 12),
+        LayoutBuilder(builder: (context, c) => SizedBox(height: 16, child: Stack(children: [
+          Align(child: Container(height: 8, decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), gradient: const LinearGradient(colors: [Color(0xFF9FD3BD), Color(0xFFE9E2B8), Color(0xFFEFB98C)])))),
+          Positioned(left: ((c.maxWidth - 16) * pos / 100).clamp(0, c.maxWidth - 16).toDouble(), child: Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF363346), border: Border.all(color: Colors.white, width: 3)))),
+        ]))),
+        const SizedBox(height: 6),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(_fcfa(low), style: const TextStyle(fontSize: 10.5, color: Colors.black45)),
+          Text('Médiane ${_fcfa(median)}', style: const TextStyle(fontSize: 10.5, color: Colors.black45)),
+          Text(_fcfa(high), style: const TextStyle(fontSize: 10.5, color: Colors.black45)),
+        ]),
+        if ('${market['advice'] ?? ''}'.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text('${market['advice']}', style: const TextStyle(fontSize: 12.5, height: 1.45))),
+        if (sources.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Comparé avec : ${sources.join(', ')}', style: const TextStyle(fontSize: 11, color: Colors.black45))),
+      ]),
+    );
+  }
+}

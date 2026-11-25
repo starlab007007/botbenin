@@ -200,6 +200,17 @@ class LiveSellerBriefCard extends StatelessWidget {
             ]),
             const SizedBox(height: 8),
             Text(verdict.advice, style: const TextStyle(fontSize: 12.5, height: 1.5, color: Colors.black87)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: jade.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
+              child: Row(children: [
+                const Icon(Icons.sell_outlined, size: 18, color: jade),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Prix conseillé : ${liveSellerMoney((verdict.median / 100).round() * 100)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: jade))),
+                Text('${liveSellerMoney(verdict.low)} – ${liveSellerMoney(verdict.high)}', style: const TextStyle(fontSize: 10.5, color: Colors.black45)),
+              ]),
+            ),
           ],
           if (brief.priceNote != null) ...[
             const SizedBox(height: 10),
