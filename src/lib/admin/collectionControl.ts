@@ -39,7 +39,7 @@ export function platformProgress(platform:any, entries:any[], targets:any[] = []
  if(platform.access_state==='paused')return {label:'En pause',tone:'muted',stage:0,active,linked:linked.length};
  if(failed)return {label:explainCollectionReason(failed.test_report?.reason).title,tone:'warning',stage:2,active,linked:linked.length};
  if(active)return {label:'Collecte activée',tone:'success',stage:3,active,linked:linked.length};
- if(linked.length&&known.length&&known.every(t=>!t.enabled))return {label:'Cible en pause',tone:'muted',stage:2,active,linked:linked.length};
+ if(linked.length&&known.length===linked.length&&known.every(t=>!t.enabled))return {label:'Cible en pause',tone:'muted',stage:2,active,linked:linked.length};
  if(platform.access_state!=='authorized'||platform.adapter_key==='none')return {label:platform.access_state==='unverified'?'Adresse à vérifier':'À configurer',tone:'warning',stage:0,active,linked:linked.length};
  const recent=unique.some(e=>e.test_status==='passed'&&e.test_at&&Date.parse(e.test_at)>now-86400000);
  return {label:recent?'Prête à raccorder':linked.length?'Raccordée · état à vérifier':'Test requis',tone:recent?'info':'warning',stage:recent?2:1,active,linked:linked.length};

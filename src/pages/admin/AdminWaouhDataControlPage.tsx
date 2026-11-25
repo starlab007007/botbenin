@@ -435,11 +435,12 @@ function DataControlWorkspace() {
   };
 
   const exportRows = async (kind: 'xlsx' | 'csv') => {
-    const XLSX=await import('xlsx');
     if (!results.length) {
       toast({ title: 'Rien à exporter', variant: 'destructive' });
       return;
     }
+    let XLSX:typeof import('xlsx');
+    try{XLSX=await import('xlsx');}catch{toast({title:'Export indisponible',description:'Le module d’export n’a pas pu être chargé. Réessayez.',variant:'destructive'});return;}
     const flat = results.map(r => ({
       fabric_id: r.fabric_id,
       nexus: r.nexus_managed,
