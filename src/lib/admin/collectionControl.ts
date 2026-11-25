@@ -20,6 +20,19 @@ const reasons: Record<string, {title:string;detail:string}> = {
  engine_runtime_unavailable:{title:'Service des moteurs indisponible',detail:'Vérifiez l’installation des moteurs avant de relancer un test.'},
  source_daily_page_limit:{title:'Limite quotidienne de cette source atteinte',detail:'Attendez la réinitialisation ou examinez la cadence dans les réglages de cette source.'},
  collection_daily_page_limit:{title:'Limite commune de collecte atteinte',detail:'Les nouvelles lectures attendent la réinitialisation du quota commun.'},
+ target_missing:{title:'Collecteur à raccorder',detail:'Aucune cible de collecte ne suit cette rubrique.'},
+ target_paused:{title:'Collecteur en pause',detail:'La rubrique ou sa source est désactivée.'},
+ adapter_missing:{title:'Extraction à implémenter',detail:'Aucun adaptateur ne reconnaît encore les fiches de ce site.'},
+ platform_access_required:{title:'Accès de la plateforme à compléter',detail:'Le raccordement du registre attend ses informations d’accès.'},
+ configuration_mismatch:{title:'Transport différent du registre',detail:'Le collecteur existant utilise un autre transport ou format. Son historique ne valide pas la configuration affichée.'},
+ extraction_test_required:{title:'Test d’extraction requis',detail:'Un test récent de la configuration actuelle est nécessaire.'},
+ discovery_only:{title:'Découverte de liens uniquement',detail:'Les pages de détail doivent encore être lues avant de valider des fiches.'},
+ recent_run_required:{title:'Passage récent requis',detail:'Aucun passage terminé dans les dernières 24 heures ne prouve ce raccordement.'},
+ fresh_records_missing:{title:'Fiches fraîches manquantes',detail:'Aucune fiche active et non expirée n’a été réellement recontrôlée par cette cible dans les dernières 24 heures.'},
+ indexed_records_missing:{title:'Présence dans NEXUS à vérifier',detail:'Aucune fiche fraîche de cette cible n’est présente dans l’index commun.'},
+ useful_records_missing:{title:'Qualité des fiches à compléter',detail:'Une fiche doit avoir un titre, une provenance et, pour une offre commerciale, un prix et une ville exploitables.'},
+ actionable_records_missing:{title:'Fiche exploitable à confirmer',detail:'Une même fiche fraîche doit réunir les informations utiles, les photos attribuées si autorisées et un contact professionnel public pour une offre commerciale.'},
+ attributed_photos_missing:{title:'Photos attribuées manquantes',detail:'La source permet les photos, mais aucune fiche fraîche contrôlée ne contient de photo attribuée.'},
 };
 export function explainCollectionReason(code?: string | null) {
  if (!code) return {title:'À vérifier',detail:'Consultez le dernier test et les informations de cette source.'};
@@ -39,6 +52,8 @@ export function platformProgress(platform:any, entries:any[], targets:any[] = []
  if(platform.access_state==='paused')return {label:'En pause',tone:'muted',stage:0,active,linked:linked.length};
  if(failed)return {label:explainCollectionReason(failed.test_report?.reason).title,tone:'warning',stage:2,active,linked:linked.length};
  if(active&&known.some(t=>t.enabled&&['blocked','failed','partial'].includes(t.last_outcome)))return {label:'Dernier passage à vérifier',tone:'warning',stage:2,active,linked:linked.length};
+ if(unique.length&&unique.every(e=>e.connection_validation?.validated===true))return {label:'Raccordement vérifié',tone:'success',stage:4,active,linked:linked.length};
+ if(active&&unique.some(e=>e.connection_validation))return {label:'Raccordement à valider',tone:'warning',stage:2,active,linked:linked.length};
  if(active)return {label:'Collecte activée',tone:'success',stage:3,active,linked:linked.length};
  if(linked.length&&known.length===linked.length&&known.every(t=>!t.enabled))return {label:'Cible en pause',tone:'muted',stage:2,active,linked:linked.length};
  if(platform.access_state!=='authorized'||platform.adapter_key==='none')return {label:platform.access_state==='unverified'?'Adresse à vérifier':'À configurer',tone:'warning',stage:0,active,linked:linked.length};

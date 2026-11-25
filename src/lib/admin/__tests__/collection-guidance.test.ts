@@ -23,6 +23,15 @@ describe('collection guidance',()=>{
  });
 });
 
+it('requires verified evidence for every distinct rubric before marking a platform complete',()=>{
+ const targets=[{id:'t1',enabled:true,last_outcome:'succeeded'}];
+ const valid={target_id:'t1',connection_validation:{validated:true}};
+ expect(platformProgress(platform,[valid],targets).label).toBe('Raccordement vérifié');
+ expect(platformProgress(platform,[valid,{connection_validation:{validated:false}}],targets).label).toBe('Raccordement à valider');
+ expect(platformProgress(platform,[valid,{alias_of:1,connection_validation:{validated:false}}],targets).label).toBe('Raccordement vérifié');
+ expect(platformProgress(platform,[valid],[{...targets[0],last_outcome:'blocked'}]).label).toBe('Dernier passage à vérifier');
+});
+
 it('does not confuse an enabled collector with a successful last passage',()=>{
  const state=platformProgress(platform,[{target_id:'t1'}],[{id:'t1',enabled:true,last_outcome:'blocked'}]);
  expect(state.label).toBe('Dernier passage à vérifier');expect(state.tone).toBe('warning');expect(state.active).toBe(1);
