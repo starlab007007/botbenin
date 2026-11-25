@@ -49,7 +49,7 @@ export function chatSearchOutcome(search: ChatSearch): { steps: ReasonStep[]; su
   const inZone = results.filter((r) => sameZone(r.city, search.city)).length;
   const reachable = results.filter(r => {
     const fabric_id = r.fabric_id || briefDelegateId(r);
-    return !!fabric_id && offerReachable({ ...r, fabric_id } as NexusDiscoveryResult);
+    return !!fabric_id && offerReachable({ ...r, fabric_id } as unknown as NexusDiscoveryResult);
   });
   const withContact = reachable.filter(r => !!resultContact(r).phone);
   const contactable = reachable.length;
@@ -145,7 +145,7 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
   const selling = search?.kind === "vendre" || !!search?.priceReference;
   const asOffer = (row: WaouhResultCard) => {
     const fabric_id = row.fabric_id || briefDelegateId(row);
-    return fabric_id ? { ...row, fabric_id, price_min: row.price_min ?? row.price ?? null } as NexusDiscoveryResult : null;
+    return fabric_id ? { ...row, fabric_id, price_min: row.price_min ?? row.price ?? null } as unknown as NexusDiscoveryResult : null;
   };
   const alternatives = orderedResults.flatMap(row => {
     const offer = asOffer(row);

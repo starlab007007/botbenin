@@ -16,7 +16,7 @@ export async function loadAdminUsers(signal: AbortSignal): Promise<AdminUser[]> 
   do {
     signal.throwIfAborted();
     const { data, error: requestError } = await supabase.functions.invoke('list-users-admin', {
-      body: { page }, signal, headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { page }, ...({ signal } as object), headers: { Authorization: `Bearer ${session.access_token}` },
     });
     signal.throwIfAborted();
     if (requestError) {

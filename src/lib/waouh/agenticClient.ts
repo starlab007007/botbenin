@@ -10,7 +10,7 @@ export async function invokeWaouhAgentic<T>(action: AgenticAction, payload: Reco
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 120000);
     try {
       return await supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.agenticCore, {
-        body: { action, payload }, signal: controller.signal,
+        body: { action, payload }, ...({ signal: controller.signal } as object),
         ...(boundToken?{headers:{Authorization:`Bearer ${boundToken}`}}:{}),
       });
     } finally { clearTimeout(timer); }
