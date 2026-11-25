@@ -318,7 +318,9 @@ jobs:
           deno run --no-config supabase/functions/_shared/waouh-phone-test.ts
 
       - name: Validate collection engine access and schema
-        run: node scripts/tests/waouh-collection-engines-db.mjs
+        run: |
+          npm install --prefix /tmp/waouh-engine-sql-tests --no-package-lock --no-audit --no-fund @electric-sql/pglite@0.5.8
+          PGLITE_MODULE=/tmp/waouh-engine-sql-tests/node_modules/@electric-sql/pglite/dist/index.js node scripts/tests/waouh-collection-engines-db.mjs
 
       - name: Validate external exchange transactions
         shell: bash

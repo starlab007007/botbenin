@@ -28,14 +28,22 @@ async def browser_document(html):
             await browser.close()
 
 
-async def crawl4ai_document(html):
+async def crawl4ai_document(html, url):
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
     async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False)) as crawler:
         async def isolate(page, context, **kwargs):
-            await context.route('**/*', lambda route: route.abort())
+            served = False
+            async def supplied_document(route):
+                nonlocal served
+                if not served and route.request.is_navigation_request() and route.request.url == url:
+                    served = True
+                    await route.fulfill(status=200, content_type='text/html; charset=utf-8', body=html)
+                else:
+                    await route.abort()
+            await context.route('**/*', supplied_document)
             return page
         crawler.crawler_strategy.set_hook('on_page_context_created', isolate)
-        result = await crawler.arun(url='raw:' + html, config=CrawlerRunConfig(
+        result = await crawler.arun(url=url, config=CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS, page_timeout=15000, verbose=False,
             wait_until='domcontentloaded', delay_before_return_html=0.1))
         if not result.success:
@@ -85,7 +93,7 @@ def execute(data):
     if engine == 'playwright':
         return asyncio.run(browser_document(html))
     if engine == 'crawl4ai':
-        return asyncio.run(crawl4ai_document(html))
+        return asyncio.run(crawl4ai_document(html, data['url']))
     raise ValueError('unknown_engine')
 
 

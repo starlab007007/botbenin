@@ -1,4 +1,4 @@
-import {PGlite} from '@electric-sql/pglite';
+const {PGlite}=await import(process.env.PGLITE_MODULE||'@electric-sql/pglite');
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const db=new PGlite();

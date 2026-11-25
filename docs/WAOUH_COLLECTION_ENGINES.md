@@ -21,7 +21,7 @@ La récupération réseau, les domaines autorisés, les règles robots, l’attr
 - **Scrapy** : spider réel avec une réponse HTML fournie par le worker et interception des téléchargements.
 - **Beautiful Soup** : analyse et restitution du document HTML en Python.
 - **Playwright** : rendu du document dans Chromium.
-- **Crawl4AI** : traitement `raw:` dans son navigateur et restitution du document ; aucun appel à un LLM.
+- **Crawl4AI** : navigation interceptée dans son navigateur, alimentée exclusivement par le document fourni, puis restitution du HTML rendu ; aucun appel à un LLM.
 
 Le service de moteurs est isolé avec `network_mode: none`, système de fichiers en lecture seule, limites de mémoire/processus et un seul traitement simultané. Nginx communique avec lui par un socket Unix partagé. Un secret dédié conservé dans Vault protège le protocole serveur à serveur ; il n’est jamais envoyé au navigateur administrateur.
 
