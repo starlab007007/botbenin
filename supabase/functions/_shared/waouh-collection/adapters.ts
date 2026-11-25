@@ -5,7 +5,7 @@ import {structuredPublicListings,publicDeadline,qualifyPublicAnnouncement} from 
 export function detailUrl(url:URL):boolean{
  const h=url.hostname.replace(/^www\./,'');
  if(h==='e-benin.bj')return /^\/annonces\/\d+\/?$/.test(url.pathname);
- if(h==='niosso.com')return /^\/bj\/annonces\/[^/]+\/[^/]+-\d+\/?$/.test(url.pathname);
+ if(h==='niosso.com')return /^\/bj\/annonces\/(?!categories\/)[^/]+\/[^/]+-\d+\/?$/.test(url.pathname);
  if(h==='bj.bambaad.com'||h==='bj.coinafrique.com')return /^\/annonce\/[^/]+/.test(url.pathname);
  if(h==='bj.bazarafrique.com')return /^\/[^/]+\/\d{8,}-[^/]+\/?$/.test(url.pathname);
  return /\/(?:annonce|annonces|ad|ads|listing|listings|product|produit)\/[^/]+/i.test(url.pathname);

@@ -21154,6 +21154,7 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["waouh_data_records"]["Row"] }
         Returns: Json
       }
+      waouh_collection_stop_unproductive: { Args: never; Returns: number }
       waouh_collection_touch_document: {
         Args: { p_document: string }
         Returns: boolean
