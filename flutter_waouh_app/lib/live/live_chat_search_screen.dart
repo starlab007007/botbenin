@@ -11,6 +11,8 @@ import 'live_seller_brief.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
+import 'live_product_data.dart' show liveProductPhotos;
+import 'live_product_presentation.dart' show showLiveProductDetails;
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_nexus_service.dart';
 import 'live_reasoning.dart';
@@ -573,6 +575,14 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                     border: Border.all(color: const Color(0xFFDCE7F8)),
                   ),
                   child: Row(children: [
+                    if (liveProductPhotos(row).isNotEmpty) Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(liveProductPhotos(row).first, width: 56, height: 56, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 56)),
+                      ),
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -599,6 +609,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                     Column(
                       children: [
                         TextButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Intéressé')),
+                        TextButton(onPressed: () => showLiveProductDetails(context, row), child: const Text('Détails')),
                         if (_contactAllowed(row)) TextButton(
                           onPressed: _delegating ? null : () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []),
                           child: const Text('Bot'),
