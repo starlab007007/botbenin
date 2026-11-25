@@ -1,4 +1,5 @@
 import 'live_interest_entry.dart';
+import 'native_auth_links.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -139,13 +140,16 @@ class LiveWaouhProductionApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: legacy.buildWaouhTheme(),
           routerConfig: router,
-          builder: (context, child) => ListenableBuilder(
-            listenable: router.routeInformationProvider,
-            builder: (_, __) => LiveModuleAccessGate(
-              path: router.routeInformationProvider.value.uri.path,
-              onProfile: () => router.go('/app/profile'),
-              child: LiveOnboardingGate(
-                child: child ?? const SizedBox.shrink(),
+          builder: (context, child) => NativeAuthLinks(
+            onRoute: router.go,
+            child: ListenableBuilder(
+              listenable: router.routeInformationProvider,
+              builder: (_, __) => LiveModuleAccessGate(
+                path: router.routeInformationProvider.value.uri.path,
+                onProfile: () => router.go('/app/profile'),
+                child: LiveOnboardingGate(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

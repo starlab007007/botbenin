@@ -1,0 +1,21 @@
+name: Configure WAOUH Android OAuth return
+on:
+  workflow_dispatch:
+  push:
+    branches: [prod]
+    paths:
+      - scripts/configure-mobile-oauth.py
+      - .github/workflows/configure-mobile-oauth.yml
+permissions:
+  contents: read
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Allow exact native callback and preserve existing redirects
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+        run: python3 scripts/configure-mobile-oauth.py

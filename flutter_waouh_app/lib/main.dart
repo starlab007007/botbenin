@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'live/native_auth_links.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -967,23 +969,11 @@ class AuthController extends ChangeNotifier {
 
   Future<void> signInWithGoogle() async {
     await _guard(() async {
-      try {
-        final account = await GoogleSignIn(
-          scopes: ['email', 'profile'],
-        ).signIn();
-        final auth = await account?.authentication;
-        if (auth?.idToken != null) {
-          await supabase.auth.signInWithIdToken(
-            provider: OAuthProvider.google,
-            idToken: auth!.idToken!,
-            accessToken: auth.accessToken,
-          );
-          return;
-        }
-      } catch (_) {
-        // Fallback for platforms where google_sign_in is not configured yet.
-      }
-      await supabase.auth.signInWithOAuth(OAuthProvider.google);
+      await supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : nativeOAuthRedirect,
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
     }, action: 'login');
   }
 
@@ -1949,7 +1939,10 @@ class WaouhNativeApp extends StatelessWidget {
             title: 'WaouhApp',
             theme: buildWaouhTheme(),
             routerConfig: router,
-            builder: waouhAdaptiveScaleBuilder,
+            builder: (context, child) => NativeAuthLinks(
+              onRoute: router.go,
+              child: waouhAdaptiveScaleBuilder(context, child),
+            ),
           );
         },
       ),
