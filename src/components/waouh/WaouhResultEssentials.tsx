@@ -1,3 +1,4 @@
+import { seenAgo } from "@/lib/waouh/seenAgo";
 import { CircleHelp, Sparkles } from 'lucide-react';
 import { resultEssentials, safeReferenceUrl } from '../../../supabase/functions/_shared/waouh-convergence-contract';
 import type { WaouhResultCard } from './WaouhProductCard';
@@ -69,7 +70,7 @@ export function WaouhResultEssentials({ result }: { result: WaouhResultCard }) {
         {view.refs.map((r) => <div className="wr-reference" key={r.url}>
           <a href={safeReferenceUrl(r.url)!} target="_blank" rel="noreferrer">{r.seller}</a>
           <strong>{money(r.amount, r.currency)}</strong>
-          <small>{r.observed_at ? new Date(r.observed_at).toLocaleDateString('fr-FR') : 'Date non précisée'}</small>
+          <small>{seenAgo(r.observed_at)}</small>
         </div>)}
       </details>}
     </div>}

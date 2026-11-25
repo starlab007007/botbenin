@@ -20681,6 +20681,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      waouh_admin_nexus_control: { Args: never; Returns: Json }
       waouh_admin_reconcile_chat: { Args: { p_mode?: string }; Returns: Json }
       waouh_admin_set_module_control: {
         Args: {

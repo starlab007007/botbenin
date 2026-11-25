@@ -548,6 +548,7 @@ export default function WaouhAdminCommandCenter() {
           <AccessGroup
             title="Données & écosystème"
             items={[
+              { label: "Tour de contrôle NEXUS", path: "/admin/waouh/tour-de-controle", note: "Production par source, fraîcheur, qualité et alertes" },
               { label: "NEXUS · Signal Fabric", path: "/admin/waouh/data-control", note: "Toutes sources, provenance, qualité et contactabilité" },
               { label: "Partenaires", path: "/admin/waouh/partners", note: "Partenaires et permissions" },
               { label: "Commerces", path: "/admin/waouh/businesses", note: "Entreprises, catalogues et vérification" },

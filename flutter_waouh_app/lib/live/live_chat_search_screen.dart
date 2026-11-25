@@ -596,9 +596,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                             [
                               if (reasonMoney(_rowPrice(row)) != null) reasonMoney(_rowPrice(row))!,
                               _rowPhone(row) ?? (_contactAllowed(row) ? 'Contact via WAOUH' : 'Contact à vérifier'),
+                              _rowSource(row),
                               if (row['observed_at'] is String)
                                 if (DateTime.tryParse(row['observed_at'] as String) case final date?)
-                                  'Repérée le ${date.day}/${date.month}/${date.year}',
+                                  _seenAgo(date),
                             ].join(' · '),
                             style: const TextStyle(
                                 fontSize: 11, fontWeight: FontWeight.w700, color: WaouhPalette.muted),
@@ -624,4 +625,22 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       ),
     );
   }
+}
+
+String _seenAgo(DateTime date) {
+  final h = DateTime.now().difference(date).inHours;
+  if (h < 1) return 'Vu à l’instant';
+  if (h < 24) return 'Vu il y a $h h';
+  final d = h ~/ 24;
+  return d < 31 ? 'Vu il y a $d j' : 'Vu le ${date.day}/${date.month}/${date.year}';
+}
+
+String _rowSource(Map row) {
+  final url = '${row['source_url'] ?? (row['source'] is Map ? (row['source'] as Map)['url'] : '') ?? ''}';
+  final host = Uri.tryParse(url)?.host.replaceFirst('www.', '') ?? '';
+  if (host.isEmpty) return 'WAOUH';
+  for (final e in const {'coinafrique': 'CoinAfrique', 'bambaad': 'BambaAd', 'afribaba': 'Afribaba', 'facebook': 'Facebook'}.entries) {
+    if (host.contains(e.key)) return e.value;
+  }
+  return host;
 }

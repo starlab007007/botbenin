@@ -32,6 +32,8 @@ const STOP = new Set([
   "acheter","acheteur","vendeur","disponible","prix","fcfa","f","cfa","en","avec","sur","dans",
 ]);
 
+import { fabricQuality } from "./waouh-fabric-quality.ts";
+
 export function normalizeFabricText(value: unknown) {
   return String(value ?? "")
     .normalize("NFD").replace(DIACRITICS, "")
@@ -113,6 +115,8 @@ export function scoreFabricSignal(input: {
     contactability * 0.06
   );
 
+  const quality = fabricQuality(input.signal as any, verdict.domain === "goods");
+  const ranked = total * quality.factor;
   const reasons: string[] = [];
   const label=verdict.domain==='goods'||verdict.domain==='unknown'?'Produit':'Besoin';
   if (relevance >= 70) reasons.push(label+" très pertinent");
@@ -125,7 +129,9 @@ export function scoreFabricSignal(input: {
   if (freshness >= 90) reasons.push("Signal récent");
 
   return {
-    total_score: Math.round(Math.max(0, Math.min(100, total)) * 10) / 10,
+    total_score: Math.round(Math.max(0, Math.min(100, ranked)) * 10) / 10,
+    complete: quality.complete,
+    hidden: quality.hidden,
     relevance_score: Math.round(relevance * 10) / 10,
     intent_score: intentScore,
     trust_score: trust,

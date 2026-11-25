@@ -149,6 +149,7 @@ const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
 const AdminDiffusionApprovalsPage = lazy(() => import("./pages/admin/AdminDiffusionApprovalsPage"));
 const AdminWaouhPartnersPage = lazy(() => import("./pages/admin/AdminWaouhPartnersPage"));
+const AdminNexusControlTowerPage = lazy(() => import("./pages/admin/AdminNexusControlTowerPage"));
 const AdminWaouhDataControlPage = lazy(() => import("./pages/admin/AdminWaouhDataControlPage"));
 const AdminWaouhMonitoringPage = lazy(() => import("./pages/admin/AdminWaouhMonitoringPage"));
 const AdminWaouhBusinessesPage = lazy(() => import("./pages/admin/AdminWaouhBusinessesPage"));
@@ -372,6 +373,7 @@ const AppContent = () => {
                      <Route path="/admin/waouh/diffusion-approvals" element={<AdminRoute><AdminDiffusionApprovalsPage /></AdminRoute>} />
                      <Route path="/admin/waouh/partners" element={<AdminRoute><AdminWaouhPartnersPage /></AdminRoute>} />
                      <Route path="/admin/waouh/data-control" element={<AdminRoute><AdminWaouhDataControlPage /></AdminRoute>} />
+                    <Route path="/admin/waouh/tour-de-controle" element={<AdminRoute><AdminNexusControlTowerPage /></AdminRoute>} />
                      <Route path="/admin/waouh/monitoring" element={<AdminRoute><AdminWaouhMonitoringPage /></AdminRoute>} />
                      <Route path="/admin/waouh/businesses" element={<AdminRoute><AdminWaouhBusinessesPage /></AdminRoute>} />
                      <Route path="/admin/waouh/deals" element={<AdminRoute><AdminWaouhDealsPage /></AdminRoute>} />
