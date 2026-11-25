@@ -19,6 +19,7 @@ import 'live_reasoning.dart';
 import 'live_nexus_find_panel.dart' show LiveReasoningFeed;
 import 'live_automatic_offers.dart' show liveOfferReachable;
 import 'live_bot_follow_up.dart';
+import 'live_deal_journey.dart' show LiveDealStepper;
 import 'package:go_router/go_router.dart';
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
@@ -368,13 +369,14 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    ]else if(r!=null)...[
     if(guide!=null)LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),
     card([if(r['product'] is Map)LiveProductPresentation(value:r['product']),Text('${r['title']}',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(r['price'])),Text('${r['counterparty_name']??'Interlocuteur'}'),if(r['blocked_reason']!=null)const Text('Dossier historique : liaison à vérifier.'),Text(externalContactText(r['external_contact'])??(r['provider_joined']==true?(r['external_contact']==null&&r['events'] is List&&(r['events'] as List).any((e)=>e is Map&&e['event_type']=='seller_pending')?'Vendeur à joindre · votre message et votre offre partent dès qu’un contact est trouvé':'Interlocuteur dans l’échange'):'Invitation nécessaire'))]),
-    card([Row(children:[Image.asset('assets/bot/bot_avatar.png',width:40),const SizedBox(width:10),Expanded(child:Text(expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange'))]),
+    LiveDealStepper(stage:a==null?((r['messages'] as List? ?? []).isEmpty?'interest':'negotiation'):a['status']=='completed'?'payment':a['status']=='accepted'?((r['delivery'] as Map?)?['status']=='delivered'?'payment':'delivery'):'agreement'),
+    Card(child:ExpansionTile(dense:true,leading:Image.asset('assets/bot/bot_avatar.png',width:28),title:Text(expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),trailing:const Text('Voir détail',style:TextStyle(fontSize:12)),childrenPadding:const EdgeInsets.fromLTRB(16,0,16,12),expandedCrossAxisAlignment:CrossAxisAlignment.stretch,children:[
      if(r['is_owner']==true&&r['closed']!=true&&!['accepted','completed'].contains(a?['status'])&&guide?['action']!='takeover')button(bot?'Reprendre la main':'Confier à Bot',()=>bot?act('takeover',{'mandate_revision':r['mandate_revision']}):mandate()),
      if(r['is_owner']==true&&allowed.contains('approve_step')&&guide?['action']!='approve_step')button('Autoriser la prochaine proposition / relance dans les limites du mandat',()=>act('approve_step',{'mandate_revision':r['mandate_revision'],'version':r['current_offer_version']})),
      if(r['is_owner']==true&&bot)button('Mettre en pause',()=>act('pause',{'mandate_revision':r['mandate_revision']})),
      if(r['is_owner']==true&&r['control_mode']=='paused'&&!expired&&guide?['action']!='resume_bot')button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
-    ]),
-    if(r['is_owner']==true&&(bot||r['control_mode']=='paused'))LiveBotFollowUpCard(room:r,title:'${r['title']??''}'.trim().isEmpty?null:'${r['title']}',onMissions:()=>context.push('/app/missions')),
+     if(r['is_owner']==true&&(bot||r['control_mode']=='paused'))LiveBotFollowUpCard(room:r,title:'${r['title']??''}'.trim().isEmpty?null:'${r['title']}',onMissions:()=>context.push('/app/missions')),
+    ])),
     if(r['is_owner']==true&&r['expires_at']!=null)Text('Plafond privé : ${money((r['mandate'] as Map?)?['budget_max'])} · Mandat jusqu’au ${when(r['expires_at'])}',style:const TextStyle(fontSize:12)),
     if(r['is_owner']==true&&(((r['mandate'] as Map?)?['cascade_step'] as num?)??1)>1)Padding(padding:const EdgeInsets.only(top:4),child:Text('Piste ${(r['mandate'] as Map)['cascade_step']}/${(r['mandate'] as Map)['cascade_max_steps']} · Bot a choisi cette offre après l’absence de réponse de la précédente.',style:const TextStyle(fontSize:12))),
     if((r['events'] as List? ?? []).isNotEmpty)ExpansionTile(title:const Text('Activité de l’échange'),children:[for(final event in (r['events'] as List).reversed.take(5))ListTile(dense:true,title:Text('${{'bot_step':'Bot a mis à jour l’échange','takeover':'Reprise humaine','delegate':'Mandat enregistré','retry_required':'Nouvelle tentative planifiée','application_prepare':'Dossier préparé','application_submit':'Dossier transmis','application_outcome':'Réponse au dossier enregistrée','guest_contacted':'Vendeur contacté par WhatsApp','guest_stopped':'Le vendeur ne souhaite pas être contacté'}[event['event_type']]??'Mise à jour enregistrée'}'),subtitle:Text(when(event['created_at'])))]),
