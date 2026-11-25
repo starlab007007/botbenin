@@ -19,7 +19,7 @@ export function publicBusinessEvidence(value:unknown){
  for(const key of ['diagnostic_included','delivery_included','price_confirmed','availability_confirmed','in_stock','remote','eligible','rare_item','provider_profile'])if(typeof e[key]==='boolean')result[key]=e[key];
  if(['available','unavailable'].includes(String(e.availability)))result.availability=e.availability;
  const photos=[e.primary_photo_url,e.image_url,...(Array.isArray(e.photos)?e.photos:[])].map(publicPhoto).filter(Boolean);
- if(photos.length)result.photos=[...new Set(photos)].slice(0,4);
+ if(photos.length)result.photos=[...new Set(photos)];
  return result;
 }
 export function publicNexusResult(row: Record<string, unknown>) {

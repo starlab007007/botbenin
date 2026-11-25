@@ -1,0 +1,59 @@
+import {PGlite} from '@electric-sql/pglite';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec(fs.readFileSync('tests/fixtures/discovery-schema.sql','utf8'));
+await db.exec('alter role service_role bypassrls');
+for(const name of ['20261028113539_waouh_unified_discovery_facts','20261125080800_waouh_complete_galleries','20261125080808_waouh_indexed_unified_search','20261125080909_waouh_source_references'])
+ await db.exec(fs.readFileSync('supabase/migrations/'+name+'.sql','utf8'));
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const images=Array.from({length:12},(_,i)=>`https://media.example/${i}.jpg`);
+const insert=(table,row)=>db.query(`insert into ${table}(${Object.keys(row).join(',')}) values(${Object.keys(row).map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(row));
+const search=async(query,mode='find_sellers',sources=null,internal=false,city=null,budget=null,domain=null,country=null,limit=50,offset=0)=>(await db.query('select public.waouh_search_unified($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) result',[query,mode,sources,internal,city,budget,domain,country,limit,offset])).rows[0].result;
+await insert('waouh_articles',{id:id(1),title:'iPhone 13',status:'active',price:150000,city:'Calavi',photos:images,created_at:'2020-01-01',source_channel:'web'});
+console.log('Seeding large corpus');
+await db.exec('alter table waouh_articles disable trigger waouh_search_sync');
+await db.exec(`insert into waouh_articles(id,title,status,price,created_at) select ('10000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid,'Meuble chaise '||i,'active',5000,now() from generate_series(1,1100) i`);
+await db.exec(`insert into waouh_search_documents(fabric_id,source_key,intent,domain,country_code,city_normalized,title_normalized,search_vector,price_min,observed_at) select 'article:'||id,'waouh_app','SELL','product','BJ','','',to_tsvector('simple',title),price,created_at from waouh_articles where title like 'Meuble chaise %'`);
+await db.exec('alter table waouh_articles enable trigger waouh_search_sync');
+console.log('Testing full corpus');
+let result=await search('iphone 13');
+assert.equal(result.records.length,1);assert.equal(result.records[0].fabric_id,'article:'+id(1));assert.equal(result.records[0].evidence.photos.length,12);
+assert.equal((await search('chaise','find_sellers',null,false,null,null,null,null,10,10)).next_offset,20);
+assert.equal((await search('chaise')).total,1100);
+assert.equal((await search('iphone','find_sellers',null,false,null,100000)).total,0);
+assert.equal((await search('iphone','find_sellers',null,false,'Parakou')).total,0);
+await insert('waouh_external_commerce_signals',{id:id(2),source_key:'waouh_commercial_web',source_external_id:'remote-2',intent:'SELL',status:'active',product_name:'iPhone 13',country_code:'CI',price_min:140000,photo_urls:images});
+assert.equal((await search('iphone','find_sellers',null,false,null,null,null,'BJ')).total,1);
+assert.equal((await search('iphone','find_sellers',['waouh_app'])).total,1);
+assert.equal((await search('iphone','find_sellers',null,true)).total,1);
+await db.query("update waouh_articles set price=80000,title='Samsung S25' where id=$1",[id(1)]);
+assert.equal((await search('samsung')).records[0].price_min,80000);
+await insert('waouh_unified_catalog',{id:id(3),source:'chat',source_ref_id:id(1),type:'offer',titre:'Samsung miroir',is_active:true});
+assert.equal((await search('samsung')).total,1);
+await db.query("update waouh_articles set status='sold' where id=$1",[id(1)]);
+assert.equal((await search('samsung')).total,0);
+await insert('waouh_external_commerce_signals',{id:id(4),source_key:'waouh_commercial_web',intent:'ANNOUNCE',status:'active',product_name:'Emploi comptable',evidence:{deadline:'2000-01-01'}});
+assert.equal((await search('comptable')).total,0);
+await insert('waouh_external_commerce_signals',{id:id(5),source_key:'waouh_commercial_web',intent:'SELL',status:'active',product_name:'Plomberie professionnelle',category:'services',evidence:{offer_kind:'service'}});
+assert.equal((await search('plomb','find_sellers',null,false,null,null,'service')).total,1);
+await insert('waouh_external_commerce_signals',{id:id(8),source_key:'partner',intent:'SELL',status:'active',product_name:'iPhone 13',country_code:'CI',price_min:140000,photo_urls:['https://media.example/extra.jpg']});
+await db.query('select waouh_search_group($1,$2,$3,true)',['external:'+id(2),'external:'+id(8),'Same seller and same exact device, checked manually']);
+assert.equal((await search('iphone')).total,1);
+assert.equal((await search('iphone')).records[0].evidence.photos.length,13);
+assert.equal((await search('iphone','find_sellers',['partner'])).total,1); // no private canonical source can hide an allowed reference
+assert.equal((await db.query('select waouh_search_canonical($1) id',['external:'+id(8)])).rows[0].id,'external:'+id(2));
+await db.query('delete from waouh_search_aliases where alias_id=$1',['external:'+id(8)]);
+assert.equal((await search('iphone')).total,2);
+await db.query('delete from waouh_external_commerce_signals where id=$1',[id(8)]);
+// Expiry is checked at read time even if the projection has not been rebuilt.
+await db.query("update waouh_external_commerce_signals set expires_at='2000-01-01' where id=$1",[id(2)]);
+assert.equal((await search('iphone')).total,0);
+for(const role of ['anon','authenticated']){
+ await db.exec('set role '+role);
+ await assert.rejects(search('chaise'));await assert.rejects(db.query('select * from public.waouh_search_documents'));
+ await db.exec('reset role');
+}
+await db.exec('set role service_role');assert.equal((await search('chaise')).total,1100);await db.exec('reset role');
+await assert.rejects(search('a','invalid'));await assert.rejects(search('a','find_sellers',null,false,null,null,null,null,201));
+await db.close();console.log('Unified SQL search: old match beyond 1000 rows, live updates/removals, twelve photos, mirrors, expiry, country/source/privacy filters, pagination and bounds PASS');

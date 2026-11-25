@@ -23,19 +23,22 @@ describe('unified discovery',()=>{
   const opportunity=discoveryBusinessFacts({product_name:'Bourse PME',deadline:'2099-01-01',conditions:'Entreprises locales'});
   expect(opportunity.offer_kind).toBe('announcement');expect(missionMatches({fabric_id:'op',evidence:opportunity},{missionKind:'opportunity'})).toBe(true);
  });
- it('keeps four safe images of the same product, exact quantities and French attributes',()=>{
+ it('keeps every safe image of the same product, exact quantities and French attributes',()=>{
   const photos=Array.from({length:5},(_,i)=>`https://images.example/${i}.jpg`);
-  expect(discoveryBusinessFacts({title:'Soja',photos}).photos).toHaveLength(4);
+  expect(discoveryBusinessFacts({title:'Soja',photos}).photos).toHaveLength(5);
   expect(discoveryBusinessFacts({title:'Soja',photos:['https://images.example/p?token=secret','javascript:bad']})).not.toHaveProperty('photos');
   expect(productSnapshot({title:'Soja',ai_attributes:{quantity:1.5,unit:'tonne'}})?.attributes).toEqual(expect.arrayContaining([{label:'Quantité',value:'1,5'},{label:'Unité',value:'tonne'}]));
   expect(normalizeMissionContext({quantity:1.5},'sale').quantity).toBe(1.5);
  });
- it('searches descriptions and categories, merges matches, and filters every public query',async()=>{
-  const calls:any[][]=[];let request=0;
-  const db={from:(table:string)=>{const call:any[]=[table];calls.push(call);const index=request++;const q:any={};for(const name of ['select','in','or','order','limit'])q[name]=(...args:any[])=>{call.push([name,...args]);return q};q.then=(fn:any)=>Promise.resolve({data:index?[{fabric_id:'a'},{fabric_id:'b'}]:[{fabric_id:'a'}],error:null}).then(fn);return q;}};
-  const result=await loadDiscoveryRecords(db,{query:'plombier plomberie',mode:'find_sellers',publicSources:['partner']});
-  expect(result.records.map(r=>r.fabric_id)).toEqual(['a','b']);expect(result.coverage.exhaustive).toBe(false);
-  for(const c of calls)expect(c).toContainEqual(['in','source_key',['partner']]);
-  expect(calls[1].find(x=>x[0]==='or')[1]).toContain('raw_text.ilike.%plombier%');expect(calls[1].find(x=>x[0]==='or')[1]).toContain('category.ilike.%plomberie%');
+ it('queries the shared indexed gateway with source and locality filters',async()=>{
+  const calls:any[]=[];
+  const db={from:()=>{throw Error('no table scan');},rpc:async(name:string,args:any)=>{calls.push([name,args]);return {data:{records:[{fabric_id:'a'},{fabric_id:'b'}],total:1200,limit:200,offset:0,next_offset:200},error:null};}};
+  const result=await loadDiscoveryRecords(db,{query:'plombier',mode:'find_sellers',publicSources:['partner'],city:'Calavi',budgetMax:50000});
+  expect(result.records.map(r=>r.fabric_id)).toEqual(['a','b']);expect(result.coverage).toMatchObject({indexed:true,total:1200,exhaustive:false,next_offset:200});
+  expect(calls[0]).toEqual(['waouh_search_unified',expect.objectContaining({p_query:'plombier plomberie',p_sources:['partner'],p_city:'Calavi',p_budget:50000})]);
+ });
+ it('does not silently replace an unavailable common index with a partial table scan',async()=>{
+  const db={from:()=>{throw Error('must not scan');},rpc:async()=>({data:null,error:{message:'unavailable'}})};
+  await expect(loadDiscoveryRecords(db,{query:'iphone',mode:'find_sellers'})).rejects.toThrow('discovery_records_unavailable');
  });
 });

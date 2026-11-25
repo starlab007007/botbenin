@@ -5,6 +5,7 @@ import { waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { inspectCollectionProvider, runCollectionTick } from "../_shared/waouh-collection/worker.ts";
 import {collectionOverview,collectionControlPatch,publicSourceConfiguration} from '../_shared/waouh-collection/control.ts';
 import {engineAdmin,DocumentEngineError} from '../_shared/waouh-collection/engines.ts';
+import {catalogAdmin} from '../_shared/waouh-collection/registry.ts';
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok",{headers:waouhCorsHeaders});
@@ -16,6 +17,9 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
   const body=await req.json().catch(()=>({}));
   try {
+    if(typeof body?.action==='string'&&body.action.startsWith('collection.catalog.')){
+      return Response.json(await catalogAdmin(db,body,guard),{headers:waouhCorsHeaders});
+    }
     if(typeof body?.action==='string'&&body.action.startsWith('collection.engine.')) {
       return Response.json(await engineAdmin(db,body,guard),{headers:waouhCorsHeaders});
     }
@@ -50,6 +54,6 @@ Deno.serve(async (req) => {
     console.error("[waouh-radar-site-scraper] collection unavailable",error);
     return Response.json({ok:false,message:"Collecte momentanément indisponible.",
       code:error instanceof Error&&/^[a-z_]+$/.test(error.message)?error.message:"collection_tick_failed"},
-      {status:error instanceof DocumentEngineError&&error.code==='engine_admin_required'?403:error instanceof Error&&/^invalid_/.test(error.message)?400:503,headers:waouhCorsHeaders});
+      {status:error instanceof Error&&['engine_admin_required','catalog_admin_required'].includes(error.message)?403:error instanceof Error&&/^invalid_/.test(error.message)?400:503,headers:waouhCorsHeaders});
   }
 });

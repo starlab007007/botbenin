@@ -68,6 +68,9 @@ export async function runDocumentEngine(db:Db,job:{id:string;target_id:string},h
  const key=engineKey(data?.engine_key);
  return audited(db,key,()=>document(db,key,html,url),{job_id:job.id,target_id:job.target_id,purpose:'collection'});
 }
+export async function runPreviewDocumentEngine(db:Db,key:EngineKey,html:string,url:string,actorId?:string){
+ return audited(db,key,()=>document(db,key,html,url),{purpose:'demo',actor_id:actorId??null});
+}
 export async function engineAdmin(db:Db,body:Record<string,unknown>,actor:{actor:string;userId?:string}){
  if(!['admin','service'].includes(actor.actor))throw new DocumentEngineError('engine_admin_required');
  const action=body.action;

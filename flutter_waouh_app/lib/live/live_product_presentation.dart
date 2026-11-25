@@ -257,8 +257,13 @@ class _LiveProductGalleryState extends State<LiveProductGallery> {
                     ),
                     icon: const Icon(Icons.chevron_left),
                   ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(children: [
                   for (var i = 0; i < urls.length; i++)
-                    Expanded(
+                    SizedBox(
+                      width: 58,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: Semantics(
@@ -293,6 +298,9 @@ class _LiveProductGalleryState extends State<LiveProductGallery> {
                         ),
                       ),
                     ),
+                      ]),
+                    ),
+                  ),
                   IconButton(
                     tooltip: 'Photo suivante',
                     visualDensity: VisualDensity.compact,

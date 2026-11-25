@@ -3,13 +3,20 @@ import { redactPublicContacts } from "../waouh-signal-fabric.ts";
 
 export type SourcePermission = {
   automation_authorized?: boolean;
+  platform_key?:string;
+  api_browser?:boolean;
+  managed_catalog?:boolean;
+  authorization_reference?:string;
+  discovery_minutes?:number;
+  recheck_minutes?:number;
+  daily_page_limit?:number;
   media_reuse_authorized?: boolean;
   media_hosts?: string[];
   attribution?: string;
-  collection_format?: "catalog_json" | "schema_org" | "directory" | "coinafrique" | "rss_atom" | "goafrica" | "telegram_public";
+  collection_format?: "catalog_json" | "schema_org" | "directory" | "coinafrique" | "rss_atom" | "goafrica" | "telegram_public" | "classifieds";
   canonical_url?: string;
   category?: string;
-  collection_transport?: "direct";
+  collection_transport?: "direct" | "apify" | "serpapi";
   country_scope?: "BJ";
 };
 
@@ -34,7 +41,7 @@ export type CollectedCommerce = {
   evidence: {offer_kind: "product" | "service" | "announcement"; availability_confirmed: false;
     source_attribution: string; photo_attribution?: string; photos?: string[]; rare_item?: true;
     provider_profile?: true; listing_license?: string; deadline?: string; published_at?: string;
-    organization?: string; deadline_status?: "not_published"};
+    organization?: string; source_updated_at?:string; last_checked_at?:string; deadline_status?: "not_published"};
 };
 type ObjectValue = Record<string, unknown>;
 const obj = (v: unknown): ObjectValue => v && typeof v === "object" && !Array.isArray(v) ? v as ObjectValue : {};
@@ -78,7 +85,7 @@ function approvedPhotos(input: unknown, url: URL, permission: SourcePermission) 
       (image?.hostname.endsWith(".fbcdn.net") || image?.hostname.endsWith(".fbsbx.com"));
     if (facebookHosts.has(url.hostname) && !facebookMedia) return [];
     return image && (hosts.has(image.hostname) || facebookMedia) ? [image.href] : [];
-  }))].slice(0, 4);
+  }))];
 }
 
 export function commercialRecord(input: ObjectValue, origin: URL, permission: SourcePermission,
@@ -197,8 +204,9 @@ export function coinAfriqueDetails(html: string, row: CollectedCommerce, permiss
     return value ? [{channel: "whatsapp" as const, value}] : [];
   });
   const listingId = /-(\d+)$/.exec(origin.pathname)?.[1];
-  const gallery = $('meta[property="og:image"]').toArray().flatMap(node => {
-    const url = trustedHttps($(node).attr("content"));
+  const gallery = $('meta[property="og:image"], .ad__image img, .ad__gallery img, .swiper-slide img, .carousel-item img').toArray().flatMap(node => {
+    const el=$(node);
+    const url = trustedHttps(el.attr("data-src") ?? el.attr("data-lazy") ?? el.attr("src") ?? el.attr("content"));
     return url?.hostname === "images.coinafrique.com" && listingId &&
       url.pathname.startsWith("/" + listingId + "_") ? [url.href] : [];
   });

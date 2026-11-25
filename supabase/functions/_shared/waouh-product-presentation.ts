@@ -1,6 +1,5 @@
 import {redactPublicContacts} from './waouh-signal-fabric.ts';
 /** Public product information only. A gallery always belongs to one product. */
-export const PRODUCT_PHOTO_LIMIT = 4;
 type Row = Record<string, any>;
 const row = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 const text = (...values: unknown[]) => values.find((v): v is string => typeof v === 'string' && !!v.trim())?.trim() ?? '';
@@ -21,7 +20,6 @@ export function productPhotos(value: unknown): string[] {
     // Local, same-origin assets are supported; executable and protocol-relative URLs are not.
     if (!/^(https?:\/\/|\/(?!\/))/i.test(url) || photos.includes(url)) continue;
     photos.push(url);
-    if (photos.length === PRODUCT_PHOTO_LIMIT) break;
   }
   return photos;
 }

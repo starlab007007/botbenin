@@ -8,6 +8,9 @@ import { normalizeE164, phoneLast4 } from "../waouh-tel/phone.ts";
 import { collectionSources, extractNotices, sourceKeyFor, type CollectionSource, type VerifiedNotice } from "./sources.ts";
 import {goAfricaProviders,rssAtomListings,structuredPublicListings,telegramPublicListings} from "./public.ts";
 import {runDocumentEngine,DocumentEngineError} from './engines.ts';
+import {managedCatalog} from './managed.ts';
+import {SourceReadError} from './network.ts';
+import {publicBusinessEvidence} from '../waouh-public-discovery.ts';
 
 const robotsParser = robotsParserModule as unknown as (
   url: string, content: string,
@@ -195,10 +198,16 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
   const url = trustedHttps(permission.canonical_url ?? source.identifier);
   const original = trustedHttps(source.identifier);
   const hostSettings = (Deno.env.get("WAOUH_COLLECTION_SITE_HOSTS") ?? "").split(",").map(v=>v.trim().toLowerCase());
+  if(permission.managed_catalog===true){
+    const {data:platform,error}=await db.from('waouh_collection_platforms').select('hostname,access_state').eq('platform_key',permission.platform_key).single();
+    if(error||!url||platform?.access_state!=='authorized'||url.hostname.replace(/^www\./,'')!==platform.hostname)throw new CollectionError('source_permission_missing');
+    hostSettings.push(url.hostname);
+  }
   const known = new Set(["bot.bj","www.bot.bj","bj.coinafrique.com","www.coinafrique.com","martistore.click",
     "www.goafricaonline.com","bourses.enseignementsuperieur.gouv.bj","t.me",...hostSettings.filter(Boolean)]);
   if (!url || !original || url.origin !== original.origin || !known.has(url.hostname))
     throw new CollectionError("source_host_not_allowed");
+  if(permission.managed_catalog===true)return managedCatalog(db,job,url,permission);
   await respectRobots(url.href);
   const format = permission.collection_format ?? "schema_org";
   const json = format === "catalog_json" || format === "directory";
@@ -341,11 +350,17 @@ async function processCommerce(db:Db,job:Job):Promise<Report> {
   for (const row of selected) {
     try {
       const contacts = await privateContacts(row);
-      const {contacts:ignored,...safeRow} = row;
+      const {contacts:ignored,__document:document,...safeRow} = row as CollectedCommerce & {__document?:Record<string,unknown>};
       const stableContacts = contacts.map(({value_encrypted,...stable})=>stable);
       const outcome:unknown = await rpc(db,"waouh_collection_publish_listing",{
         p_job:job.id,p_token:job.lease_token,p_hash:await sha256Hex(JSON.stringify({...safeRow,contacts:stableContacts})),
         p_row:safeRow,p_contacts:contacts});
+      if(document){
+        await rpc(db,'waouh_collection_commit_document',{p_document:document.id,p_hash:await sha256Hex(JSON.stringify(safeRow)),
+          p_etag:document.etag??null,p_last_modified:document.last_modified??null,
+          p_facts:{title:safeRow.product_name,price_min:safeRow.price_min??null,price_max:safeRow.price_max??null,
+            evidence:publicBusinessEvidence(safeRow.evidence)}});
+      }
       if (outcome==="inserted" || outcome==="updated" || outcome==="unchanged") report[outcome]++;
       else throw new CollectionError("source_write_unconfirmed",true);
     } catch(error) {
@@ -373,7 +388,9 @@ export async function runCollectionTick(db: Db) {
     try {
       report = job.handler === "feed" ? await processFeed(db, job) : await processCommerce(db, job);
     } catch (error) {
-      report = error instanceof DocumentEngineError
+      report = error instanceof SourceReadError
+        ? {status:error.retryable?'failed':'blocked',reason:error.code,retryable:error.retryable}
+        : error instanceof DocumentEngineError
         ? {status:error.retryable?'failed':'blocked',reason:error.code,retryable:error.retryable}
         : error instanceof CollectionError
         ? {status: error.retryable ? "failed" : "blocked", reason: error.reason, retryable: error.retryable}
@@ -385,6 +402,7 @@ export async function runCollectionTick(db: Db) {
     processed++;
     outcomes[report.status] = (outcomes[report.status] || 0) + 1;
   }
+  await rpc(db,"waouh_collection_expire_stale",{});
   await rpc(db, "waouh_collection_heartbeat", {p_data: {scheduled, processed, outcomes}});
   return {scheduled, processed, outcomes};
 }
