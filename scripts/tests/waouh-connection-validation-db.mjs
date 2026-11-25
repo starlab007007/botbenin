@@ -22,6 +22,7 @@ await db.exec(`create role anon;create role authenticated;create role service_ro
  (2,'Unconnected same domain','example',null,null,'passed',now(),'hash','{}'),
  (3,'Alias','example',1,null,null,null,null,'{}');`);
 await db.exec(fs.readFileSync('supabase/migrations/20261125133059_waouh_connection_validation.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261125134638_waouh_connection_validation_index.sql','utf8'));
 const audit=async()=> (await db.query('select waouh_collection_connection_audit() a')).rows[0].a;
 let report=await audit();
 assert.equal(report.entries[0].validated,true);

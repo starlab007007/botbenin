@@ -115,6 +115,10 @@ La fraîcheur ci-dessous correspond à une lecture récente du collecteur, pas �
 
 ## Contrôles livrés
 
+- Un test réel de l’entrée Afribaba a ensuite confirmé `provider_quota_exhausted`, sans augmentation de plafond.
+- Les recherches de production retournent 15 résultats pour « plomberie », 3 pour « bourse » et 12 pour « moto » ; les fiches retournées possèdent une provenance.
+- Le relevé complet a révélé des scans répétés de la table des tâches. Un index partiel sur les derniers passages terminés a ramené l’exécution mesurée de 20–48 secondes à 0,71 seconde, pour permettre la consultation dans l’administration.
+
 - RPC privée `waouh_collection_connection_audit()` : lecture seule, refusée à anon/authenticated et appelée par la passerelle administrateur.
 - Le catalogue affiche le total validé, les preuves par rubrique, le transport réel et les blocages. Une cible activée ne suffit plus à afficher un raccordement vérifié.
 - Tests SQL : chaîne complète positive, isolation des cibles, alias, index absent, fiches anciennes/expirées, contact sans base publique, découverte seule, transport différent et échec récent. Aucun quota, accès, consentement ou droit photo n’est élargi.
