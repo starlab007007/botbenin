@@ -249,13 +249,36 @@ Deno.serve(async (req) => {
     let totalWorkingSessions = 0;
     let startIndex = 0;
     if (requestedSessions) {
-      sessionsToUse = requestedSessions.slice(0, maxSessions);
-      totalWorkingSessions = requestedSessions.length;
+      const selected = [...new Set(requestedSessions)].slice(0, maxSessions);
+      const ready: string[] = [];
+      const blocked: { session: string; status: string }[] = [];
+      for (const session of selected) {
+        const reply = await guardedWahaFetch(
+          `${wahaBase}/api/sessions/${encodeURIComponent(session)}`, { headers }, "status",
+        );
+        const data = reply.ok ? await reply.json().catch(() => null) : null;
+        const status = String(data?.status || data?.state || (reply.ok ? 'UNKNOWN' : `HTTP_${reply.status}`)).toUpperCase();
+        if (status === 'WORKING') {
+          ready.push(session);
+        } else {
+          blocked.push({ session, status });
+        }
+      }
+      if (blocked.length) {
+        const reason = blocked.map(item => `${item.session}: ${item.status}`).join(', ');
+        await supabase.from('waouh_lid_sync_runs').update({
+          status: 'failed', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
+          error: ('WAHA_SESSION_NOT_READY: ' + reason).slice(0, 1200),
+          finished_at: new Date().toISOString(),
+        }).eq('id', runId);
+        return json({ ok: false, code: 'WAHA_SESSION_NOT_READY', blocked, fetched: 0, mapped: 0, backfilled: 0, centralized: 0 });
+      }
+      sessionsToUse = ready;
+      totalWorkingSessions = ready.length;
     } else {
       const sRes = await guardedWahaFetch(`${wahaBase}/api/sessions`, { headers });
       if (!sRes.ok) {
-        const t = await sRes.text();
-        throw new Error(`WAHA /api/sessions HTTP ${sRes.status}: ${t.slice(0, 200)}`);
+        throw new Error(`WAHA /api/sessions HTTP ${sRes.status}`);
       }
       const list = await sRes.json();
       const workingSessions = (Array.isArray(list) ? list : [])
@@ -286,12 +309,13 @@ Deno.serve(async (req) => {
 
     if (sessionsToUse.length === 0) {
       await supabase.from('waouh_lid_sync_runs').update({
-        status: 'success', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
+        status: 'failed', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
         error: 'Aucune session WAHA active (WORKING). Veuillez scanner le QR-code dans WAHA pour activer au moins une session.',
         finished_at: new Date().toISOString(),
       }).eq('id', runId);
       return json({
-        ok: true,
+        ok: false,
+        code: 'WAHA_SESSION_NOT_READY',
         warning: 'Aucune session WAHA active (WORKING). Connectez au moins une session via QR-code.',
         sessions: [], fetched: 0, mapped: 0, backfilled: 0, centralized: 0, perSession: [],
       });
@@ -306,8 +330,7 @@ Deno.serve(async (req) => {
         const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
         const resp = await guardedWahaFetch(url, { headers, signal: AbortSignal.timeout(45000) }, "contact_sync");
         if (!resp.ok) {
-          const text = await resp.text();
-          sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
+          sessionResult.error = `WAHA_CONTACTS_HTTP_${resp.status}`;
           perSession.push(sessionResult);
           continue;
         }
