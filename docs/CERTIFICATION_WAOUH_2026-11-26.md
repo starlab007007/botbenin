@@ -89,3 +89,15 @@ Propositions (par priorité) :
 3. Rechercher davantage de numéros depuis les fiches publiques (site, page Facebook de l'entreprise) pour dépasser 84 vendeurs joignables.
 4. Mettre en avant les offres joignables dans les résultats, et proposer « Confier à Bot » pour les autres.
 5. Relancer les sources sans collecte depuis plus de 30 jours, ou les marquer « en pause ».
+
+## Audit des sources de collecte (26/11, 20 h)
+
+| Source | État constaté | Cause | Action |
+|---|---|---|---|
+| CoinAfrique (6 catégories) | 5 annonces lues par passage, toujours les mêmes → « rien de nouveau » | Limite fixe à 5 et lecture du haut de liste | Corrigé : jusqu'à 15 par passage, nouvelles annonces d'abord. Vérifié : Services 0 → 15 nouvelles annonces avec photo, ville, prix |
+| Groupes Facebook (7) | Bloqués | Crédit du service de collecte épuisé | À recharger côté fournisseur |
+| Recherche Internet | Bloquée depuis le 25/11 | Crédit épuisé | À recharger côté fournisseur |
+| Gouvernement — Emploi / Marchés | 60 et 33 avis lus, 0 retenu | Tous les avis sont clos (dernière échéance 18/11) | Comportement correct |
+| BCEAO | Échec ponctuel | Site momentanément indisponible | Nouvel essai automatique |
+| 24 sites « à valider » / « non vérifiés » | Jamais collectés | Droits d'usage non confirmés | Décision de l'exploitant |
+| Numéros étrangers (+33…) | Ignorés | Reconnaissance limitée au Bénin | Corrigé |
