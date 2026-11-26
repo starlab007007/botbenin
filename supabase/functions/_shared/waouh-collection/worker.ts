@@ -230,8 +230,15 @@ async function fetchCatalog(db:Db,job:Job,source:RadarSource, permission:SourceP
   if(format==="goafrica")return goAfricaProviders(body,url,permission);
   if(format==="telegram_public")return telegramPublicListings(body,url,permission);
   if (format === "coinafrique") {
-    const limit=Math.min(maxItems,5);
-    const cards = coinAfriqueCatalog(body,url,permission).slice(0,limit);
+    // Read new listings first: the top of the index is usually already stored.
+    const limit=Math.min(maxItems,20);
+    const allCards = coinAfriqueCatalog(body,url,permission);
+    const known=new Set<string>();
+    if(allCards.length){
+      const seen=await db.from('waouh_external_commerce_signals').select('source_url').eq('source_key','waouh_commercial_web').in('source_url',allCards.map(card=>card.source_url));
+      for(const row of seen.data??[])known.add(row.source_url);
+    }
+    const cards=[...allCards.filter(card=>!known.has(card.source_url)),...allCards.filter(card=>known.has(card.source_url))].slice(0,limit);
     const urls=cards.length?cards.map(card=>card.source_url):discoverUrls(body,url).details.slice(0,limit);
     if (!urls.length) throw new CollectionError("source_format_changed");
     const rows:CollectedCommerce[] & {issues?:string[]} = [];
