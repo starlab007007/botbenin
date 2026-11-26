@@ -48,7 +48,7 @@ jobs:
             test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}' waha-waha-1)" = /home/debian/WAHA/docker-compose.yaml
             docker compose config --quiet
             old_id=$(docker inspect -f '{{.Image}}' waha-waha-1)
-            target=devlikeapro/waha:2026.10.1
+            target=devlikeapro/waha:latest-2026.10.1
             echo "Mode=$WAHA_MODE target=$target"
             docker ps --filter name=waha-waha-1 --format '{{.Names}} {{.Status}}'
             df -h /home/debian/WAHA
@@ -147,6 +147,7 @@ jobs:
             docker tag "$old_id" "waha-rollback:$(basename "$backup")"
             python3 "$probe" before "$backup/working-sessions.json"
             # Verify the only configured service change is the WAHA image.
+            test ! -e docker-compose.yaml.waha-candidate && test ! -L docker-compose.yaml.waha-candidate
             docker compose config --format json > "$backup/before.json"
             python3 - "$backup" "$target" <<'EDIT'
             import pathlib,re,sys
@@ -158,6 +159,7 @@ jobs:
             pathlib.Path("docker-compose.yaml.waha-candidate").write_text(result)
             EDIT
             candidate=docker-compose.yaml.waha-candidate
+            chmod 600 "$candidate"
             docker compose -f "$candidate" config --format json > "$backup/after.json"
             python3 - "$backup" "$target" <<'CHECK'
             import json,sys,pathlib
