@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: deploy-botbj-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   deploy:
@@ -211,6 +211,56 @@ jobs:
             grep -q '/apresbacia/production-finalization-v2_17.js' "$RELEASE_DIR/public/apresbacia/index.html"
             grep -q 'PUBLIC_AGENT_SLUG' "$RELEASE_DIR/src/pages/NotFound.tsx"
 
+            # Save the exact previous web image and compose configuration before mutation.
+            # A working release is pinned separately only after public verification.
+            ROLLBACK_DIR="/home/debian/botbj-web-rollback"
+            mkdir -p "$ROLLBACK_DIR"
+            chmod 700 "$ROLLBACK_DIR"
+            PREVIOUS_IMAGE=$(docker inspect --format '{{.Image}}' react-app-botjs 2>/dev/null || true)
+            if [ -n "$PREVIOUS_IMAGE" ] && [ -f "$APP_DIR/docker-compose.yml" ]; then
+              docker tag "$PREVIOUS_IMAGE" botbj-web-rollback:previous
+              cp "$APP_DIR/docker-compose.yml" "$ROLLBACK_DIR/previous-compose.yml"
+            elif docker image inspect botbj-web-rollback:last-known-good >/dev/null 2>&1 && [ -f "$ROLLBACK_DIR/last-known-good-compose.yml" ]; then
+              PREVIOUS_IMAGE=$(docker image inspect --format '{{.Id}}' botbj-web-rollback:last-known-good)
+              cp "$ROLLBACK_DIR/last-known-good-compose.yml" "$ROLLBACK_DIR/previous-compose.yml"
+            else
+              PREVIOUS_IMAGE=""
+            fi
+            DEPLOY_MUTATED=0
+            rollback_web() {
+              RC=$?
+              trap - EXIT INT TERM
+              if [ "$RC" -ne 0 ] && [ "$DEPLOY_MUTATED" -eq 1 ]; then
+                echo "Deployment failed; inspecting web state and attempting bounded web-only rollback."
+                docker ps -a --filter name=react-app-botjs || true
+                docker logs --tail=80 react-app-botjs || true
+                if [ -n "$PREVIOUS_IMAGE" ]; then
+                  docker tag "$PREVIOUS_IMAGE" botbenin-react-app:latest
+                  docker compose --project-directory "$APP_DIR" -f "$ROLLBACK_DIR/previous-compose.yml" up -d --no-build --no-deps --force-recreate react-app || true
+                  RESTORED=0
+                  for attempt in $(seq 1 12); do
+                    if curl -fsS --max-time 8 http://127.0.0.1:8084/waouh-release.json >/dev/null &&
+                       curl -fsS --max-time 8 https://bot.bj/ >/dev/null &&
+                       curl -fsS --max-time 8 https://bot.bj/app/chat >/dev/null; then
+                      RESTORED=1
+                      echo "Previous web image restored; HTTP checks passed."
+                      break
+                    fi
+                    sleep 5
+                  done
+                  [ "$RESTORED" -eq 1 ] || echo "Rollback attempted but public HTTP checks failed; operator intervention required."
+                else
+                  echo "No previous web image available; manual recovery required."
+                fi
+              fi
+              cleanup_release
+              exit "$RC"
+            }
+            trap rollback_web EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            docker network inspect web >/dev/null
+            DEPLOY_MUTATED=1
             echo "📂 Synchronisation du code..."
             if command -v rsync >/dev/null 2>&1; then
               rsync -a --delete "$RELEASE_DIR/" "$APP_DIR/"
@@ -221,8 +271,6 @@ jobs:
 
             cd "$APP_DIR"
             cleanup_release
-            trap - EXIT INT TERM
-
             echo "📦 Chargement de l’image construite et vérifiée en CI..."
             docker load -i "$CI_IMAGE_DIR/botbj-image.tar.gz"
             docker run --rm --entrypoint nginx "botbj-ci:${DEPLOY_SHA}" -t
@@ -235,7 +283,10 @@ jobs:
             docker run --rm --network none --user 0 \
               -v waouh-collection-engine-socket:/socket --entrypoint python \
               waouh-collection-engines:latest -c 'import os; os.chmod("/socket",0o777)'
-            docker compose up -d --no-build --force-recreate --remove-orphans
+            docker compose up -d --no-build collection-engines privatai-downloads
+            docker compose up -d --no-build --no-deps --force-recreate react-app
+            docker inspect --format '{{json .NetworkSettings.Networks}}' react-app-botjs | grep -q '"web"'
+            docker port react-app-botjs 80/tcp | grep -q ':8084$'
             rm -f "$CI_IMAGE_DIR/collection-runtime-token"
             rm -f "$CI_IMAGE_DIR/botbj-image.tar.gz" "$CI_IMAGE_DIR/botbj-image.tar.gz.sha256"
             rmdir "$CI_IMAGE_DIR" || true
@@ -246,7 +297,9 @@ jobs:
 
             READY=0
             for i in $(seq 1 15); do
-              if curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
+              if curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/ | grep -q 'id="root"' &&
+                 curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/app/chat | grep -q 'id="root"' &&
+                 curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
                  curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/apresbacia/styles-v2.css >/dev/null 2>&1 && \
                  curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl --connect-timeout 5 --max-time 15 -fsSL http://127.0.0.1:8084/fa >/dev/null 2>&1 && \
@@ -284,7 +337,9 @@ jobs:
 
             PUBLIC_READY=0
             for i in $(seq 1 15); do
-              if curl --connect-timeout 5 --max-time 15 -fsSL https://bot.bj/apresbacia >/dev/null 2>&1 && \
+              if curl --connect-timeout 5 --max-time 15 -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/?deploy_check=${DEPLOY_SHA}" | grep -q 'id="root"' &&
+                 curl --connect-timeout 5 --max-time 15 -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/app/chat?deploy_check=${DEPLOY_SHA}" | grep -q 'id="root"' &&
+                 curl --connect-timeout 5 --max-time 15 -fsSL https://bot.bj/apresbacia >/dev/null 2>&1 && \
                  curl --connect-timeout 5 --max-time 15 -fsSL https://bot.bj/apresbacia/styles-v2.css | grep -q -- '--green' && \
                  curl --connect-timeout 5 --max-time 15 -fsSL https://bot.bj/apresbacia/theme-v2_16.css | grep -q -- '--ab-blue' && \
                  curl --connect-timeout 5 --max-time 15 -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
@@ -326,8 +381,11 @@ jobs:
               fi
             '
 
-            # Garder sept jours d’images de cette application pour le retour arrière.
-            docker image prune -af --filter label=io.botbj.release=true --filter until=168h || true
+            # Pin the verified image; do not prune rollback images.
+            docker tag "botbj-ci:${DEPLOY_SHA}" botbj-web-rollback:last-known-good
+            cp "$APP_DIR/docker-compose.yml" "$ROLLBACK_DIR/last-known-good-compose.yml"
+            printf '%s\n' "$DEPLOY_SHA" > "$ROLLBACK_DIR/last-known-good.sha"
+            DEPLOY_MUTATED=0
             echo "✅ Déploiement production, AprèsBac IA et Web Chat public terminés"
 
       - name: Verify installed engines through the administrator gateway

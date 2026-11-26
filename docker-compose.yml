@@ -8,6 +8,8 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.react-app-bot.rule=Host(`bot.bj`)"
       - "traefik.http.routers.react-app-bot.entrypoints=websecure"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.react-app-bot.service=react-app-bot"
       - "traefik.http.routers.react-app-bot.tls.certresolver=myresolver"
       - "traefik.http.services.react-app-bot.loadbalancer.server.port=80"
       - "traefik.port=80"
@@ -25,7 +27,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - wget -q -O /dev/null http://127.0.0.1/apresbacia || exit 1
+        - wget -q -O /dev/null http://127.0.0.1/ && wget -q -O /dev/null http://127.0.0.1/app/chat && wget -q -O /dev/null http://127.0.0.1/waouh-release.json && wget -q -O /dev/null http://127.0.0.1/apresbacia || exit 1
       interval: 30s
       timeout: 5s
       retries: 5
