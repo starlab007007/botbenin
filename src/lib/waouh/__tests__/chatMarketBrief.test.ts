@@ -88,4 +88,8 @@ describe("pertinence : la demande d'abord", () => {
   it("sans demande exploitable, rien ne change", () => {
     expect(chatMarketBrief([card(1, { price: 10 })], {}).exact).toBeNull();
   });
+  it("Bot ne choisit jamais en premier une offre à plus de 50 % sous la médiane", () => {
+    const brief = chatMarketBrief([card(1, { price: 600, city: "Cotonou" }), card(2, { price: 200000, city: "Cotonou" }), card(3, { price: 150000, city: "Cotonou" }), card(4, { price: 50000, city: "Porto Novo" })], { city: "Cotonou" });
+    expect(brief.pick?.price).not.toBe(600);
+  });
 });

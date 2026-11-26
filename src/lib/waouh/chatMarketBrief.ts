@@ -129,7 +129,7 @@ function fitness(row: Omit<BriefRow, "rank">, median: number | null): number {
   else if (median) {
     const gap = (row.price - median) / median;
     // Un prix très inférieur au marché n'est pas un avantage : il demande une vérification.
-    score += gap < -0.5 ? -6 : Math.max(-15, Math.min(15, -gap * 30));
+    score += gap < -0.5 ? -60 : Math.max(-15, Math.min(15, -gap * 30));
   }
   return score;
 }

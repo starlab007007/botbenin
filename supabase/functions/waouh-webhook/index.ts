@@ -21,7 +21,7 @@ import { articleEntryActionsV3, negotiationActions as registryNegotiationActions
 import { renderCatalog, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { openBuyerDeal } from "../_shared/waouh-deal-open.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
-import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe, titleMatchesRequest } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 import {
   nativeEngineRequestAuthorized,
@@ -1771,6 +1771,10 @@ Deno.serve(async (req) => {
             })
             .filter((x) => x.s > 0);
           const hasTitleHit = scored.some((x) => x.s >= 3);
+          // L'objet cherché d'abord : « ordinateur portable » écarte téléphones et accessoires
+          // dès qu'au moins une offre correspond vraiment.
+          const exact = scored.filter((x) => titleMatchesRequest(get(x.r).title, strictKws));
+          if (exact.length) return exact.sort((a, b) => b.s - a.s).map((x) => x.r);
           return scored
             .filter((x) => (hasTitleHit ? x.s >= 3 : true))
             .sort((a, b) => b.s - a.s)

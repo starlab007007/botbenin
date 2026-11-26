@@ -736,7 +736,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     ]);
     const opensSearch = (!!searchHint?.force && atts.length === 0) || isChatSearchGoal(text, metaOverride, atts.length > 0);
     if (opensSearch) {
-      setChatSearch({ id: tempInId, goal: searchHint?.goal || text, city: (locationOverride?.city && locationOverride.city.trim()) || "", status: "running", results: [], text: "", kind: searchHint?.kind, budget: searchHint?.budget ?? null });
+      setChatSearch({ id: tempInId, goal: searchHint?.goal || text, city: (locationOverride?.city && locationOverride.city.trim()) || geo.city || "", status: "running", results: [], text: "", kind: searchHint?.kind, budget: searchHint?.budget ?? null });
     }
     try {
       const effLat = locationOverride?.lat ?? geo.lat;

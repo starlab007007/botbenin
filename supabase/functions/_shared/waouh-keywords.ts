@@ -87,7 +87,30 @@ export function matchesAnyKeyword(
 ): boolean {
   if (!keywords || keywords.length === 0) return true;
   const hay = normalizeHay(fields);
-  return keywords.some((k) => hayHasWord(hay, k));
+  if (!keywords.some((k) => hayHasWord(hay, k))) return false;
+  return headKeywordOk(hay, keywords);
+}
+
+/** Accessoires : « support d'ordinateur » n'est pas un ordinateur, sauf si on le demande. */
+const ACCESSORY_WORDS = ["support","housse","coque","chargeur","cable","etui","sacoche","protection","adaptateur","clavier","souris","batterie","ecran"];
+
+/**
+ * Nom principal : dans « ordinateur portable », le premier mot est l'objet cherché,
+ * les suivants le qualifient. Un « téléphone portable » ne répond donc pas.
+ */
+function headKeywordOk(hay: string, keywords: string[]): boolean {
+  const kws = keywords.filter((k) => typeof k === "string" && k.trim().length >= 3);
+  if (kws.length < 2) return true;
+  const head = kws[0];
+  if (!hayHasWord(hay, head)) return false;
+  const asked = new Set(kws.map((k) => stripAccents(k.toLowerCase())));
+  const firstWords = hay.trim().split(" ").slice(0, 3);
+  return !firstWords.some((w) => ACCESSORY_WORDS.includes(w.replace(/s$/, "")) && !asked.has(w) && !asked.has(w.replace(/s$/, "")));
+}
+
+/** Variante applicable au titre seul (pour les tris et filtres finaux). */
+export function titleMatchesRequest(title: string | null | undefined, keywords: string[]): boolean {
+  return matchesAnyKeyword([title], keywords);
 }
 
 function normalizeHay(fields: Array<string | null | undefined>): string {

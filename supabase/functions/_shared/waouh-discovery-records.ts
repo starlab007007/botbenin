@@ -40,7 +40,7 @@ export async function loadDiscoveryRecords(
     p_internal_only:input.internalOnly??false,p_city:input.city??null,p_budget:input.budgetMax??null,
     p_domain:input.domain??null,p_country:input.country??null,p_limit:Math.min(200,Math.max(1,input.limit??200)),p_offset:input.offset??0,
   });
-  if(error||!data||!Array.isArray(data.records))throw new Error('discovery_records_unavailable');
+  if(error||!data||!Array.isArray(data.records)){console.error('[discovery-records] unified search failed',error?.code,error?.message,error?.details,typeof data);throw new Error('discovery_records_unavailable');}
   const records:Record<string,any>[]=data.records.map(discoveryRecordIdentity).filter((r:Record<string,any>)=>discoveryRecordCurrent(r))
     .map((r:Record<string,any>)=>input.mode==='find_buyers'?procurementBuyerSignal(r):r)
     .filter((r:Record<string,any>)=>input.mode!=='find_buyers'||['BUY','RFQ'].includes(r.intent));

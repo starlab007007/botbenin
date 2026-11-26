@@ -421,7 +421,8 @@ LiveChatBrief liveChatMarketBrief(List<Map<String, dynamic>> rows, {String? city
       final gap = (price - median) / median;
       // Un prix très inférieur au marché n'est pas un avantage : il demande une vérification.
       if (gap < -0.5) {
-        score -= 6;
+        // Jamais retenu en premier choix : prix suspect à vérifier.
+        score -= 60;
       } else {
         final bonus = -gap * 30;
         score += bonus > 15 ? 15 : (bonus < -15 ? -15 : bonus);
