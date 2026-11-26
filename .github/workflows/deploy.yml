@@ -97,17 +97,97 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: python3 server/collection-engines/provision.py collection-runtime-token
 
-      - name: Transférer l’image vérifiée vers le VPS
+      - name: Transférer et vérifier les images via OpenSSH
         if: github.event_name != 'pull_request'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: "botbj-image.tar.gz,botbj-image.tar.gz.sha256"
-          target: "/tmp/botbj-ci-${{ github.sha }}"
-          command_timeout: 10m
+        timeout-minutes: 38
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          VPS_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || { echo 'Invalid or missing VPS_HOST'; exit 1; }
+          [[ "$VPS_USER" =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] || { echo 'Invalid or missing VPS_USER'; exit 1; }
+          [[ "$VPS_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$VPS_PORT >= 1 && 10#$VPS_PORT <= 65535 )) || { echo 'Invalid VPS_PORT'; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          test -n "$VPS_KEY" || { echo 'SSH_PRIVATE_KEY missing'; exit 1; }
+          sha256sum -c botbj-image.tar.gz.sha256
+          TMP_SSH=$(mktemp -d)
+          trap 'rm -rf -- "$TMP_SSH"' EXIT
+          printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$TMP_SSH/key"
+          unset VPS_KEY
+          chmod 600 "$TMP_SSH/key"
+          : > "$TMP_SSH/known_hosts"
+          HOST_CHECK=accept-new
+          if [ -n "$VPS_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > "$TMP_SSH/known_hosts"
+            HOST_CHECK=yes
+          else
+            echo '::warning::VPS_KNOWN_HOSTS is not configured; first SSH host key is accepted for this job only.'
+          fi
+          unset VPS_KNOWN_HOSTS
+          OPTS=(-i "$TMP_SSH/key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o "StrictHostKeyChecking=$HOST_CHECK" -o "UserKnownHostsFile=$TMP_SSH/known_hosts")
+          DEST="$VPS_USER@$VPS_HOST"
+          REMOTE="/tmp/botbj-ci-$GITHUB_SHA"
+          REQUIRED_KB=$(( $(du -k botbj-image.tar.gz | awk '{print $1}') + 65536 ))
+          echo 'Checking SSH connectivity, remote directory ownership and available disk space...'
+          ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" bash -s -- "$REMOTE" "$REQUIRED_KB" <<'PREFLIGHT'
+          set -eu
+          dir=$1
+          required=$2
+          umask 077
+          [ ! -L "$dir" ] || { echo 'Unsafe transfer directory (symlink)'; exit 1; }
+          mkdir -p -- "$dir"
+          [ -O "$dir" ] || { echo 'Transfer directory is not owned by SSH user'; exit 1; }
+          chmod 700 "$dir"
+          available=$(df -Pk "$dir" | awk 'NR==2 {print $4}')
+          partial=0
+          if [ -f "$dir/botbj-image.tar.gz" ] && [ ! -L "$dir/botbj-image.tar.gz" ]; then
+            partial=$(du -k "$dir/botbj-image.tar.gz" | awk '{print $1}')
+          fi
+          for file in botbj-image.tar.gz botbj-image.tar.gz.sha256; do
+            [ ! -L "$dir/$file" ] || { echo 'Unsafe transfer file (symlink)'; exit 1; }
+          done
+          echo "Available: ${available} KiB; transfer budget: ${required} KiB"
+          [ "$((available + partial))" -ge "$required" ] || { echo 'Insufficient VPS disk space for image transfer'; df -h "$dir"; exit 1; }
+          PREFLIGHT
+          MODE=scp
+          if command -v rsync >/dev/null && ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" 'command -v rsync >/dev/null 2>&1'; then
+            MODE=rsync
+          fi
+          printf -v RSYNC_RSH '%q ' ssh "${OPTS[@]}" -p "$VPS_PORT"
+          export RSYNC_RSH
+          echo "Transfer method: $MODE"
+          for attempt in 1 2 3; do
+            echo "Image transfer attempt $attempt/3"
+            if [ "$MODE" = rsync ]; then
+              if timeout 10m rsync --partial --append-verify --timeout=90 --chmod=F600 botbj-image.tar.gz botbj-image.tar.gz.sha256 "$DEST:$REMOTE/"; then
+                TRANSFER_OK=1
+              else
+                TRANSFER_OK=0
+              fi
+            else
+              if timeout 10m scp "${OPTS[@]}" -P "$VPS_PORT" botbj-image.tar.gz botbj-image.tar.gz.sha256 "$DEST:$REMOTE/"; then
+                TRANSFER_OK=1
+              else
+                TRANSFER_OK=0
+              fi
+            fi
+            if [ "$TRANSFER_OK" -eq 1 ]; then
+              if ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" "cd '$REMOTE' && sha256sum -c botbj-image.tar.gz.sha256"; then
+                echo 'Remote image checksum verified; deployment can continue.'
+                exit 0
+              fi
+              echo 'Remote checksum verification failed; discarding only the two transfer files before retry.'
+              ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" "rm -f -- '$REMOTE/botbj-image.tar.gz' '$REMOTE/botbj-image.tar.gz.sha256'" || true
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 15; fi
+          done
+          echo '::error::Image transfer or remote integrity verification failed after three attempts.'
+          exit 1
 
       - name: Transfer private runtime credential as its owner
         if: github.event_name != 'pull_request'
