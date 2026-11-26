@@ -23,6 +23,21 @@ jobs:
       - name: Récupérer le code GitHub Actions
         uses: actions/checkout@v4
 
+      - name: Setup Node for dependency preflight
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify lockfile and CPU-only Docker build configuration
+        run: |
+          set -euo pipefail
+          node scripts/check-lockfile-sync.mjs
+          grep -Fxq 'onnxruntime-node-install-cuda=skip' .npmrc
+          grep -Fq 'COPY package.json package-lock.json .npmrc ./' Dockerfile
+          grep -Fq 'ENV npm_config_onnxruntime_node_install_cuda=skip' Dockerfile
+          grep -Fq -- '--onnxruntime-node-install-cuda=skip' Dockerfile
+          echo 'Dependency preflight passed; Docker build will use npm ci.'
+
       - name: Verify WAOUH release alignment
         run: python3 scripts/verify-waouh-release.py
 
