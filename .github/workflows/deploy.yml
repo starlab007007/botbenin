@@ -139,20 +139,66 @@ jobs:
           dir=$1
           required=$2
           umask 077
-          [ ! -L "$dir" ] || { echo 'Unsafe transfer directory (symlink)'; exit 1; }
-          mkdir -p -- "$dir"
-          [ -O "$dir" ] || { echo 'Transfer directory is not owned by SSH user'; exit 1; }
-          chmod 700 "$dir"
-          available=$(df -Pk "$dir" | awk 'NR==2 {print $4}')
-          partial=0
-          if [ -f "$dir/botbj-image.tar.gz" ] && [ ! -L "$dir/botbj-image.tar.gz" ]; then
-            partial=$(du -k "$dir/botbj-image.tar.gz" | awk '{print $1}')
-          fi
-          for file in botbj-image.tar.gz botbj-image.tar.gz.sha256; do
-            [ ! -L "$dir/$file" ] || { echo 'Unsafe transfer file (symlink)'; exit 1; }
+          # The VPS can be completely full: diagnose and reclaim before mkdir.
+          echo 'Disk blocks and inodes before cleanup:'
+          df -h / /tmp; df -i / /tmp
+          exec 9>/home/debian/waouh-web-deploy.lock
+          flock -w 60 -x 9 || { echo 'Another deployment is active'; exit 1; }
+          # Only abandoned BOT.BJ deployment artifacts, owned by this SSH user.
+          # Never touch Docker volumes, containers, databases or rollback tags.
+          for old in /tmp/botbj-ci-*; do
+            [ -d "$old" ] && [ ! -L "$old" ] && [ -O "$old" ] || continue
+            [ "$old" != "$dir" ] || continue
+            [[ "${old##*/}" =~ ^botbj-ci-[a-f0-9]{40}$ ]] || continue
+            for file in botbj-image.tar.gz botbj-image.tar.gz.sha256 collection-runtime-token; do
+              p="$old/$file"
+              if [ -f "$p" ] && [ ! -L "$p" ] && [ -O "$p" ]; then
+                rm -f -- "$p"
+              fi
+            done
+            rmdir -- "$old" 2>/dev/null || true
           done
-          echo "Available: ${available} KiB; transfer budget: ${required} KiB"
-          [ "$((available + partial))" -ge "$required" ] || { echo 'Insufficient VPS disk space for image transfer'; df -h "$dir"; exit 1; }
+          for old in /tmp/botbenin-*.tar.gz; do
+            [ -f "$old" ] && [ ! -L "$old" ] && [ -O "$old" ] || continue
+            [[ "${old##*/}" =~ ^botbenin-[a-f0-9]{40}\.tar\.gz$ ]] || continue
+            rm -f -- "$old"
+          done
+          for old in /tmp/botbenin-release-*; do
+            [ -d "$old" ] && [ ! -L "$old" ] && [ -O "$old" ] || continue
+            [[ "${old##*/}" =~ ^botbenin-release-[a-f0-9]{40}$ ]] || continue
+            rm -rf --one-file-system -- "$old"
+          done
+          # Reclaim dangling old WEB release images only; tagged rollback images stay.
+          if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+            docker image prune -f --filter label=io.botbj.release=true --filter until=168h || true
+          fi
+          echo 'Disk blocks and inodes after cleanup:'
+          df -h / /tmp; df -i / /tmp
+          available=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+          inodes=$(df -Pi /tmp | awk 'NR==2 {print $4}')
+          partial=0
+          [ ! -L "$dir" ] || { echo 'Unsafe transfer directory (symlink)'; exit 1; }
+          if [ -d "$dir" ]; then
+            [ -O "$dir" ] || { echo 'Transfer directory is not owned by SSH user'; exit 1; }
+            for file in botbj-image.tar.gz botbj-image.tar.gz.sha256 collection-runtime-token; do
+              [ ! -L "$dir/$file" ] || { echo 'Unsafe transfer file (symlink)'; exit 1; }
+            done
+            if [ -f "$dir/botbj-image.tar.gz" ]; then
+              partial=$(du -k "$dir/botbj-image.tar.gz" | awk '{print $1}')
+            fi
+          fi
+          # Reserve space for transfer plus the existing post-transfer load budget.
+          image_kb=$((required - 65536))
+          total_required=$((image_kb * 5 + 524288))
+          echo "Available: ${available} KiB; reclaimable partial: ${partial} KiB; required: ${total_required} KiB; free inodes: ${inodes}"
+          if [ "$((available + partial))" -lt "$total_required" ] || [ "$inodes" -lt 128 ]; then
+            echo 'VPS storage still insufficient after safe cleanup; administrator must extend storage or remove verified obsolete files.'
+            docker system df 2>/dev/null || true
+            exit 1
+          fi
+          mkdir -p -- "$dir"
+          [ -O "$dir" ] || exit 1
+          chmod 700 "$dir"
           PREFLIGHT
           MODE=scp
           if command -v rsync >/dev/null && ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" 'command -v rsync >/dev/null 2>&1'; then
@@ -230,19 +276,15 @@ jobs:
             echo "🧹 Nettoyage préventif de l’espace disque..."
             df -h / /tmp || true
 
-            find /tmp -maxdepth 1 -type f -name 'botbenin-*.tar.gz' -delete 2>/dev/null || true
-            find /tmp -maxdepth 1 -type d -name 'botbenin-release-*' -exec rm -rf {} + 2>/dev/null || true
-
-
-            find /tmp -mindepth 1 -maxdepth 1 -type f -mtime +2 -delete 2>/dev/null || true
-            journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+            # Scoped abandoned-artifact cleanup is performed in the SSH preflight.
+            # Do not delete unrelated /tmp files or system journals.
 
             AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
             MIN_REQUIRED_KB=524288
             IMAGE_TRANSFER_KB=$(du -k "$CI_IMAGE_DIR/botbj-image.tar.gz" | awk '{print $1}')
             MIN_REQUIRED_KB=$((IMAGE_TRANSFER_KB * 4 + MIN_REQUIRED_KB))
             if [ "${AVAILABLE_KB:-0}" -lt "$MIN_REQUIRED_KB" ]; then
-              echo "❌ Espace disque insuffisant dans /tmp après nettoyage. Minimum requis : 512 Mo."
+              echo "❌ Espace disque insuffisant dans /tmp après transfert. Minimum requis : $((MIN_REQUIRED_KB / 1024)) Mio."
               df -h / /tmp || true
               docker system df || true
               exit 1
