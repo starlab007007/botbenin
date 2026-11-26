@@ -45,7 +45,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const refreshStatus = async (silent = false) => {
     const data = await callWaha("central-status", undefined, silent);
     if (data?.status) {
-      if (data.status === "WORKING") setQr(null); setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); setProviderOperational(data.provider_operational ?? null); }
+      if (data.status !== "SCAN_QR_CODE") setQr(null); setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); setProviderOperational(data.provider_operational ?? null); }
   };
 
   const createSession = async () => {
@@ -62,6 +62,16 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (!started) return;
     toast.success(`Session « ${session} » : démarrage demandé. Vérifiez le statut puis chargez le QR si nécessaire.`);
     setStatus(String(started.status || "STARTING"));
+    window.setTimeout(() => void refreshStatus(true), 5000);
+  };
+
+  const restartSession = async () => {
+    if (!window.confirm("Redémarrer uniquement la session WaouhApp, sans supprimer son profil WhatsApp ?")) return;
+    const result = await callWaha("session-restart");
+    if (!result?.restarted) return;
+    setQr(null);
+    setStatus("STARTING");
+    toast.info("Redémarrage demandé. Rafraîchissez le statut avant de charger le QR.");
     window.setTimeout(() => void refreshStatus(true), 5000);
   };
 
@@ -83,8 +93,10 @@ export const WaouhWhatsAppPanel: React.FC = () => {
 
   const loadQr = async (silent = false) => {
     const data = await callWaha("get-qr", undefined, silent);
-    if (data?.qr) setQr(data.qr);
-    else if (data?.image) setQr(data.image);
+    if (data?.qr || data?.image) {
+      setQr(data.image || data.qr);
+      setStatus("SCAN_QR_CODE");
+    }
     else if (data?.connected) {
       setQr(null);
       void refreshStatus(true);
@@ -149,8 +161,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Input value={session} readOnly />
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
             {status === "SCAN_QR_CODE" && <p className="text-xs text-muted-foreground">Cliquez sur « Charger QR », puis ouvrez WhatsApp sur +229 65653468 → Appareils connectés. Rafraîchissez le QR manuellement en cas d'expiration.</p>}
-            {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage en cours. Cliquez sur « Rafraîchir » après quelques instants ; utilisez « Charger QR » lorsque la session demande un scan.</p>}
-            {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WhatsApp (WAHA) s’est arrêté. Cliquez sur « Démarrer ». Si l’échec revient, cliquez sur « Réinitialiser » : la session est recréée et un nouveau QR est demandé.</p>}
+            {status === "STARTING" && <p className="text-xs text-muted-foreground">Démarrage en cours. Si cet état persiste, utilisez « Redémarrer la session », sans effacer le profil. Chargez le QR lorsque la session demande un scan.</p>}
+            {status === "FAILED" && <p className="text-xs text-destructive">Le moteur WAHA a échoué. Essayez d’abord « Redémarrer la session ». Ne réinitialisez qu’en dernier recours.</p>}
             {status === "WORKING" && providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
             {status === "WORKING" && identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
@@ -164,6 +176,11 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Button variant="outline" onClick={() => void loadQr()} disabled={loading}>
               <QrCode className="w-4 h-4 mr-1" /> Charger QR
             </Button>
+            {["STARTING", "FAILED", "STOPPED"].includes(status) && (
+              <Button variant="outline" onClick={restartSession} disabled={loading}>
+                <RefreshCw className="w-4 h-4 mr-1" /> Redémarrer la session
+              </Button>
+            )}
             <Button variant="outline" onClick={stopSession} disabled={loading}>
               Arrêter
             </Button>
