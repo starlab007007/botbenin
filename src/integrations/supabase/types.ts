@@ -21345,6 +21345,7 @@ export type Database = {
         }[]
       }
       waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
+      waouh_notify_expiring_mandates: { Args: never; Returns: number }
       waouh_open_mission_dossier: {
         Args: {
           p_dossier_id?: string
