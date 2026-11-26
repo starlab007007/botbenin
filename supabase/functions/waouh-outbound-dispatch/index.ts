@@ -717,6 +717,9 @@ Deno.serve(async (req) => {
         const { data: coldPolicy } = await sb.from("waouh_waha_egress_policy")
           .select("enabled,allow_cold_outreach").eq("id", true).maybeSingle();
         if (!coldPolicy?.enabled || !coldPolicy.allow_cold_outreach) {
+          await sb.from("waouh_outbound_queue").update({
+            next_attempt_at: new Date(Date.now() + 30 * 60_000).toISOString(), last_error: "waiting:cold_outreach_disabled",
+          }).eq("id", it.id).eq("status", "pending");
           skipped++;
           continue;
         }
@@ -758,6 +761,12 @@ Deno.serve(async (req) => {
             deliverySession,
             health: deliveryHealth,
           });
+          // Reporter la ligne : sinon les 20 plus anciennes bloquent la file et les
+          // notifications dans l'application derrière elles ne partent jamais.
+          await sb.from("waouh_outbound_queue").update({
+            next_attempt_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+            last_error: `waiting:${deliveryHealth.reason || "waha_unavailable"}`,
+          }).eq("id", it.id).eq("status", "pending");
           skipped++;
           continue;
         }

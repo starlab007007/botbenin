@@ -71,3 +71,21 @@ Corrections de cette passe :
 - Application : messages d'erreur génériques en français, ville transmise avec la demande.
 
 Reste à faire : test sur un vrai téléphone Android et exécution des tests de l'application ; une livraison marquée « livré » par un vrai livreur.
+
+## Audit : offres trouvées hors WAOUH → WhatsApp → accord (26/11/2026)
+
+| Étape | Verdict | Constat |
+|---|---|---|
+| Collecte (sites, Facebook, Internet, annuaires, partenaires, appels d'offres) | OK partiel | Collectes actives aujourd'hui (sites commerciaux, Facebook, annuaires, appels d'offres). Certaines sources n'ont rien collecté depuis plus d'un mois (offres WhatsApp en mai, partenaires en octobre). |
+| Contact retrouvé | FAIBLE | 2 254 vendeurs ont un contact, mais seuls **84** ont un numéro utilisable pour WhatsApp. Les autres numéros n'ont ni preuve d'activité publique ni accord du vendeur. |
+| Présentation | OK | Prix, ville et provenance sont affichés. « Joignables 0/3 » est indiqué honnêtement. |
+| Envoi de l'intérêt | BLOQUÉ | Le WhatsApp central de la plateforme est bloqué en démarrage depuis 05:51 : 62 messages WhatsApp attendent. |
+| File des messages | CORRIGÉ | Les messages WhatsApp en attente bloquaient aussi 28 notifications dans l'application. Ils sont maintenant reportés et laissent passer les autres. |
+| Réponse du vendeur → Deal Room → accord → clôture | NON TESTÉ | Il faut d'abord que WhatsApp soit reconnecté et qu'un numéro de test soit fourni. Le seul envoi extérieur jamais fait a bien été lu. |
+
+Propositions (par priorité) :
+1. Reconnecter le WhatsApp central (nouveau scan du QR code), puis rejouer le test avec un numéro de test.
+2. Avant 24 h, prévenir l'acheteur si le message n'est pas parti, au lieu de le laisser expirer sans rien dire (105 messages perdus du 30/10 au 15/11).
+3. Rechercher davantage de numéros depuis les fiches publiques (site, page Facebook de l'entreprise) pour dépasser 84 vendeurs joignables.
+4. Mettre en avant les offres joignables dans les résultats, et proposer « Confier à Bot » pour les autres.
+5. Relancer les sources sans collecte depuis plus de 30 jours, ou les marquer « en pause ».
