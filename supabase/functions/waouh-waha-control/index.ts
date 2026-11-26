@@ -243,44 +243,49 @@ Deno.serve(async (req) => {
         }
         break;
       }
-      case "session-restart":
+      case "session-restart": {
+        if (session === CENTRAL_WAHA_SESSION) {
+          const current = await fetchWaha(base, `/api/sessions/${encodeURIComponent(session)}`, {}, headers);
+          if (!current.ok) return json({ error: "session_status_unavailable", provider_status: current.status }, 502);
+          const state = String((await readWaha(current))?.status || "UNKNOWN").toUpperCase();
+          if (!["STARTING", "FAILED", "STOPPED"].includes(state)) return json({ error: "restart_not_needed", status: state }, 409);
+        }
         res = await fetchWaha(base, `/api/sessions/${encodeURIComponent(session)}/restart`, { method: "POST" }, headers);
-        break;
+        if (!res.ok) return json({ error: "session_restart_refused", provider_status: res.status }, 502);
+        return json({ restarted: true, status: "STARTING" });
+      }
       case "session-stop":
         res = await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers);
         break;
-      case "get-qr":
-        {
-          // Le QR n'existe que dans l'état SCAN_QR_CODE : sinon inutile d'essayer
-          // 9 routes (et la capture d'écran montrerait une page vide).
-          const pre = await fetchWaha(base, `/api/sessions/${session}`, {}, headers).catch(() => null);
-          const preBody = pre?.ok ? await readWaha(pre).catch(() => null) : null;
-          const preStatus = String(preBody?.status || "");
-          if (preStatus === "WORKING") {
-            return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
+      case "get-qr": {
+        const encoded = encodeURIComponent(session);
+        const current = await fetchWaha(base, `/api/sessions/${encoded}`, {}, headers);
+        if (!current.ok) return json({ error: "session_status_unavailable", provider_status: current.status }, 502);
+        const state = await readWaha(current);
+        const status = String(state?.status || "UNKNOWN").toUpperCase();
+        if (status === "WORKING") return json({ connected: true, status });
+        if (status !== "SCAN_QR_CODE") return json({
+          status, waiting: status === "STARTING", code: "QR_SESSION_NOT_READY",
+          recovery: ["STARTING", "FAILED", "STOPPED"].includes(status) ? "restart_session" : "refresh_status",
+        }, 202);
+        // Documented content negotiation; do not return provider config or webhook secrets.
+        for (const accept of ["image/png", "application/json"]) {
+          const qr = await fetchWaha(base, `/api/${encoded}/auth/qr`, { headers: { ...headers, Accept: accept } });
+          if (!qr.ok) {
+            if ([401, 403, 429].includes(qr.status)) return json({ error: "qr_provider_refused", provider_status: qr.status }, 502);
+            continue;
           }
-          if (preStatus && preStatus !== "SCAN_QR_CODE") {
-            return json({ error: "QR non disponible", waiting: preStatus === "STARTING", status: preStatus }, 202);
+          const value = await readWaha(qr);
+          const image = value?.image || value?.data || value?.qr;
+          if (typeof image === "string" && (image.startsWith("data:image/") || /^[A-Za-z0-9+/=\r\n]+$/.test(image)) && image.length > 100) {
+            return json({ status: "SCAN_QR_CODE", image: image.startsWith("data:image/") ? image : `data:image/png;base64,${image}` });
           }
-          // Éviter 9 essais par clic ; utiliser les deux formats documentés.
-          const candidates: Array<[string, "GET" | "POST"]> = [
-            [`/api/${encodeURIComponent(session)}/auth/qr?format=image`, "GET"],
-            [`/api/${encodeURIComponent(session)}/auth/qr?format=base64`, "GET"],
-          ];
-          let last: any = null;
-          for (const [path, method] of candidates) {
-            res = await fetchWaha(base, path, { method }, headers);
-            console.log(`[waha-control] get-qr try ${method} ${path} → ${res.status}`);
-            if (res.ok) return json(await readWaha(res));
-            last = await readWaha(res).catch(() => ({ status: res.status }));
-          }
-          const current = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
-          const currentBody = await readWaha(current).catch(() => null);
-          if (current.ok && (currentBody?.status === "WORKING" || currentBody?.engine?.state === "CONNECTED")) {
-            return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
-          }
-          return json({ error: "QR non disponible", details: last, sessionStatus: currentBody }, 404);
         }
+        const check = await fetchWaha(base, `/api/sessions/${encoded}`, {}, headers);
+        const next = check.ok ? String((await readWaha(check))?.status || "UNKNOWN").toUpperCase() : "UNKNOWN";
+        if (next === "WORKING") return json({ connected: true, status: next });
+        return json({ status: next, waiting: true, code: "QR_NOT_AVAILABLE" }, 202);
+      }
       case "set-webhook":
         if (session === CENTRAL_WAHA_SESSION) return json({ error: "use_central_connect" }, 422);
         res = await fetchWaha(base, `/api/sessions/${session}`, {
@@ -310,6 +315,6 @@ Deno.serve(async (req) => {
 
 function json(body: any, status = 200) {
   return new Response(JSON.stringify(body), {
-    status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
