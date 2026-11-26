@@ -33,6 +33,14 @@ describe("extraction des contacts d'annonce", () => {
     const r = extractContacts("vente@boutique.bj image@x.png noreply@site.com");
     expect(r.emails).toEqual(["vente@boutique.bj"]);
   });
+  it("garde un numéro WhatsApp étranger écrit avec son indicatif", () => {
+    expect(extractContacts("Ventilateur 25000 F. WhatsApp +33754012730").whatsapp).toEqual(["+33754012730"]);
+    expect(extractContacts("WhatsApp: +33 7 54 01 27 30").whatsapp).toEqual(["+33754012730"]);
+    expect(extractContacts("https://wa.me/33754012730").whatsapp).toEqual(["+33754012730"]);
+  });
+  it("ne devine jamais un indicatif étranger sans +", () => {
+    expect(extractContacts("Réf 33754012730").phones).toEqual([]);
+  });
   it("signale les pages à rendu dynamique", () => {
     expect(pageNeedsRenderer("https://www.facebook.com/marketplace/item/1")).toBe(true);
     expect(pageNeedsRenderer("https://jiji.bj/annonce")).toBe(false);

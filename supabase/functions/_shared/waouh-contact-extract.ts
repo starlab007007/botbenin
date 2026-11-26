@@ -28,6 +28,16 @@ export function beninPhone(raw: string): string | null {
   return `+22901${digits}`;
 }
 
+/** Numéro étranger écrit avec son indicatif (+33…, 0033…) : E.164 ou null. Le Bénin passe par beninPhone. */
+export function internationalPhone(raw: string): string | null {
+  let digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (!digits || digits.startsWith("0") || digits.startsWith("229")) return null;
+  if (digits.length < 10 || digits.length > 15) return null;
+  if (/^(\d)\1+$/.test(digits)) return null;
+  return `+${digits}`;
+}
+
 function nearWhatsApp(text: string, start: number, end: number) {
   // Seul le texte qui suit le dernier chiffre précédent compte : le mot WhatsApp d'un autre numéro ne déteint pas.
   const before = text.slice(Math.max(0, start - 30), start).replace(/^[\s\S]*\d/, "");
@@ -43,7 +53,7 @@ export function extractContacts(input: string): ExtractedContacts {
 
   // 1. Liens explicites : on leur fait confiance.
   for (const m of text.matchAll(/(?:wa\.me\/|api\.whatsapp\.com\/send\/?\?[^\s"')]*?phone=|whatsapp:\/\/send\?[^\s"')]*?phone=)\+?(\d{8,15})/gi)) {
-    const p = beninPhone(m[1]);
+    const p = beninPhone(m[1]) ?? internationalPhone(m[1]);
     if (p) whatsapp.add(p);
   }
   for (const m of text.matchAll(/tel:\+?([\d%20\s.-]{8,20})/gi)) {
@@ -70,6 +80,18 @@ export function extractContacts(input: string): ExtractedContacts {
     const p = beninPhone(found);
     if (!p) continue;
     (nearWhatsApp(text, start, end) ? whatsapp : phones).add(p);
+  }
+
+  // 3. Numéros étrangers : seulement avec un indicatif explicite (+33, 0033…), jamais devinés.
+  for (const m of text.matchAll(/(?<![\d+])(?:\+|00)\s?(?!229)[1-9]\d{0,2}(?:[\s.-]?\(?\d{1,4}\)?){2,6}(?!\d)/g)) {
+    const found = m[0];
+    const start = m.index ?? 0;
+    const p = internationalPhone(found);
+    if (!p || whatsapp.has(p)) continue;
+    // La fin d'un numéro étranger n'est pas un numéro béninois.
+    const tail = p.slice(-8);
+    for (const set of [whatsapp, phones]) for (const x of [...set]) if (x.startsWith("+22901") && x.endsWith(tail)) set.delete(x);
+    (nearWhatsApp(text, start, start + found.length) ? whatsapp : phones).add(p);
   }
 
   for (const m of text.matchAll(/mailto:([^\s"'?<>]+)/gi)) emails.add(m[1].toLowerCase());
