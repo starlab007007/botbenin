@@ -25,3 +25,30 @@ Compte acheteur testé : compte fourni (Web, aperçu local, données de producti
 ## Pour finir la certification
 - Un compte vendeur distinct avec un article « CERTIF_WAOUH » → test étapes 5 à 9 sur Web.
 - Fiche Android : refaire les mêmes étapes sur le téléphone avec l'APK à jour et envoyer les captures.
+
+## Re-test après corrections (26/11/2026, 18 h 15 UTC) — Web / serveur commun
+
+Deux comptes distincts : acheteur `songbianzime@gmail.com`, vendeur de test « CERTIF_WAOUH Vendeur » (`certif.vendeur.waouh@bot.bj`).
+
+| Étape | Verdict | Preuve |
+|---|---|---|
+| 1. Besoin exprimé | OK | « Je cherche un ordinateur portable à Cotonou », « plombier », « lampe de bureau » |
+| 2. NEXUS + sources | OK (corrigé) | La recherche partagée dépassait le délai (8 s) à chaque requête → plus aucune source NEXUS. Ramenée de 5,6 s à 1,1 s. « plombier » : 0 → 15 fiches |
+| 3. Résultats pertinents, photos, prix | OK avec réserve | Téléphones/accessoires écartés pour « ordinateur portable » ; un appel d'offres hors sujet peut encore apparaître (mot « bureau ») |
+| 4. Intéressé / Confier à Bot | OK | Bot n'élit plus une offre > 50 % sous la médiane |
+| 5. Deal Room | OK | ouverture directe depuis la fiche |
+| 6. Marché / négociation | OK | offre 18 000 F sur 20 000 F |
+| 7. Contact autorisé | OK | le vendeur reçoit et répond |
+| 8. Accord | OK | « Accord conclu », vendeur confirme la disponibilité |
+| 9. Réception et clôture | OK (corrigé) | « Vente terminée », paiement payé, commission 900 F |
+
+Anomalies corrigées dans ce passage :
+- Annonce vendeur par le chat parfois non enregistrée alors que la confirmation s'affichait ; la confirmation était aussi remplacée par la liste d'acheteurs.
+- Clôture impossible pour toute commande payée à la livraison (« Rien n'a été validé »).
+- Choix du paiement non reporté sur la transaction.
+- Deux livreurs de test actifs recevaient les vraies commandes (désactivés).
+- Délai du chat Web (12 s) plus court que la recherche.
+
+Réserves restantes :
+- Étape livreur simulée (aucun compte livreur disponible pour le test) : le livreur réel doit marquer « livré ».
+- Android/Flutter : les corrections serveur s'appliquent aussi à l'application ; la règle « prix suspect » est reportée dans le code Flutter, mais l'application n'a pas été compilée ni testée sur téléphone.

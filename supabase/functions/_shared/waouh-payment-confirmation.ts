@@ -3,7 +3,9 @@
 export async function confirmDeliveredDeal(sb: any, dealId: string, patch: Record<string, unknown>) {
   const { data, error } = await sb.from("waouh_deals").update({ ...patch, payment_status: "paid", status: "completed" })
     .eq("id", dealId).eq("status", "delivered").not("delivered_at", "is", null)
-    .or("payment_status.is.null,payment_status.neq.paid").select("id,payment_status").maybeSingle();
+    // Pas de filtre « ou » ici : il est réappliqué aux lignes renvoyées (déjà « paid ») et bloquait toute clôture.
+    // status = delivered suffit : une clôture déjà faite est passée à completed.
+    .select("id").maybeSingle();
   if (error) return { ok: false, code: "payment_confirmation_write_failed", status: 500 };
   if (data) return { ok: true, alreadyPaid: false };
   // Another confirmation may have won the race. Do not repeat its downstream effects.
