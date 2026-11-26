@@ -531,6 +531,105 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: python3 server/collection-engines/verify.py
 
+      - name: Retain verified BOT.BJ images after successful deployment
+        if: github.event_name != 'pull_request' && success()
+        uses: appleboy/ssh-action@v0.1.10
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 10m
+          envs: DEPLOY_SHA
+          script: |
+            set -eu
+            exec 9>/home/debian/waouh-web-deploy.lock
+            flock -w 60 -x 9
+            python3 - <<'RETENTION'
+            import datetime, json, os, pathlib, re, subprocess, tempfile
+
+            def docker(*args):
+                return subprocess.check_output(['docker', *args], text=True).strip()
+
+            sha = os.environ['DEPLOY_SHA']
+            valid = re.compile(r'[0-9a-f]{40}').fullmatch
+            if not valid(sha):
+                raise SystemExit('Invalid deployment SHA')
+            repos = ('botbj-ci', 'waouh-engines-ci')
+            names = ('react-app-botjs', 'waouh-collection-engines')
+            for repo, name in zip(repos, names):
+                expected = docker('image', 'inspect', '--format', '{{.Id}}', f'{repo}:{sha}')
+                state = json.loads(docker('inspect', name))[0]
+                if state['Image'] != expected or not state['State']['Running']:
+                    raise SystemExit(f'Retention refused: {name} is not running the verified release')
+
+            root = pathlib.Path('/home/debian/botbj-web-rollback')
+            if root.is_symlink():
+                raise SystemExit('Unsafe rollback directory')
+            root.mkdir(mode=0o700, exist_ok=True)
+            history = root / 'verified-releases.txt'
+            if history.is_symlink():
+                raise SystemExit('Unsafe retention history')
+            old = history.read_text().splitlines() if history.exists() else []
+            verified = list(dict.fromkeys([sha] + [x for x in old if valid(x)]))[:3]
+            with tempfile.NamedTemporaryFile(mode='w', dir=root, delete=False) as tmp:
+                tmp.write('\n'.join(verified) + '\n')
+                pending = tmp.name
+            os.replace(pending, history)
+
+            rows = []
+            for repo in repos:
+                listing = docker('image', 'ls', '--no-trunc', '--format', '{{json .}}', repo)
+                for line in listing.splitlines():
+                    row = json.loads(line)
+                    if row['Repository'] == repo and valid(row['Tag']):
+                        rows.append(row)
+            keep = set(verified)
+            # During bootstrap, preserve recent historical pairs until two verified backups exist.
+            pairs = {r['Tag'] for r in rows if r['Repository'] == repos[0]} & {r['Tag'] for r in rows if r['Repository'] == repos[1]}
+            dates = {}
+            for row in rows:
+                if row['Tag'] in pairs:
+                    dates[row['Tag']] = max(dates.get(row['Tag'], ''), row['CreatedAt'])
+            for tag in sorted(dates, key=dates.get, reverse=True):
+                if len(keep) >= 3:
+                    break
+                keep.add(tag)
+            ids = docker('ps', '-aq').splitlines()
+            used = set()
+            if ids:
+                used = {c['Image'] for c in json.loads(docker('inspect', *ids))}
+            protected = set(used)
+            # Protect the latest and explicitly pinned rollback images, even if stopped.
+            for ref in ('botbenin-react-app:latest', 'waouh-collection-engines:latest',
+                        'botbj-web-rollback:previous', 'botbj-web-rollback:last-known-good'):
+                try:
+                    protected.add(docker('image', 'inspect', '--format', '{{.Id}}', ref))
+                except subprocess.CalledProcessError:
+                    pass
+            print('Verified retained releases:', ', '.join(verified), flush=True)
+            print('Protected release tags (including bootstrap backups):', ', '.join(sorted(keep)), flush=True)
+            for row in rows:
+                if row['Tag'] in keep or row['ID'] in protected:
+                    continue
+                ref = f"{row['Repository']}:{row['Tag']}"
+                # Never force deletion; Docker refuses images referenced by containers.
+                result = subprocess.run(['docker', 'image', 'rm', ref], check=False)
+                if result.returncode:
+                    print(f'Warning: retained {ref}; Docker refused removal', flush=True)
+            subprocess.run(['docker', 'system', 'df'], check=False)
+            subprocess.run(['df', '-h', '/'], check=False)
+            stat = os.statvfs('/')
+            free = stat.f_bavail * stat.f_frsize
+            usage = 100 * (stat.f_blocks - stat.f_bfree) / max(1, stat.f_blocks - stat.f_bfree + stat.f_bavail)
+            if usage >= 90 or free < 20 * 1024**3:
+                print(f'::warning::VPS storage needs attention: {usage:.1f}% used, {free / 1024**3:.1f} GiB free')
+            elif usage >= 80:
+                print(f'::warning::VPS storage above 80%: {usage:.1f}% used')
+            RETENTION
+
       - name: Remove temporary runtime credential
         if: always()
         run: rm -f collection-runtime-token
