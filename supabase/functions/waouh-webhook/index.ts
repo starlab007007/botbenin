@@ -1532,7 +1532,10 @@ Deno.serve(async (req) => {
           .filter((a: any) => /^image\//i.test(String(a?.type || "image/jpeg")))
           .map((a: any) => a?.url)
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
-        const { data: art } = await sb.from("waouh_articles").insert({
+        // Sans position GPS (refusée ou absente), on publie quand même avec la ville.
+        const hasPoint = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && !(Number(lat) === 0 && Number(lng) === 0);
+        const sellCity = user!.city || (typeof city === "string" && city.trim() ? city.trim() : null);
+        const { data: art, error: artError } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
           title: resolvedTitle,
           description: product.description,
@@ -1540,8 +1543,8 @@ Deno.serve(async (req) => {
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
           price: finalPrice, currency: "XOF",
-          city: user!.city,
-          location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          city: sellCity,
+          ...(hasPoint ? { location: `SRID=4326;POINT(${Number(lng)} ${Number(lat)})` as any } : {}),
           photos: photoUrls,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
@@ -1549,6 +1552,7 @@ Deno.serve(async (req) => {
           source_channel: channel === "whatsapp" ? "whatsapp" : "waouh_app",
           contact_whatsapp: user?.phone_number ?? null,
         }).select().single();
+        if (artError || !art?.id) console.error("[SELL] article insert failed", artError?.code, artError?.message);
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
@@ -1572,7 +1576,9 @@ Deno.serve(async (req) => {
           const max = product.market_price_max || finalPrice * 1.2;
           marketBlock = `📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}\n⚠️ Comparables limités — estimation indicative.`;
         }
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(finalPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = !art?.id
+          ? "Votre annonce n’a pas pu être publiée. Réessayez dans un instant."
+          : `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(finalPrice)}\n🏙️ *Ville* : ${sellCity || "—"}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 

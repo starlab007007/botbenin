@@ -2500,7 +2500,14 @@ Deno.serve(async (req) => {
       core?.contactability ??
       nexus.contactability_level;
 
-    if(nexus.intelligence&&results.length>0&&coreResults.length===0) {
+    const publishedSale = String(core?.intent || "").toUpperCase() === "SELL" && !!core?.article_id;
+    if(publishedSale&&results.length>0&&coreResults.length===0) {
+      // La confirmation de publication reste en tête : les acheteurs possibles viennent ensuite.
+      reply=[core?.reply||"✅ Annonce publiée.",
+        `👥 ${results.length} acheteur(s) possible(s) :`,
+        ...results.slice(0,3).map((row:any)=>[row.title,row.city].filter(Boolean).join(" · ")),
+      ].join("\n\n");
+    } else if(nexus.intelligence&&results.length>0&&coreResults.length===0) {
       reply=[`${results.length} fiche(s) correspondent à votre demande.`,
         ...results.slice(0,5).map((row:any)=>[row.title,
           Number(row.price_min??row.price)>0?`${row.price_min??row.price} FCFA`:"Prix à confirmer",
