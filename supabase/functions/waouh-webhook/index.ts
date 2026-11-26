@@ -1671,7 +1671,9 @@ Deno.serve(async (req) => {
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
-        .eq("status", "active");
+        .eq("status", "active")
+        // Une annonce expirée ne peut plus ouvrir d'échange : ne jamais la proposer.
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
       // La catégorie n'est un filtre dur que si c'est le SEUL signal dispo.
       if (criteriaCategory && kwVariants.length === 0) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);

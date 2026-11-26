@@ -158,6 +158,10 @@ export async function promoteCatalogToArticle(
   }
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
+  // Une annonce sans prix ne peut pas ouvrir de négociation : refus explicite, sans erreur d'insertion.
+  if (price == null || !(Number(price) > 0)) {
+    return { article_id: null, catalog_id, created: false, reason: "price_missing" };
+  }
   const photos = Array.isArray(cat.photos) ? cat.photos : [];
   const sourceChannel = catalogSourceChannel(cat.source);
 

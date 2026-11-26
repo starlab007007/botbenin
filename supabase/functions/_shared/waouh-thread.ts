@@ -182,17 +182,18 @@ export async function resolveProductThread(args: {
     ...(role === "buyer" ? actorIds : await siblingsForId(sb, buyerSeed)),
   ]);
 
-  const { data: existing } = await sb
+  // Un compte peut avoir des centaines d'identités (une par session) : la liste ne tient pas
+  // dans l'adresse de la requête. On lit les discussions de l'article puis on filtre ici.
+  const { data: candidates, error: existingError } = await sb
     .from("waouh_chat_threads")
     .select("*")
     .eq("thread_type", "product_meet")
     .eq("article_id", articleId)
-    .in("buyer_user_id", buyerIds)
-    .in("seller_user_id", sellerIds)
     .not("status", "in", "(concluded,cancelled)")
     .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(200);
+  if (existingError) console.warn("[waouh-thread] existing lookup failed", existingError.code, existingError.message);
+  const existing = (candidates ?? []).find((t: any) => buyerIds.includes(t.buyer_user_id) && sellerIds.includes(t.seller_user_id));
   if (existing?.id) return existing as WaouhThread;
   if (!create) return null;
 

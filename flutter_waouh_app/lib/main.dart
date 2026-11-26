@@ -1357,9 +1357,21 @@ class WaouhChatController extends ChangeNotifier {
         .map((rows) => rows.map(WaouhMessage.fromJson).toList());
   }
 
-  Future<void> sendWaouhMessage(String content, {WaouhIntent? intent}) async {
+  /// Ville citée dans la demande (« … à Cotonou ») : l'analyse du marché en tient compte, comme sur le Web.
+  static String? cityFromText(String text) {
+    final m = RegExp(
+      r"\b(?:à|a|au|sur)\s+(cotonou|porto[- ]novo|parakou|abomey[- ]calavi|calavi|bohicon|natitingou|lokossa|ouidah|djougou|abomey)\b",
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (m == null) return null;
+    final c = m.group(1)!;
+    return c[0].toUpperCase() + c.substring(1).toLowerCase();
+  }
+
+  Future<void> sendWaouhMessage(String content, {WaouhIntent? intent, String? city}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
+    final requestCity = (city != null && city.trim().isNotEmpty) ? city.trim() : cityFromText(trimmed);
     final sessionId = await _sessionId();
     final local = WaouhMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
@@ -1386,6 +1398,7 @@ class WaouhChatController extends ChangeNotifier {
           'message': trimmed,
           'text': trimmed,
           'auth_user_id': auth.user?.id,
+          if (requestCity != null) 'city': requestCity,
           'source': 'flutter_native',
           'intent': intent?.name,
           'meta': {
@@ -1396,9 +1409,9 @@ class WaouhChatController extends ChangeNotifier {
       );
       final data = response.data;
       if (data is Map && (data['ok'] == false || data['error'] != null)) {
-        throw StateError(
-          asString(data['message'] ?? data['error'] ?? 'Envoi WAOUH impossible'),
-        );
+        // Jamais le texte brut du serveur à l'écran : message générique, orienté action.
+        debugPrint('[waouh] envoi refusé: ${data['error'] ?? data['message']}');
+        throw StateError('Une erreur est survenue, réessayez.');
       }
     } finally {
       optimisticMessages.removeWhere((message) => message.id == local.id);

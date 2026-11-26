@@ -55,8 +55,10 @@ Deno.serve(async (req) => {
       const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
       const promo = await promoteCatalogToArticle(sb, catalog_id);
       if (!promo.article_id) {
-        return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
-          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        console.warn("[buyer-interest] promotion refused", promo.reason);
+        const priceMissing = promo.reason === "price_missing";
+        return new Response(JSON.stringify({ error: "catalog promotion failed", code: priceMissing ? "price_missing" : "promotion_failed" }), {
+          status: priceMissing ? 409 : 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       article_id = promo.article_id;
@@ -116,7 +118,8 @@ Deno.serve(async (req) => {
       const error = opened.code === "article_not_found" ? "article not found"
         : opened.code === "invalid_offer" ? "invalid offer_price"
         : "thread creation failed";
-      return new Response(JSON.stringify({ error }), {
+      console.warn("[buyer-interest] refused", opened.code);
+      return new Response(JSON.stringify({ error, code: opened.code }), {
         status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

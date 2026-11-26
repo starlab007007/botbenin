@@ -123,6 +123,16 @@ void main() {
       expect(brief.compare.map((r) => r.rank).toList(), [1, 2, 3]);
     });
 
+    test('Bot ne choisit jamais en premier une offre à plus de 50 % sous la médiane', () {
+      final brief = liveChatMarketBrief([
+        _card(1, {'price': 200000, 'city': 'Cotonou'}),
+        _card(2, {'price': 600, 'city': 'Cotonou', 'photos': ['https://img/x.jpg']}),
+        _card(3, {'price': 150000, 'city': 'Cotonou'}),
+        _card(4, {'price': 50000, 'city': 'Cotonou'}),
+      ], city: 'Cotonou');
+      expect(brief.pick!.index, isNot(2));
+    });
+
     test('seules des offres identifiées et dans le budget sont confiées à Bot', () {
       expect(liveBriefDelegateId(_card(1, {'fabric_id': 'external:abc'})), 'external:abc');
       expect(liveBriefDelegateId(_card(1, {'id': _a, 'source': 'waouh'})), 'article:$_a');

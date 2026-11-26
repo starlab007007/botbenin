@@ -26,6 +26,10 @@ async function resolveInterest(item: Offer): Promise<Record<string, unknown>> {
       body: { ...(article ? { article_id: article } : { catalog_id: catalog }), source: 'results_interested' },
     });
     if (data?.skipped === 'self') throw new LegacyInterestError('C’est votre propre annonce : aucune négociation n’est ouverte.');
+    if (error) {
+      const body = await (error as { context?: Response }).context?.clone?.().json?.().catch(() => null);
+      if (body?.code === 'price_missing') throw new LegacyInterestError('Cette offre n’a pas encore de prix. Confiez-la à Bot pour qu’il le demande au vendeur.');
+    }
     if (error || data?.error || data?.ok !== true || !data?.thread_id || !data?.article_id) throw unavailable();
     return { ...presentation, article_id: data.article_id, thread_id: data.thread_id, negotiation_id: data.negotiation_id ?? null };
   }

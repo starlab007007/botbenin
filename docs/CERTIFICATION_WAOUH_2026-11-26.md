@@ -52,3 +52,22 @@ Anomalies corrigées dans ce passage :
 Réserves restantes :
 - Étape livreur simulée (aucun compte livreur disponible pour le test) : le livreur réel doit marquer « livré ».
 - Android/Flutter : les corrections serveur s'appliquent aussi à l'application ; la règle « prix suspect » est reportée dans le code Flutter, mais l'application n'a pas été compilée ni testée sur téléphone.
+
+## Vérification multi-écrans (26/11/2026, soir)
+
+| Étape | Web ordinateur | Web tablette (768 px) | Web téléphone (390 px) | Application Android |
+|---|---|---|---|---|
+| Besoin + recherche NEXUS | OK | OK (16–24 s) | OK (20–24 s) | Corrigé (ville envoyée), non testé sur téléphone |
+| Résultats prix/photos | OK | OK, aucun débordement | OK, aucun débordement | Non testé |
+| Choix de Bot (prix suspect écarté) | OK | OK | OK (200 000 F choisi, pas 600 F) | Règle copiée + test ajouté, non exécuté |
+| « Intéressé » → Deal Room | OK | OK après correctif | OK après correctif | Même serveur, non testé |
+| Accord → réception → clôture | OK (2 comptes) | Même parcours serveur | Même parcours serveur | Même serveur, non testé |
+
+Corrections de cette passe :
+- Les annonces expirées n'apparaissent plus dans les résultats (elles faisaient échouer « Intéressé »).
+- Comptes avec beaucoup de sessions : la recherche d'un échange existant ne bloque plus.
+- Téléphone : « Intéressé » ouvrait l'accueil au lieu de la fenêtre de l'article ; il ouvre maintenant la Deal Room.
+- Offre sans prix : message clair invitant à confier l'offre à Bot, au lieu d'un échec.
+- Application : messages d'erreur génériques en français, ville transmise avec la demande.
+
+Reste à faire : test sur un vrai téléphone Android et exécution des tests de l'application ; une livraison marquée « livré » par un vrai livreur.
