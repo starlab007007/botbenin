@@ -1,0 +1,219 @@
+name: WAHA Upgrade & Recovery
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "audit = read-only; upgrade = backup, upgrade and validate"
+        type: choice
+        options: [audit, upgrade]
+        default: audit
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: waha-maintenance
+  cancel-in-progress: false
+jobs:
+  maintenance:
+    if: github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Audit or upgrade WAHA only
+        uses: appleboy/ssh-action@v0.1.10
+        env:
+          WAHA_MODE: ${{ inputs.mode }}
+          WAHA_API_KEY_PLAIN: ${{ secrets.WAHA_API_KEY_PLAIN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
+          command_timeout: 35m
+          envs: WAHA_MODE,WAHA_API_KEY_PLAIN
+          script: |
+            bash -se <<'WAHA_MAINTENANCE'
+            set -Eeuo pipefail
+            umask 077
+            cd /home/debian/WAHA
+            exec 9>/home/debian/waouh-web-deploy.lock
+            flock -w 300 9
+            exec 8>/home/debian/waha-maintenance.lock
+            flock -n 8
+            test -f docker-compose.yaml && test ! -L docker-compose.yaml
+            test -d sessions && test ! -L sessions
+            test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' waha-waha-1)" = waha
+            test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' waha-waha-1)" = /home/debian/WAHA
+            test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}' waha-waha-1)" = /home/debian/WAHA/docker-compose.yaml
+            docker compose config --quiet
+            old_id=$(docker inspect -f '{{.Image}}' waha-waha-1)
+            target=devlikeapro/waha:2026.10.1
+            echo "Mode=$WAHA_MODE target=$target"
+            docker ps --filter name=waha-waha-1 --format '{{.Names}} {{.Status}}'
+            df -h /home/debian/WAHA
+            free -h
+            # Keep credentials in process memory; never print response bodies, QR or config.
+            probe=$(mktemp)
+            trap 'rm -f "$probe"' EXIT
+            cat > "$probe" <<'PY'
+            import os, json, sys, hashlib, subprocess, urllib.request, urllib.error, time
+            def inspect():
+                return json.loads(subprocess.check_output(["docker","inspect","waha-waha-1"]))[0]
+            def api(path, accept="application/json"):
+                env = dict(v.split("=",1) for v in inspect()["Config"]["Env"] if "=" in v)
+                configured = env.get("WAHA_API_KEY","")
+                key = os.environ.get("WAHA_API_KEY_PLAIN","") or (configured if not configured.startswith("sha512:") else "")
+                if not key:
+                    raise RuntimeError("WAHA_API_KEY_PLAIN secret required for authenticated checks")
+                if configured.startswith("sha512:") and hashlib.sha512(key.encode()).hexdigest() != configured[7:]:
+                    raise RuntimeError("API key does not match server hash")
+                if configured and not configured.startswith("sha512:") and key != configured:
+                    raise RuntimeError("API key does not match server configuration")
+                req = urllib.request.Request("http://127.0.0.1:3000"+path,headers={"X-Api-Key":key,"Accept":accept})
+                with urllib.request.urlopen(req,timeout=8) as res:
+                    return res.read(8*1024*1024)
+            def state():
+                ver=json.loads(api("/api/version"))
+                rows=json.loads(api("/api/sessions?all=true"))
+                if not isinstance(rows,list): raise RuntimeError("Invalid sessions response")
+                return ver, {str(x["name"]):x for x in rows if isinstance(x,dict) and x.get("name")}
+            def report(ver, rows):
+                print("WAHA version:",ver.get("version","unknown"),"engine:",ver.get("engine","unknown"),flush=True)
+                from collections import Counter
+                print("Session counts:",dict(Counter(str(x.get("status")) for x in rows.values())),flush=True)
+                print("WaouhApp:",rows.get("WaouhApp",{}).get("status","MISSING"),flush=True)
+            def identity(x):
+                return str((x.get("me") or {}).get("id") or "")
+            try:
+                mode=sys.argv[1]
+                if mode=="before":
+                    v,r=state(); report(v,r)
+                    if "WaouhApp" not in r: raise RuntimeError("Central session missing; no upgrade")
+                    if sys.argv[2] != "-":
+                        # Private state snapshot; only identities of previously working sessions.
+                        with open(sys.argv[2],"w") as f:
+                            json.dump({k:identity(x) for k,x in r.items() if x.get("status")=="WORKING"},f)
+                elif mode=="after":
+                    with open(sys.argv[2]) as f: prior=json.load(f)
+                    deadline=time.monotonic()+240
+                    while time.monotonic()<deadline:
+                        try:
+                            v,r=state()
+                            central=r.get("WaouhApp",{})
+                            expected_version=sys.argv[3]
+                            version_ok=str(v.get("version",""))==expected_version
+                            previous_ok=all(r.get(k,{}).get("status")=="WORKING" and identity(r[k])==ident for k,ident in prior.items())
+                            status=central.get("status")
+                            qr=False
+                            if status=="SCAN_QR_CODE" and "WaouhApp" not in prior:
+                                try:
+                                    qr=api("/api/WaouhApp/auth/qr","image/png").startswith(bytes.fromhex("89504e470d0a1a0a"))
+                                except Exception: pass
+                            ident=identity(central).split("@")[0].split(":")[0]
+                            central_ok=(status=="WORKING" and ident in ("22965653468","2290165653468")) or qr
+                            if version_ok and previous_ok and central_ok:
+                                report(v,r); print("QR PNG verified:",qr,"central authenticated:",status=="WORKING"); sys.exit(0)
+                        except Exception: pass
+                        time.sleep(10)
+                    raise RuntimeError("Upgrade validation timed out: version, previous sessions or central QR/identity not confirmed")
+                elif mode=="rollback":
+                    v,r=state(); report(v,r)
+                    with open(sys.argv[2]) as f: prior=json.load(f)
+                    if not all(r.get(k,{}).get("status")=="WORKING" and identity(r[k])==ident for k,ident in prior.items()):
+                        raise RuntimeError("Rollback: previously working sessions not yet verified")
+                else: raise RuntimeError("Invalid mode")
+            except Exception as e:
+                print("WAHA check failed:",type(e).__name__,str(e) if isinstance(e,RuntimeError) else "",file=sys.stderr)
+                sys.exit(1)
+            PY
+            if [ "$WAHA_MODE" = audit ]; then
+              python3 "$probe" before -
+              exit 0
+            fi
+            test "$WAHA_MODE" = upgrade
+            # Pull pinned image before stopping the current service.
+            python3 "$probe" before -
+            docker pull "$target"
+            new_id=$(docker image inspect -f '{{.Id}}' "$target")
+            test "$new_id" != "$old_id" || { echo "Already on target image; no mutation"; exit 0; }
+            root=/home/debian/WAHA-recovery
+            mkdir -p "$root"
+            test ! -L "$root"
+            chmod 700 "$root"
+            backup=$(mktemp -d "$root/upgrade-2026.10.1-XXXXXX")
+            chmod 700 "$backup"
+            cp -p docker-compose.yaml "$backup/docker-compose.yaml"
+            docker tag "$old_id" "waha-rollback:$(basename "$backup")"
+            python3 "$probe" before "$backup/working-sessions.json"
+            # Verify the only configured service change is the WAHA image.
+            docker compose config --format json > "$backup/before.json"
+            python3 - "$backup" "$target" <<'EDIT'
+            import pathlib,re,sys
+            p=pathlib.Path(sys.argv[1])
+            original=(p/"docker-compose.yaml").read_text()
+            pattern=r'(?m)^(\s*image:\s*)["\']?devlikeapro/waha(?:-plus)?(?::[^\s"\']+|@sha256:[a-f0-9]+)?["\']?(\s*(?:#.*)?)$'
+            result,n=re.subn(pattern,lambda m:m[1]+sys.argv[2]+m[2],original)
+            if n!=1: raise SystemExit("Expected exactly one WAHA image line")
+            pathlib.Path("docker-compose.yaml.waha-candidate").write_text(result)
+            EDIT
+            candidate=docker-compose.yaml.waha-candidate
+            docker compose -f "$candidate" config --format json > "$backup/after.json"
+            python3 - "$backup" "$target" <<'CHECK'
+            import json,sys,pathlib
+            p=pathlib.Path(sys.argv[1])
+            a=json.loads((p/"before.json").read_text()); b=json.loads((p/"after.json").read_text())
+            if b["services"]["waha"]["image"]!=sys.argv[2]: raise SystemExit("Wrong target")
+            a["services"]["waha"]["image"]=sys.argv[2]
+            if a!=b: raise SystemExit("Unexpected Compose differences; abort")
+            CHECK
+            rm -f "$backup/before.json" "$backup/after.json"
+            # Use sudo only for backup/restore of files owned by container users.
+            sudo -n true
+            size=$(sudo -n du -sk sessions | awk '{print $1}')
+            free=$(df -Pk . | awk 'NR==2{print $4}')
+            test "$free" -gt "$((size * 2 + 1048576))" || { echo "Insufficient space for backup and rollback"; exit 1; }
+            stopped=0
+            changed=0
+            restore() {
+              rc=$?
+              trap - EXIT INT TERM
+              set +e
+              if [ "$rc" -ne 0 ] && [ "$stopped" -eq 1 ]; then
+                echo "Upgrade failed; restoring previous WAHA service only"
+                if [ "$changed" -eq 1 ]; then
+                  docker compose stop waha || { echo "Rollback blocked: cannot stop WAHA"; exit 1; }
+                  cp -p "$backup/docker-compose.yaml" docker-compose.yaml || exit 1
+                  # Quarantine upgraded data; never delete the original backup.
+                  sudo -n mv sessions "$backup/sessions-after-failure" || exit 1
+                  sudo -n tar -xzf "$backup/sessions.tar.gz" -C /home/debian/WAHA || exit 1
+                fi
+                docker compose up -d --no-deps --no-build --pull never waha || exit 1
+                test "$(docker inspect -f '{{.Image}}' waha-waha-1)" = "$old_id" || { echo "Rollback image mismatch"; exit 1; }
+                verified=0
+                for i in $(seq 1 18); do
+                  if python3 "$probe" rollback "$backup/working-sessions.json"; then verified=1; break; fi
+                  sleep 10
+                done
+                echo "Rollback API and previous sessions verified=$verified; backup retained"
+              fi
+              rm -f "$probe" "$candidate"
+              exit "$rc"
+            }
+            trap restore EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            stopped=1
+            docker compose stop waha
+            sudo -n tar -czf "$backup/sessions.tar.gz" -C /home/debian/WAHA sessions
+            sudo -n chmod 600 "$backup/sessions.tar.gz"
+            sudo -n tar -tzf "$backup/sessions.tar.gz" >/dev/null
+            sudo -n sha256sum "$backup/sessions.tar.gz" > "$backup/sessions.sha256"
+            sudo -n sha256sum -c "$backup/sessions.sha256" >/dev/null
+            changed=1
+            mv "$candidate" docker-compose.yaml
+            docker compose up -d --no-deps --no-build --pull never waha
+            test "$(docker inspect -f '{{.Image}}' waha-waha-1)" = "$new_id"
+            python3 "$probe" after "$backup/working-sessions.json" 2026.10.1
+            echo "WAHA upgrade verified. Backup retained at $backup"
+            WAHA_MAINTENANCE
