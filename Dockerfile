@@ -5,14 +5,13 @@ WORKDIR /app
 
 # Copie des fichiers de dépendances
 COPY package.json package-lock.json .npmrc ./
-# Le lockfile historique peut contenir des URLs du cache privé Lovable qui ne
-# sont pas accessibles depuis le VPS. On les remappe vers le registre npm
-# public avant l'installation, puis on garde le fallback pour les drifts du lock.
+# Build Web sans GPU : ONNX Runtime CPU/Web reste disponible.
+# Forcer le paramètre transmis au script postinstall ONNX Runtime 1.21.
+ENV npm_config_onnxruntime_node_install_cuda=skip
+# Normaliser les URLs historiques du cache Lovable, sans masquer les erreurs npm ci.
 RUN npm config set registry https://registry.npmjs.org/ && \
     sed -i 's#https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache#https://registry.npmjs.org#g' package-lock.json && \
-    (npm ci --legacy-peer-deps --no-audit --no-fund || \
-      (echo "⚠️ npm ci failed (lockfile drift) — falling back to npm install from npmjs.org" && \
-       npm install --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmjs.org/))
+    npm ci --legacy-peer-deps --no-audit --no-fund --onnxruntime-node-install-cuda=skip
 
 # Copie du code source
 COPY . .
