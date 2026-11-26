@@ -220,6 +220,9 @@ jobs:
             if [ -n "$PREVIOUS_IMAGE" ] && [ -f "$APP_DIR/docker-compose.yml" ]; then
               docker tag "$PREVIOUS_IMAGE" botbj-web-rollback:previous
               cp "$APP_DIR/docker-compose.yml" "$ROLLBACK_DIR/previous-compose.yml"
+            elif docker image inspect botbj-web-rollback:last-known-good >/dev/null 2>&1 && [ -f "$ROLLBACK_DIR/last-known-good-compose.yml" ]; then
+              PREVIOUS_IMAGE=$(docker image inspect --format '{{.Id}}' botbj-web-rollback:last-known-good)
+              cp "$ROLLBACK_DIR/last-known-good-compose.yml" "$ROLLBACK_DIR/previous-compose.yml"
             else
               PREVIOUS_IMAGE=""
             fi
@@ -234,15 +237,18 @@ jobs:
                 if [ -n "$PREVIOUS_IMAGE" ]; then
                   docker tag "$PREVIOUS_IMAGE" botbenin-react-app:latest
                   docker compose --project-directory "$APP_DIR" -f "$ROLLBACK_DIR/previous-compose.yml" up -d --no-build --no-deps --force-recreate react-app || true
+                  RESTORED=0
                   for attempt in $(seq 1 12); do
                     if curl -fsS --max-time 8 http://127.0.0.1:8084/waouh-release.json >/dev/null &&
                        curl -fsS --max-time 8 https://bot.bj/ >/dev/null &&
                        curl -fsS --max-time 8 https://bot.bj/app/chat >/dev/null; then
+                      RESTORED=1
                       echo "Previous web image restored; HTTP checks passed."
                       break
                     fi
                     sleep 5
                   done
+                  [ "$RESTORED" -eq 1 ] || echo "Rollback attempted but public HTTP checks failed; operator intervention required."
                 else
                   echo "No previous web image available; manual recovery required."
                 fi
