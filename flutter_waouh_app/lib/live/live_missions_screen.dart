@@ -478,7 +478,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${row['city'] ?? 'Zone à préciser'}${row['budget_max'] != null ? ' · ${row['budget_max']} F max' : ''}',
+                    [if ('${row['city'] ?? ''}'.trim().isNotEmpty) '${row['city']}', if (row['budget_max'] != null) '${row['budget_max']} F max', liveAutomaticMissionMessage(row)].join(' · '),
                     style: const TextStyle(
                       fontSize: 12,
                       color: avatarPremiumMuted,
@@ -511,7 +511,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                         subtitle: Text(_watchDeadline(selected['deadline'])),
                       ),
                   ],
-                  TextButton(
+                  FilledButton.icon(
+                    icon: const Icon(Icons.travel_explore, size: 18),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                     onPressed: () {
                       Navigator.pop(ctx);
                       liveOpenGuidedPath(
@@ -525,13 +527,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                         ).query}',
                       );
                     },
-                    child: const Text('Nouvelle recherche'),
+                    label: Text(related.any((j) => j.threadId != null) ? 'Voir d’autres offres' : 'Voir les offres'),
                   ),
-                  if (related.isEmpty && !watch)
-                    const Text(
-                      'Bot cherche les bonnes pistes dans vos limites.',
-                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
-                    ),
+                  const SizedBox(height: 16),
                   for (final j in related)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -577,12 +575,13 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                               ),
                             ),
                           if (j.threadId != null)
-                            TextButton(
+                            Padding(padding: const EdgeInsets.only(top: 8), child: FilledButton(
+                              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                               onPressed: () {
                                 Navigator.pop(ctx);
                                 context.push('/app/chat/${j.threadId}');
                               },
-                              child: const Text('Ouvrir l’échange'),
+                              child: const Text('Voir la Deal Room'),)
                             ),
                         ],
                       ),

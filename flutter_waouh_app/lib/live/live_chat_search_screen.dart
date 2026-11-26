@@ -278,6 +278,14 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     return const ['partner', 'catalog'].contains(source) && uuid.hasMatch(catalog) ? 'catalog:$catalog' : null;
   }
 
+  bool _isOwn(Map<String, dynamic> row) {
+    final me = legacy.supabase.auth.currentUser?.id;
+    if (me == null) return false;
+    final evidence = row['evidence'];
+    return [row['seller_id'], row['user_id'], row['owner_id'], row['seller_user_id'], if (evidence is Map) evidence['seller_id']]
+        .any((v) => v != null && '$v' == me);
+  }
+
   bool _contactAllowed(Map<String, dynamic> row) {
     final fabric = _roomFabric(row) ?? '';
     final policy = row['contact_policy'];
@@ -543,7 +551,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                     SizedBox(height: 3),
                     Text(
-                      'Choisissez une offre, écrivez au vendeur ou proposez votre prix : l’échange s’ouvre dans votre Chat.',
+                      'Touchez « Intéressé » pour ouvrir la Deal Room.',
                       style: TextStyle(fontSize: 12, height: 1.4, color: WaouhPalette.muted),
                     ),
                   ],
@@ -608,9 +616,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                         ],
                       ),
                     ),
-                    Column(
+                    if (_isOwn(row)) const Chip(label: Text('Votre annonce', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)))
+                    else Column(
                       children: [
-                        TextButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Intéressé')),
+                        FilledButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Intéressé')),
                         TextButton(onPressed: () => showLiveProductDetails(context, row), child: const Text('Détails')),
                         if (_contactAllowed(row)) TextButton(
                           onPressed: _delegating ? null : () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []),
