@@ -312,9 +312,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       context.push(Uri(path: '/app/chat/room', queryParameters: {
         'room_id': '${data['deal_room_id']}', if (!opportunity) 'propose': '1',
       }).toString());
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Échange indisponible. Connectez-vous et vérifiez la piste ou l’article à vendre.'),
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(roomError(error)),
+        action: SnackBarAction(label: 'Réessayer', onPressed: () => _openManually(row)),
       ));
     } finally {
       if (mounted) setState(() => _delegating = false);
