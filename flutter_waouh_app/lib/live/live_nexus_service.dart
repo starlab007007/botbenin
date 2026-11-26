@@ -488,8 +488,14 @@ class NexusDiscoveryResponse {
     this.explanation,
     this.intelligence,
     this.marketReference,
+    this.widened = false,
+    this.watching = false,
   });
 
+  /// Offres des villes proches ajoutées faute d'offres locales.
+  final bool widened;
+  /// Bot continue de chercher et préviendra.
+  final bool watching;
   final String mode;
   final String? normalizedQuery;
   final String? explanation;
@@ -523,6 +529,8 @@ class NexusDiscoveryResponse {
       ).map((key, value) => MapEntry(key, _number(value).round())),
       refresh: _map(json['refresh']),
       marketReference: json['market_reference'] is Map ? _map(json['market_reference']) : null,
+      widened: _map(json['fallback'])['widened'] == true,
+      watching: _map(json['fallback'])['watching'] == true,
     );
   }
 }

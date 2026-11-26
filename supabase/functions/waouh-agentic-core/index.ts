@@ -5,8 +5,9 @@ import {normalizeSaleDraft,saleTextSuggestions,trustedSalePhotos,suggestSalePric
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
 import { withJourneyProducts, withMandateProducts, missionJourneyLimit } from '../_shared/waouh-mission-feed.ts';
 import {modulePolicyAllowed,modulesForAction} from '../_shared/waouh-module-policy.ts';
-import {MISSION_KINDS,normalizeMissionKind,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,type MissionKind} from '../_shared/waouh-mission-domain.ts';
+import {MISSION_KINDS,normalizeMissionKind,normalizeMissionContext,missionCriteria,missionMatches,opportunityWatchPlan,opportunityWatchOnly,missionDeadline,type MissionKind} from '../_shared/waouh-mission-domain.ts';
 import {freeDiscoveryPlan,marketReference} from '../_shared/waouh-free-discovery.ts';
+import {deadlineAcceptable,mergeResults,needsMore,trackRule} from '../_shared/waouh-track-sources.ts';
 import {automaticMissionKey,automaticMandateId,ensureAutomaticIntent,avatarAccountPaused,automaticFollowBlock} from "../_shared/waouh-automatic-mission.ts";
 import {rankOfferChoices} from "../_shared/waouh-offer-choice.ts";
 import { normalizeAvatarAutonomy,avatarAutonomyError,autonomyStartsAt,autonomyWindowOpen } from "../_shared/waouh-avatar-autonomy-settings.ts";
@@ -2603,15 +2604,26 @@ Retourne uniquement JSON:
           }
         }
 
-        const results = await globalDiscoverySearch(sb, {
-          query: semanticQuery,
-          mode,
-          city,
-          budgetMax,
-          limit,
-          publicRead,
-          missionKind:discoveryKind,missionContext,
-        });
+        const searchArgs={query:semanticQuery,mode,city,budgetMax,limit,publicRead,missionKind:discoveryKind,missionContext};
+        const keepLive=(rows:any[])=>rows.filter((r:any)=>deadlineAcceptable(discoveryKind,missionDeadline({...r,fabric_id:String(r.fabric_id??'x')})));
+        let results:any[] = keepLive(await globalDiscoverySearch(sb, searchArgs));
+        const fallback:{widened:boolean;live_search:string|null;watching:boolean}={widened:false,live_search:null,watching:false};
+        // Jamais de « 0 résultat » sec : élargir aux villes voisines, puis chercher en direct.
+        if(needsMore(discoveryKind,results.length)&&city&&trackRule(discoveryKind).widenCity){
+          const wider=keepLive(await globalDiscoverySearch(sb,{...searchArgs,city:null}));
+          const before=results.length;results=mergeResults(results,wider,{nearby:true}).slice(0,limit);fallback.widened=results.length>before;
+        }
+        if(needsMore(discoveryKind,results.length)&&!publicRead&&!(refreshExternal&&paidSources)){
+          const rule=trackRule(discoveryKind);
+          const live=Promise.allSettled([
+            rule.liveSources.includes('places')&&mode==='find_sellers'?refreshGooglePlaces(sb,ownerId,semanticQuery,city,8):Promise.resolve(null),
+            rule.liveSources.includes('web')?refreshSerpApi(sb,ownerId,mode,semanticQuery,city,10,discoveryKind):Promise.resolve(null),
+          ]);
+          const done=await Promise.race([live.then(()=>true),new Promise<boolean>(r=>setTimeout(()=>r(false),9000))]);
+          fallback.live_search=done?'done':'pending';
+          if(done){const fresh=keepLive(await globalDiscoverySearch(sb,searchArgs));results=mergeResults(results,fresh,{}).slice(0,limit);}
+          if(needsMore(discoveryKind,results.length)){await sb.rpc('waouh_collection_schedule',{p_handler:'site'}).then(()=>null,()=>null);fallback.watching=true;}
+        }
         const comparableOffers=mode==='find_buyers'
           ? (await loadDiscoveryRecords(sb,{query:semanticQuery,mode:'find_sellers',publicSources:publicRead?PUBLIC_NEXUS_SOURCES:undefined})).records : [];
         const priceReference=mode==='find_buyers'?marketReference(semanticQuery,comparableOffers,city):null;
@@ -2644,6 +2656,7 @@ Retourne uniquement JSON:
           source_mix: sourceMix,
           market_reference:priceReference,
           refresh,
+          fallback,
           intelligence: {
             ...intelligence,
             mode,

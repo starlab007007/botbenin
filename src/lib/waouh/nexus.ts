@@ -469,6 +469,7 @@ export async function globalNexusDiscovery(input: {
     results: NexusDiscoveryResult[];
     source_mix: Record<string, number>;
     market_reference?:NexusMarketReference|null;
+    fallback?:{widened:boolean;live_search:string|null;watching:boolean};
     refresh: Record<string, {
       configured?: boolean;
       inserted?: number;
