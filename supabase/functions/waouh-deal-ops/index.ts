@@ -921,7 +921,7 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   if (tx?.id) {
     await sb.from("waouh_transactions").update({
       payment_method: method,
-      status: "delivery_pending",
+      status: "payment_pending", // seules valeurs admises : initiated, payment_pending, paid, completed, disputed, cancelled
       commission_rate: deal.commission_rate ?? COMMISSION_RATE,
       commission_status: "pending",
     }).eq("id", tx.id);
