@@ -8,6 +8,7 @@ import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
 import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
+import 'live_waouh_flow_ui.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
@@ -475,13 +476,23 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             query: widget.goal,
           )
         : null;
-    final stage = liveSearchStage(hasReply: reply != null, revealed: revealed, results: rows.length);
     final kindLabel = liveGuidedKindLabels[widget.kind ?? ''];
     final status = running
         ? (reply == null ? 'BOT CHERCHE POUR VOUS' : 'BOT ANALYSE LES OFFRES')
         : 'RECHERCHE TERMINÉE';
+    final median = waouhMedian(canonicalRows.map(_rowPrice));
+    final botBar = revealed && !_sell && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
+        ? WaouhBotBar(
+            count: brief.delegable.length > 4 ? 4 : brief.delegable.length,
+            busy: _delegating,
+            done: _delegatedRoom != null,
+            onDelegate: () => _delegateAll(brief),
+            onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
+          )
+        : null;
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
+      bottomNavigationBar: botBar,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: WaouhPalette.ink,
@@ -509,7 +520,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         children: [
           LiveSearchChips(city: _goalFacts.city, budget: _goalFacts.budget),
           if ((_goalFacts.city ?? '').trim().isNotEmpty || _goalFacts.budget != null) const SizedBox(height: 10),
-          LiveSearchStageBar(stage: stage),
+          WaouhStepBar(step: revealed && rows.isNotEmpty ? 2 : 1),
           const SizedBox(height: 14),
           LiveReasoningFeed(
             steps: _steps,
@@ -531,7 +542,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            if (brief != null && brief.total > 0) ...[
+            if (brief != null && brief.total > 0 && canonicalRows.isEmpty) ...[
               LiveChatMarketBriefCard(
                 brief: brief,
                 city: _goalFacts.city,
@@ -544,17 +555,6 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            if (rows.isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.only(left: 2, bottom: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Les offres',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                  ],
-                ),
-              ),
             if (canonicalRows.isEmpty) LiveMessageBubble(
               message: reply,
               actionsEnabled: true,
@@ -567,65 +567,20 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               OutlinedButton(onPressed: _delegating ? null : _watch, child: const Text('Activer la veille')),
             if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
-              const Padding(
-                padding: EdgeInsets.only(left: 2, bottom: 6),
-                child: Text('Choisissez une offre',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-              ),
-              for (final row in canonicalRows)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFDCE7F8)),
-                  ),
-                  child: Row(children: [
-                    if (liveProductPhotos(row).isNotEmpty) Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(liveProductPhotos(row).first, width: 56, height: 56, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 56)),
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_rowTitle(row),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 2),
-                          Text(
-                            [
-                              if (reasonMoney(_rowPrice(row)) != null) reasonMoney(_rowPrice(row))!,
-                              _rowPhone(row) ?? (_contactAllowed(row) ? 'Contact via WAOUH' : 'Contact à vérifier'),
-                              _rowSource(row),
-                              if (row['observed_at'] is String)
-                                if (DateTime.tryParse(row['observed_at'] as String) case final date?)
-                                  _seenAgo(date),
-                            ].join(' · '),
-                            style: const TextStyle(
-                                fontSize: 11, fontWeight: FontWeight.w700, color: WaouhPalette.muted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_isOwn(row)) const Chip(label: Text('Votre annonce', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)))
-                    else Column(
-                      children: [
-                        FilledButton(onPressed: _delegating ? null : () => _openManually(row), child: const Text('Intéressé')),
-                        TextButton(onPressed: () => showLiveProductDetails(context, row), child: const Text('Détails')),
-                        if (_contactAllowed(row)) TextButton(
-                          onPressed: _delegating ? null : () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []),
-                          child: const Text('Bot'),
-                        ),
-                      ],
-                    ),
-                  ]),
+              for (final (index, row) in canonicalRows.indexed)
+                WaouhOfferCard(
+                  title: _rowTitle(row),
+                  priceLabel: reasonMoney(_rowPrice(row)),
+                  tag: waouhPriceTag(_rowPrice(row), median),
+                  photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
+                  city: row['city']?.toString(),
+                  verified: _contactAllowed(row),
+                  best: index == 0 && !_isOwn(row) && _rowPrice(row) != null,
+                  own: _isOwn(row),
+                  busy: _delegating,
+                  onWant: () => _openManually(row),
+                  onBot: _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
+                  onDetails: () => showLiveProductDetails(context, row),
                 ),
             ],
           ],
