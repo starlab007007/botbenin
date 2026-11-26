@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -2034,16 +2035,19 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
       Wrap(spacing:8,runSpacing:8,crossAxisAlignment:WrapCrossAlignment.center,children:[
         Text('${indices.length} résultat${indices.length>1?'s':''}',style:const TextStyle(fontWeight:FontWeight.w800,color:Color(0xFF46324D))),
         SizedBox(width:constraints.maxWidth.clamp(0,190).toDouble(),child:DropdownButton<String>(isExpanded:true,style:const TextStyle(fontSize:13,color:Color(0xFF46324D)),value:order,items:const [DropdownMenuItem(value:'selection',child:Text('Sélection')),DropdownMenuItem(value:'price_asc',child:Text('Prix croissant')),DropdownMenuItem(value:'price_desc',child:Text('Prix décroissant'))],onChanged:(v)=>setState(() {order=v!;page=0;}))),
-        OutlinedButton(onPressed:()=>setState(()=>all=!all),child:Text(all?'Afficher par 5':'Tout afficher')),
-        FilledButton(onPressed:selected.length<2?null:compare,child:Text('Comparer ${selected.length}/5')),
+        IconButton(tooltip:all?'Afficher par 5':'Tout afficher',onPressed:()=>setState(()=>all=!all),icon:Icon(all?Icons.view_agenda_outlined:Icons.grid_view_rounded)),
+        if(selected.length>=2) FilledButton.icon(onPressed:compare,icon:const Icon(Icons.compare_arrows_rounded),label:Text('Comparer ${selected.length}')),
       ]),
-      const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('Sélectionnez jusqu’à 5 offres. Les prix et disponibilités restent à confirmer.',style:TextStyle(fontSize:12,color:Color(0xFF756B79)))),
+      const SizedBox(height:8),
       Wrap(spacing:12,runSpacing:12,children:visible.map((i)=>SizedBox(width:width,key:anchors.putIfAbsent(i,()=>GlobalKey()),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        Material(type:MaterialType.transparency,child:CheckboxListTile(contentPadding:EdgeInsets.zero,dense:true,title:Text('Comparer l’offre ${i+1}'),value:selected.contains(i),onChanged:!selected.contains(i)&&selected.length>=5?null:(v)=>setState(() {if(v==true){selected.add(i);}else{selected.remove(i);}}))),
-        _PremiumProductCard(product:widget.products[i],insights:enriched[i],index:i,onPayload:widget.onPayload,actionsEnabled:widget.actionsEnabled),
+        // Appui long = ajouter/retirer de la comparaison (pas de case à cocher).
+        GestureDetector(
+          onLongPress:(){ HapticFeedback.selectionClick(); setState(() { if(selected.contains(i)){selected.remove(i);}else if(selected.length<5){selected.add(i);} }); },
+          child:AnimatedContainer(duration:const Duration(milliseconds:180),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),border:Border.all(color:selected.contains(i)?const Color(0xFF2563EB):Colors.transparent,width:2)),
+            child:_PremiumProductCard(product:widget.products[i],insights:enriched[i],index:i,onPayload:widget.onPayload,actionsEnabled:widget.actionsEnabled)),
+        ),
       ]))).toList()),
       if(!all && pages>1) Row(mainAxisAlignment:MainAxisAlignment.center,children:[IconButton(tooltip:'Résultats précédents',onPressed:page>0?()=>setState(()=>page--):null,icon:const Icon(Icons.chevron_left)),Text('${page+1}/$pages'),IconButton(tooltip:'Résultats suivants',onPressed:page<pages-1?()=>setState(()=>page++):null,icon:const Icon(Icons.chevron_right))]),
-      OutlinedButton.icon(onPressed:()=>openLiveConvergence(context),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser mon besoin')),
     ]);
   });
 }
@@ -2227,7 +2231,6 @@ class _PremiumProductCard extends StatelessWidget {
                   ),
                 ),
               ],
-        OutlinedButton.icon(onPressed:()=>openLiveConvergence(context,source:product.raw.isEmpty?{'title':product.title,'city':product.city,'category':product.category}:product.raw),icon:const Icon(Icons.layers_outlined),label:const Text('Organiser ce besoin')),
       ]))),
     );
   }
@@ -3443,7 +3446,7 @@ class _LivePremiumMessageContent extends StatelessWidget {
 
   final String text;
 
-  static final RegExp _separator = RegExp(r'^[\s─—–_=-]{5,}$');
+  static final RegExp _separator = RegExp(r'^[\s─━═—–_‗▁▔¯=*~-]{4,}$');
   static final RegExp _productTitle = RegExp(r'^\*{0,2}\s*\d+[.)]\s+');
   static final RegExp _emphasis = RegExp(r'^\*+(.+?)\*+$');
   static final RegExp _info = RegExp(

@@ -412,10 +412,11 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           break;
         } on StateError catch (e) {
           lastError = e;
-          if (!['own_offer', 'article_unavailable', 'offer_not_found', 'contact_unavailable'].contains(e.message)) rethrow;
+          // Toute offre refusée (prix absent, vendeur injoignable, déjà prise…) : on passe à la suivante.
+          if (e.message.startsWith('Connectez-vous') || e.message == 'Votre compte a changé.') rethrow;
         }
       }
-      if (opened == null) throw lastError ?? StateError('request_failed');
+      if (opened == null) throw StateError(lastError == null ? 'request_failed' : 'no_candidate');
       final rest = candidates.skip(index + 1).toList();
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
@@ -442,7 +443,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       if (mounted) {
         final code = e is StateError ? e.message : '';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(code == 'request_failed' || code.isEmpty
+          content: Text(code == 'no_candidate'
+              ? 'Aucune offre disponible pour Bot. Essayez une autre recherche.'
+              : code == 'request_failed' || code.isEmpty
               ? 'Impossible de confier à Bot pour le moment. Réessayez.'
               : roomError(StateError(code))),
         ));
@@ -549,11 +552,6 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   children: [
                     Text('Les offres',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                    SizedBox(height: 3),
-                    Text(
-                      'Touchez « Intéressé » pour ouvrir la Deal Room.',
-                      style: TextStyle(fontSize: 12, height: 1.4, color: WaouhPalette.muted),
-                    ),
                   ],
                 ),
               ),
