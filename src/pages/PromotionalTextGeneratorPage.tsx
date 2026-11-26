@@ -317,7 +317,7 @@ export const PromotionalTextGeneratorPage = () => {
           {functionStatus === 'ready' && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
               <p className="text-xs text-green-800">
-                ✅ <strong>Système opérationnel</strong> - Les textes seront générés avec Lovable AI.
+                ✅ <strong>Système opérationnel</strong> - Les textes seront générés automatiquement.
               </p>
             </div>
           )}

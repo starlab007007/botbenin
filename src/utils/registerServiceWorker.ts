@@ -41,7 +41,7 @@ installChunkErrorReload();
 const shouldSkipRegistration = () => {
   if (typeof window === 'undefined') return true;
   try {
-    if (window.self !== window.top) return true; // inside iframe (Lovable preview)
+    if (window.self !== window.top) return true; // inside iframe (preview)
   } catch { return true; }
   const host = window.location.hostname;
   if (host.startsWith('id-preview--') || host.startsWith('preview--')) return true;

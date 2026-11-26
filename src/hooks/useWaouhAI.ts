@@ -27,7 +27,7 @@ export function useWaouhAI() {
     } catch (e: any) {
       const msg = e?.message || 'Erreur IA';
       if (msg.includes('429')) toast({ title: 'Trop de requêtes', description: 'Patientez quelques secondes.', variant: 'destructive' });
-      else if (msg.includes('402')) toast({ title: 'Crédits épuisés', description: 'Ajoutez des crédits dans votre espace Lovable.', variant: 'destructive' });
+      else if (msg.includes('402')) toast({ title: 'Crédits épuisés', description: 'Le service est momentanément indisponible, réessayez plus tard.', variant: 'destructive' });
       else toast({ title: 'Erreur IA', description: msg, variant: 'destructive' });
       return null;
     } finally {

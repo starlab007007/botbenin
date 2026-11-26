@@ -196,9 +196,9 @@ Génère UNIQUEMENT le texte promotionnel, sans commentaire.`
         if (response.status === 402) {
           return new Response(
             JSON.stringify({ 
-              error: 'Crédits Lovable AI insuffisants. Rechargez votre compte.',
+              error: 'Service momentanément indisponible, réessayez plus tard.',
               code: 'INSUFFICIENT_CREDITS',
-              details: 'Visitez https://lovable.dev/settings/billing pour recharger'
+              details: 'Réessayez plus tard'
             }),
             { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
@@ -316,7 +316,7 @@ Génère un paragraphe fluide qui raconte l'histoire complète. UNIQUEMENT le te
         if (response.status === 402) {
           return new Response(
             JSON.stringify({ 
-              error: 'Crédits Lovable AI insuffisants.',
+              error: 'Service momentanément indisponible, réessayez plus tard.',
               code: 'INSUFFICIENT_CREDITS'
             }),
             { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

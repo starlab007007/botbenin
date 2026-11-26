@@ -119,7 +119,7 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
           toast.error('⏱️ Trop de requêtes. Veuillez patienter 30 secondes et réessayer.');
           return;
         } else if (error.message?.includes('402') || error.message?.includes('credits')) {
-          toast.error('💳 Crédits insuffisants. Veuillez ajouter des crédits à votre workspace Lovable.');
+          toast.error('Service momentanément indisponible, réessayez plus tard.');
           return;
         } else if (error.message?.includes('Not authenticated')) {
           toast.error('🔐 Session expirée. Veuillez vous reconnecter.');

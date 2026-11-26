@@ -40,7 +40,7 @@ export default function ArchitecturePage() {
             icon: Network,
             title: "2. Architecture technique",
             desc:
-              "React 18 + Vite + Capacitor · Supabase (Postgres, Auth, Storage, Realtime, Edge Functions Deno) · Lovable AI Gateway (Gemini 2.5 Flash-Lite) · WAHA · Qosic · ElevenLabs · HF NLLB.",
+              "React 18 + Vite + Capacitor · Base de données sécurisée · WAHA · Qosic · ElevenLabs · HF NLLB.",
           },
           {
             icon: Database,

@@ -95,9 +95,9 @@ export const usePromotionalTextGeneration = () => {
         promotionalText = PROMOTIONAL_TEXT_EXAMPLES[frameType][style];
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simule génération
       } else {
-        // Mode production avec Lovable AI + Retry logic
+        // Mode production avec IA + Retry logic
         const data = await retryWithBackoff(async () => {
-          console.log('🤖 [AI] Appel Lovable AI...');
+          console.log('🤖 [AI] Appel IA...');
           const { data, error } = await supabase.functions.invoke('generate-promotional-texts', {
             body: { 
               action: 'generate-frame-text',
@@ -116,7 +116,7 @@ export const usePromotionalTextGeneration = () => {
               throw new Error('Limite de requêtes atteinte. Réessayez dans quelques secondes.');
             }
             if (error.message?.includes('402')) {
-              throw new Error('Crédits Lovable AI insuffisants. Rechargez votre compte.');
+              throw new Error('Service momentanément indisponible, réessayez plus tard.');
             }
             
             throw error;
