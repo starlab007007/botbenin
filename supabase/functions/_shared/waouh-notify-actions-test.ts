@@ -1,6 +1,6 @@
 // E1 — les boutons de décision du vendeur doivent atteindre son message du fil et la file WhatsApp.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { actionsOrEmpty, optionalUuid, sanitizeActions } from "./waouh-notify-actions.ts";
+import { actionsOrEmpty, optionalUuid, sanitizeActions, notificationRecordStatus } from "./waouh-notify-actions.ts";
 
 const NEG = "7c1f6f0a-1b2c-4d3e-8f4a-5b6c7d8e9f01";
 
@@ -44,4 +44,14 @@ Deno.test("optionalUuid n'accepte que des uuid (pas de valeur libre dans les cl�
   assertEquals(optionalUuid("pas-un-uuid"), null);
   assertEquals(optionalUuid(`${NEG},user_id.neq.0`), null);
   assertEquals(optionalUuid(undefined), null);
+});
+
+Deno.test("notification records do not claim transport delivery", () => {
+  assertEquals(notificationRecordStatus("waouh_app", { ok: false, skipped: true }), "recorded");
+  assertEquals(notificationRecordStatus("waouh_app", { ok: true, queued: true }), "recorded");
+  assertEquals(notificationRecordStatus("whatsapp", { ok: true, queued: true }), "queued");
+  assertEquals(notificationRecordStatus("partner", { ok: true, queued: true }), "queued");
+  assertEquals(notificationRecordStatus("whatsapp", { ok: true, skipped: true }), "recorded");
+  assertEquals(notificationRecordStatus("whatsapp", { ok: false }), "failed");
+  assertEquals(notificationRecordStatus("whatsapp", null), "failed");
 });
