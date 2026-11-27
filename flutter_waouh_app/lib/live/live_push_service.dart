@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'access_policy.dart';
+
 /// Optional native push bootstrap.
 ///
 /// WAOUH must keep working when Firebase Android configuration is intentionally
@@ -29,13 +31,38 @@ class LivePushService {
   static Future<void> Function(String text, Map<String, dynamic> context)? onQuickReply;
 
   /// Ouvre une route interne (renseignée par l'application au démarrage du routeur).
-  static void Function(String route)? onOpenRoute;
+  static void Function(String route)? _onOpenRoute;
+  static String? _pendingRoute;
+  static void Function(String route)? get onOpenRoute => _onOpenRoute;
+  static set onOpenRoute(void Function(String route)? handler) {
+    _onOpenRoute = handler;
+    final pending = _pendingRoute;
+    if (handler != null && pending != null) {
+      _pendingRoute = null;
+      scheduleMicrotask(() => _dispatchRoute(pending));
+    }
+  }
+
+  static void _dispatchRoute(String route) {
+    final handler = _onOpenRoute;
+    if (handler == null) {
+      _pendingRoute = route;
+    } else {
+      handler(route);
+    }
+  }
 
   /// Route interne sûre portée par la notification (`route` ou `url`), sinon null.
   /// Seuls les chemins `/app/...` sont acceptés : jamais d'URL externe ni de `//`.
   static String? safeRouteFromData(Map<String, dynamic> data) {
     final raw = '${data['route'] ?? data['url'] ?? data['link'] ?? ''}'.trim();
-    if (raw.isEmpty) return null;
+    if (raw.isEmpty) {
+      final room = '${data['room_id'] ?? ''}'.trim();
+      if (RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(room)) {
+        return Uri(path: '/app/chat/room', queryParameters: {'room_id': room}).toString();
+      }
+      return null;
+    }
     var path = raw;
     final uri = Uri.tryParse(raw);
     if (uri != null && uri.hasScheme) {
@@ -44,12 +71,14 @@ class LivePushService {
       path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
     }
     if (!path.startsWith('/app/') || path.startsWith('//')) return null;
-    return path;
+    final parsed = Uri.tryParse(path);
+    if (parsed == null || parsed.hasAuthority || parsed.hasScheme) return null;
+    return canonicalWaouhRoomRoute(parsed) ?? path;
   }
 
   void _openFromMessage(RemoteMessage message) {
     final route = safeRouteFromData(message.data);
-    if (route != null) onOpenRoute?.call(route);
+    if (route != null) _dispatchRoute(route);
   }
 
   Future<void> _initLocal() async {
@@ -77,7 +106,7 @@ class LivePushService {
             return;
           }
           final route = safeRouteFromData(ctx);
-          if (route != null) onOpenRoute?.call(route);
+          if (route != null) _dispatchRoute(route);
         },
       );
       _localReady = true;

@@ -42,10 +42,19 @@ String normalizeWaouhNextRoute(
   if (uri == null || uri.hasScheme || uri.host.isNotEmpty) return fallback;
   if (uri.path.startsWith('/app/auth')) return fallback;
 
-  return uri.toString();
+  return canonicalWaouhRoomRoute(uri) ?? uri.toString();
 }
 
 String buildWaouhAuthRoute(String next) {
   final safe = normalizeWaouhNextRoute(next);
   return '/app/auth?next=${Uri.encodeComponent(safe)}';
+}
+
+/// Legacy server notification links and the native room route refer to the same room.
+/// Preserve the query so authentication can resume the precise conversation.
+String? canonicalWaouhRoomRoute(Uri uri) {
+  if (uri.hasScheme || uri.hasAuthority || uri.path != '/app/chat') return null;
+  final roomId = uri.queryParameters['room_id']?.trim() ?? '';
+  if (roomId.isEmpty) return null;
+  return uri.replace(path: '/app/chat/room').toString();
 }
