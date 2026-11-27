@@ -110,11 +110,13 @@ class WaouhOfferCard extends StatelessWidget {
     required this.onWant,
     this.onBot,
     this.onDetails,
+    this.showPriceTag = true,
     this.actionLabel = 'Je prends',
     this.botLabel = 'Confier à Bot',
   });
   final String title;
   final String actionLabel, botLabel;
+  final bool showPriceTag;
   final String? priceLabel;
   final WaouhPriceTag tag;
   final String? photo;
@@ -173,14 +175,13 @@ class WaouhOfferCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(priceLabel ?? 'Prix à demander',
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _ink)),
+                  style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: _ink)),
               const SizedBox(height: 2),
               Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(height: 8),
               Row(children: [
-                WaouhPricePill(tag),
-                const SizedBox(width: 8),
+                if (showPriceTag) ...[WaouhPricePill(tag), const SizedBox(width: 8)],
                 if ((city ?? '').trim().isNotEmpty) ...[
                   const Icon(Icons.place_rounded, size: 15, color: _muted),
                   Flexible(child: Text(city!, maxLines: 1, overflow: TextOverflow.ellipsis,

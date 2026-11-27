@@ -184,13 +184,13 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
         </header>
 
         <div ref={scroller} className="wsl-body">
-          <WaouhReasoningFeed steps={feed.shown} running={running} pending={feed.pending} summary={revealed ? outcome?.summary ?? null : null} onSkip={feed.skip} />
+          <div hidden={revealed && !!search?.results.length}><WaouhReasoningFeed steps={feed.shown} running={running} pending={feed.pending} summary={revealed ? outcome?.summary ?? null : null} onSkip={feed.skip} /></div>
           <div ref={outcomeRef} className="wsl-anchor" aria-hidden="true" />
           {revealed && search && search.results.length > 0 && (
             <>
               {search.kind === "vendre" || search.priceReference
                 ? <WaouhSellerBrief results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
-                : <WaouhChatMarketBrief key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = offerJourney(search.kind, resultKind(row)); return <WaouhOfferActions primaryOnly primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
+                : <WaouhChatMarketBrief onWatch={onWatch} watchBusy={watchBusy} key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = offerJourney(search.kind, resultKind(row)); return <WaouhOfferActions primaryOnly primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
               <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>{selling ? "Acheteurs" : search.kind === "opportunite" ? "Opportunités" : search.kind === "service" ? "Services" : search.kind === "prestation" ? "Prestataires" : search.kind === "trouver" ? "Autres pistes" : "Autres offres"} · {orderedResults.length}</summary>
                 {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
 

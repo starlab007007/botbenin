@@ -23,7 +23,9 @@ const gapLabel = (row: BriefRow) => {
  * comparaison des meilleures offres, et un seul bouton pour tout confier à Bot. Les fiches
  * complètes (photos, intérêt, message, proposition) restent juste en dessous.
  */
-export function WaouhChatMarketBrief({ results, city, budget, kind, query, renderPrimary }: {
+export function WaouhChatMarketBrief({ results, city, budget, kind, query, renderPrimary, onWatch, watchBusy }: {
+  onWatch?: () => void;
+  watchBusy?: boolean;
   renderPrimary?: (row: WaouhResultCard) => ReactNode;
   query?: string | null;
   results: WaouhResultCard[];
@@ -80,7 +82,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
             <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />{pick.match === 'near' || brief.exact === 0 ? 'Alternative à vérifier' : 'Le choix de Bot'}</span>
             <h4>{pick.result.title}</h4>
             <p className="wsl-pick-price">{journey === "opportunity" ? "Conditions à consulter" : pick.price === null ? "Prix à demander" : briefMoney(pick.price)}{pick.result.city ? <small> · {pick.result.city}</small> : null}</p>
-            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{commercial && brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">{journey === "opportunity" ? "Éligibilité et échéance à vérifier" : commercial ? "Stock et prix à confirmer" : "Périmètre et tarif à confirmer"}</small>{!commercial && facts && <div className="text-xs space-y-1 mt-2">{facts.organization && <p>{facts.organization}</p>}{facts.deadline !== null && journey === "opportunity" && <p>Échéance : {new Date(facts.deadline).toLocaleDateString("fr-FR",{timeZone:"Africa/Porto-Novo"})}</p>}{facts.scope && <p>{facts.scope}</p>}{facts.availability && <p>Disponibilité : {facts.availability}</p>}{facts.duration !== null && <p>Délai : {facts.duration} j</p>}</div>}
+            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{commercial && brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">{journey === "opportunity" ? "Éligibilité et échéance à vérifier" : commercial ? "Stock et prix à confirmer" : "Périmètre et tarif à confirmer"}</small>{!commercial && facts && <div className="text-xs space-y-1 mt-2">{facts.organization && <p className="truncate">{facts.organization}</p>}{facts.deadline !== null && journey === "opportunity" && <p>Échéance : {new Date(facts.deadline).toLocaleDateString("fr-FR",{timeZone:"Africa/Porto-Novo"})}</p>}{facts.scope && <p className="line-clamp-2">{facts.scope}</p>}{facts.availability && <p>Disponibilité : {facts.availability}</p>}{facts.duration !== null && <p>Délai : {facts.duration} j</p>}</div>}
           </div>
         </article>
       )}
@@ -94,11 +96,13 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
             discoveryKind={journey}
             city={city || best.result.city || null}
             budgetMax={budget ?? null}
-            label="Confier à Bot"
+            label={kind === "trouver" && commercial ? "Confier la piste à Bot" : "Confier à Bot"}
             className="h-14 px-4"
             alternates={alternates.map((row) => ({ fabric_id: row.delegateId!, city: row.result.city ?? null }))}
           />
         </div>
+      ) : journey === "opportunity" && onWatch ? (
+        <button type="button" className="wsl-premium-watch" onClick={onWatch} disabled={watchBusy}>{watchBusy ? "Activation…" : "Suivre l’opportunité"}</button>
       ) : (
         <p className="wsl-delegate-none">{journey === "opportunity" ? "Vous gardez la main sur votre candidature." : "Automatisation indisponible pour cette offre."}</p>
       )}

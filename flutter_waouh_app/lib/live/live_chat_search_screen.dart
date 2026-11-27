@@ -364,6 +364,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
 
   Future<void> _delegateAll(LiveChatBrief brief) async {
     if (_delegating || brief.delegable.isEmpty || widget.kind == 'opportunite') return;
+    if (brief.delegable.first.row['result_kind'] == 'announcement' || brief.delegable.first.row['intent'] == 'ANNOUNCE') return;
     final best = brief.delegable.first;
     final alternates = brief.delegable.skip(1).take(3).toList();
     final ok = await confirmBotDelegation(
@@ -481,7 +482,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final status = running
         ? (reply == null ? 'BOT CHERCHE POUR VOUS' : 'BOT ANALYSE LES OFFRES')
         : 'RECHERCHE TERMINÉE';
-    final median = waouhMedian(canonicalRows.map(_rowPrice));
+    final median = waouhMedian(canonicalRows.where((row) => row['result_kind'] != 'announcement' && row['result_kind'] != 'service' && row['intent'] != 'ANNOUNCE').map(_rowPrice));
     final recommended = brief?.pick;
     final primaryRows = !_sell && recommended != null ? canonicalRows.where((row) => !_isOwn(row) && _roomFabric(row) == recommended.delegateId).take(1).toList() : <Map<String,dynamic>>[];
     final otherRows = canonicalRows.where((row) => !primaryRows.contains(row)).toList();
@@ -500,7 +501,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   title: _rowTitle(row),
                   actionLabel: actionLabel(row),
                   botLabel: _sell ? 'Confier la vente' : 'Confier à Bot',
-                  priceLabel: reasonMoney(_rowPrice(row)),
+                  priceLabel: journey(row) == 'opportunity' ? 'Conditions à consulter' : reasonMoney(_rowPrice(row)),
+                  showPriceTag: journey(row) == 'purchase',
                   tag: waouhPriceTag(_rowPrice(row), median),
                   photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
                   city: row['city']?.toString(),
@@ -590,6 +592,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
               for (final row in primaryRows) offerCard(row,best:true),
+              if (widget.kind == 'opportunite') FilledButton.icon(onPressed: _delegating ? null : _watch, icon: const Icon(Icons.notifications_none), label: const Text('Suivre l’opportunité')),
               if (otherRows.isNotEmpty) ExpansionTile(title: Text(primaryRows.isEmpty ? 'Offres (${otherRows.length})' : 'Autres offres (${otherRows.length})'), initiallyExpanded: primaryRows.isEmpty, children: [for(final row in otherRows) offerCard(row)]),
             ],
           ],
