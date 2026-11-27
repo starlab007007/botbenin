@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.request
 import uuid
+from resilience import probe
 CONTAINER='react-app-botjs'
 PUBLIC='https://bot.bj/waouh-release.json'
 ORIGIN='http://127.0.0.1:8084/waouh-release.json'
@@ -83,6 +84,14 @@ def main():
     with open(root/'agent.lock','a') as lock:
         try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError: return 0
+        # Record independently before any central API call, with bounded disk use.
+        try:
+            result=probe(); atomic_write(root/'api-latest.json',result)
+            history=root/'api-history.jsonl'
+            if history.exists() and history.stat().st_size>262144: os.replace(history,root/'api-history.previous.jsonl')
+            fd=os.open(history,os.O_CREAT|os.O_APPEND|os.O_WRONLY|os.O_NOFOLLOW,0o600)
+            with os.fdopen(fd,'a') as out: out.write(json.dumps(result)+'\n')
+        except Exception: print('GUARDIAN independent observation unavailable',file=sys.stderr)
         try: cycle(json.loads((root/'config.json').read_text()),root)
         except Exception: print('GUARDIAN observation unavailable',file=sys.stderr);return 1
     return 0

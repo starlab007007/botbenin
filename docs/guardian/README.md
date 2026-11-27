@@ -14,7 +14,7 @@ vérification après réparation. GUARDIAN apporte :
   collecte payante, accès utilisateurs, connexion WhatsApp, envois en attente,
   erreurs d’écrans et fraîcheur des observateurs ;
 - sonde sur l’hôte toutes les minutes, indépendante du conteneur Web ;
-- sonde extérieure toutes les cinq minutes (ordonnancement susceptible de retard) ;
+- sonde extérieure lors d'une livraison volontaire ou d'un contrôle manuel; surveillance périodique hors GitHub à configurer ;
 - administration dédiée, incidents et actions persistants, notifications
   administrateur dédupliquées, maintenance et suspension des relances ;
 - remontées Web/Flutter authentifiées et limitées, sans message, photo, adresse,
@@ -65,3 +65,9 @@ Le transfert de la configuration d’hôte utilise le même utilisateur que sa
 création : le fichier reste privé (0600) et n’est pas rendu lisible pour un
 conteneur de transfert. Les références de clé sont temporaires, la vérification
 de clé hôte est active et les fichiers temporaires sont nettoyés.
+
+## GUARDIAN 2 — P0 indépendance API
+La sonde publique read-only vérifie le contrat réel de waouh_module_policy sans jeton de service ni Vault. Elle enregistre uniquement le statut HTTP, la latence et une cause normalisée. Le VPS conserve un journal rotatif local et GitHub conserve un artefact même si la sonde échoue. Un résultat vide ou invalide ne peut pas devenir vert. Aucun redémarrage de PostgreSQL ni changement d'autorisation n'est déclenché par cette sonde. La régulation CRON et la reprise sont des étapes distinctes, à certifier avant activation automatique.
+
+## Zero-Push / Zero-Recurring-CI
+Aucun déclencheur schedule, repository_dispatch ou workflow_run dans les workflows GUARDIAN. Les seules entrées sont les modifications volontaires du code et workflow_dispatch. Les permissions GitHub restent contents: read; l'agent VPS ne reçoit aucun jeton GitHub et ne lance aucune commande Git ni workflow. Les observations restent dans le journal local rotatif et dans Supabase lorsqu'il répond. La certification externe d'une livraison reste ponctuelle. Une sonde externe indépendante doit être configurée pour conserver les autorisations de réparation qui exigent une observation extérieure fraîche; en son absence la réparation demeure bloquée, jamais contournée. Aucun achat de crédits ni appel IA payant par l'agent.

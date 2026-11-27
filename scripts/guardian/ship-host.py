@@ -19,7 +19,7 @@ def main():
         scp=['scp',*options,'-P',port]
         try:
             run([*ssh,'umask 077; mkdir -p '+REMOTE+'/scripts/guardian; chmod 700 '+REMOTE])
-            run([*scp,'scripts/guardian/agent.py','scripts/guardian/install-host.sh',destination+':'+REMOTE+'/scripts/guardian/'])
+            run([*scp,'scripts/guardian/agent.py','scripts/guardian/resilience.py','scripts/guardian/install-host.sh',destination+':'+REMOTE+'/scripts/guardian/'])
             run([*scp,'guardian-config.json',destination+':'+REMOTE+'/guardian-config.json'])
             run([*ssh,'sh '+REMOTE+'/scripts/guardian/install-host.sh '+REMOTE])
         finally:

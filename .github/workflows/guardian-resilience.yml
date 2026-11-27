@@ -1,0 +1,37 @@
+name: GUARDIAN 2 - independent API availability
+on:
+  push:
+    branches: [prod]
+    paths: ['scripts/guardian/resilience.py','scripts/guardian/test_resilience.py','.github/workflows/guardian-resilience.yml']
+  pull_request:
+    branches: [prod]
+    paths: ['scripts/guardian/resilience.py','scripts/guardian/test_resilience.py','.github/workflows/guardian-resilience.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guardian-api-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/guardian -p test_resilience.py -v
+  external:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/prod'
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe public policy API without central GUARDIAN or Vault
+        run: |
+          set -o pipefail
+          python3 scripts/guardian/resilience.py | tee guardian-api.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guardian-api-observation
+          path: guardian-api.json
+          retention-days: 14
