@@ -6,6 +6,7 @@ import { briefMoney, chatMarketBrief, type BriefRow } from "@/lib/waouh/chatMark
 import type { GuidedKind } from "@/lib/waouh/guidedAsk";
 import { offerJourney } from "@/lib/waouh/offerJourney";
 import { resultKind } from "@/lib/waouh/convergence";
+import { priorityFacts } from "@/lib/waouh/priorityFacts";
 import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
@@ -54,7 +55,8 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;
   const journey = offerJourney(kind, pick ? resultKind(pick.result) : "");
-  const commercial = journey === "purchase";
+  const commercial = journey === "purchase" && results.every(row=>offerJourney(kind,resultKind(row))==="purchase");
+  const comparableRows = compare.filter(row=>offerJourney(kind,resultKind(row.result))===journey);
   const best = journey !== "opportunity" && pick && delegable.some(row => row.result === pick.result) ? pick : null;
   const alternates = best ? delegable.filter(row => row.result !== best.result && offerJourney(kind,resultKind(row.result)) === journey).slice(0, 3) : [];
   const mode = kind && ["service", "prestation", "demander", "opportunite"].includes(kind) ? "ask" : "buy";
@@ -116,18 +118,18 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
             alternates={alternates.map((row) => ({ fabric_id: row.delegateId!, city: row.result.city ?? null }))}
           />
         </div>
-      ) : journey === "opportunity" && onWatch ? (
-        <button type="button" className="wsl-premium-watch" onClick={onWatch} disabled={watchBusy}>{watchBusy ? "Activation…" : "Suivre l’opportunité"}</button>
+      ) : onWatch ? (
+        <button type="button" className="wsl-premium-watch" onClick={onWatch} disabled={watchBusy}>{watchBusy ? "Activation…" : journey === "opportunity" ? "Suivre l’opportunité" : "Bot continue la recherche"}</button>
       ) : (
         <p className="wsl-delegate-none">{journey === "opportunity" ? "Vous gardez la main sur votre candidature." : "Automatisation indisponible pour cette offre."}</p>
       )}
-      {commercial && compare.length > 1 && <details className="wsl-analysis-details"><summary><BarChart3 size={15} />Comparer<ChevronDown size={15} /></summary>{compare.length > 1 && (
+      {comparableRows.length > 1 && <details className="wsl-analysis-details"><summary><BarChart3 size={15} />Comparer avec Bot<ChevronDown size={15} /></summary>{comparableRows.length > 1 && (
         <div className="wsl-compare" role="table" aria-label="Comparaison des meilleures offres">
-          {compare.map((row) => (
+          {comparableRows.map((row) => (
             <div role="row" key={`${row.result.id}:${row.result.index}`} className={row.rank === 1 ? "is-top" : undefined}>
               <span role="cell" className="wsl-rank">{row.rank}</span>
               <span role="cell" className="wsl-compare-title"><b>{row.result.title}</b><small>Résultat {row.result.index}{row.result.city ? ` · ${row.result.city}` : ""}</small></span>
-              <span role="cell" className="wsl-compare-price"><b>{row.price === null ? "—" : briefMoney(row.price)}</b><small>{gapLabel(row)}</small></span>
+              <span role="cell" className="wsl-compare-price">{commercial ? <><b>{row.price === null ? "—" : briefMoney(row.price)}</b><small>{gapLabel(row)}</small></> : <small>{priorityFacts(row.result,kind,query).filter(f=>!f.missing).slice(0,2).map(f=>`${f.label} : ${f.value}`).join(" · ") || "Informations à confirmer"}</small>}</span>
             </div>
           ))}
         </div>

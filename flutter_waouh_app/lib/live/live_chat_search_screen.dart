@@ -513,7 +513,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   own: _isOwn(row),
                   busy: _delegating,
                   onWant: () => _openManually(row),
-                  onBot: journey(row) != 'opportunity' && _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
+                  onBot: journey(row) != 'opportunity' && _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const []) : null,
                   onDetails: () => showLiveProductDetails(context, row),
                 );
     return Scaffold(
@@ -594,7 +594,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
               for (final row in primaryRows) offerCard(row,best:true),
-              if (widget.kind == 'opportunite') FilledButton.icon(onPressed: _delegating ? null : _watch, icon: const Icon(Icons.notifications_none), label: const Text('Suivre l’opportunité')),
+              if (widget.kind == 'opportunite' || (!_sell && primaryRows.isNotEmpty && !_contactAllowed(primaryRows.first))) FilledButton.icon(onPressed: _delegating ? null : _watch, icon: const Icon(Icons.notifications_none), label: Text(widget.kind == 'opportunite' ? 'Suivre l’opportunité' : 'Bot continue la recherche')),
+              if (canonicalRows.length > 1) ExpansionTile(title: const Text('Comparer avec Bot'),children: [for(final row in canonicalRows.take(3)) ListTile(title:Text(_rowTitle(row),maxLines:2,overflow:TextOverflow.ellipsis),subtitle:Text(livePriorityFacts(row,journey(row),guided:widget.kind).entries.where((f)=>f.value!='À confirmer').take(3).map((f)=>'${f.key} : ${f.value}').join(' · ')),trailing:TextButton(onPressed:_delegating?null:()=>_openManually(row),child:const Text('Voir')))]),
               if (otherRows.isNotEmpty) ExpansionTile(title: Text(primaryRows.isEmpty ? 'Offres (${otherRows.length})' : 'Autres offres (${otherRows.length})'), initiallyExpanded: primaryRows.isEmpty, children: [for(final row in otherRows) offerCard(row)]),
             ],
           ],
