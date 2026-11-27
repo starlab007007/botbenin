@@ -12,7 +12,14 @@ export default function WaouhSearchHealthCard() {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     supabase.functions.invoke('waouh-admin-stats', { body: { action: 'search_health' } })
-      .then(({ data, error }) => (error || !data?.ok ? setFailed(true) : setData(data)), () => setFailed(true));
+      .then(({ data, error }) => {
+        if (error || !data?.ok || !data.by_kind || typeof data.by_kind !== 'object' || Array.isArray(data.by_kind)
+          || !Array.isArray(data.sources_down) || typeof data.sources_total !== 'number') {
+          setFailed(true);
+          return;
+        }
+        setData(data);
+      }, () => setFailed(true));
   }, []);
   if (failed) return <Card><CardContent className="pt-6 text-sm text-muted-foreground">Indicateurs momentanément indisponibles. Réessayez plus tard.</CardContent></Card>;
   if (!data) return <Card><CardContent className="pt-6 text-sm text-muted-foreground">Chargement des indicateurs…</CardContent></Card>;
