@@ -2,6 +2,8 @@
 """Apply only reviewed room migrations, atomically, through the management API."""
 import json
 import os
+import time
+from urllib.error import HTTPError, URLError
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -42,8 +44,24 @@ commit;"""
     request = Request(f'https://api.supabase.com/v1/projects/{project}/database/query',
         data=json.dumps({'query': query}).encode(), method='POST',
         headers={'Authorization': 'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'], 'Content-Type':'application/json'})
-    with urlopen(request, timeout=120) as response:
-        result=json.load(response)
-        if isinstance(result,dict) and (result.get('error') or result.get('message')):
-            raise RuntimeError('Schema application was not confirmed')
+    # The transaction is guarded by an advisory lock and migration history;
+    # retrying after an ambiguous gateway failure cannot apply it twice.
+    for attempt, delay in enumerate((5, 15, 30, None)):
+        try:
+            with urlopen(request, timeout=120) as response:
+                result=json.load(response)
+            if isinstance(result,dict) and (result.get('error') or result.get('message')):
+                raise RuntimeError('Schema application was not confirmed')
+            break
+        except HTTPError as error:
+            status = error.code
+            error.close()
+            if status not in {408, 429, 500, 502, 503, 504, 520, 522, 524, 544} or delay is None:
+                raise RuntimeError(f'Room migration {version}: HTTP {status}') from None
+            print(f'Room migration {version}: HTTP {status}; retry {attempt+1}/3', flush=True)
+        except (URLError, TimeoutError):
+            if delay is None:
+                raise RuntimeError(f'Room migration {version}: connection unavailable') from None
+            print(f'Room migration {version}: connection unavailable; retry {attempt+1}/3', flush=True)
+        time.sleep(delay)
     print(f'Room migration {version} applied or already recorded.')
