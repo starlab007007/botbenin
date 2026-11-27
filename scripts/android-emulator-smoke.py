@@ -270,6 +270,7 @@ def main():
         steps.append({"step": "installation", "ok": False, "critical": True, "detail": out.strip()[-400:]})
         return finish()
 
+    steps.append({"step": "installation", "ok": True, "critical": True, "detail": "APK installé"})
     sh("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity", timeout=120)
     root = wait_for(r"WaouhApp|Continuer|Avatar|Bot|Passer", 120, "launch")
     step("lancement", alive() and root is not None and len(visible_text(root)) > 0,
@@ -431,8 +432,32 @@ def main():
     return finish()
 
 
+def certification_gaps(records, login_required=False, recovery_required=False, logs_available=True):
+    """Missing evidence is a failure, not an implicit pass."""
+    required = {"installation", "lancement", "accueil_passe", "deal_room",
+                "parcours_acheter", "resultats", "raisonnement_en_direct",
+                "raisonnement_bilan", "missions", "chat", "notifications"}
+    if login_required or recovery_required:
+        required.add("connexion")
+    if recovery_required:
+        required.update({"notification_recovery", "notification_room_route",
+                         "notification_read_ack", "deal_room_recovery", "notification_history"})
+    passed = {s["step"] for s in records if s.get("ok") is True}
+    failed = {s["step"] for s in records if not s.get("ok") and
+              (s.get("critical") or s["step"] in required)}
+    gaps = sorted((required - passed) | failed)
+    if not logs_available:
+        gaps.append("logcat_indisponible")
+    return gaps
+
+
 def finish():
-    log = sh("logcat", "-d", timeout=20)
+    try:
+        log = sh("logcat", "-d", timeout=20, check=True)
+        logs_available = bool(log.strip()) and sh("get-state", timeout=8).strip() == "device"
+    except (RuntimeError, subprocess.TimeoutExpired, OSError):
+        log = ""
+        logs_available = False
     with open(os.path.join(OUT, "logcat.txt"), "w") as f:
         f.write(log)
     lines_all = log.splitlines()
@@ -443,15 +468,19 @@ def finish():
         f.write("\n".join(cause))
     flutter_errors = [l for l in log.splitlines() if re.search(r"flutter.*(Exception|Error|══╡)", l)]
     anr = [l for l in log.splitlines() if "ANR in " + PKG in l]
-    ok = all(s["ok"] for s in steps if s.get("critical")) and not crashes and not anr
-    report = {"ok": ok, "steps": steps, "crashes": crashes[:20], "crash_cause": cause, "anr": anr[:5],
+    gaps = certification_gaps(steps, login_required=bool(EMAIL or PASSWORD),
+                              recovery_required=os.environ.get("QA_RECOVERY") == "1",
+                              logs_available=logs_available)
+    ok = not gaps and not crashes and not anr
+    report = {"ok": ok, "missing_or_failed_checkpoints": gaps, "logs_available": logs_available, "steps": steps, "crashes": crashes[:20], "crash_cause": cause, "anr": anr[:5],
               "flutter_errors": flutter_errors[:40]}
     with open(os.path.join(OUT, "report.json"), "w") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     lines = ["## Test WAOUH Android sur émulateur", "", f"Résultat global : **{'réussi' if ok else 'échec'}**", "",
              "| Étape | Résultat | Détail |", "|---|---|---|"]
     lines += [f"| {s['step']} | {'✅' if s['ok'] else '❌'} | {s['detail']} |" for s in steps]
-    lines += ["", f"Plantages : {len(crashes)} · Blocages (ANR) : {len(anr)} · Erreurs Flutter journalisées : {len(flutter_errors)}"]
+    lines += ["", "Points obligatoires absents ou en échec : " + (", ".join(gaps) if gaps else "aucun"),
+              f"Plantages : {len(crashes)} · Blocages (ANR) : {len(anr)} · Erreurs Flutter journalisées : {len(flutter_errors)}"]
     with open(os.path.join(OUT, "summary.md"), "w") as f:
         f.write("\n".join(lines) + "\n")
     print("\n".join(lines))
