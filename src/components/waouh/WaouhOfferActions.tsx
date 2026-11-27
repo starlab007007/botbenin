@@ -115,7 +115,7 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
         {!reachable && <span className="wgd-offer-unreachable">Contact non disponible</span>}
         {reachable && canOpen && kind !== "opportunity" && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
           city={shared.city} budgetMax={shared.budgetMax} variant="secondary" label="Bot" className="h-10"
-          alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}
+          alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a) && (a.intent ?? null) === (result.intent ?? null)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}
         {onDetails && <button type="button" className="wgd-offer-ghost" onClick={onDetails}><Eye size={15} aria-hidden="true" />Détails</button>}
       </div>
       {!onDetails && contactAction && <details className="wgd-disclosure"><summary>Autres moyens de contact</summary><div className="pb-3">{contactAction}</div></details>}

@@ -19,9 +19,9 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 
 const search = (over: Partial<ChatSearch> = {}): ChatSearch => ({ id: "s1", goal: "iPhone 13", city: "Cotonou", status: "done", text: "", kind: "acheter", budget: 300000, results: [
-  { id: "a", index: 1, title: "iPhone 13 128 Go", price: 280000, city: "Cotonou", fabric_id: "external:a" },
-  { id: "b", index: 2, title: "iPhone 13 256 Go", price: 290000, city: "Cotonou", fabric_id: "external:b" },
-  { id: "c", index: 3, title: "iPhone 13 Pro", price: 420000, city: "Parakou", fabric_id: "external:c" },
+  { id: "a", index: 1, title: "iPhone 13 128 Go", price: 280000, city: "Cotonou", fabric_id: "external:a", contact_policy: {can_auto_contact:true} },
+  { id: "b", index: 2, title: "iPhone 13 256 Go", price: 290000, city: "Cotonou", fabric_id: "external:b", contact_policy: {can_auto_contact:true} },
+  { id: "c", index: 3, title: "iPhone 13 Pro", price: 420000, city: "Parakou", fabric_id: "external:c", contact_policy: {can_auto_contact:true} },
 ] as ChatSearch["results"], ...over });
 const render = async (value: ChatSearch | null) => act(async () => root.render(<MemoryRouter><WaouhChatSearchWindow search={value} onClose={() => {}} onAction={() => {}} /></MemoryRouter>));
 

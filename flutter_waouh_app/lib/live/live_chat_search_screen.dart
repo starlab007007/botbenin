@@ -349,6 +349,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final article = await _saleArticle();
       final response = await _service.createMandate(
         mode: _sell ? 'sell' : 'buy', goal: widget.goal, articleId: article, city: _goalFacts.city,
+        discoveryKind: _sell ? 'sale' : widget.kind == 'opportunite' ? 'opportunity' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'project' : null,
         budgetMax: _sell ? null : _goalFacts.budget?.toDouble(), autonomyMode: 'assisted',
         completionGoal: 'recommendations', maxFollowups: 0, allowWaouh: false, allowBlindMessage: false,
       );
@@ -367,7 +368,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     if (_delegating || brief.delegable.isEmpty || widget.kind == 'opportunite') return;
     if (brief.delegable.first.row['result_kind'] == 'announcement' || brief.delegable.first.row['intent'] == 'ANNOUNCE') return;
     final best = brief.delegable.first;
-    final alternates = brief.delegable.skip(1).take(3).toList();
+    if (_isOwn(best.row) || !_contactAllowed(best.row)) { await _watch(); return; }
+    final alternates = brief.delegable.skip(1).where((a) => !_isOwn(a.row) && _contactAllowed(a.row) && a.row['result_kind'] != 'announcement' && a.row['intent'] != 'ANNOUNCE' && a.row['result_kind'] == best.row['result_kind']).take(3).toList();
     final ok = await confirmBotDelegation(
       context,
       alternates: alternates.length,

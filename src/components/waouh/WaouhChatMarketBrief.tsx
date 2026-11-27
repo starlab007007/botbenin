@@ -8,6 +8,8 @@ import { offerJourney } from "@/lib/waouh/offerJourney";
 import { resultKind } from "@/lib/waouh/convergence";
 import { priorityFacts } from "@/lib/waouh/priorityFacts";
 import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
+import { offerReachable } from "./WaouhOfferActions";
+import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
@@ -57,8 +59,9 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   const journey = offerJourney(kind, pick ? resultKind(pick.result) : "");
   const commercial = journey === "purchase" && results.every(row=>offerJourney(kind,resultKind(row))==="purchase");
   const comparableRows = compare.filter(row=>offerJourney(kind,resultKind(row.result))===journey);
-  const best = journey !== "opportunity" && pick && delegable.some(row => row.result === pick.result) ? pick : null;
-  const alternates = best ? delegable.filter(row => row.result !== best.result && offerJourney(kind,resultKind(row.result)) === journey).slice(0, 3) : [];
+  const permitted = (row: BriefRow) => !!row.delegateId && offerReachable({...row.result,fabric_id:row.delegateId} as unknown as NexusDiscoveryResult);
+  const best = journey !== "opportunity" && pick && permitted(pick) && delegable.some(row => row.result === pick.result) ? pick : null;
+  const alternates = best ? delegable.filter(row => permitted(row) && row.result !== best.result && offerJourney(kind,resultKind(row.result)) === journey).slice(0, 3) : [];
   const mode = kind && ["service", "prestation", "demander", "opportunite"].includes(kind) ? "ask" : "buy";
 
 

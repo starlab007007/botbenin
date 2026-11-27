@@ -1461,6 +1461,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           try {
             const response = await createNexusMandate({
               mode: selling ? "sell" : "buy", goal: chatSearch.goal,
+              discovery_kind: selling ? "sale" : chatSearch.kind === "opportunite" ? "opportunity" : chatSearch.kind === "service" ? "service" : chatSearch.kind === "prestation" ? "project" : undefined,
               article_id: selling ? chatSearch.articleId ?? undefined : undefined,
               city: chatSearch.city || undefined, budget_max: selling ? undefined : chatSearch.budget ?? undefined,
               autonomy_mode: "assisted", completion_goal: "recommendations", max_followups: 0,
