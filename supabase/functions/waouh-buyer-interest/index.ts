@@ -119,7 +119,8 @@ Deno.serve(async (req) => {
         : opened.code === "invalid_offer" ? "invalid offer_price"
         : "thread creation failed";
       console.warn("[buyer-interest] refused", opened.code);
-      return new Response(JSON.stringify({ error, code: opened.code }), {
+      const roomId = authUserId && opened.unifiedRoom?.ownerId === authUserId ? opened.unifiedRoom.id : undefined;
+      return new Response(JSON.stringify({ error, code: opened.code, ...(roomId ? { deal_room_id: roomId } : {}) }), {
         status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

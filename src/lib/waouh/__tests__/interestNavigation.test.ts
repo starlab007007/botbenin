@@ -64,6 +64,27 @@ describe('Interest enters the existing chat negotiation', () => {
     await expect(openInterestedDiscussion(offer('article:refused'), vi.fn())).rejects.toThrow();
     expect(mocks.open).not.toHaveBeenCalled();
   });
+  it('reopens the existing unified room without starting another negotiation', async () => {
+    const id = 'a0000000-0000-4000-8000-000000000001';
+    mocks.invoke.mockResolvedValue({ error: { context: new Response(JSON.stringify({ code: 'unified_room_required', deal_room_id: id }), { status: 409 }) } });
+    const navigate = vi.fn();
+    await openInterestedDiscussion(offer('article:unified'), navigate);
+    expect(navigate).toHaveBeenCalledWith('/app/chat?room_id=' + id);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.open).not.toHaveBeenCalled();
+  });
+  it.each([undefined, 'invalid', '../private'])('rejects missing or invalid unified room id %s', async id => {
+    mocks.invoke.mockResolvedValue({ error: { context: new Response(JSON.stringify({ code: 'unified_room_required', deal_room_id: id }), { status: 409 }) } });
+    const navigate = vi.fn();
+    await expect(openInterestedDiscussion(offer('article:unified-invalid'), navigate)).rejects.toThrow();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+  it('does not navigate to a unified room after account change', async () => {
+    mocks.invoke.mockImplementation(async () => { mocks.user = 'other'; return { error: { context: new Response(JSON.stringify({ code: 'unified_room_required', deal_room_id: 'a0000000-0000-4000-8000-000000000001' }), { status: 409 }) } }; });
+    const navigate = vi.fn();
+    await expect(openInterestedDiscussion(offer('article:unified-private'), navigate)).rejects.toThrow();
+    expect(navigate).not.toHaveBeenCalled();
+  });
   it('does not open a private thread after the account changes', async () => {
     mocks.invoke.mockImplementation(async () => { mocks.user = 'other'; return { data: { ok: true, article_id: 'a', thread_id: 'private' } }; });
     await expect(openInterestedDiscussion(offer('article:private'), vi.fn())).rejects.toThrow();

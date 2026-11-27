@@ -54,6 +54,7 @@ export type OpenBuyerDealCode =
 export interface OpenBuyerDealResult {
   ok: boolean;
   code?: OpenBuyerDealCode;
+  unifiedRoom?: { id: string; ownerId: string };
   threadId: string | null;
   negotiationId: string | null;
   /** true = négociation créée par cet appel ; false = reprise d'une existante. */
@@ -205,8 +206,14 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   const threadId: string = thread.id;
   // A mapped room owns all future offers; never open a parallel legacy agreement.
   const { data: unifiedRoom, error: unifiedError } = await sb.from("waouh_deal_room_links")
-    .select("id").eq("thread_id", threadId).eq("active", true).is("blocked_reason", null).maybeSingle();
-  if (unifiedRoom) return emptyResult("unified_room_required", article);
+    .select("id,owner_id").eq("thread_id", threadId).eq("active", true).is("blocked_reason", null).maybeSingle();
+  if (unifiedRoom) {
+    const refused = emptyResult("unified_room_required", article);
+    if (buyerActor?.auth_user_id && unifiedRoom.owner_id === buyerActor.auth_user_id) {
+      refused.unifiedRoom = { id: unifiedRoom.id, ownerId: unifiedRoom.owner_id };
+    }
+    return refused;
+  }
   if (unifiedError && !["42P01", "PGRST205"].includes(unifiedError.code)) {
     console.warn("[waouh-deal-open] unified room lookup failed", unifiedError.code);
     return emptyResult("thread_failed", article);
