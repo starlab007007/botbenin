@@ -1143,9 +1143,9 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
   const result = { checked: 0, advanced: 0, abandoned: 0, errors: 0 };
   const { data: rooms } = await sb
     .from("waouh_deal_room_links")
-    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode")
+    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode, expires_at, mandate_revision")
     .eq("active", true)
-    .in("control_mode", ["bot", "paused"])
+    .eq("control_mode", "bot")
     .order("created_at", { ascending: true })
     .limit(Math.min(300, Math.max(1, limit * 10)));
   if (!rooms?.length) return result;
@@ -1156,6 +1156,9 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
     if (!hasCascade || mandate.cascade_done) continue; // never touch an ordinary (non-cascade) mandate
     result.checked++;
     try {
+      const deadline = Date.parse(String(mandate.cascade_expires_at ?? room.expires_at ?? ""));
+      if (!Number.isFinite(deadline) || deadline <= Date.now() + 3600000) continue;
+      if (Number(mandate.cascade_step ?? 1) >= Math.min(4, Number(mandate.cascade_max_steps ?? 4))) continue;
       let exhausted = false;
       if (room.control_mode === "paused") {
         const { data: lastEvent } = await sb.from("waouh_room_events")
@@ -1218,7 +1221,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (await avatarAccountPaused(sb, ownerId)) continue;
 
       const [next, ...rest] = candidates;
-      const nextFabricId = String(next?.source_ref || "");
+      const nextFabricId = String(next?.fabric_id || next?.source_ref || "");
       const sale = roomSaleSource(room.source_ref);
       const sourceRef = sale && nextFabricId ? `sale:${sale.articleId}:${nextFabricId}` : nextFabricId;
       const dropCandidate = async () => {
@@ -1233,6 +1236,11 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
         await dropCandidate(); continue;
       }
+      if (!sale && ["BUY","ANNOUNCE"].includes(String(signal.intent))) { await dropCandidate(); continue; }
+      if (!sale && mandate.budget_max != null && (signal.price_max ?? signal.price_min) != null && Number(signal.price_max ?? signal.price_min) > Number(mandate.budget_max)) { await dropCandidate(); continue; }
+      if (sale && mandate.price_floor != null && (signal.price_max ?? signal.price_min) != null && Number(signal.price_max ?? signal.price_min) < Number(mandate.price_floor)) { await dropCandidate(); continue; }
+      const domain = mandate.strategy === "service" ? "service" : mandate.strategy === "job" ? "project" : undefined;
+      if (domain && !missionMatches(signal, {missionKind:domain})) { await dropCandidate(); continue; }
       let record: any = signal;
       if (sale || sourceRef.startsWith("article:")) {
         const { data: article } = await sb.from("waouh_articles").select("*")
@@ -1268,9 +1276,13 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const rules: Record<string, any> = {
         ...mandate, cascade_candidates: rest, cascade_step: step, cascade_max_steps: maxSteps,
         cascade_previous_room_id: room.id,
+        cascade_expires_at: new Date(deadline).toISOString(),
+        duration_hours: Math.floor((deadline - Date.now()) / 3600000),
       };
       delete rules.one_step_approved; delete rules.approved_version; delete rules.cascade_done;
 
+      const {data: current} = await sb.from("waouh_deal_room_links").select("control_mode,mandate_revision").eq("id",room.id).maybeSingle();
+      if (current?.control_mode !== "bot" || current?.mandate_revision !== room.mandate_revision) continue;
       const delegated = await sb.rpc("waouh_room_command", {
         p_actor: ownerId, p_action: "delegate",
         p: { request_id: crypto.randomUUID(), deal_room_id: newRoomId, mandate_revision: newRevision, confirmed: true, rules },
@@ -1440,8 +1452,9 @@ Deno.serve(async (req) => {
   const maintenance = await maintainAvatarQueues(sb);
   const lifecycle = await advanceAvatarLifecycle(sb, 15, body.advance_only === true ? body.journey_id : undefined);
   if (body.advance_only === true) return json({ ok: true, lifecycle });
-  const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
-    .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
+  const { data: expired, error: expiryError } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
+    .eq("status", "active").lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
+  if (expiryError) throw expiryError;
   for (const m of expired ?? []) {
     await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "mandate_expired", completed_at: now.toISOString(),
       last_message: "Délai de mission atteint. Aucun nouvel envoi ne sera effectué." }).eq("mandate_id", m.id).in("stage", ["discovered", "enriching", "contact_ready", "contacting", "waiting_reply"]);

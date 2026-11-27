@@ -2040,7 +2040,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
       ]),
       const SizedBox(height:8),
       Wrap(spacing:12,runSpacing:12,children:visible.map((i)=>SizedBox(width:width,key:anchors.putIfAbsent(i,()=>GlobalKey()),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        CheckboxListTile(dense:true,contentPadding:EdgeInsets.zero,title:const Text('Comparer',style:TextStyle(fontSize:12)),value:selected.contains(i),onChanged:selected.contains(i)||selected.length<5?(v)=>setState((){if(v==true){selected.add(i);}else{selected.remove(i);}}):null),
+        Material(type:MaterialType.transparency,child:CheckboxListTile(dense:true,contentPadding:EdgeInsets.zero,title:const Text('Comparer',style:TextStyle(fontSize:12)),value:selected.contains(i),onChanged:selected.contains(i)||selected.length<5?(v)=>setState((){if(v==true){selected.add(i);}else{selected.remove(i);}}):null)),
         // Appui long : raccourci de sélection.
         GestureDetector(
           onLongPress:(){ HapticFeedback.selectionClick(); setState(() { if(selected.contains(i)){selected.remove(i);}else if(selected.length<5){selected.add(i);} }); },
