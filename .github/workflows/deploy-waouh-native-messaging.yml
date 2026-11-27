@@ -615,6 +615,18 @@ jobs:
           done
 
           echo '✅ Runtime Native Messaging et passerelles WAHA sécurisées déployés.'
+
+  certify-whatsapp:
+    name: Certify central WhatsApp independently
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
+    steps:
+      - uses: actions/checkout@v4
       - name: Connect and verify the authorized central WhatsApp session
         run: python3 scripts/verify-waouh-central-whatsapp.py --connect
 
