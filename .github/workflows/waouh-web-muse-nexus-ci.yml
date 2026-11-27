@@ -237,6 +237,8 @@ jobs:
 
       - name: Check WAOUH Notify Dispatch
         run: deno check --node-modules-dir=none supabase/functions/waouh-notify-dispatch/index.ts
+      - name: Test WAOUH notification status and actions
+        run: deno test --no-config supabase/functions/_shared/waouh-notify-actions-test.ts
 
       - name: WAOUH Chat V3 contract tests
         run: |
