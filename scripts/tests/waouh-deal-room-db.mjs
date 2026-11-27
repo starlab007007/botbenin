@@ -1,7 +1,10 @@
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
-const db=new PGlite();
+const storage=await mkdtemp(join(tmpdir(),'waouh-room-recovery-'));
+let db=new PGlite(storage);
 await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function public.is_admin(uuid) returns boolean language sql as $$select false$$;
 create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
@@ -211,4 +214,23 @@ console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and 
  assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
  console.log('Autonomy: mandatory budget, delayed atomic handoff, idempotent replay, deadline preserved, safe reply once, limits private.');
 
+// Restart the local durable database, with no Web/Android client running.
 await db.close();
+db=new PGlite(storage);
+try {
+ const persisted=(await db.query('select id,control_mode,expires_at,mandate from public.waouh_deal_room_links where id in ($1,$2)',[cascadeId,moved.deal_room_id])).rows;
+ assert.equal(persisted.find(x=>x.id===cascadeId).control_mode,'paused');
+ assert.equal(persisted.find(x=>x.id===moved.deal_room_id).control_mode,'bot');
+ assert.equal(persisted.find(x=>x.id===moved.deal_room_id).mandate.last_reply_id,inbound);
+ assert.equal((await transfer()).deal_room_id,moved.deal_room_id);
+ assert.equal(await apply(),false);
+ const resumed=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ assert.equal(resumed.messages.length,after.messages.length);
+ assert.equal(resumed.agreement,null);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='cascade_next_candidate:'||$1||':'||$2",[cascadeId,moved.deal_room_id])).rows[0].n),1);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
+ console.log('Durable recovery: database closed and reopened, history and mandate persisted, no duplicate transfer/reply/notification.');
+} finally {
+ await db.close();
+ await rm(storage,{recursive:true,force:true});
+}

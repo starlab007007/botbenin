@@ -16,3 +16,6 @@ Correctifs de cette livraison : compatibilité fabric_id/source_ref, exclusion d
 - Test SQL isolé sur la migration réelle; test Deno de classification. La recette réelle sur appareil, livraison physique des notifications et redémarrage isolé restent obligatoires.
 
 Le transfert et la notification de basculement sont inscrits dans la même transaction; les notifications de progression sont dédupliquées et restent en file jusqu'au traitement existant. Le test n'envoie aucun message sur un canal externe. Le déclenchement IA est limité à cinq tentatives par tick et les réponses non autorisées ne sont pas traitées.
+
+## Recette de résilience locale
+Le test SQL utilise un répertoire de stockage temporaire, ferme la base puis la rouvre et vérifie historique, mandat, rejeu du transfert et de la réponse, déduplication des notifications. Cette preuve locale ne remplace pas un redémarrage d'Edge Runtime ou un test sur téléphone. Aucun environnement Supabase de recette n'était disponible au contrôle. Ne pas utiliser la production pour simuler une panne.
