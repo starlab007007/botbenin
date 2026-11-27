@@ -322,6 +322,49 @@ def main():
     step("deal_room", alive() and find(root, room_screen) is not None,
          "Ouverture de la Deal Room après connexion", root, critical=True)
 
+    # Recette ciblée : nouveau message serveur lorsque le processus est arrêté.
+    # Aucun appel FCM/WhatsApp, ni mandat de contact : notification in-app privée.
+    if os.environ.get("QA_RECOVERY") == "1":
+        import android_notification_recovery as recovery
+        try:
+            sh("shell", "am", "force-stop", PKG, check=True, timeout=20)
+            if alive():
+                raise RuntimeError("Le processus Android est encore actif")
+            fixture = recovery.create()
+            deep_link("/app/notifications")
+            marker = re.escape(fixture["marker"])
+            root = wait_for(marker, 90, "notification_after_restart")
+            notification = find(root, marker)
+            received = alive() and notification is not None
+            step("notification_recovery", received, "Notification serveur retrouvée après arrêt du processus" if received else "Notification privée introuvable", root, critical=True)
+            if not received:
+                return finish()
+            tap(notification)
+            root = wait_for(re.escape(fixture["title"]), 60, "notification_room")
+            correct = alive() and find(root, re.escape(fixture["title"])) is not None
+            step("notification_room_route", correct, "Ouverture de la Deal Room exacte" if correct else "Deal Room cible non affichée", root, critical=True)
+            if not correct:
+                return finish()
+            for _ in range(5):
+                if recovery.opened(fixture):
+                    break
+                time.sleep(2)
+            step("notification_read_ack", recovery.opened(fixture), "Accusé de lecture vérifié dans PostgreSQL", root, critical=True)
+            sh("shell", "am", "force-stop", PKG, check=True, timeout=20)
+            deep_link("/app/chat?room_id=" + fixture["room_id"])
+            root = wait_for(re.escape(fixture["title"]), 60, "room_after_restart")
+            resumed = alive() and find(root, re.escape(fixture["title"])) is not None
+            step("deal_room_recovery", resumed, "Même Deal Room retrouvée après arrêt et redémarrage" if resumed else "Reprise de la Deal Room non confirmée", root, critical=True)
+            deep_link("/app/notifications")
+            root = wait_for(r"Historique", 45)
+            history = find(root, r"^\\s*Historique\\s*$")
+            if history is not None:
+                tap(history)
+                root = wait_for(marker, 60, "notification_history")
+            step("notification_history", history is not None and find(root, marker) is not None, "Notification lue conservée dans Historique après redémarrage", root, critical=True)
+        finally:
+            recovery.cleanup()
+
     # Recherche d'un produit puis écran des résultats.
     deep_link("/app/avatar/acheter")
     root = wait_for(r"cherche|Acheter|Que", 45, "acheter")

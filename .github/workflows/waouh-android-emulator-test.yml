@@ -45,7 +45,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - run: python3 -m py_compile scripts/android-emulator-smoke.py
+      - run: python3 -m py_compile scripts/android-emulator-smoke.py scripts/android_notification_recovery.py
       - run: python3 -m unittest discover -s scripts/tests -p test_android_emulator_smoke.py
 
   emulator:
@@ -157,6 +157,10 @@ jobs:
         env:
           TEST_EMAIL: ${{ steps.account.outputs.email }}
           TEST_PASSWORD: ${{ steps.account.outputs.password }}
+          TEST_USER_ID: ${{ steps.account.outputs.user_id }}
+          QA_RECOVERY: '1'
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
           CAPTURE_SCREEN_VIDEO: ${{ inputs.capture_video && '1' || '0' }}
         with:
           api-level: ${{ github.event.inputs.api_level || '34' }}
@@ -199,6 +203,15 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "WAOUH Android — test émulateur" --notes "Dernier test sur émulateur" --latest=false --prerelease
           gh release edit "$TAG" --notes "Test émulateur — exécution ${GITHUB_RUN_ID}, commit ${GITHUB_SHA::8}" --latest=false
           gh release upload "$TAG" waouh-android-emulator.zip --clobber
+
+      - name: Clean private recovery fixture
+        if: always() && steps.account.outputs.user_id != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+          TEST_USER_ID: ${{ steps.account.outputs.user_id }}
+          TEST_EMAIL: ${{ steps.account.outputs.email }}
+        run: python3 scripts/android_notification_recovery.py
 
       - name: Delete test account
         if: always() && steps.account.outputs.user_id != ''
