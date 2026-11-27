@@ -245,9 +245,9 @@ grant execute on function public.waouh_room_cascade_transfer(uuid,integer,text,j
 
 -- Safe reply execution: a model may classify text, never accept a contract,
 -- choose a price, reveal a private limit or issue an arbitrary message.
-create or replace function public.waouh_room_apply_reply(p_room uuid,p_revision integer,p_message uuid,p_kind text)
+create or replace function public.waouh_room_apply_reply(p_room uuid,p_revision integer,p_message uuid,p_kind text,p_amount numeric default null)
 returns boolean language plpgsql set search_path to 'public','pg_temp' as $$
-declare r public.waouh_deal_room_links;c public.waouh_convergence_components; incoming public.waouh_business_messages; msg text; req uuid; n integer; uid uuid; strategy text;
+declare r public.waouh_deal_room_links;c public.waouh_convergence_components; incoming public.waouh_business_messages; msg text; req uuid; n integer; uid uuid; strategy text; budget numeric; floor_price numeric;
 begin
  select * into r from public.waouh_deal_room_links where id=p_room for update;
  if not found or not r.active or r.control_mode<>'bot' or r.mandate_revision<>p_revision or r.expires_at<=now() or r.mandate->>'mode'<>'autonomous' then return false;end if;
@@ -273,7 +273,19 @@ begin
    when 'find' then 'Merci. Confirmez la correspondance, la localisation, la disponibilité et les conditions.'
    when 'opportunity' then 'Merci. Précisez les conditions, les pièces et la date limite. Le candidat décide de la transmission.'
    else 'Merci. Confirmez le prix total avec livraison, la disponibilité, l’état et les conditions de remise.' end;
-  if p_kind='price' then msg='Proposition reçue. '||msg;end if;
+  if p_kind='price' then
+   budget=nullif(r.mandate->>'budget_max','')::numeric;
+   floor_price=nullif(r.mandate->>'price_floor','')::numeric;
+   -- Amount is a non-binding indication from the service parser. Never repeat a
+   -- private limit or treat a free-text amount as an approved contract.
+   if p_amount is not null and p_amount between 1 and 100000000 and p_amount::text<>'NaN' then
+    if strategy='sell' and floor_price is not null and p_amount<floor_price then
+     msg='Merci pour votre proposition. Pouvez-vous améliorer le montant total pour la quantité souhaitée ? Précisez les conditions de remise.';
+    elsif strategy<>'sell' and budget is not null and p_amount+coalesce(c.extra_cost,0)>budget then
+     msg='Merci pour votre proposition. Pouvez-vous proposer un meilleur prix total, frais compris ?';
+    else msg='Proposition reçue. '||msg;end if;
+   else msg='Proposition reçue. '||msg;end if;
+  end if;
   req=md5('room-smart-reply:'||r.id||':'||p_message)::uuid;
   perform public.waouh_business_command(r.owner_id,'business.message',jsonb_build_object('component_id',r.id,'request_id',req,'text',msg));
   update public.waouh_business_messages set author_kind='bot' where actor_id=r.owner_id and request_id=req;
@@ -284,5 +296,5 @@ begin
  if uid is not null then insert into public.waouh_notifications(user_id,notification_type,photos,payload,channel,delivery_status,dedupe_key) values(uid,'avatar_mission_progress','{}',jsonb_build_object('text',case when p_kind='stop' then 'Contact arrêté.' when p_kind='negative' then 'Piste refusée. Bot vérifie les alternatives autorisées.' else 'Réponse reçue : Bot précise les conditions.' end,'room_id',r.id,'actions',jsonb_build_array(jsonb_build_object('id','open_room','label','Suivre','kind','navigate','route','/app/chat?room_id='||r.id))), 'waouh_app','queued','smart-reply:'||p_message) on conflict do nothing;end if;
  return true;
 end $$;
-revoke all on function public.waouh_room_apply_reply(uuid,integer,uuid,text) from public,anon,authenticated;
-grant execute on function public.waouh_room_apply_reply(uuid,integer,uuid,text) to service_role;
+revoke all on function public.waouh_room_apply_reply(uuid,integer,uuid,text,numeric) from public,anon,authenticated;
+grant execute on function public.waouh_room_apply_reply(uuid,integer,uuid,text,numeric) to service_role;

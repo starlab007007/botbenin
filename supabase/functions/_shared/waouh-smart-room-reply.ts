@@ -17,6 +17,16 @@ export async function classifyRoomReply(text:string):Promise<"stop"|"negative"|"
   return raw.kind==="price"||raw.kind==="positive"?raw.kind:"clarify";
  }catch{return "clarify";}
 }
+// Only use the deterministic parser for numerical guidance. Gemini cannot set
+// amounts; ambiguous amounts remain a request for clarification.
+export function roomReplyAmount(text:string):number|null{
+ const parsed=parseNegotiationIntent(text);
+ if(parsed?.kind!=="price")return null;
+ // Reject ranges or multiple numerical values rather than assuming a total.
+ const values=text.match(/\d+(?:[ \u00a0\u202f]\d{3})*/g)??[];
+ if(values.length!==1)return null;
+ return Number.isFinite(parsed.price)&&parsed.price>0&&parsed.price<=100000000?parsed.price:null;
+}
 export async function smartRoomReply(sb:SupabaseClient){
  const out={processed:0,errors:0};
  let attempts=0;
@@ -37,7 +47,7 @@ export async function smartRoomReply(sb:SupabaseClient){
    if(!stop&&(agreement||Number(room.mandate?.reply_count??0)>=8||localClock<String(room.mandate?.active_start??'08:00')||localClock>=String(room.mandate?.active_end??'21:00')))continue;
    attempts++;
    const kind=await classifyRoomReply(messageText);
-   const applied=await sb.rpc("waouh_room_apply_reply",{p_room:room.id,p_revision:room.mandate_revision,p_message:message.id,p_kind:kind});
+   const applied=await sb.rpc("waouh_room_apply_reply",{p_room:room.id,p_revision:room.mandate_revision,p_message:message.id,p_kind:kind,p_amount:kind==='price'?roomReplyAmount(messageText):null});
    if(applied.error){out.errors++;continue;} if(applied.data)out.processed++;
   }catch{out.errors++;}
  }

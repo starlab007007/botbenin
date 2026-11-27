@@ -229,7 +229,22 @@ try {
  assert.equal(resumed.agreement,null);
  assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='cascade_next_candidate:'||$1||':'||$2",[cascadeId,moved.deal_room_id])).rows[0].n),1);
  assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
- console.log('Durable recovery: database closed and reopened, history and mandate persisted, no duplicate transfer/reply/notification.');
+ // A genuinely new reply after restart must trigger a bounded action, not just a replay.
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Prix 180000 FCFA'});
+ const pending=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc,id desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ assert.notEqual(pending,inbound);
+ const replyNew=async()=>(await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4,$5) ok',[moved.deal_room_id,target.mandate_revision,pending,'price',180000])).rows[0].ok;
+ assert.equal(await replyNew(),true);assert.equal(await replyNew(),false);
+ const recovered=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ assert.equal(recovered.agreement,null);
+ assert.ok(recovered.messages.some(m=>m.author_kind==='bot'&&m.text.includes('meilleur prix total')));
+ assert.ok(recovered.messages.filter(m=>m.author_kind==='bot').every(m=>!m.text.includes('145000')));
+ await db.query("update public.waouh_deal_room_links set expires_at=now()-interval '1 minute' where id=$1",[moved.deal_room_id]);
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Autre proposition'});
+ const late=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc,id desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ assert.equal((await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4) ok',[moved.deal_room_id,target.mandate_revision,late,'clarify'])).rows[0].ok,false);
+ assert.equal((await cmd(owner,'get',{deal_room_id:moved.deal_room_id})).messages.filter(m=>m.author_kind==='bot').length,recovered.messages.filter(m=>m.author_kind==='bot').length);
+ console.log('Durable recovery: database closed and reopened, history and mandate persisted, no duplicate transfer/reply/notification, new reply processed within bounds, expired mandate blocked.');
 } finally {
  await db.close();
  await rm(storage,{recursive:true,force:true});

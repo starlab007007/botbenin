@@ -19,3 +19,6 @@ Le transfert et la notification de basculement sont inscrits dans la même trans
 
 ## Recette de résilience locale
 Le test SQL utilise un répertoire de stockage temporaire, ferme la base puis la rouvre et vérifie historique, mandat, rejeu du transfert et de la réponse, déduplication des notifications. Cette preuve locale ne remplace pas un redémarrage d'Edge Runtime ou un test sur téléphone. Aucun environnement Supabase de recette n'était disponible au contrôle. Ne pas utiliser la production pour simuler une panne.
+
+## Contrôle conversationnel des montants
+Une réponse libre contenant un montant déterministe non ambigu déclenche une demande adaptée à la limite du mandat. Les montants ambigus et ceux proposés par l'IA ne sont jamais des instructions financières. Le test persistant ajoute une nouvelle réponse après redémarrage et vérifie le blocage après expiration.
