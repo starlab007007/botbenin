@@ -28,7 +28,7 @@ export function WaouhChatRoomWindow({ children }: { children: ReactNode }) {
   const amount = p.has('offer') ? Number(p.get('offer')) : null;
   const userId = user?.id;
   // Resume old result links and sign-in returns through the same chat tab.
-  const interested = !!fabric && !p.has('sale_article_id') && p.get('delegate') !== '1' && !p.has('room_id') && !p.has('component_id');
+  const interested = !!fabric && p.get('kind') !== 'opportunity' && !p.has('sale_article_id') && p.get('delegate') !== '1' && !p.has('room_id') && !p.has('component_id');
   useEffect(() => {
     if (!interested || isLoading || !fabric) return;
     if (!userId) { navigate(buildWaouhAuthRedirect(pathname + search), { replace: true }); return; }
