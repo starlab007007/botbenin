@@ -310,7 +310,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
 
   Future<void> _openManually(Map<String, dynamic> row) async {
     final fabric = _roomFabric(row);
-    if (fabric == null || _delegating) return;
+    if (fabric == null || _delegating || _isOwn(row)) return;
     setState(() => _delegating = true);
     try {
       final sale = await _saleArticle();
@@ -318,9 +318,13 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         'fabric_id': fabric, 'confirmed': true, if (sale != null) 'sale_article_id': sale,
       });
       if (!mounted) return;
+      final roomId = data['deal_room_id'];
+      if (roomId is! String || roomId.trim().isEmpty || roomId == 'null') {
+        throw StateError('request_failed');
+      }
       final opportunity = widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE';
       context.push(Uri(path: '/app/chat/room', queryParameters: {
-        'room_id': '${data['deal_room_id']}', if (!opportunity) 'propose': '1',
+        'room_id': roomId, if (!opportunity) 'propose': '1',
       }).toString());
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
