@@ -16,6 +16,7 @@ on:
     paths:
       - '.github/workflows/waouh-android-emulator-test.yml'
       - 'scripts/android-emulator-smoke.py'
+      - 'scripts/android-emulator-*.sh'
       - 'scripts/tests/test_android_emulator_smoke.py'
   workflow_dispatch:
     inputs:
@@ -46,6 +47,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - run: bash -n scripts/android-emulator-run.sh
       - run: python3 -m py_compile scripts/android-emulator-smoke.py scripts/android_notification_recovery.py
       - run: python3 -m unittest discover -s scripts/tests -p test_android_emulator_smoke.py
 
