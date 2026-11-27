@@ -152,15 +152,12 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          SDK_MANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          # The emulator runner action has not executed yet; install its binary before testing KVM.
-          if [ ! -x "$SDK_ROOT/emulator/emulator" ]; then
-            "$SDK_MANAGER" --sdk_root="$SDK_ROOT" "emulator" >/dev/null
-          fi
-          test -x "$SDK_ROOT/emulator/emulator"
-          "$SDK_ROOT/emulator/emulator" -version
-          "$SDK_ROOT/emulator/emulator" -accel-check
+          # The runner action installs the emulator and its native dependencies.
+          # Before that action, verify only the host KVM device and permissions.
+          test -c /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+          ls -l /dev/kvm
 
       - name: Run app on emulator
         uses: reactivecircus/android-emulator-runner@v2
