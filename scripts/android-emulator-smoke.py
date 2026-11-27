@@ -120,6 +120,10 @@ def find(root, pattern, cls=None):
     return None
 
 
+def notification_history_tab(root):
+    return find(root, r"^\s*Historique\s*$")
+
+
 def find_lowest(root, pattern):
     rx = re.compile(pattern, re.I)
     hits = [n for n in nodes(root) if rx.search(label(n)) and "EditText" not in (n.get("class") or "")]
@@ -357,7 +361,7 @@ def main():
             step("deal_room_recovery", resumed, "Même Deal Room retrouvée après arrêt et redémarrage" if resumed else "Reprise de la Deal Room non confirmée", root, critical=True)
             deep_link("/app/notifications")
             root = wait_for(r"Historique", 45)
-            history = find(root, r"^\\s*Historique\\s*$")
+            history = notification_history_tab(root)
             if history is not None:
                 tap(history)
                 root = wait_for(marker, 60, "notification_history")
