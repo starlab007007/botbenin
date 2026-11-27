@@ -110,8 +110,11 @@ class WaouhOfferCard extends StatelessWidget {
     required this.onWant,
     this.onBot,
     this.onDetails,
+    this.actionLabel = 'Je prends',
+    this.botLabel = 'Confier à Bot',
   });
   final String title;
+  final String actionLabel, botLabel;
   final String? priceLabel;
   final WaouhPriceTag tag;
   final String? photo;
@@ -195,7 +198,7 @@ class WaouhOfferCard extends StatelessWidget {
                         style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF3EFFF), foregroundColor: const Color(0xFF281753), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onWant(); },
                         icon: const Icon(Icons.favorite_rounded),
-                        label: const Text('Je prends', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                        label: Text(actionLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                       ),
                   ),
                   if (onBot != null) ...[
@@ -206,7 +209,7 @@ class WaouhOfferCard extends StatelessWidget {
                         style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6334CF), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onBot!(); },
                         icon: const Icon(Icons.smart_toy_rounded),
-                        label: const Text('Confier à Bot', style: TextStyle(fontWeight: FontWeight.w800)),
+                        label: Text(botLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                     ),
                   ],

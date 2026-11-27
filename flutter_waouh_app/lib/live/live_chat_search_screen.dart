@@ -363,7 +363,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   }
 
   Future<void> _delegateAll(LiveChatBrief brief) async {
-    if (_delegating || brief.delegable.isEmpty) return;
+    if (_delegating || brief.delegable.isEmpty || widget.kind == 'opportunite') return;
     final best = brief.delegable.first;
     final alternates = brief.delegable.skip(1).take(3).toList();
     final ok = await confirmBotDelegation(
@@ -381,7 +381,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   }
 
   Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
-    if (_delegating || fabricId.trim().isEmpty) return;
+    if (_delegating || fabricId.trim().isEmpty || widget.kind == 'opportunite') return;
     if (!confirmed) {
       final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: _goalFacts.budget, selling: _sell);
       if (!ok || !mounted) return;
@@ -422,6 +422,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
+        'strategy': _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
         'budget_max': _sell ? null : _goalFacts.budget,
         if (rest.isNotEmpty) 'cascade_candidates': rest,
         if (rest.isNotEmpty) 'cascade_step': 1,
@@ -484,7 +485,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final recommended = brief?.pick;
     final primaryRows = !_sell && recommended != null ? canonicalRows.where((row) => !_isOwn(row) && _roomFabric(row) == recommended.delegateId).take(1).toList() : <Map<String,dynamic>>[];
     final otherRows = canonicalRows.where((row) => !primaryRows.contains(row)).toList();
-    final botBar = revealed && !_sell && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
+    final botBar = revealed && !_sell && widget.kind != 'opportunite' && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
         ? WaouhBotBar(
             count: brief.delegable.length > 4 ? 4 : brief.delegable.length,
             busy: _delegating,
@@ -493,8 +494,12 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
           )
         : null;
+    String journey(Map<String,dynamic> row) => _sell ? 'sale' : widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE' ? 'opportunity' : widget.kind == 'prestation' ? 'project' : widget.kind == 'service' || row['result_kind'] == 'service' ? 'service' : 'purchase';
+    String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => 'Postuler', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
     Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
                   title: _rowTitle(row),
+                  actionLabel: actionLabel(row),
+                  botLabel: _sell ? 'Confier la vente' : 'Confier à Bot',
                   priceLabel: reasonMoney(_rowPrice(row)),
                   tag: waouhPriceTag(_rowPrice(row), median),
                   photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
@@ -504,7 +509,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   own: _isOwn(row),
                   busy: _delegating,
                   onWant: () => _openManually(row),
-                  onBot: _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
+                  onBot: journey(row) != 'opportunity' && _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
                   onDetails: () => showLiveProductDetails(context, row),
                 );
     return Scaffold(

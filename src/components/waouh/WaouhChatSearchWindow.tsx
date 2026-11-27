@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { WaouhProductResults, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
 import { offerReachable, WaouhOfferActions } from "./WaouhOfferActions";
+import { offerJourney, journeyCopy } from "@/lib/waouh/offerJourney";
 import { resultKind } from "@/lib/waouh/convergence";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { resultContact, channelLabel } from "@/lib/waouh/resultCardData";
@@ -189,17 +190,15 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
             <>
               {search.kind === "vendre" || search.priceReference
                 ? <WaouhSellerBrief results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
-                : <WaouhChatMarketBrief key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = resultKind(row) === "announcement" || search.kind === "opportunite" ? "opportunity" : resultKind(row) === "service" || search.kind === "service" || search.kind === "prestation" ? "service" : "purchase"; return <WaouhOfferActions primaryOnly result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
-              <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>Autres offres et détails · {orderedResults.length}</summary>
+                : <WaouhChatMarketBrief key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = offerJourney(search.kind, resultKind(row)); return <WaouhOfferActions primaryOnly primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
+              <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>{selling ? "Acheteurs" : search.kind === "opportunite" ? "Opportunités" : search.kind === "service" ? "Services" : search.kind === "prestation" ? "Prestataires" : search.kind === "trouver" ? "Autres pistes" : "Autres offres"} · {orderedResults.length}</summary>
                 {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
 
                 <WaouhProductResults results={orderedResults} onAction={onAction} roomActions={requireAuth ? row => {
                     const offer = asOffer(row);
                     if (!offer || (selling && !search.articleId)) return null;
-                    const kind = selling ? "sale" : resultKind(row) === "announcement" || search.kind === "opportunite"
-                      ? "opportunity" : resultKind(row) === "service" || search.kind === "service" || search.kind === "prestation"
-                        ? "service" : "purchase";
-                    return <WaouhOfferActions result={offer} alternates={alternatives} mode={selling ? "sell" : "buy"} kind={kind}
+                    const kind = selling ? "sale" : offerJourney(search.kind, resultKind(row));
+                    return <WaouhOfferActions primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode={selling ? "sell" : "buy"} kind={kind}
                       articleId={search.articleId ?? undefined} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />;
                   } : undefined} />
               </details>

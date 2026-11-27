@@ -4,6 +4,9 @@ import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { briefMoney, chatMarketBrief, type BriefRow } from "@/lib/waouh/chatMarketBrief";
 import type { GuidedKind } from "@/lib/waouh/guidedAsk";
+import { offerJourney } from "@/lib/waouh/offerJourney";
+import { resultKind } from "@/lib/waouh/convergence";
+import { missionFacts } from "../../../supabase/functions/_shared/waouh-mission-domain";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
@@ -32,14 +35,17 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;
-  const best = pick && delegable.some(row => row.result === pick.result) ? pick : null;
-  const alternates = best ? delegable.filter(row => row.result !== best.result).slice(0, 3) : [];
+  const journey = offerJourney(kind, pick ? resultKind(pick.result) : "");
+  const commercial = journey === "purchase";
+  const facts = pick ? missionFacts({ ...pick.result, fabric_id: pick.delegateId ?? "" }) : null;
+  const best = journey !== "opportunity" && pick && delegable.some(row => row.result === pick.result) ? pick : null;
+  const alternates = best ? delegable.filter(row => row.result !== best.result && offerJourney(kind,resultKind(row.result)) === journey).slice(0, 3) : [];
   const mode = kind && ["service", "prestation", "demander", "opportunite"].includes(kind) ? "ask" : "buy";
 
 
   return (
     <section className="wsl-brief" aria-label="Analyse du marché par Bot" data-testid="chat-market-brief">
-      <details className="wsl-analysis-details"><summary><Sparkles size={15} />Analyse du marché<ChevronDown size={15} /></summary><header className="wsl-brief-head">
+      {commercial && <details className="wsl-analysis-details"><summary><Sparkles size={15} />Analyse du marché<ChevronDown size={15} /></summary><header className="wsl-brief-head">
         <BotLiveAvatar size={38} />
         <div>
           <strong>Analyse du marché</strong>
@@ -65,7 +71,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
         </div>
       </div>
 
-      <p className="wsl-advice"><Sparkles size={14} aria-hidden="true" /><span>{brief.advice}</span></p></details>
+      <p className="wsl-advice"><Sparkles size={14} aria-hidden="true" /><span>{brief.advice}</span></p></details>}
 
       {pick && (
         <article className="wsl-pick" aria-label="Le choix de Bot">
@@ -73,8 +79,8 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
           <div className="wsl-pick-copy">
             <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />{pick.match === 'near' || brief.exact === 0 ? 'Alternative à vérifier' : 'Le choix de Bot'}</span>
             <h4>{pick.result.title}</h4>
-            <p className="wsl-pick-price">{pick.price === null ? "Prix à demander" : briefMoney(pick.price)}{pick.result.city ? <small> · {pick.result.city}</small> : null}</p>
-            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">Stock et prix à confirmer</small>
+            <p className="wsl-pick-price">{journey === "opportunity" ? "Conditions à consulter" : pick.price === null ? "Prix à demander" : briefMoney(pick.price)}{pick.result.city ? <small> · {pick.result.city}</small> : null}</p>
+            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{commercial && brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">{journey === "opportunity" ? "Éligibilité et échéance à vérifier" : commercial ? "Stock et prix à confirmer" : "Périmètre et tarif à confirmer"}</small>{!commercial && facts && <div className="text-xs space-y-1 mt-2">{facts.organization && <p>{facts.organization}</p>}{facts.deadline !== null && journey === "opportunity" && <p>Échéance : {new Date(facts.deadline).toLocaleDateString("fr-FR",{timeZone:"Africa/Porto-Novo"})}</p>}{facts.scope && <p>{facts.scope}</p>}{facts.availability && <p>Disponibilité : {facts.availability}</p>}{facts.duration !== null && <p>Délai : {facts.duration} j</p>}</div>}
           </div>
         </article>
       )}
@@ -83,8 +89,9 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
       {best ? (
         <div className="wsl-premium-delegate" data-testid="chat-delegate-all">
           <WaouhDelegateButton
-            result={{ fabric_id: best.delegateId!, title: best.result.title, city: best.result.city ?? null, evidence: best.result.evidence ?? null, contact_pack: best.result.contact_pack }}
+            result={{ price_min: best.price, fabric_id: best.delegateId!, title: best.result.title, city: best.result.city ?? null, evidence: best.result.evidence ?? null, contact_pack: best.result.contact_pack }}
             mode={mode}
+            discoveryKind={journey}
             city={city || best.result.city || null}
             budgetMax={budget ?? null}
             label="Confier à Bot"
@@ -93,9 +100,9 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
           />
         </div>
       ) : (
-        <p className="wsl-delegate-none">Automatisation indisponible pour cette offre.</p>
+        <p className="wsl-delegate-none">{journey === "opportunity" ? "Vous gardez la main sur votre candidature." : "Automatisation indisponible pour cette offre."}</p>
       )}
-      {compare.length > 1 && <details className="wsl-analysis-details"><summary><BarChart3 size={15} />Comparer<ChevronDown size={15} /></summary>{compare.length > 1 && (
+      {commercial && compare.length > 1 && <details className="wsl-analysis-details"><summary><BarChart3 size={15} />Comparer<ChevronDown size={15} /></summary>{compare.length > 1 && (
         <div className="wsl-compare" role="table" aria-label="Comparaison des meilleures offres">
           {compare.map((row) => (
             <div role="row" key={`${row.result.id}:${row.result.index}`} className={row.rank === 1 ? "is-top" : undefined}>

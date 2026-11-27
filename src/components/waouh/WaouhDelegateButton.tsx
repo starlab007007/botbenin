@@ -17,7 +17,7 @@ const DEFAULT_RULES = { mode: "autonomous", duration_hours: 168, max_followups: 
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
  *  alternatives sont fournies — reprend automatiquement avec la suivante en l’absence de réponse. */
 export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, marketMedian, className = "h-12", onHandled, alternates, city, budgetMax, label = "Confier à l’avatar", variant = "primary" }: {
-  result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
+  result: { price_min?: number | null; price_max?: number | null; fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
   discoveryKind?:MissionKind;missionContext?:MissionContext;
