@@ -388,10 +388,14 @@ class _Scored {
 
 /// Repères de prix, zone, vendeurs joignables, choix de Bot et comparaison, calculés à partir
 /// des seules fiches reçues. Une information absente reste « à confirmer ».
-LiveChatBrief liveChatMarketBrief(List<Map<String, dynamic>> rows, {String? city, int? budget}) {
+LiveChatBrief liveChatMarketBrief(List<Map<String, dynamic>> rows, {String? city, int? budget, String? kind}) {
+  final specialized = ['opportunite','service','prestation'].contains(kind);
+  Map evidence(Map row)=>row['evidence'] is Map?row['evidence'] as Map:const {};
+  String field(Map row,String key)=>'${row[key]??evidence(row)[key]??''}'.trim();
+  bool eligible(Map row){if(kind!='opportunite')return true;final e=evidence(row);final deadline=DateTime.tryParse(field(row,'deadline').isEmpty?field(row,'closing_date'):field(row,'deadline'));return e['eligible']!=false&&e['eligibility_status']!='ineligible'&&(deadline==null||!deadline.add(const Duration(days:1)).isBefore(DateTime.now()));}
   // Les demandes d'acheteurs (recherche pour vendre) ne sont pas des offres à comparer.
-  final pool = rows.where((r) => !_buyerRequest(r)).toList();
-  final prices = pool.map(liveBriefPrice).whereType<double>().toList();
+  final pool = rows.where((r) => !_buyerRequest(r)&&eligible(r)).toList();
+  final prices = specialized ? <double>[] : pool.map(liveBriefPrice).whereType<double>().toList();
   final double? low = prices.isEmpty ? null : prices.reduce((a, b) => a < b ? a : b);
   final double? high = prices.isEmpty ? null : prices.reduce((a, b) => a > b ? a : b);
   final median = _median(prices);
@@ -415,7 +419,7 @@ LiveChatBrief liveChatMarketBrief(List<Map<String, dynamic>> rows, {String? city
     if (reachable) score += 18;
     if (delegateId != null) score += 6;
     if (liveBriefPhoto(row) != null) score += 8;
-    if (price == null) {
+    if(specialized){final keys=kind=='opportunite'?['conditions','deadline','organization','required_documents']:kind=='service'?['scope','price_basis','warranty','qualifications']:['scope','delivery_days','deliverables','total_cost'];score+=keys.where((k)=>field(row,k).isNotEmpty).length*12;} else if (price == null) {
       score -= 12;
     } else if (median != null && median > 0) {
       final gap = (price - median) / median;
@@ -524,7 +528,7 @@ LiveChatBrief liveChatMarketBrief(List<Map<String, dynamic>> rows, {String? city
     pick: top,
     pickReasons: reasons.take(3).toList(),
     compare: ranked.take(3).toList(),
-    delegable: ranked.where((r) => r.delegateId != null && r.withinBudget != false).toList(),
+    delegable: ranked.where((r) => r.delegateId != null && r.withinBudget != false && kind!='opportunite' && r.row['intent']!='ANNOUNCE').toList(),
   );
 }
 

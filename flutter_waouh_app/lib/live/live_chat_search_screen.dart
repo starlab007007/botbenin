@@ -469,7 +469,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
     final canonicalRows = rows.where((row) => _roomFabric(row) != null).toList();
     final brief = revealed && rows.isNotEmpty && !_sell
-        ? liveChatMarketBrief(rows, city: _goalFacts.city, budget: _goalFacts.budget)
+        ? liveChatMarketBrief(rows, city: _goalFacts.city, budget: _goalFacts.budget, kind:widget.kind)
         : null;
     // Vente : le prix demandé face au marché et les acheteurs qui correspondent vraiment.
     final priceReference = reply?.meta['price_reference'];

@@ -67,7 +67,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       try {
         opened = await roomCall("open", {
           fabric_id: candidates[index].fabric_id, city: city ?? candidates[index].city ?? undefined,
-          ...(mode === "sell" ? { sale_article_id: article } : { budget_max: budgetMax ?? null }),
+          ...(mode === "sell" ? { sale_article_id: article } : { budget_max: draft.limit ?? budgetMax ?? null }),
           confirmed: false,
         });
         break;
@@ -90,12 +90,15 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
     setRoomId(opened.deal_room_id);
     setDone(true);
     onHandled?.();
+    navigate(`/app/chat?room_id=${encodeURIComponent(opened.deal_room_id)}`);
   };
 
   const run = async () => {
     if (busy) return;
     setError("");
     if (!confirm) { setConfirm(true); return; }
+    if (track==="opportunity") { setError("Utilisez la veille de cette opportunité."); return; }
+    if (mode!=="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0 || (budgetMax!=null && draft.limit>budgetMax))) { setError("Indiquez un plafond valide dans votre budget."); return; }
     setBusy(true);
     try {
       await openAndDelegate();
@@ -123,7 +126,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       <button type="button" onClick={() => void run()} disabled={busy}
         className={`flex w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-black active:scale-[.98] ${className} ${tone}`}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
-        {confirm ? "Confier à Bot" : label}
+        {confirm ? "Confirmer le mandat" : label}
       </button>
       {confirm && (
         <div className="mt-2 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 text-left">

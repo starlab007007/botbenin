@@ -52,7 +52,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   budget?: number | null;
   kind?: GuidedKind;
 }) {
-  const brief = useMemo(() => chatMarketBrief(results, { city, budget, query }), [results, city, budget, query]);
+  const brief = useMemo(() => chatMarketBrief(results, { city, budget, query, missionKind:kind==="opportunite"?"opportunity":kind==="service"?"service":kind==="prestation"?"project":undefined }), [results, city, budget, query,kind]);
 
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;

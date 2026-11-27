@@ -6,6 +6,8 @@
 import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { matchVerdict } from "../../../supabase/functions/_shared/waouh-need-domain";
 import { sameZone } from "@/lib/waouh/liveReasoning";
+import { missionMatches, missionCriteria, normalizeMissionContext, compareMissionOffers, missionEntity } from "../../../supabase/functions/_shared/waouh-mission-domain";
+import type { MissionKind } from "./guidedDiscovery";
 import { resultContact } from "@/lib/waouh/resultCardData";
 
 export type BriefRow = {
@@ -134,16 +136,20 @@ function fitness(row: Omit<BriefRow, "rank">, median: number | null): number {
   return score;
 }
 
-export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string | null; budget?: number | null; query?: string | null } = {}): ChatMarketBrief {
+export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string | null; budget?: number | null; query?: string | null; missionKind?: MissionKind } = {}): ChatMarketBrief {
   // Les demandes d'acheteurs (recherche pour vendre) ne sont pas des offres à comparer.
-  const pool = results.filter((r) => !isBuyerRequest(r));
+  const mission = ctx.missionKind;
+  const criteria = missionCriteria(normalizeMissionContext({}, mission ?? "purchase", ctx.query ?? ""));
+  const offer = (r: WaouhResultCard) => ({...r, subject:r.title, fabric_id:r.fabric_id??r.id, price_min:r.price_min??r.price});
+  const specialized = !!mission && mission !== "purchase" && mission !== "sale";
+  const pool = results.filter(r => !isBuyerRequest(r) && (!specialized || missionMatches(offer(r),criteria)));
   const matches = pool.map((r) => briefMatch(r, ctx.query, ctx.city));
   const exactCount = matches.some((m) => m !== null) ? matches.filter((m) => m === "exact").length : null;
   // Les repères de prix portent sur les offres qui correspondent à la demande, dès qu'il y en a assez.
   const exactPrices = pool.filter((_, i) => matches[i] === "exact").map(briefPrice).filter((p): p is number => p !== null);
   const rawPrices = exactPrices.length >= 2 ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
   // Un prix manifestement faux (1 F au milieu d'offres à 25 000 F) fausserait tout le repère.
-  const prices = plausiblePrices(rawPrices);
+  const prices = specialized || pool.some(r=>missionEntity(offer(r))!=="product") ? [] : plausiblePrices(rawPrices);
   const low = prices.length ? Math.min(...prices) : null;
   const high = prices.length ? Math.max(...prices) : null;
   const median = medianOf(prices);
@@ -162,11 +168,11 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
       delegateId,
       match: matches[order],
     };
-    return { row, order, score: fitness(row, median) };
+    return { row, order, score: specialized ? (row.match==="exact"?45:row.match==="near"?-25:0)+(row.inZone?22:0)+(row.reachable?18:0) : fitness(row, median) };
   });
   // À pertinence égale, l'ordre reçu du moteur est conservé.
   const ranked: BriefRow[] = [...base]
-    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .sort((a, b) => b.score - a.score || (specialized ? compareMissionOffers(offer(a.row.result),offer(b.row.result),criteria) ?? 0 : 0) || a.order - b.order)
     .map(({ row }, i) => ({ ...row, rank: i + 1 }));
 
   const inZone = ranked.filter((r) => r.inZone).length;
@@ -189,7 +195,8 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
   }
 
   let advice: string;
-  if (!ranked.length) advice = "Aucune offre à comparer pour le moment.";
+  if (specialized && ranked.length) advice = "Comparaison selon les critères métier disponibles.";
+  else if (!ranked.length) advice = "Aucune offre à comparer pour le moment.";
   else if (low !== null && high !== null && median !== null && prices.length > 1 && low !== high) {
     advice = `Les prix annoncés vont de ${briefMoney(low)} à ${briefMoney(high)}, avec un prix médian de ${briefMoney(median)}.`;
     if (budget) advice += overBudget ? ` ${overBudget} offre${overBudget > 1 ? "s dépassent" : " dépasse"} votre budget de ${briefMoney(budget)}.` : ` Toutes les offres chiffrées tiennent dans votre budget de ${briefMoney(budget)}.`;
@@ -211,6 +218,6 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
     advice,
     pick: top ? { ...top, reasons: reasons.slice(0, 3) } : null,
     compare: ranked.slice(0, 3),
-    delegable: ranked.filter((r) => !!r.delegateId && r.withinBudget !== false),
+    delegable: ranked.filter((r) => !!r.delegateId && r.withinBudget !== false && mission !== "opportunity" && missionEntity(offer(r.result)) !== "announcement"),
   };
 }

@@ -2036,7 +2036,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
         Text('${indices.length} résultat${indices.length>1?'s':''}',style:const TextStyle(fontWeight:FontWeight.w800,color:Color(0xFF46324D))),
         SizedBox(width:constraints.maxWidth.clamp(0,190).toDouble(),child:DropdownButton<String>(isExpanded:true,style:const TextStyle(fontSize:13,color:Color(0xFF46324D)),value:order,items:const [DropdownMenuItem(value:'selection',child:Text('Sélection')),DropdownMenuItem(value:'price_asc',child:Text('Prix croissant')),DropdownMenuItem(value:'price_desc',child:Text('Prix décroissant'))],onChanged:(v)=>setState(() {order=v!;page=0;}))),
         IconButton(tooltip:all?'Afficher par 5':'Tout afficher',onPressed:()=>setState(()=>all=!all),icon:Icon(all?Icons.view_agenda_outlined:Icons.grid_view_rounded)),
-        if(selected.length>=2) FilledButton.icon(onPressed:compare,icon:const Icon(Icons.compare_arrows_rounded),label:Text('Comparer ${selected.length}')),
+        FilledButton.icon(onPressed:widget.products.length<2?null:() { if(selected.length<2) {setState(() {selected.clear();selected.addAll(indices.take(3));});} compare();},icon:const Icon(Icons.compare_arrows_rounded),label:Text(selected.length<2?'Comparer 0/5':'Comparer ${selected.length}')),
       ]),
       const SizedBox(height:8),
       Wrap(spacing:12,runSpacing:12,children:visible.map((i)=>SizedBox(width:width,key:anchors.putIfAbsent(i,()=>GlobalKey()),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
