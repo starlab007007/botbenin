@@ -39,6 +39,11 @@ class SearchSubmissionTest(unittest.TestCase):
             </hierarchy>''')
             self.assertIsNone(smoke.search_submit_button(root, smoke.find(root, "Samsung", "EditText")))
 
+    def test_notification_history_tab_matches_visible_label(self):
+        root = ET.fromstring('<hierarchy><node text="Mon historique commercial"/><node text="Historique"/></hierarchy>')
+        self.assertEqual(smoke.notification_history_tab(root).get("text"), "Historique")
+        self.assertIsNone(smoke.notification_history_tab(ET.fromstring('<hierarchy><node text="Historique absent"/></hierarchy>')))
+
     def test_exchange_form_uses_labels_instead_of_field_order(self):
         root=ET.fromstring('<hierarchy><node text="Cotonou" class="EditText"/><node text="Produit" class="EditText"/></hierarchy>')
         product,city=smoke.search_form_fields(root)

@@ -21,7 +21,7 @@ on:
     inputs:
       api_level:
         description: "Version Android de l'émulateur (API)"
-        default: "34"
+        default: "35"
       capture_video:
         description: "Enregistrer également une vidéo"
         type: boolean
@@ -50,8 +50,8 @@ jobs:
 
   emulator:
     needs: driver-tests
-    # Push validates the driver; the full run waits for the freshly published Flutter APK.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # A deliberate QA-only production push must also exercise the published APK.
+    if: github.ref == 'refs/heads/prod' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
@@ -151,6 +151,8 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          "$ANDROID_HOME/emulator/emulator" -version
+          "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Run app on emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -163,13 +165,13 @@ jobs:
           SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
           CAPTURE_SCREEN_VIDEO: ${{ inputs.capture_video && '1' || '0' }}
         with:
-          api-level: ${{ github.event.inputs.api_level || '34' }}
+          api-level: ${{ github.event.inputs.api_level || '35' }}
           target: google_apis
           arch: x86_64
           profile: pixel_2
-          ram-size: 2048M
+          ram-size: 3072M
           disk-size: 6000M
-          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: bash scripts/android-emulator-run.sh apk/waouh-android-x64.apk
 
