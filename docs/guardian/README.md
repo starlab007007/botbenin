@@ -65,3 +65,6 @@ Le transfert de la configuration d’hôte utilise le même utilisateur que sa
 création : le fichier reste privé (0600) et n’est pas rendu lisible pour un
 conteneur de transfert. Les références de clé sont temporaires, la vérification
 de clé hôte est active et les fichiers temporaires sont nettoyés.
+
+## GUARDIAN 2 — P0 indépendance API
+La sonde publique read-only vérifie le contrat réel de waouh_module_policy sans jeton de service ni Vault. Elle enregistre uniquement le statut HTTP, la latence et une cause normalisée. Le VPS conserve un journal rotatif local et GitHub conserve un artefact même si la sonde échoue. Un résultat vide ou invalide ne peut pas devenir vert. Aucun redémarrage de PostgreSQL ni changement d'autorisation n'est déclenché par cette sonde. La régulation CRON et la reprise sont des étapes distinctes, à certifier avant activation automatique.

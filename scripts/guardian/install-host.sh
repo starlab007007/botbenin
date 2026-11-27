@@ -10,6 +10,7 @@ chmod 700 "$ROOT"
 exec 8>"$ROOT/agent.lock"
 flock -x 8
 install -m 600 "$SOURCE/guardian-config.json" "$ROOT/config.json"
+install -m 700 "$SOURCE/scripts/guardian/resilience.py" "$ROOT/resilience.py"
 install -m 700 "$SOURCE/scripts/guardian/agent.py" "$ROOT/agent.py"
 rm -f "$SOURCE/guardian-config.json"
 EXISTING=$(crontab -l 2>/dev/null || true)
