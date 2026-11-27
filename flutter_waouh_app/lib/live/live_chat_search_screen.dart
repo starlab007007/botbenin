@@ -481,6 +481,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         ? (reply == null ? 'BOT CHERCHE POUR VOUS' : 'BOT ANALYSE LES OFFRES')
         : 'RECHERCHE TERMINÉE';
     final median = waouhMedian(canonicalRows.map(_rowPrice));
+    final recommended = brief?.pick;
+    final primaryRows = !_sell && recommended != null ? canonicalRows.where((row) => !_isOwn(row) && _roomFabric(row) == recommended.delegateId).take(1).toList() : <Map<String,dynamic>>[];
+    final otherRows = canonicalRows.where((row) => !primaryRows.contains(row)).toList();
     final botBar = revealed && !_sell && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
         ? WaouhBotBar(
             count: brief.delegable.length > 4 ? 4 : brief.delegable.length,
@@ -490,9 +493,23 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
           )
         : null;
+    Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
+                  title: _rowTitle(row),
+                  priceLabel: reasonMoney(_rowPrice(row)),
+                  tag: waouhPriceTag(_rowPrice(row), median),
+                  photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
+                  city: row['city']?.toString(),
+                  verified: _contactAllowed(row),
+                  best: best,
+                  own: _isOwn(row),
+                  busy: _delegating,
+                  onWant: () => _openManually(row),
+                  onBot: _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
+                  onDetails: () => showLiveProductDetails(context, row),
+                );
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
-      bottomNavigationBar: botBar,
+      bottomNavigationBar: primaryRows.isEmpty ? botBar : null,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: WaouhPalette.ink,
@@ -522,7 +539,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           if ((_goalFacts.city ?? '').trim().isNotEmpty || _goalFacts.budget != null) const SizedBox(height: 10),
           WaouhStepBar(step: revealed && rows.isNotEmpty ? 2 : 1),
           const SizedBox(height: 14),
-          LiveReasoningFeed(
+          if (!revealed || rows.isEmpty) LiveReasoningFeed(
             steps: _steps,
             running: running,
             summary: revealed ? _summary : null,
@@ -567,21 +584,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               OutlinedButton(onPressed: _delegating ? null : _watch, child: const Text('Activer la veille')),
             if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
-              for (final (index, row) in canonicalRows.indexed)
-                WaouhOfferCard(
-                  title: _rowTitle(row),
-                  priceLabel: reasonMoney(_rowPrice(row)),
-                  tag: waouhPriceTag(_rowPrice(row), median),
-                  photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
-                  city: row['city']?.toString(),
-                  verified: _contactAllowed(row),
-                  best: index == 0 && !_isOwn(row) && _rowPrice(row) != null,
-                  own: _isOwn(row),
-                  busy: _delegating,
-                  onWant: () => _openManually(row),
-                  onBot: _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
-                  onDetails: () => showLiveProductDetails(context, row),
-                ),
+              for (final row in primaryRows) offerCard(row,best:true),
+              if (otherRows.isNotEmpty) ExpansionTile(title: Text(primaryRows.isEmpty ? 'Offres (${otherRows.length})' : 'Autres offres (${otherRows.length})'), initiallyExpanded: primaryRows.isEmpty, children: [for(final row in otherRows) offerCard(row)]),
             ],
           ],
         ],

@@ -76,11 +76,12 @@ type Shared = {
  * de prix) et deux discrètes (confier cette offre à Bot, voir les détails).
  * La vente garde son parcours de contact existant (`saleAction`).
  */
-export function WaouhOfferActions({ result, alternates, onDetails, saleAction, contactAction, ...shared }: Shared & {
+export function WaouhOfferActions({ result, alternates, onDetails, saleAction, contactAction, primaryOnly = false, ...shared }: Shared & {
   result: NexusDiscoveryResult;
   alternates: NexusDiscoveryResult[];
   /** Absent dans la fiche détail elle-même. */
   onDetails?: () => void;
+  primaryOnly?: boolean;
   saleAction?: ReactNode;
   /** Autres moyens de contact, affichés seulement dans la fiche détail. */
   contactAction?: ReactNode;
@@ -91,7 +92,7 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   const reachable = offerReachable(result);
   const canOpen = !!result.fabric_id && (mode !== "sell" || !!shared.articleId);
   const primary = canOpen ? (
-    <button type="button" className="wgd-offer-primary" disabled={opening} onClick={async () => {
+    <button type="button" className={primaryOnly ? "wsl-premium-manual" : "wgd-offer-primary"} disabled={opening} onClick={async () => {
       const path = offerDealRoomPath(result, mode === "sell" ? "sale" : kind, shared.articleId);
       if (!requireAuth(path)) return;
       if (mode === 'sell' || kind === 'opportunity') { navigate(path); return; }
@@ -100,9 +101,10 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
       catch (error) { toast.error(error instanceof Error ? error.message : 'Cet échange n’a pas pu être ouvert. Réessayez.'); }
       finally { setOpening(false); }
     }}>
-      <HeartHandshake size={16} aria-hidden="true" />{reachable ? offerPrimaryLabel(mode === "sell" ? "sale" : kind) : "Ouvrir l’échange"}
+      <HeartHandshake size={16} aria-hidden="true" />{reachable ? (primaryOnly && (!kind || kind === "purchase") ? "Je prends" : offerPrimaryLabel(mode === "sell" ? "sale" : kind)) : "Ouvrir l’échange"}
     </button>
   ) : saleAction ?? null;
+  if (primaryOnly) return <>{primary}</>;
   return (
     <div className="wgd-offer-actions">
       {primary}

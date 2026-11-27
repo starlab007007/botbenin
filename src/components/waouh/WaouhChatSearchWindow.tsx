@@ -189,13 +189,10 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
             <>
               {search.kind === "vendre" || search.priceReference
                 ? <WaouhSellerBrief results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
-                : <WaouhChatMarketBrief results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} />}
-              <div className="wsl-offers">
+                : <WaouhChatMarketBrief key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = resultKind(row) === "announcement" || search.kind === "opportunite" ? "opportunity" : resultKind(row) === "service" || search.kind === "service" || search.kind === "prestation" ? "service" : "purchase"; return <WaouhOfferActions primaryOnly result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
+              <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>Autres offres et détails · {orderedResults.length}</summary>
                 {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
-                <div className="wsl-offers-head">
-                  <strong>Les offres</strong>
-                  <span>Choisissez, proposez votre prix : l’échange s’ouvre dans le Chat.</span>
-                </div>
+
                 <WaouhProductResults results={orderedResults} onAction={onAction} roomActions={requireAuth ? row => {
                     const offer = asOffer(row);
                     if (!offer || (selling && !search.articleId)) return null;
@@ -205,7 +202,7 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
                     return <WaouhOfferActions result={offer} alternates={alternatives} mode={selling ? "sell" : "buy"} kind={kind}
                       articleId={search.articleId ?? undefined} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />;
                   } : undefined} />
-              </div>
+              </details>
             </>
           )}
           {revealed && search && search.results.length === 0 && (

@@ -48,7 +48,8 @@ describe("fenêtre de recherche du Chat", () => {
     expect(button.dataset.delegate).toBe("external:a");
     expect(button.dataset.alternates).toBe("1");
     expect(button.dataset.budget).toBe("300000");
-    expect(button.textContent).toBe("Confier les 2 à Bot");
+    expect(button.textContent).toBe("Confier à Bot");
+    expect(document.querySelector(".wsl-other-offers")?.hasAttribute("open")).toBe(false);
     expect(document.querySelector(".wsl-stages .is-current")?.textContent).toContain("Offres");
   });
 

@@ -128,7 +128,7 @@ class WaouhOfferCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: best ? _blue : const Color(0xFFDCE7F8), width: best ? 2 : 1),
+        border: Border.all(color: best ? const Color(0xFFE2BF69) : const Color(0xFFDCE7F8), width: best ? 2 : 1),
         boxShadow: const [BoxShadow(color: Color(0x140F172A), blurRadius: 16, offset: Offset(0, 6))],
       ),
       clipBehavior: Clip.antiAlias,
@@ -137,7 +137,7 @@ class WaouhOfferCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Stack(children: [
             AspectRatio(
-              aspectRatio: 4 / 3,
+              aspectRatio: best ? 16 / 9 : 4 / 3,
               child: photo == null
                   ? Container(color: const Color(0xFFEFF4FF), child: const Icon(Icons.image_outlined, size: 48, color: _muted))
                   : Image.network(photo!, fit: BoxFit.cover,
@@ -148,11 +148,11 @@ class WaouhOfferCard extends StatelessWidget {
                 left: 12, top: 12,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(99)),
+                  decoration: BoxDecoration(color: const Color(0xFFA8690A), borderRadius: BorderRadius.circular(99)),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.star_rounded, size: 14, color: Colors.white),
                     SizedBox(width: 4),
-                    Text('Meilleur choix', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+                    Text('Le choix de Bot', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
                   ]),
                 ),
               ),
@@ -162,7 +162,7 @@ class WaouhOfferCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: const Icon(Icons.verified_rounded, size: 18, color: _green),
+                  child: const Icon(Icons.chat_bubble_outline, size: 18, color: _green),
                 ),
               ),
           ]),
@@ -188,27 +188,25 @@ class WaouhOfferCard extends StatelessWidget {
               if (own)
                 const Text('Votre annonce', style: TextStyle(fontWeight: FontWeight.w800, color: _muted))
               else
-                Row(children: [
-                  Expanded(
-                    child: SizedBox(
+                Column(crossAxisAlignment: CrossAxisAlignment.stretch,children: [
+                  SizedBox(
                       height: 52,
                       child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: _blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF3EFFF), foregroundColor: const Color(0xFF281753), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onWant(); },
                         icon: const Icon(Icons.favorite_rounded),
-                        label: const Text('Je veux', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                        label: const Text('Je prends', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                       ),
-                    ),
                   ),
                   if (onBot != null) ...[
-                    const SizedBox(width: 10),
+                    const SizedBox(height: 10),
                     SizedBox(
                       height: 52,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6334CF), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onBot!(); },
                         icon: const Icon(Icons.smart_toy_rounded),
-                        label: const Text('Bot négocie', style: TextStyle(fontWeight: FontWeight.w800)),
+                        label: const Text('Confier à Bot', style: TextStyle(fontWeight: FontWeight.w800)),
                       ),
                     ),
                   ],

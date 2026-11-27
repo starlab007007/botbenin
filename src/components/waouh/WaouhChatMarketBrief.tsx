@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { BarChart3, MapPin, ShieldCheck, Sparkles, Trophy } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { BarChart3, MapPin, ShieldCheck, Sparkles, Trophy, ChevronDown } from "lucide-react";
 import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { briefMoney, chatMarketBrief, type BriefRow } from "@/lib/waouh/chatMarketBrief";
@@ -20,7 +20,8 @@ const gapLabel = (row: BriefRow) => {
  * comparaison des meilleures offres, et un seul bouton pour tout confier à Bot. Les fiches
  * complètes (photos, intérêt, message, proposition) restent juste en dessous.
  */
-export function WaouhChatMarketBrief({ results, city, budget, kind, query }: {
+export function WaouhChatMarketBrief({ results, city, budget, kind, query, renderPrimary }: {
+  renderPrimary?: (row: WaouhResultCard) => ReactNode;
   query?: string | null;
   results: WaouhResultCard[];
   city?: string | null;
@@ -31,14 +32,14 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query }: {
   const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;
-  const best = delegable[0] ?? null;
-  const count = Math.min(4, delegable.length);
+  const best = pick && delegable.some(row => row.result === pick.result) ? pick : null;
+  const alternates = best ? delegable.filter(row => row.result !== best.result).slice(0, 3) : [];
   const mode = kind && ["service", "prestation", "demander", "opportunite"].includes(kind) ? "ask" : "buy";
-  const provider = mode === "ask" ? "prestataire" : "vendeur";
+
 
   return (
     <section className="wsl-brief" aria-label="Analyse du marché par Bot" data-testid="chat-market-brief">
-      <header className="wsl-brief-head">
+      <details className="wsl-analysis-details"><summary><Sparkles size={15} />Analyse du marché<ChevronDown size={15} /></summary><header className="wsl-brief-head">
         <BotLiveAvatar size={38} />
         <div>
           <strong>Analyse du marché</strong>
@@ -64,21 +65,37 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query }: {
         </div>
       </div>
 
-      <p className="wsl-advice"><Sparkles size={14} aria-hidden="true" /><span>{brief.advice}</span></p>
+      <p className="wsl-advice"><Sparkles size={14} aria-hidden="true" /><span>{brief.advice}</span></p></details>
 
       {pick && (
         <article className="wsl-pick" aria-label="Le choix de Bot">
           <div className="wsl-pick-photo">{photoOf(pick.result) && brokenPhoto !== photoOf(pick.result) ? <img src={photoOf(pick.result)!} alt="" loading="lazy" decoding="async" onError={() => setBrokenPhoto(photoOf(pick.result))} /> : <Trophy size={20} aria-hidden="true" />}</div>
           <div className="wsl-pick-copy">
-            <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />Le choix de Bot · résultat {pick.result.index}</span>
+            <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />{pick.match === 'near' || brief.exact === 0 ? 'Alternative à vérifier' : 'Le choix de Bot'}</span>
             <h4>{pick.result.title}</h4>
             <p className="wsl-pick-price">{pick.price === null ? "Prix à demander" : briefMoney(pick.price)}{pick.result.city ? <small> · {pick.result.city}</small> : null}</p>
-            <ul>{pick.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">Stock et prix à confirmer</small>
           </div>
         </article>
       )}
 
-      {compare.length > 1 && (
+      {pick && renderPrimary?.(pick.result)}
+      {best ? (
+        <div className="wsl-premium-delegate" data-testid="chat-delegate-all">
+          <WaouhDelegateButton
+            result={{ fabric_id: best.delegateId!, title: best.result.title, city: best.result.city ?? null, evidence: best.result.evidence ?? null, contact_pack: best.result.contact_pack }}
+            mode={mode}
+            city={city || best.result.city || null}
+            budgetMax={budget ?? null}
+            label="Confier à Bot"
+            className="h-14 px-4"
+            alternates={alternates.map((row) => ({ fabric_id: row.delegateId!, city: row.result.city ?? null }))}
+          />
+        </div>
+      ) : (
+        <p className="wsl-delegate-none">Automatisation indisponible pour cette offre.</p>
+      )}
+      {compare.length > 1 && <details className="wsl-analysis-details"><summary><BarChart3 size={15} />Comparer<ChevronDown size={15} /></summary>{compare.length > 1 && (
         <div className="wsl-compare" role="table" aria-label="Comparaison des meilleures offres">
           {compare.map((row) => (
             <div role="row" key={`${row.result.id}:${row.result.index}`} className={row.rank === 1 ? "is-top" : undefined}>
@@ -88,27 +105,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query }: {
             </div>
           ))}
         </div>
-      )}
-
-      {best ? (
-        <div className="wsl-delegate" data-testid="chat-delegate-all">
-          <div className="wsl-delegate-copy">
-            <strong>{count > 1 ? `Confier les ${count} meilleures offres à Bot` : "Confier cette recherche à Bot"}</strong>
-            <p>Bot contacte le {provider}, négocie{budget ? ` sans dépasser ${briefMoney(budget)}` : " dans vos limites"}{count > 1 ? " et passe à l’offre suivante s’il n’obtient pas de réponse" : ""}. Vous confirmez toujours l’accord final, et aucun paiement ne part sans vous.</p>
-          </div>
-          <WaouhDelegateButton
-            result={{ fabric_id: best.delegateId!, title: best.result.title, city: best.result.city ?? null, evidence: best.result.evidence ?? null, contact_pack: best.result.contact_pack }}
-            mode={mode}
-            city={city || best.result.city || null}
-            budgetMax={budget ?? null}
-            label={count > 1 ? `Confier les ${count} à Bot` : "Confier à Bot"}
-            className="h-12 px-4"
-            alternates={delegable.slice(1, 4).map((row) => ({ fabric_id: row.delegateId!, city: row.result.city ?? null }))}
-          />
-        </div>
-      ) : (
-        <p className="wsl-delegate-none">Aucune de ces offres ne peut encore être confiée à Bot. Ouvrez une fiche ci-dessous pour écrire au {provider} ou proposer un prix.</p>
-      )}
+      )}</details>}
     </section>
   );
 }
