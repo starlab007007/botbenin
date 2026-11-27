@@ -102,6 +102,8 @@ class WaouhOfferCard extends StatelessWidget {
     required this.priceLabel,
     required this.tag,
     this.photo,
+    this.photos = const [],
+    this.priorityFacts = const {},
     this.city,
     this.verified = false,
     this.best = false,
@@ -110,11 +112,18 @@ class WaouhOfferCard extends StatelessWidget {
     required this.onWant,
     this.onBot,
     this.onDetails,
+    this.showPriceTag = true,
+    this.actionLabel = 'Je prends',
+    this.botLabel = 'Confier à Bot',
   });
   final String title;
+  final String actionLabel, botLabel;
+  final bool showPriceTag;
   final String? priceLabel;
   final WaouhPriceTag tag;
   final String? photo;
+  final List<String> photos;
+  final Map<String,String> priorityFacts;
   final String? city;
   final bool verified, best, own, busy;
   final VoidCallback onWant;
@@ -123,61 +132,36 @@ class WaouhOfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gallery = <String>{...photos, if (photo != null) photo!}.where((p) => p.startsWith('https://') || p.startsWith('http://')).toList();
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: best ? _blue : const Color(0xFFDCE7F8), width: best ? 2 : 1),
+        border: Border.all(color: best ? const Color(0xFFE2BF69) : const Color(0xFFDCE7F8), width: best ? 2 : 1),
         boxShadow: const [BoxShadow(color: Color(0x140F172A), blurRadius: 16, offset: Offset(0, 6))],
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onDetails,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Stack(children: [
-            AspectRatio(
-              aspectRatio: 4 / 3,
-              child: photo == null
-                  ? Container(color: const Color(0xFFEFF4FF), child: const Icon(Icons.image_outlined, size: 48, color: _muted))
-                  : Image.network(photo!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFEFF4FF), child: const Icon(Icons.image_outlined, size: 48, color: _muted))),
-            ),
-            if (best)
-              Positioned(
-                left: 12, top: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(99)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.star_rounded, size: 14, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text('Meilleur choix', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
-                  ]),
-                ),
-              ),
-            if (verified)
-              Positioned(
-                right: 12, top: 12,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: const Icon(Icons.verified_rounded, size: 18, color: _green),
-                ),
-              ),
-          ]),
+          if (gallery.isNotEmpty) _PremiumOfferPhotos(photos: gallery, title: title),
+          if (best || verified)
+            Padding(padding: const EdgeInsets.fromLTRB(14,12,14,0),child: Wrap(spacing: 8,runSpacing: 4,children: [
+              if (best) const Text('Le choix de Bot',style: TextStyle(color: Color(0xFF8A5708),fontSize: 12,fontWeight: FontWeight.w800)),
+              if (verified) const Tooltip(message: 'Contact possible',child: Icon(Icons.chat_bubble_outline,size: 17,color: _green)),
+            ])),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(priceLabel ?? 'Prix à demander',
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _ink)),
+                  style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: _ink)),
               const SizedBox(height: 2),
               Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
               const SizedBox(height: 8),
               Row(children: [
-                WaouhPricePill(tag),
-                const SizedBox(width: 8),
+                if (showPriceTag) ...[WaouhPricePill(tag), const SizedBox(width: 8)],
                 if ((city ?? '').trim().isNotEmpty) ...[
                   const Icon(Icons.place_rounded, size: 15, color: _muted),
                   Flexible(child: Text(city!, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -185,30 +169,32 @@ class WaouhOfferCard extends StatelessWidget {
                 ],
               ]),
               const SizedBox(height: 12),
+              if(priorityFacts.isNotEmpty) ...[
+                LayoutBuilder(builder:(context,constraints)=>Wrap(spacing:6,runSpacing:6,children:[for(final f in priorityFacts.entries) SizedBox(width:(constraints.maxWidth-6)/2,child:Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(color:const Color(0xFFF7F5FC),borderRadius:BorderRadius.circular(11)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(f.key,style:const TextStyle(fontSize:10,color:Color(0xFF746B86))),const SizedBox(height:3),Text(f.value,style:TextStyle(fontSize:12,fontWeight:FontWeight.w700,color:f.value=='À confirmer'?const Color(0xFF746B86):_ink))])))])),
+                const SizedBox(height:12),
+              ],
               if (own)
                 const Text('Votre annonce', style: TextStyle(fontWeight: FontWeight.w800, color: _muted))
               else
-                Row(children: [
-                  Expanded(
-                    child: SizedBox(
+                Column(crossAxisAlignment: CrossAxisAlignment.stretch,children: [
+                  SizedBox(
                       height: 52,
                       child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: _blue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFF3EFFF), foregroundColor: const Color(0xFF281753), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onWant(); },
                         icon: const Icon(Icons.favorite_rounded),
-                        label: const Text('Je veux', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                        label: Text(actionLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                       ),
-                    ),
                   ),
                   if (onBot != null) ...[
-                    const SizedBox(width: 10),
+                    const SizedBox(height: 10),
                     SizedBox(
                       height: 52,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6334CF), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                         onPressed: busy ? null : () { HapticFeedback.lightImpact(); onBot!(); },
                         icon: const Icon(Icons.smart_toy_rounded),
-                        label: const Text('Bot négocie', style: TextStyle(fontWeight: FontWeight.w800)),
+                        label: Text(botLabel, style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                     ),
                   ],
@@ -218,6 +204,39 @@ class WaouhOfferCard extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+class _PremiumOfferPhotos extends StatefulWidget {
+  const _PremiumOfferPhotos({required this.photos, required this.title});
+  final List<String> photos;
+  final String title;
+  @override
+  State<_PremiumOfferPhotos> createState() => _PremiumOfferPhotosState();
+}
+class _PremiumOfferPhotosState extends State<_PremiumOfferPhotos> {
+  int index = 0;
+  @override
+  void didUpdateWidget(covariant _PremiumOfferPhotos oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photos.join('|') != widget.photos.join('|')) index = 0;
+  }
+  @override
+  Widget build(BuildContext context) {
+    final photos = widget.photos;
+    if (photos.isEmpty) return const SizedBox.shrink();
+    final active = index.clamp(0, photos.length - 1).toInt();
+    return Column(children: [
+      Stack(alignment: Alignment.center,children: [
+        AspectRatio(aspectRatio: 16/10,child: ColoredBox(color: const Color(0xFFF7F5FA),child: Semantics(label: '${widget.title} — photo ${active+1}',image:true,child: Image.network(photos[active],fit:BoxFit.contain,errorBuilder: (_,__,___)=>const Center(child: Icon(Icons.image_not_supported_outlined,color: Color(0xFF9489A7),size:32)))))),
+        if (photos.length>1) ...[
+          Positioned(left:4,child: IconButton.filledTonal(tooltip:'Photo précédente',onPressed:()=>setState(()=>index=(active+photos.length-1)%photos.length),icon:const Icon(Icons.chevron_left))),
+          Positioned(right:4,child: IconButton.filledTonal(tooltip:'Photo suivante',onPressed:()=>setState(()=>index=(active+1)%photos.length),icon:const Icon(Icons.chevron_right))),
+          Positioned(top:8,right:8,child: Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),decoration:BoxDecoration(color:const Color(0xDD221735),borderRadius:BorderRadius.circular(20)),child:Text('${active+1} / ${photos.length}',style:const TextStyle(color:Colors.white,fontSize:12,fontWeight:FontWeight.w700)))),
+        ],
+      ]),
+      if (photos.length>1) SizedBox(height:60,child: ListView.separated(scrollDirection:Axis.horizontal,padding:const EdgeInsets.all(8),itemCount:photos.length,separatorBuilder:(_,__)=>const SizedBox(width:6),itemBuilder:(context,i)=>Semantics(button:true,selected:i==active,label:'Afficher la photo ${i+1}',child:InkWell(onTap:()=>setState(()=>index=i),child:Container(width:44,decoration:BoxDecoration(border:Border.all(color:i==active?const Color(0xFF6334CF):Colors.transparent,width:2),borderRadius:BorderRadius.circular(9)),clipBehavior:Clip.antiAlias,child:Image.network(photos[i],fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.image_not_supported_outlined,size:18))))))),
+    ]);
   }
 }
 

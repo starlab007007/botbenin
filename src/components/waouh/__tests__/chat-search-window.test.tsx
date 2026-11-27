@@ -19,9 +19,9 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 
 const search = (over: Partial<ChatSearch> = {}): ChatSearch => ({ id: "s1", goal: "iPhone 13", city: "Cotonou", status: "done", text: "", kind: "acheter", budget: 300000, results: [
-  { id: "a", index: 1, title: "iPhone 13 128 Go", price: 280000, city: "Cotonou", fabric_id: "external:a" },
-  { id: "b", index: 2, title: "iPhone 13 256 Go", price: 290000, city: "Cotonou", fabric_id: "external:b" },
-  { id: "c", index: 3, title: "iPhone 13 Pro", price: 420000, city: "Parakou", fabric_id: "external:c" },
+  { id: "a", index: 1, title: "iPhone 13 128 Go", price: 280000, city: "Cotonou", fabric_id: "external:a", contact_policy: {can_auto_contact:true} },
+  { id: "b", index: 2, title: "iPhone 13 256 Go", price: 290000, city: "Cotonou", fabric_id: "external:b", contact_policy: {can_auto_contact:true} },
+  { id: "c", index: 3, title: "iPhone 13 Pro", price: 420000, city: "Parakou", fabric_id: "external:c", contact_policy: {can_auto_contact:true} },
 ] as ChatSearch["results"], ...over });
 const render = async (value: ChatSearch | null) => act(async () => root.render(<MemoryRouter><WaouhChatSearchWindow search={value} onClose={() => {}} onAction={() => {}} /></MemoryRouter>));
 
@@ -48,12 +48,13 @@ describe("fenêtre de recherche du Chat", () => {
     expect(button.dataset.delegate).toBe("external:a");
     expect(button.dataset.alternates).toBe("1");
     expect(button.dataset.budget).toBe("300000");
-    expect(button.textContent).toBe("Confier les 2 à Bot");
+    expect(button.textContent).toBe("Confier à Bot");
+    expect(document.querySelector(".wsl-other-offers")?.hasAttribute("open")).toBe(false);
     expect(document.querySelector(".wsl-stages .is-current")?.textContent).toContain("Offres");
   });
 
   it("une prestation est confiée comme une demande, pas comme un achat", async () => {
-    await render(search({ kind: "prestation", budget: null }));
+    await render(search({ kind: "prestation", goal:"Création site web", budget: null, results:[{id:"service-a",index:1,title:"Création site web",fabric_id:"external:service-a",price:150000,city:"Cotonou",evidence:{offer_kind:"service",scope:"Site web",delivery_days:7},contact_policy:{can_auto_contact:true}}] as ChatSearch["results"] }));
     expect((document.querySelector("[data-delegate]") as HTMLElement).dataset.mode).toBe("ask");
   });
 
@@ -62,6 +63,17 @@ describe("fenêtre de recherche du Chat", () => {
     expect(document.body.textContent).toContain("Aucune offre assez proche");
     expect(document.querySelector('[data-testid="chat-market-brief"]')).toBeNull();
     expect(document.querySelector("[data-delegate]")).toBeNull();
+  });
+
+  it("affiche toutes les photos réelles dans la galerie et permet de les parcourir", async () => {
+    const value = search();
+    value.results[0] = {...value.results[0], photos:["https://example.org/one.jpg","https://example.org/two.jpg"]};
+    await render(value);
+    const gallery = document.querySelector(".wsl-hero-gallery")!;
+    expect(gallery.querySelector(".wsl-photo-count")?.textContent).toBe("1 / 2");
+    await act(async()=>{(gallery.querySelector(".wsl-photo-next") as HTMLButtonElement).click();});
+    expect(gallery.querySelector(".wsl-photo-count")?.textContent).toBe("2 / 2");
+    expect(gallery.querySelector(":scope > img")?.getAttribute("src")).toBe("https://example.org/two.jpg");
   });
 
   it("n’expose aucun terme technique à l’utilisateur", async () => {

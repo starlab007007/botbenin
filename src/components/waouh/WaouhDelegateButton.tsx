@@ -17,7 +17,7 @@ const DEFAULT_RULES = { mode: "autonomous", duration_hours: 168, max_followups: 
  *  Une fois confirmé : Bot ouvre le Deal Room, démarre la négociation, et — si des pistes
  *  alternatives sont fournies — reprend automatiquement avec la suivante en l’absence de réponse. */
 export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, marketMedian, className = "h-12", onHandled, alternates, city, budgetMax, label = "Confier à l’avatar", variant = "primary" }: {
-  result: { fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
+  result: { price_min?: number | null; price_max?: number | null; fabric_id: string; subject?: string | null; category?: string | null; title?: string | null; city?: string | null; evidence?: Record<string, unknown> | null; contact_pack?: unknown };
   mode: "buy" | "sell" | "ask";
   articleId?: string;
   discoveryKind?:MissionKind;missionContext?:MissionContext;
@@ -67,7 +67,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       try {
         opened = await roomCall("open", {
           fabric_id: candidates[index].fabric_id, city: city ?? candidates[index].city ?? undefined,
-          ...(mode === "sell" ? { sale_article_id: article } : { budget_max: budgetMax ?? null }),
+          ...(mode === "sell" ? { sale_article_id: article } : { budget_max: draft.limit ?? budgetMax ?? null }),
           confirmed: false,
         });
         break;
@@ -84,18 +84,23 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       max_followups: draft.maxFollowups,
       strategy: track,
       budget_max: mode === "sell" ? null : draft.limit ?? budgetMax ?? null,
+      ...(mode === "sell" ? { price_floor: draft.limit } : {}),
       ...(cascade.length ? { cascade_candidates: cascade, cascade_step: 1, cascade_max_steps: 1 + cascade.length } : {}),
     };
     await roomCall("delegate", { deal_room_id: opened.deal_room_id, mandate_revision: opened.mandate_revision ?? 0, confirmed: true, rules });
     setRoomId(opened.deal_room_id);
     setDone(true);
     onHandled?.();
+    navigate(`/app/chat?room_id=${encodeURIComponent(opened.deal_room_id)}`);
   };
 
   const run = async () => {
     if (busy) return;
     setError("");
     if (!confirm) { setConfirm(true); return; }
+    if (track==="opportunity") { setError("Utilisez la veille de cette opportunité."); return; }
+    if (mode==="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0)) { setError("Indiquez votre prix plancher privé."); return; }
+    if (mode!=="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0 || (budgetMax!=null && draft.limit>budgetMax))) { setError("Indiquez un plafond valide dans votre budget."); return; }
     setBusy(true);
     try {
       await openAndDelegate();
@@ -123,7 +128,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       <button type="button" onClick={() => void run()} disabled={busy}
         className={`flex w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-black active:scale-[.98] ${className} ${tone}`}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-4 w-4" />}
-        {confirm ? "Confier à Bot" : label}
+        {confirm ? "Confirmer le mandat" : label}
       </button>
       {confirm && (
         <div className="mt-2 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 text-left">
@@ -132,7 +137,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
           <div className="grid grid-cols-2 gap-2">
             {strategy.limitLabel && (
               <label className="text-[11px] font-bold text-slate-500">{strategy.limitLabel} (FCFA)
-                <input type="number" min={1} disabled={mode === "sell"} value={draft.limit ?? ""} onChange={(e) => setDraft({ ...draft, limit: e.target.value ? Number(e.target.value) : null })}
+                <input type="number" min={1} value={draft.limit ?? ""} onChange={(e) => setDraft({ ...draft, limit: e.target.value ? Number(e.target.value) : null })}
                   className="mt-0.5 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-slate-900" />
               </label>
             )}

@@ -16,12 +16,12 @@ describe("Bot strategy", () => {
   it("buy ceiling falls back to lower of price and market median", () => {
     expect(suggestMandate({ track: "buy", price: 50000, marketMedian: 40000 }).limit).toBe(40000);
   });
-  it("sell floor is the listed price", () => {
-    expect(suggestMandate({ track: "sell", price: 100000 }).limit).toBe(100000);
+  it("seller must explicitly authorize a private floor", () => {
+    expect(suggestMandate({ track: "sell", price: 100000 }).limit).toBeNull();
   });
-  it("2 follow-ups max, 24h default, 72h for services and opportunities", () => {
-    expect(suggestMandate({ track: "buy", price: 1 })).toMatchObject({ maxFollowups: 2, durationHours: 24 });
-    expect(suggestMandate({ track: "service" }).durationHours).toBe(72);
+  it("2 follow-ups max, seven-day default for commercial cascades", () => {
+    expect(suggestMandate({ track: "buy", price: 1 })).toMatchObject({ maxFollowups: 2, durationHours: 168 });
+    expect(suggestMandate({ track: "service" }).durationHours).toBe(168);
     expect(suggestMandate({ track: "opportunity" }).limit).toBeNull();
   });
   it("summary states the bound", () => {

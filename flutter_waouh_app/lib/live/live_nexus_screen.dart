@@ -1140,10 +1140,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     if (selling && _articleId == null) { notice('Choisissez votre article à vendre.'); return; }
     final fallbacks = (alternates ?? discovery?.results ?? const <NexusDiscoveryItem>[])
       .where((row) => row.fabricId != item.fabricId && liveOfferReachable(row)).take(3).toList();
-    if (!await confirmBotDelegation(context, alternates: fallbacks.length, budgetMax: _lastBudget, selling: selling) || !mounted) return;
+    final limit=await requestBotLimit(context,selling:selling,initial:selling?null:_lastBudget??item.priceMin??item.priceMax);
+    if(limit==null||!mounted)return;
     try {
       final id = await delegateRoomToBot(LiveDealRoomService(legacy.supabase), fabricId: item.fabricId,
-        city: _lastCity, budgetMax: _lastBudget, saleArticleId: selling ? _articleId : null, alternates: fallbacks);
+        city: _lastCity, budgetMax: selling?null:limit,priceFloor:selling?limit:null, saleArticleId: selling ? _articleId : null, alternates: fallbacks);
       if (mounted) context.push('/app/chat/room?room_id=$id');
     } catch (error) { if (mounted) notice(roomError(error)); }
   }

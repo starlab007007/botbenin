@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { MapPin, ShieldCheck, Users } from "lucide-react";
 import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { briefMoney } from "@/lib/waouh/chatMarketBrief";
 import { sellerBrief, type PriceReference } from "@/lib/waouh/sellerBrief";
+import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
@@ -11,12 +12,15 @@ import "./waouh-search-live.css";
  * Après la publication d'une annonce : le prix demandé situé face au marché, les
  * acheteurs qui correspondent vraiment, et la possibilité de confier la vente à Bot.
  */
-export function WaouhSellerBrief({ results, reference, city, query, articleId }: {
+export function WaouhSellerBrief({ results, reference, city, query, articleId, renderPrimary, onWatch, watchBusy }: {
   results: WaouhResultCard[];
   reference?: PriceReference;
   city?: string | null;
   query?: string | null;
   articleId?: string;
+  renderPrimary?: (row:WaouhResultCard)=>ReactNode;
+  onWatch?:()=>void;
+  watchBusy?:boolean;
 }) {
   const brief = useMemo(() => sellerBrief(results, { reference, city, query }), [results, reference, city, query]);
   const { verdict, buyers } = brief;
@@ -72,6 +76,8 @@ export function WaouhSellerBrief({ results, reference, city, query, articleId }:
         </div>
       )}
 
+      {first && <div><strong>{first.title}</strong><WaouhPriorityFacts result={first} kind="vendre" query={query}/></div>}
+      {first && renderPrimary?.(first)}
       {first && (
         <WaouhDelegateButton
           result={first as never}
@@ -82,9 +88,7 @@ export function WaouhSellerBrief({ results, reference, city, query, articleId }:
           alternates={buyers.slice(1, 4).map((b) => ({ fabric_id: String((b as { fabric_id?: unknown }).fabric_id ?? ""), city: b.city ?? null }))}
         />
       )}
-      {!buyers.length && (
-        <p className="wsl-seller-advice">Votre annonce reste visible. Dites-moi « Bot, occupe-t’en » et je cherche des acheteurs en continu, puis je vous préviens.</p>
-      )}
+      {!buyers.length && onWatch && <button type="button" className="wsl-premium-watch" disabled={watchBusy} onClick={onWatch}>Bot cherche des acheteurs</button>}
     </section>
   );
 }

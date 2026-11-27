@@ -1,7 +1,10 @@
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
-const db=new PGlite();
+const storage=await mkdtemp(join(tmpdir(),'waouh-room-recovery-'));
+let db=new PGlite(storage);
 await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function public.is_admin(uuid) returns boolean language sql as $$select false$$;
 create function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$$;
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
@@ -177,4 +180,72 @@ for(const fixture of cases){
 }
 if(process.env.UPDATE_GUIDANCE_FIXTURES==='1'){const {writeFile}=await import('node:fs/promises');await writeFile(guidancePath,JSON.stringify(cases,null,2)+'\n');}
 console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and completion states passed.');
+
+ // Test the exact reviewed new SQL after the existing legacy contract fixtures.
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261116214600_waouh_sale_deal_rooms.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261127171000_waouh_room_autonomy_atomic.sql',import.meta.url),'utf8'));
+ await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $test_policy$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$test_policy$;");
+ await db.query('insert into public.waouh_users values($1,$1) on conflict do nothing',[owner]);
+ const cascadeA='00000000-0000-4000-8000-000000000021',cascadeB='00000000-0000-4000-8000-000000000022';
+ for(const a of [cascadeA,cascadeB])await db.query("insert into public.waouh_articles values($1,$2,'active')",[a,seller]);
+ const nextSource={...source,source_ref:'article:'+cascadeB};
+ let ca=await cmd(owner,'open',{source:{...source,source_ref:'article:'+cascadeA},city:'Cotonou',confirmed:false});
+ const cascadeId=ca.deal_room_id;
+ await assert.rejects(cmd(owner,'delegate',{deal_room_id:cascadeId,mandate_revision:0,confirmed:true,rules:{...rules,budget_max:null,initial_offer:null}}),/budget_required/);
+ ca=await cmd(owner,'delegate',{deal_room_id:cascadeId,mandate_revision:0,confirmed:true,rules:{...rules,initial_offer:null,duration_hours:168,max_followups:0,cascade_candidates:[{fabric_id:nextSource.source_ref}],cascade_step:1,cascade_max_steps:2}});
+ const transfer=async(revision=ca.mandate_revision,candidate=nextSource.source_ref)=>(await db.query('select public.waouh_room_cascade_transfer($1,$2,$3,$4) d',[cascadeId,revision,candidate,{source:nextSource,city:'Cotonou'}])).rows[0].d;
+ await assert.rejects(transfer(),/cascade_not_due/);
+ await db.query("update public.waouh_deal_room_links set initial_sent=true where id=$1",[cascadeId]);
+ await db.query("insert into public.waouh_room_events(room_id,actor_id,actor_kind,event_type,created_at) values($1,$2,'bot','bot_step',now()-interval '25 hours')",[cascadeId,owner]);
+ await assert.rejects(transfer(ca.mandate_revision,'article:wrong'),/candidate_changed/);
+ const moved=await transfer();assert.ok(moved.deal_room_id);assert.notEqual(moved.deal_room_id,cascadeId);
+ const replay=await transfer();assert.equal(replay.deal_room_id,moved.deal_room_id);assert.equal(replay.replayed,true);
+ const links=(await db.query('select id,control_mode,expires_at,mandate from public.waouh_deal_room_links where id in ($1,$2)',[cascadeId,moved.deal_room_id])).rows;
+ const oldLink=links.find(x=>x.id===cascadeId),newLink=links.find(x=>x.id===moved.deal_room_id);
+ assert.equal(oldLink.control_mode,'paused');assert.equal(newLink.control_mode,'bot');assert.ok(new Date(newLink.expires_at)<=new Date(oldLink.expires_at));
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='cascade_next_candidate:'||$1||':'||$2",[cascadeId,moved.deal_room_id])).rows[0].n),1);
+ const target=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Oui, disponible à 120000 FCFA'});
+ const inbound=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ const apply=async()=>(await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4) ok',[moved.deal_room_id,target.mandate_revision,inbound,'price'])).rows[0].ok;
+ assert.equal(await apply(),true);assert.equal(await apply(),false);
+ const after=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});assert.equal(after.agreement,null);assert.ok(after.messages.some(x=>x.author_kind==='bot'&&x.text.includes('prix total')));
+ const peer=await cmd(seller,'get',{deal_room_id:moved.deal_room_id});assert.equal(peer.mandate,null);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
+ console.log('Autonomy: mandatory budget, delayed atomic handoff, idempotent replay, deadline preserved, safe reply once, limits private.');
+
+// Restart the local durable database, with no Web/Android client running.
 await db.close();
+db=new PGlite(storage);
+try {
+ const persisted=(await db.query('select id,control_mode,expires_at,mandate from public.waouh_deal_room_links where id in ($1,$2)',[cascadeId,moved.deal_room_id])).rows;
+ assert.equal(persisted.find(x=>x.id===cascadeId).control_mode,'paused');
+ assert.equal(persisted.find(x=>x.id===moved.deal_room_id).control_mode,'bot');
+ assert.equal(persisted.find(x=>x.id===moved.deal_room_id).mandate.last_reply_id,inbound);
+ assert.equal((await transfer()).deal_room_id,moved.deal_room_id);
+ assert.equal(await apply(),false);
+ const resumed=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ assert.equal(resumed.messages.length,after.messages.length);
+ assert.equal(resumed.agreement,null);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='cascade_next_candidate:'||$1||':'||$2",[cascadeId,moved.deal_room_id])).rows[0].n),1);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
+ // A genuinely new reply after restart must trigger a bounded action, not just a replay.
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Prix 180000 FCFA'});
+ const pending=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc,id desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ assert.notEqual(pending,inbound);
+ const replyNew=async()=>(await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4,$5) ok',[moved.deal_room_id,target.mandate_revision,pending,'price',180000])).rows[0].ok;
+ assert.equal(await replyNew(),true);assert.equal(await replyNew(),false);
+ const recovered=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ assert.equal(recovered.agreement,null);
+ assert.ok(recovered.messages.some(m=>m.author_kind==='bot'&&m.text.includes('meilleur prix total')));
+ assert.ok(recovered.messages.filter(m=>m.author_kind==='bot').every(m=>!m.text.includes('145000')));
+ await db.query("update public.waouh_deal_room_links set expires_at=now()-interval '1 minute' where id=$1",[moved.deal_room_id]);
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Autre proposition'});
+ const late=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc,id desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ assert.equal((await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4) ok',[moved.deal_room_id,target.mandate_revision,late,'clarify'])).rows[0].ok,false);
+ assert.equal((await cmd(owner,'get',{deal_room_id:moved.deal_room_id})).messages.filter(m=>m.author_kind==='bot').length,recovered.messages.filter(m=>m.author_kind==='bot').length);
+ console.log('Durable recovery: database closed and reopened, history and mandate persisted, no duplicate transfer/reply/notification, new reply processed within bounds, expired mandate blocked.');
+} finally {
+ await db.close();
+ await rm(storage,{recursive:true,force:true});
+}

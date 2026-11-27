@@ -1,3 +1,4 @@
+import { smartRoomReply } from "../_shared/waouh-smart-room-reply.ts";
 import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
@@ -1143,9 +1144,9 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
   const result = { checked: 0, advanced: 0, abandoned: 0, errors: 0 };
   const { data: rooms } = await sb
     .from("waouh_deal_room_links")
-    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode")
+    .select("id, owner_id, source_ref, mandate, initial_sent, followups, control_mode, expires_at, mandate_revision")
     .eq("active", true)
-    .in("control_mode", ["bot", "paused"])
+    .eq("control_mode", "bot")
     .order("created_at", { ascending: true })
     .limit(Math.min(300, Math.max(1, limit * 10)));
   if (!rooms?.length) return result;
@@ -1156,7 +1157,10 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
     if (!hasCascade || mandate.cascade_done) continue; // never touch an ordinary (non-cascade) mandate
     result.checked++;
     try {
-      let exhausted = false;
+      const deadline = Date.parse(String(mandate.cascade_expires_at ?? room.expires_at ?? ""));
+      if (!Number.isFinite(deadline) || deadline <= Date.now() + 3600000) continue;
+
+      let exhausted = mandate.cascade_refused === true;
       if (room.control_mode === "paused") {
         const { data: lastEvent } = await sb.from("waouh_room_events")
           .select("event_type").eq("room_id", room.id)
@@ -1164,7 +1168,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
         // waouh_room_tick pauses an expired room without logging an event; a user-initiated
         // pause always logs one. Only the former should resume as a cascade hand-off.
         exhausted = lastEvent?.event_type !== "pause";
-      } else {
+      } else if (!exhausted) {
         const maxFollowups = Number(mandate.max_followups ?? 1);
         if (room.initial_sent && Number(room.followups || 0) >= maxFollowups) {
           const { data: lastStep } = await sb.from("waouh_room_events")
@@ -1185,7 +1189,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
           }
         }
       }
-      if (exhausted && room.control_mode === "bot") {
+      if (exhausted && room.control_mode === "bot" && mandate.cascade_refused !== true) {
         // Un interlocuteur qui a écrit dans l'échange a répondu : pas de passage à l'offre suivante
         // (un arrêt demandé — STOP — ou un mandat échu laissent, eux, passer à la suivante).
         const { data: comp } = await sb.from("waouh_convergence_components").select("provider_id").eq("id", room.id).maybeSingle();
@@ -1203,11 +1207,11 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const ownerId = room.owner_id as string;
       const candidates: any[] = Array.isArray(mandate.cascade_candidates) ? mandate.cascade_candidates : [];
 
-      if (!candidates.length) {
+      if (!candidates.length || Number(mandate.cascade_step ?? 1) >= Math.min(4, Number(mandate.cascade_max_steps ?? 4))) {
         await sb.from("waouh_deal_room_links").update({
           control_mode: "paused", next_run_at: null,
           mandate: { ...mandate, cascade_done: true },
-        }).eq("id", room.id);
+        }).eq("id", room.id).eq("mandate_revision",room.mandate_revision).eq("control_mode","bot");
         await avatarNotice(sb, ownerId, `cascade_exhausted:${room.id}`,
           "Aucune des offres contactées n'a répondu. La négociation repasse en gestion manuelle.",
           { room_id: room.id });
@@ -1218,11 +1222,11 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (await avatarAccountPaused(sb, ownerId)) continue;
 
       const [next, ...rest] = candidates;
-      const nextFabricId = String(next?.source_ref || "");
+      const nextFabricId = String(next?.fabric_id || next?.source_ref || "");
       const sale = roomSaleSource(room.source_ref);
       const sourceRef = sale && nextFabricId ? `sale:${sale.articleId}:${nextFabricId}` : nextFabricId;
       const dropCandidate = async () => {
-        await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id);
+        await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id).eq("mandate_revision",room.mandate_revision).eq("control_mode","bot");
       };
       if (!sourceRef) { await dropCandidate(); continue; }
       // Bot ne retient que des offres dont le propriétaire peut être joint.
@@ -1233,6 +1237,11 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       if (!signal || signal.is_active === false || (signal.expires_at && Date.parse(signal.expires_at) <= Date.now())) {
         await dropCandidate(); continue;
       }
+      if (!sale && ["BUY","ANNOUNCE"].includes(String(signal.intent))) { await dropCandidate(); continue; }
+      if (!sale && mandate.budget_max != null && (signal.price_max ?? signal.price_min) != null && Number(signal.price_max ?? signal.price_min) > Number(mandate.budget_max)) { await dropCandidate(); continue; }
+      if (sale && mandate.price_floor != null && (signal.price_max ?? signal.price_min) != null && Number(signal.price_max ?? signal.price_min) < Number(mandate.price_floor)) { await dropCandidate(); continue; }
+      const domain = mandate.strategy === "service" ? "service" : mandate.strategy === "job" ? "project" : undefined;
+      if (domain && !missionMatches(signal, {missionKind:domain})) { await dropCandidate(); continue; }
       let record: any = signal;
       if (sale || sourceRef.startsWith("article:")) {
         const { data: article } = await sb.from("waouh_articles").select("*")
@@ -1258,33 +1267,15 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       };
       if (mandate.budget_max != null) openPayload.budget_max = mandate.budget_max;
 
-      const opened = await sb.rpc("waouh_room_command", { p_actor: ownerId, p_action: "open", p: openPayload });
-      if (opened.error || !opened.data?.deal_room_id) { result.errors++; continue; }
-      const newRoomId = opened.data.deal_room_id as string;
-      const newRevision = Number(opened.data.mandate_revision ?? 0);
-
-      const step = Number(mandate.cascade_step || 1) + 1;
-      const maxSteps = Number(mandate.cascade_max_steps || 4);
-      const rules: Record<string, any> = {
-        ...mandate, cascade_candidates: rest, cascade_step: step, cascade_max_steps: maxSteps,
-        cascade_previous_room_id: room.id,
-      };
-      delete rules.one_step_approved; delete rules.approved_version; delete rules.cascade_done;
-
-      const delegated = await sb.rpc("waouh_room_command", {
-        p_actor: ownerId, p_action: "delegate",
-        p: { request_id: crypto.randomUUID(), deal_room_id: newRoomId, mandate_revision: newRevision, confirmed: true, rules },
-      });
-      if (delegated.error) { result.errors++; continue; }
-
-      await sb.from("waouh_deal_room_links").update({
-        control_mode: "paused", next_run_at: null,
-        mandate: { ...mandate, cascade_candidates: [], cascade_done: true, cascade_handed_off_to: newRoomId },
-      }).eq("id", room.id);
-
-      await avatarNotice(sb, ownerId, `cascade_next_candidate:${room.id}:${newRoomId}`,
-        `Pas de réponse : le bot négocie maintenant avec l'offre suivante (${Math.min(step, maxSteps)}/${maxSteps}).`,
-        { previous_room_id: room.id, next_room_id: newRoomId, source_ref: sourceRef });
+      const moved = await sb.rpc("waouh_room_cascade_transfer", {p_room:room.id,p_revision:room.mandate_revision,p_candidate:nextFabricId,p_open:openPayload});
+      if (moved.error) {
+        if (moved.error.message.includes("candidate_room_exists")) await dropCandidate();
+        else result.errors++;
+        continue;
+      }
+      const newRoomId=String(moved.data?.deal_room_id ?? "");
+      if (!newRoomId) {result.errors++;continue;}
+      // The handoff RPC commits the owner notification with the new room.
       result.advanced++;
     } catch (e) {
       console.error("[waouh-opportunity-worker][cascade]", e);
@@ -1440,8 +1431,11 @@ Deno.serve(async (req) => {
   const maintenance = await maintainAvatarQueues(sb);
   const lifecycle = await advanceAvatarLifecycle(sb, 15, body.advance_only === true ? body.journey_id : undefined);
   if (body.advance_only === true) return json({ ok: true, lifecycle });
-  const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
+  const {error: agreedExpiryError} = await sb.from("waouh_avatar_mandates").update({status:"completed"}).eq("status","active").not("metadata->agreement_reached_at","is",null).lt("expires_at",now.toISOString());
+  if (agreedExpiryError) throw agreedExpiryError;
+  const { data: expired, error: expiryError } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
     .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
+  if (expiryError) throw expiryError;
   for (const m of expired ?? []) {
     await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "mandate_expired", completed_at: now.toISOString(),
       last_message: "Délai de mission atteint. Aucun nouvel envoi ne sera effectué." }).eq("mandate_id", m.id).in("stage", ["discovered", "enriching", "contact_ready", "contacting", "waiting_reply"]);
@@ -1627,6 +1621,7 @@ Deno.serve(async (req) => {
   }
 
   const followups = await runBoundedFollowUps(sb, Math.min(50, limit * 2));
+  const replies = await smartRoomReply(sb);
   const cascaded = await advanceCascadeRooms(sb, Math.min(50, limit * 2));
   const guests = await reachAndRelayRoomGuests(sb);
   if (result.contacted > 0 || followups.sent > 0) {
@@ -1636,7 +1631,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result, followups, cascaded, guests, lifecycle, maintenance });
+  return json({ ok: true, ...result, followups, replies, cascaded, guests, lifecycle, maintenance });
   } finally {
     await sb.rpc("waouh_avatar_release_worker", { p_token: lease });
   }

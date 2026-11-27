@@ -9,7 +9,8 @@ import 'live_chat_market_brief.dart';
 import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
 import 'live_waouh_flow_ui.dart';
-import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
+import 'live_priority_facts.dart';
+import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
 import 'live_product_data.dart' show liveProductPhotos;
@@ -348,6 +349,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final article = await _saleArticle();
       final response = await _service.createMandate(
         mode: _sell ? 'sell' : 'buy', goal: widget.goal, articleId: article, city: _goalFacts.city,
+        discoveryKind: _sell ? 'sale' : widget.kind == 'opportunite' ? 'opportunity' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'project' : null,
         budgetMax: _sell ? null : _goalFacts.budget?.toDouble(), autonomyMode: 'assisted',
         completionGoal: 'recommendations', maxFollowups: 0, allowWaouh: false, allowBlindMessage: false,
       );
@@ -363,28 +365,26 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
   }
 
   Future<void> _delegateAll(LiveChatBrief brief) async {
-    if (_delegating || brief.delegable.isEmpty) return;
+    if (_delegating || brief.delegable.isEmpty || widget.kind == 'opportunite') return;
+    if (brief.delegable.first.row['result_kind'] == 'announcement' || brief.delegable.first.row['intent'] == 'ANNOUNCE') return;
     final best = brief.delegable.first;
-    final alternates = brief.delegable.skip(1).take(3).toList();
-    final ok = await confirmBotDelegation(
-      context,
-      alternates: alternates.length,
-      budgetMax: _goalFacts.budget,
-    );
-    if (!ok || !mounted) return;
+    if (_isOwn(best.row) || !_contactAllowed(best.row)) { await _watch(); return; }
+    final alternates = brief.delegable.skip(1).where((a) => !_isOwn(a.row) && _contactAllowed(a.row) && a.row['result_kind'] != 'announcement' && a.row['intent'] != 'ANNOUNCE' && a.row['result_kind'] == best.row['result_kind']).take(3).toList();
     await _delegateFabric(
       best.delegateId ?? '',
       best.city,
       [for (final a in alternates) if (a.delegateId != null) <String, dynamic>{'fabric_id': a.delegateId, if (a.city.isNotEmpty) 'city': a.city}],
-      confirmed: true,
     );
   }
 
   Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
-    if (_delegating || fabricId.trim().isEmpty) return;
-    if (!confirmed) {
-      final ok = await confirmBotDelegation(context, alternates: cascade.length, budgetMax: _goalFacts.budget, selling: _sell);
-      if (!ok || !mounted) return;
+    if (_delegating || fabricId.trim().isEmpty || widget.kind == 'opportunite') return;
+    num? limit = _sell ? null : _goalFacts.budget;
+    {
+      final controller=TextEditingController(text:limit?.toString()??'');
+      final selected=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update){final n=num.tryParse(controller.text);final valid=n!=null&&n.isFinite&&n>0&&(_sell||_goalFacts.budget==null||n<=_goalFacts.budget!);return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:controller,keyboardType:TextInputType.number,decoration:InputDecoration(labelText:_sell?'Prix plancher privé (FCFA)':'Budget maximal (FCFA)'),onChanged:(_)=>update((){})),const SizedBox(height:12),const Text('Bot négocie dans cette limite. Vous validez l’accord final.')]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);}));
+      WidgetsBinding.instance.addPostFrameCallback((_)=>controller.dispose());
+      if(selected==null||!mounted)return;limit=selected;
     }
     setState(() => _delegating = true);
     try {
@@ -407,7 +407,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             'fabric_id': '${c['fabric_id']}',
             if (saleArticle != null) 'sale_article_id': saleArticle,
             if (city.isNotEmpty) 'city': city,
-            'budget_max': _sell ? null : _goalFacts.budget,
+            'budget_max': _sell ? null : limit,
             'confirmed': false,
           });
           break;
@@ -422,7 +422,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
-        'budget_max': _sell ? null : _goalFacts.budget,
+        'strategy': _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
+        'budget_max': _sell ? null : limit,
+        if (_sell) 'price_floor': limit,
         if (rest.isNotEmpty) 'cascade_candidates': rest,
         if (rest.isNotEmpty) 'cascade_step': 1,
         if (rest.isNotEmpty) 'cascade_max_steps': 1 + rest.length,
@@ -461,10 +463,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final running = _reply == null || _queue.isNotEmpty;
     final revealed = !running && _reply != null;
     final reply = _reply;
-    final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply);
+    final rows = reply == null ? const <Map<String, dynamic>>[] : _resultRows(reply).where((row){final e=row['evidence'] is Map?row['evidence'] as Map:const {};final opportunity=widget.kind=='opportunite'||row['result_kind']=='announcement'||row['intent']=='ANNOUNCE';if(!opportunity)return true;final deadline=DateTime.tryParse('${e['deadline']??e['closing_date']??row['expires_at']??''}');return e['eligible']!=false&&e['eligibility_status']!='ineligible'&&(deadline==null||!deadline.add(const Duration(days:1)).isBefore(DateTime.now()));}).toList();
     final canonicalRows = rows.where((row) => _roomFabric(row) != null).toList();
     final brief = revealed && rows.isNotEmpty && !_sell
-        ? liveChatMarketBrief(rows, city: _goalFacts.city, budget: _goalFacts.budget)
+        ? liveChatMarketBrief(rows, city: _goalFacts.city, budget: _goalFacts.budget, kind:widget.kind)
         : null;
     // Vente : le prix demandé face au marché et les acheteurs qui correspondent vraiment.
     final priceReference = reply?.meta['price_reference'];
@@ -480,8 +482,11 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     final status = running
         ? (reply == null ? 'BOT CHERCHE POUR VOUS' : 'BOT ANALYSE LES OFFRES')
         : 'RECHERCHE TERMINÉE';
-    final median = waouhMedian(canonicalRows.map(_rowPrice));
-    final botBar = revealed && !_sell && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
+    final median = waouhMedian(canonicalRows.where((row) => row['result_kind'] != 'announcement' && row['result_kind'] != 'service' && row['intent'] != 'ANNOUNCE').map(_rowPrice));
+    final recommended = brief?.pick;
+    final primaryRows = !_sell && recommended != null ? canonicalRows.where((row) => !_isOwn(row) && _roomFabric(row) == recommended.delegateId).take(1).toList() : <Map<String,dynamic>>[];
+    final otherRows = canonicalRows.where((row) => !primaryRows.contains(row)).toList();
+    final botBar = revealed && !_sell && widget.kind != 'opportunite' && brief != null && brief.delegable.isNotEmpty && canonicalRows.isNotEmpty
         ? WaouhBotBar(
             count: brief.delegable.length > 4 ? 4 : brief.delegable.length,
             busy: _delegating,
@@ -490,9 +495,29 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             onFollow: () => context.push('/app/chat/room?room_id=${_delegatedRoom ?? ''}'),
           )
         : null;
+    String journey(Map<String,dynamic> row) => _sell ? 'sale' : widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE' ? 'opportunity' : widget.kind == 'prestation' ? 'project' : widget.kind == 'service' || row['result_kind'] == 'service' ? 'service' : 'purchase';
+    String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => 'Postuler', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
+    Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
+                  title: _rowTitle(row),
+                  priorityFacts: livePriorityFacts(row,journey(row),guided:widget.kind),
+                  actionLabel: actionLabel(row),
+                  botLabel: _sell ? 'Confier la vente' : 'Confier à Bot',
+                  priceLabel: journey(row) == 'opportunity' ? 'Conditions à consulter' : reasonMoney(_rowPrice(row)),
+                  showPriceTag: journey(row) == 'purchase',
+                  tag: waouhPriceTag(_rowPrice(row), median),
+                  photos: liveProductPhotos(row),
+                  city: row['city']?.toString(),
+                  verified: _contactAllowed(row),
+                  best: best,
+                  own: _isOwn(row),
+                  busy: _delegating,
+                  onWant: () => _openManually(row),
+                  onBot: journey(row) != 'opportunity' && _contactAllowed(row) && (_sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const []) : null,
+                  onDetails: () => showLiveProductDetails(context, row),
+                );
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
-      bottomNavigationBar: botBar,
+      bottomNavigationBar: primaryRows.isEmpty ? botBar : null,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: WaouhPalette.ink,
@@ -522,7 +547,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           if ((_goalFacts.city ?? '').trim().isNotEmpty || _goalFacts.budget != null) const SizedBox(height: 10),
           WaouhStepBar(step: revealed && rows.isNotEmpty ? 2 : 1),
           const SizedBox(height: 14),
-          LiveReasoningFeed(
+          if (!revealed || rows.isEmpty) LiveReasoningFeed(
             steps: _steps,
             running: running,
             summary: revealed ? _summary : null,
@@ -567,21 +592,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
               OutlinedButton(onPressed: _delegating ? null : _watch, child: const Text('Activer la veille')),
             if (canonicalRows.isNotEmpty) ...[
               const SizedBox(height: 14),
-              for (final (index, row) in canonicalRows.indexed)
-                WaouhOfferCard(
-                  title: _rowTitle(row),
-                  priceLabel: reasonMoney(_rowPrice(row)),
-                  tag: waouhPriceTag(_rowPrice(row), median),
-                  photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
-                  city: row['city']?.toString(),
-                  verified: _contactAllowed(row),
-                  best: index == 0 && !_isOwn(row) && _rowPrice(row) != null,
-                  own: _isOwn(row),
-                  busy: _delegating,
-                  onWant: () => _openManually(row),
-                  onBot: _contactAllowed(row) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), const []) : null,
-                  onDetails: () => showLiveProductDetails(context, row),
-                ),
+              for (final row in primaryRows) offerCard(row,best:true),
+              if (widget.kind == 'opportunite' || (!_sell && primaryRows.isNotEmpty && !_contactAllowed(primaryRows.first))) FilledButton.icon(onPressed: _delegating ? null : _watch, icon: const Icon(Icons.notifications_none), label: Text(widget.kind == 'opportunite' ? 'Suivre l’opportunité' : 'Bot continue la recherche')),
+              if (canonicalRows.length > 1) ExpansionTile(title: const Text('Comparer avec Bot'),children: [for(final row in canonicalRows.take(3)) ListTile(title:Text(_rowTitle(row),maxLines:2,overflow:TextOverflow.ellipsis),subtitle:Text(livePriorityFacts(row,journey(row),guided:widget.kind).entries.where((f)=>f.value!='À confirmer').take(3).map((f)=>'${f.key} : ${f.value}').join(' · ')),trailing:TextButton(onPressed:_delegating?null:()=>_openManually(row),child:const Text('Voir')))]),
+              if (otherRows.isNotEmpty) ExpansionTile(title: Text(primaryRows.isEmpty ? 'Offres (${otherRows.length})' : 'Autres offres (${otherRows.length})'), initiallyExpanded: primaryRows.isEmpty, children: [for(final row in otherRows) offerCard(row)]),
             ],
           ],
         ],
