@@ -14,3 +14,5 @@ Correctifs de cette livraison : compatibilité fabric_id/source_ref, exclusion d
 - Prix plancher explicite dans le parcours principal Web/Android et garde serveur. Coût annoncé et frais de livraison connus pris en compte pour les contre-propositions; frais inconnus à clarifier.
 - Smart Reply: classification déterministe prioritaire, Gemini en repli, réponse métier contrôlée et journalisée, sans acceptation, dépôt ni paiement automatiques.
 - Test SQL isolé sur la migration réelle; test Deno de classification. La recette réelle sur appareil, livraison physique des notifications et redémarrage isolé restent obligatoires.
+
+Le transfert et la notification de basculement sont inscrits dans la même transaction; les notifications de progression sont dédupliquées et restent en file jusqu'au traitement existant. Le test n'envoie aucun message sur un canal externe. Le déclenchement IA est limité à cinq tentatives par tick et les réponses non autorisées ne sont pas traitées.

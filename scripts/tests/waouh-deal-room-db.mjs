@@ -199,6 +199,7 @@ console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and 
  const links=(await db.query('select id,control_mode,expires_at,mandate from public.waouh_deal_room_links where id in ($1,$2)',[cascadeId,moved.deal_room_id])).rows;
  const oldLink=links.find(x=>x.id===cascadeId),newLink=links.find(x=>x.id===moved.deal_room_id);
  assert.equal(oldLink.control_mode,'paused');assert.equal(newLink.control_mode,'bot');assert.ok(new Date(newLink.expires_at)<=new Date(oldLink.expires_at));
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='cascade_next_candidate:'||$1||':'||$2",[cascadeId,moved.deal_room_id])).rows[0].n),1);
  const target=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
  await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Oui, disponible à 120000 FCFA'});
  const inbound=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
@@ -206,6 +207,7 @@ console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and 
  assert.equal(await apply(),true);assert.equal(await apply(),false);
  const after=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});assert.equal(after.agreement,null);assert.ok(after.messages.some(x=>x.author_kind==='bot'&&x.text.includes('prix total')));
  const peer=await cmd(seller,'get',{deal_room_id:moved.deal_room_id});assert.equal(peer.mandate,null);
+ assert.equal(Number((await db.query("select count(*) n from public.waouh_notifications where dedupe_key='smart-reply:'||$1",[inbound])).rows[0].n),1);
  console.log('Autonomy: mandatory budget, delayed atomic handoff, idempotent replay, deadline preserved, safe reply once, limits private.');
 
 await db.close();

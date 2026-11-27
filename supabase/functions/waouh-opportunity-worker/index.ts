@@ -1275,10 +1275,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       }
       const newRoomId=String(moved.data?.deal_room_id ?? "");
       if (!newRoomId) {result.errors++;continue;}
-      const step=Number(moved.data?.step ?? 2),maxSteps=Number(moved.data?.max_steps ?? 4);
-      await avatarNotice(sb, ownerId, `cascade_next_candidate:${room.id}:${newRoomId}`,
-        `Pas de réponse : le bot négocie maintenant avec l'offre suivante (${Math.min(step, maxSteps)}/${maxSteps}).`,
-        { previous_room_id: room.id, next_room_id: newRoomId, source_ref: sourceRef });
+      // The handoff RPC commits the owner notification with the new room.
       result.advanced++;
     } catch (e) {
       console.error("[waouh-opportunity-worker][cascade]", e);

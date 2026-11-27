@@ -199,7 +199,7 @@ create or replace function public.waouh_room_cascade_transfer(p_room uuid,p_revi
 returns jsonb language plpgsql set search_path to 'public','pg_temp' as $$
 declare r public.waouh_deal_room_links; c public.waouh_convergence_components;
  next_room public.waouh_deal_room_links; q jsonb; first_candidate jsonb; rest jsonb; rules jsonb;
- deadline timestamptz; hours_left integer; step integer; max_steps integer; opened jsonb; delegated jsonb; ref text;
+ deadline timestamptz; hours_left integer; step integer; max_steps integer; opened jsonb; delegated jsonb; ref text; uid uuid;
 begin
  select * into r from public.waouh_deal_room_links where id=p_room for update;
  if not found then raise exception 'room_not_found';end if;
@@ -233,6 +233,11 @@ begin
  update public.waouh_deal_room_links set expires_at=least(expires_at,deadline) where id=next_room.id;
  update public.waouh_deal_room_links set control_mode='paused',next_run_at=null,mandate_revision=mandate_revision+1,mandate=mandate||jsonb_build_object('cascade_candidates','[]'::jsonb,'cascade_done',true,'cascade_handed_off_to',next_room.id) where id=r.id;
  insert into public.waouh_room_events(room_id,actor_id,actor_kind,event_type,payload) values(r.id,r.owner_id,'system','cascade_handoff',jsonb_build_object('next_room_id',next_room.id,'step',step));
+ select id into uid from public.waouh_users where auth_user_id=r.owner_id limit 1;
+ if uid is not null then
+  insert into public.waouh_notifications(user_id,notification_type,photos,payload,channel,delivery_status,dedupe_key)
+  values(uid,'avatar_mission_progress','{}',jsonb_build_object('text','Bot poursuit avec une piste autorisée ('||step||'/'||max_steps||').','room_id',next_room.id,'previous_room_id',r.id,'actions',jsonb_build_array(jsonb_build_object('id','open_room','label','Suivre','kind','navigate','route','/app/chat?room_id='||next_room.id))), 'waouh_app','queued','cascade_next_candidate:'||r.id||':'||next_room.id) on conflict do nothing;
+ end if;
  return jsonb_build_object('deal_room_id',next_room.id,'step',step,'max_steps',max_steps,'expires_at',deadline);
 end $$;
 revoke all on function public.waouh_room_cascade_transfer(uuid,integer,text,jsonb) from public,anon,authenticated;
@@ -247,12 +252,12 @@ begin
  select * into r from public.waouh_deal_room_links where id=p_room for update;
  if not found or not r.active or r.control_mode<>'bot' or r.mandate_revision<>p_revision or r.expires_at<=now() or r.mandate->>'mode'<>'autonomous' then return false;end if;
  if (select count(*) from public.waouh_module_policy(r.owner_id) where module_key in ('nexus','missions','avatar') and access_enabled and automation_enabled)<>3 or exists(select 1 from public.waouh_avatar_prefs where auth_user_id=r.owner_id and autonomy_settings->>'paused'='true') then return false;end if;
- if to_char(now() at time zone 'Africa/Lagos','HH24:MI')<r.mandate->>'active_start' or to_char(now() at time zone 'Africa/Lagos','HH24:MI')>=r.mandate->>'active_end' then return false;end if;
+ if p_kind<>'stop' and (to_char(now() at time zone 'Africa/Lagos','HH24:MI')<r.mandate->>'active_start' or to_char(now() at time zone 'Africa/Lagos','HH24:MI')>=r.mandate->>'active_end') then return false;end if;
  select * into c from public.waouh_convergence_components where id=r.id;
  select * into incoming from public.waouh_business_messages where component_id=r.id and actor_id=c.provider_id order by created_at desc,id desc limit 1;
  if p_kind not in ('stop','negative','price','positive','clarify') then return false;end if;
  if incoming.id is distinct from p_message or r.mandate->>'last_reply_id'=p_message::text or incoming.created_at<(select max(created_at) from public.waouh_room_events where room_id=r.id and event_type='delegate') then return false;end if;
- if exists(select 1 from public.waouh_convergence_agreements where component_id=r.id) then return false;end if;
+ if p_kind<>'stop' and exists(select 1 from public.waouh_convergence_agreements where component_id=r.id) then return false;end if;
  n=coalesce((r.mandate->>'reply_count')::integer,0);
  if n>=8 and p_kind<>'stop' then return false;end if;
  strategy=coalesce(r.mandate->>'strategy',case when c.kind='service' then 'service' else 'buy' end);
