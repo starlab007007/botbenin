@@ -9,6 +9,7 @@ import 'live_chat_market_brief.dart';
 import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
 import 'live_waouh_flow_ui.dart';
+import 'live_priority_facts.dart';
 import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
@@ -499,6 +500,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => 'Postuler', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
     Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
                   title: _rowTitle(row),
+                  priorityFacts: livePriorityFacts(row,journey(row),guided:widget.kind),
                   actionLabel: actionLabel(row),
                   botLabel: _sell ? 'Confier la vente' : 'Confier à Bot',
                   priceLabel: journey(row) == 'opportunity' ? 'Conditions à consulter' : reasonMoney(_rowPrice(row)),

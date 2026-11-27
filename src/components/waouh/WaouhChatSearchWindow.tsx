@@ -194,7 +194,7 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
               <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>{selling ? "Acheteurs" : search.kind === "opportunite" ? "Opportunités" : search.kind === "service" ? "Services" : search.kind === "prestation" ? "Prestataires" : search.kind === "trouver" ? "Autres pistes" : "Autres offres"} · {orderedResults.length}</summary>
                 {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
 
-                <WaouhProductResults results={orderedResults} onAction={onAction} roomActions={requireAuth ? row => {
+                <WaouhProductResults guidedKind={search.kind ?? "trouver"} guidedQuery={search.goal} results={orderedResults} onAction={onAction} roomActions={requireAuth ? row => {
                     const offer = asOffer(row);
                     if (!offer || (selling && !search.articleId)) return null;
                     const kind = selling ? "sale" : offerJourney(search.kind, resultKind(row));

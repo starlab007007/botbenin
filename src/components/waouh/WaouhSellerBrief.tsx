@@ -4,6 +4,7 @@ import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { briefMoney } from "@/lib/waouh/chatMarketBrief";
 import { sellerBrief, type PriceReference } from "@/lib/waouh/sellerBrief";
+import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
@@ -72,6 +73,7 @@ export function WaouhSellerBrief({ results, reference, city, query, articleId }:
         </div>
       )}
 
+      {first && <div><strong>{first.title}</strong><WaouhPriorityFacts result={first} kind="vendre" query={query}/></div>}
       {first && (
         <WaouhDelegateButton
           result={first as never}

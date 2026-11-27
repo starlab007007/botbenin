@@ -1,5 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WaouhConvergenceDialog } from "./WaouhConvergenceWorkspace";
+import type { GuidedKind } from "@/lib/waouh/guidedAsk";
+import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
 import { WaouhResultEssentials } from "./WaouhResultEssentials";
 import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import { CONVERGENCE_LIMIT, resultEssentials, resultKind, withSearchReferences } from "@/lib/waouh/convergence";
@@ -287,12 +289,16 @@ export function WaouhProductCard({
   onAction,
   compact,
   topPick = false,
+  guidedKind,
+  guidedQuery,
   roomActions,
 }: {
   result: WaouhResultCard;
   onAction?: (text: string, meta?: Record<string, unknown>) => void;
   compact?: boolean;
   topPick?: boolean;
+  guidedKind?: GuidedKind;
+  guidedQuery?: string;
   roomActions?: (result: WaouhResultCard) => React.ReactNode;
 }) {
   const photos = normalizeResultCards([result])[0]?.photos || [];
@@ -451,7 +457,7 @@ export function WaouhProductCard({
         </button>{photos.length > 1 && <span className="wr-photo-count" aria-hidden="true">{photos.length} photos</span>}{photos.length > 1 && <div className="wr-photo-controls"><button type="button" aria-label="Photo précédente" onClick={() => go(-1)}><ChevronLeft size={14} /></button><span>{cur + 1}/{photos.length}</span><button type="button" aria-label="Photo suivante" onClick={() => go(1)}><ChevronRight size={14} /></button></div>}</div>
         <div className="wr-card-title"><span>{opportunity ? 'Demande d’un acheteur' : resultKind(result) === 'service' ? 'Prestation' : resultKind(result) === 'announcement' ? 'Annonce' : 'Offre produit'}</span><h4>{result.title}</h4><div className="wr-location">{[result.city, result.quartier, conditionLabel(result.condition)].filter(Boolean).join(' · ') || 'Localisation à préciser'}</div><div className="wr-price">{priceLabel(result)}</div></div>
       </div>
-      <WaouhResultEssentials result={result} />
+      {guidedKind ? <WaouhPriorityFacts result={result} kind={guidedKind} query={guidedQuery}/> : <WaouhResultEssentials result={result} />}
       {result.source && observedLabel && <p className="text-xs text-muted-foreground">
         {sourceDisplayName(result.source)} · repérée le {observedLabel}
       </p>}
@@ -599,7 +605,7 @@ export function WaouhProductCard({
   );
 }
 
-export function WaouhProductResults({ results, onAction, compact, roomActions }: { results: WaouhResultCard[]; onAction?: (text: string, meta?: Record<string, unknown>) => void; compact?: boolean; roomActions?: (result: WaouhResultCard) => React.ReactNode }) {
+export function WaouhProductResults({ results, onAction, compact, roomActions, guidedKind, guidedQuery }: { guidedKind?: GuidedKind; guidedQuery?: string; results: WaouhResultCard[]; onAction?: (text: string, meta?: Record<string, unknown>) => void; compact?: boolean; roomActions?: (result: WaouhResultCard) => React.ReactNode }) {
   const normalized = withSearchReferences(normalizeResultCards(results));
   const [selected, setSelected] = useState<string[]>([]), [page, setPage] = useState(0), [all, setAll] = useState(false), [sort, setSort] = useState('selection');
   const [comparing, setComparing] = useState(false), [organizing, setOrganizing] = useState(false), [notice, setNotice] = useState('');
@@ -616,7 +622,7 @@ export function WaouhProductResults({ results, onAction, compact, roomActions }:
     <div className="wr-toolbar"><h3>{normalized.length} résultat{normalized.length > 1 ? 's' : ''} </h3><div className="wr-toolbar-actions"><label><span className="sr-only">Trier les résultats</span><select value={sort} onChange={e => { setSort(e.target.value); setPage(0); }}><option value="selection">Sélection reçue</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label><Button variant="outline" disabled={chosen.length < 2} onClick={() => setComparing(true)}>Comparer {chosen.length}/5</Button><Button variant="outline" onClick={() => setOrganizing(true)}><Sparkles size={15} />Organiser mon besoin</Button></div></div>
     <p className="text-xs text-muted-foreground mb-3">Infos annoncées, à confirmer.</p>
     <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{notice}</p>
-    <div className="wr-grid">{visible.map(r => <div key={key(r)} ref={el => { if (el) refs.current.set(key(r), el); else refs.current.delete(key(r)); }} className="wr-wrap"><div className="wr-pick"><span>Résultat {r.index}</span><label><input type="checkbox" aria-label={`Comparer ${r.title}, résultat ${r.index}`} checked={selected.includes(key(r))} onChange={e => { if (!e.target.checked) setSelected(old => old.filter(x => x !== key(r))); else if (selected.length < CONVERGENCE_LIMIT) setSelected(old => [...old, key(r)]); else setNotice('Vous pouvez comparer jusqu’à 5 offres. Retirez-en une pour en ajouter une autre.'); }} />Comparer</label></div><WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} roomActions={roomActions} /></div>)}</div>
+    <div className="wr-grid">{visible.map(r => <div key={key(r)} ref={el => { if (el) refs.current.set(key(r), el); else refs.current.delete(key(r)); }} className="wr-wrap"><div className="wr-pick"><span>Résultat {r.index}</span><label><input type="checkbox" aria-label={`Comparer ${r.title}, résultat ${r.index}`} checked={selected.includes(key(r))} onChange={e => { if (!e.target.checked) setSelected(old => old.filter(x => x !== key(r))); else if (selected.length < CONVERGENCE_LIMIT) setSelected(old => [...old, key(r)]); else setNotice('Vous pouvez comparer jusqu’à 5 offres. Retirez-en une pour en ajouter une autre.'); }} />Comparer</label></div><WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} roomActions={roomActions} guidedKind={guidedKind} guidedQuery={guidedQuery} /></div>)}</div>
     <div className="wr-paging"><Button variant="outline" size="icon" aria-label="Résultats précédents" disabled={currentPage === 0} onClick={() => setPage(p => p - 1)}><ChevronLeft size={16} /></Button><span>{currentPage * size + 1}–{Math.min((currentPage + 1) * size, normalized.length)} sur {normalized.length}</span><Button variant="outline" size="icon" aria-label="Résultats suivants" disabled={(currentPage + 1) * size >= normalized.length} onClick={() => setPage(p => p + 1)}><ChevronRight size={16} /></Button></div>
     {normalized.length > 5 && <div className="wr-all"><Button variant="ghost" onClick={() => { setAll(x => !x); setPage(0); }}>{all ? 'Revenir à 5 résultats par page' : `Afficher les ${normalized.length} résultats ensemble`}</Button></div>}
     <Dialog open={comparing} onOpenChange={setComparing}><DialogContent className="wr-compare-dialog"><DialogHeader><DialogTitle>Comparer votre sélection · {chosen.length}/5</DialogTitle></DialogHeader><p className="text-sm text-muted-foreground">Comparez les références, le périmètre et le coût total. Les différences de modèle ou de prestation limitent la comparaison des prix.</p><div className="wr-compare-grid">{chosen.map(r => { const v = resultEssentials(r); return <article className="wr-compare-item" key={key(r)}>{r.photos?.[0] && <img src={r.photos[0]} alt={r.title} />}<h3>{r.title}</h3><p>{priceLabel(r)}</p><small>{r.city || 'Localisation à confirmer'}</small><p>{v.advice || v.market}</p><small>{v.missing.join(' · ')}</small><Button variant="outline" onClick={() => { setComparing(false); setAll(true); setTimeout(() => refs.current.get(key(r))?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0); }}>Retrouver cette fiche</Button><Button variant="ghost" onClick={() => setSelected(old => old.filter(k => k !== key(r)))}>Retirer</Button></article>; })}</div></DialogContent></Dialog>

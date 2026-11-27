@@ -6,7 +6,7 @@ import { briefMoney, chatMarketBrief, type BriefRow } from "@/lib/waouh/chatMark
 import type { GuidedKind } from "@/lib/waouh/guidedAsk";
 import { offerJourney } from "@/lib/waouh/offerJourney";
 import { resultKind } from "@/lib/waouh/convergence";
-import { missionFacts } from "../../../supabase/functions/_shared/waouh-mission-domain";
+import { WaouhPriorityFacts } from "./WaouhPriorityFacts";
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
@@ -55,7 +55,6 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   const { pick, compare, delegable } = brief;
   const journey = offerJourney(kind, pick ? resultKind(pick.result) : "");
   const commercial = journey === "purchase";
-  const facts = pick ? missionFacts({ ...pick.result, fabric_id: pick.delegateId ?? "" }) : null;
   const best = journey !== "opportunity" && pick && delegable.some(row => row.result === pick.result) ? pick : null;
   const alternates = best ? delegable.filter(row => row.result !== best.result && offerJourney(kind,resultKind(row.result)) === journey).slice(0, 3) : [];
   const mode = kind && ["service", "prestation", "demander", "opportunite"].includes(kind) ? "ask" : "buy";
@@ -98,7 +97,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
             <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />{pick.match === 'near' || brief.exact === 0 ? 'Alternative à vérifier' : 'Le choix de Bot'}</span>
             <h4>{pick.result.title}</h4>
             <p className="wsl-pick-price">{journey === "opportunity" ? "Conditions à consulter" : pick.price === null ? "Prix à demander" : briefMoney(pick.price)}{pick.result.city ? <small> · {pick.result.city}</small> : null}</p>
-            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{commercial && brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><small className="wsl-verify-note">{journey === "opportunity" ? "Éligibilité et échéance à vérifier" : commercial ? "Stock et prix à confirmer" : "Périmètre et tarif à confirmer"}</small>{!commercial && facts && <div className="text-xs space-y-1 mt-2">{facts.organization && <p className="truncate">{facts.organization}</p>}{facts.deadline !== null && journey === "opportunity" && <p>Échéance : {new Date(facts.deadline).toLocaleDateString("fr-FR",{timeZone:"Africa/Porto-Novo"})}</p>}{facts.scope && <p className="line-clamp-2">{facts.scope}</p>}{facts.availability && <p>Disponibilité : {facts.availability}</p>}{facts.duration !== null && <p>Délai : {facts.duration} j</p>}</div>}
+            <ul>{pick.match === 'exact' && <li>Correspond à la demande</li>}{pick.withinBudget === true && <li>Dans le budget</li>}{pick.inZone && <li>Dans votre zone</li>}{commercial && brief.priced >= 2 && pick.vsMedianPct !== null && Math.abs(pick.vsMedianPct) < 3 && <li>Prix médian annoncé</li>}{pick.reachable && <li>Contact possible</li>}</ul><WaouhPriorityFacts result={pick.result} kind={kind} query={query}/>
           </div>
         </article>
       )}

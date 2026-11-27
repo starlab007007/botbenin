@@ -103,6 +103,7 @@ class WaouhOfferCard extends StatelessWidget {
     required this.tag,
     this.photo,
     this.photos = const [],
+    this.priorityFacts = const {},
     this.city,
     this.verified = false,
     this.best = false,
@@ -122,6 +123,7 @@ class WaouhOfferCard extends StatelessWidget {
   final WaouhPriceTag tag;
   final String? photo;
   final List<String> photos;
+  final Map<String,String> priorityFacts;
   final String? city;
   final bool verified, best, own, busy;
   final VoidCallback onWant;
@@ -167,6 +169,10 @@ class WaouhOfferCard extends StatelessWidget {
                 ],
               ]),
               const SizedBox(height: 12),
+              if(priorityFacts.isNotEmpty) ...[
+                LayoutBuilder(builder:(context,constraints)=>Wrap(spacing:6,runSpacing:6,children:[for(final f in priorityFacts.entries) SizedBox(width:(constraints.maxWidth-6)/2,child:Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(color:const Color(0xFFF7F5FC),borderRadius:BorderRadius.circular(11)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(f.key,style:const TextStyle(fontSize:10,color:Color(0xFF746B86))),const SizedBox(height:3),Text(f.value,style:TextStyle(fontSize:12,fontWeight:FontWeight.w700,color:f.value=='À confirmer'?const Color(0xFF746B86):_ink))])))])),
+                const SizedBox(height:12),
+              ],
               if (own)
                 const Text('Votre annonce', style: TextStyle(fontWeight: FontWeight.w800, color: _muted))
               else
