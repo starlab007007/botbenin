@@ -119,14 +119,17 @@ export function structuredPublicListings(html:string,origin:URL,permission:Sourc
       const item=object(candidate),types=array(item["@type"]);
       const announce=types.some(t=>["JobPosting","Course","EducationEvent"].includes(t));
       const provider=types.some(t=>["LocalBusiness","ProfessionalService"].includes(t));
-      const kind=announce?"announcement":provider?"provider":types.includes("Service")?"service":types.includes("Product")?"product":null;
+      // A property listing is an offer like a product: it is only kept when it carries a priced Offer.
+      const realEstate=types.includes("RealEstateListing"),about=object(item.about);
+      const kind=announce?"announcement":provider?"provider":types.includes("Service")?"service":types.includes("Product")||realEstate?"product":null;
       const offer=object(array(item.offers)[0]);
       if(kind&&(announce||provider||Object.keys(offer).length)) {
-        const address=object(object(item.jobLocation).address??item.address??object(offer.availableAtOrFrom).address);
+        const address=object(object(item.jobLocation).address??item.address??object(offer.availableAtOrFrom).address??about.address);
         const row=commercialRecord({url:item.url??offer.url??item["@id"],title:item.title??item.name,
           description:text(item.description),price:offer.price,currency:offer.priceCurrency,
-          city:address.addressLocality,category:item.category??(announce?"Emploi et formation":permission.category),
-          brand:item.brand,model:item.model,photos:item.image},origin,permission,kind,announce?"ANNOUNCE":"SELL");
+          city:address.addressLocality,category:item.category??(announce?"Emploi et formation":realEstate?"Immobilier":permission.category),
+          brand:item.brand,model:item.model,photos:item.image??about.image},origin,permission,kind,announce?"ANNOUNCE":"SELL");
+        if(row&&realEstate&&Number.isFinite(Date.parse(String(item.datePosted??""))))row.evidence.published_at=new Date(String(item.datePosted)).toISOString();
         if(row) {
           const qualified=announce?qualifyPublicAnnouncement(row,String(item.description??""),item.datePosted??item.datePublished,item.validThrough??item.endDate,now):row;
           if(qualified){qualified.is_public_business=provider;qualified.contacts=[{channel:"website",value:row.source_url}];records.push(qualified);}

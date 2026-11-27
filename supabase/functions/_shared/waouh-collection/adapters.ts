@@ -8,6 +8,10 @@ export function detailUrl(url:URL):boolean{
  if(h==='niosso.com')return /^\/bj\/annonces\/(?!categories\/)[^/]+\/[^/]+-\d+\/?$/.test(url.pathname);
  if(h==='bj.bambaad.com'||h==='bj.coinafrique.com')return /^\/annonce\/[^/]+/.test(url.pathname);
  if(h==='bj.bazarafrique.com')return /^\/[^/]+\/\d{8,}-[^/]+\/?$/.test(url.pathname);
+ if(h==='emploisbenin.bj')return /^\/post\/\d+\/?$/.test(url.pathname);
+ if(h==='gouv.bj')return /^\/opportunite\/\d+\/[^/]+\/?$/.test(url.pathname);
+ // Only Benin listings: the same site publishes every other country under the same templates.
+ if(h==='expat.com')return /^\/fr\/(?:immobilier|petites-annonces)\/afrique\/benin\/(?:[^/]+\/)+\d+-[^/]+\.html$/.test(url.pathname);
  return /\/(?:annonce|annonces|ad|ads|listing|listings|product|produit)\/[^/]+/i.test(url.pathname);
 }
 export function discoverUrls(html:string,origin:URL){
