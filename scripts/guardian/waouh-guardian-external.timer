@@ -1,0 +1,11 @@
+[Unit]
+Description=Recurring independent WAOUH observation
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5min
+AccuracySec=15s
+Unit=waouh-guardian-external.service
+
+[Install]
+WantedBy=timers.target
