@@ -4,21 +4,7 @@ set -u
 APK="$1"
 OUT="${OUT_DIR:-emulator-out}"
 mkdir -p "$OUT"
-# This script is invoked only after the runner installs and boots Android.
-SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-if ! "$SDK_ROOT/emulator/emulator" -version > "$OUT/emulator-runtime.txt" 2>&1; then
-  cat "$OUT/emulator-runtime.txt"
-  exit 1
-fi
-if ! "$SDK_ROOT/emulator/emulator" -accel-check >> "$OUT/emulator-runtime.txt" 2>&1; then
-  cat "$OUT/emulator-runtime.txt"
-  exit 1
-fi
-cat "$OUT/emulator-runtime.txt"
-if [ "$(adb get-state)" != device ] || [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != 1 ]; then
-  echo "Android device unavailable or not fully booted" >&2
-  exit 1
-fi
+bash scripts/android-emulator-runtime.sh || exit 1
 adb shell pm disable-user --user 0 com.google.android.apps.nexuslauncher >/dev/null 2>&1 || true
 adb shell getprop ro.build.version.release > "$OUT/android-version.txt"
 adb shell getprop ro.product.cpu.abilist >> "$OUT/android-version.txt"
