@@ -27,7 +27,7 @@ import { recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
-import { optionalUuid, sanitizeActions } from "../_shared/waouh-notify-actions.ts";
+import { optionalUuid, sanitizeActions, notificationRecordStatus } from "../_shared/waouh-notify-actions.ts";
 import { enrichWaouhSmartPayload } from "../_shared/waouh-smart-payload.ts";
 
 const corsHeaders = {
@@ -422,7 +422,7 @@ serve(async (req) => {
         // An accepted queue entry or an in-app record is not proof of handset delivery.
         // Delivery receipts must be written by the channel acknowledgement handler.
         delivered_at: null,
-        delivery_status: waResult?.ok || waResult?.skipped ? "queued" : "failed",
+        delivery_status: notificationRecordStatus(channelUsed, waResult),
       });
       if (notifErr) {
         // Duplicate (23505) is silently ignored — means same event already dispatched

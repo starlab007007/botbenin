@@ -47,3 +47,11 @@ export function actionsOrEmpty(payloadExtra: unknown): NotifyAction[] {
     : null;
   return sanitizeActions(actions);
 }
+
+/** Persisted app notifications are not transport receipts. Only an accepted outbound queue is queued. */
+export function notificationRecordStatus(channel: string, result: { ok?: boolean; queued?: boolean; skipped?: boolean } | null | undefined): "recorded" | "queued" | "failed" {
+  if (channel === "waouh_app") return "recorded";
+  if (result?.ok && result.queued) return "queued";
+  if (result?.ok && result.skipped) return "recorded";
+  return "failed";
+}
