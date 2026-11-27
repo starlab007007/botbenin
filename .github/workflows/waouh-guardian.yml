@@ -6,17 +6,14 @@ on:
   pull_request:
     branches: [prod]
     paths: ['scripts/guardian/**','scripts/tests/waouh-guardian-db.mjs','supabase/functions/waouh-health-check/**','supabase/functions/_shared/waouh-guardian*','supabase/migrations/*guardian*','.github/workflows/waouh-guardian.yml']
-  schedule:
-    - cron: '3-58/5 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: guardian-${{ github.event_name == 'schedule' && 'external' || github.ref }}
+  group: guardian-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   validate:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +33,7 @@ jobs:
       - run: deno test --no-config --allow-env scripts/guardian/authorization.test.ts
   deploy:
     needs: validate
-    if: github.event_name != 'pull_request' && github.event_name != 'schedule' && github.ref == 'refs/heads/prod'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
@@ -79,7 +76,7 @@ jobs:
         run: rm -f guardian-config.json
   external:
     needs: [validate, deploy]
-    if: always() && github.ref == 'refs/heads/prod' && (github.event_name == 'schedule' || needs.deploy.result == 'success')
+    if: always() && github.ref == 'refs/heads/prod' && needs.deploy.result == 'success'
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 6

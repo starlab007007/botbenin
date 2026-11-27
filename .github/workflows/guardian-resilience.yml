@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: [prod]
     paths: ['scripts/guardian/resilience.py','scripts/guardian/test_resilience.py','.github/workflows/guardian-resilience.yml']
-  schedule:
-    - cron: '1-56/5 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
