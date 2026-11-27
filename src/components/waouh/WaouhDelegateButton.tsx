@@ -84,6 +84,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       max_followups: draft.maxFollowups,
       strategy: track,
       budget_max: mode === "sell" ? null : draft.limit ?? budgetMax ?? null,
+      ...(mode === "sell" ? { price_floor: draft.limit } : {}),
       ...(cascade.length ? { cascade_candidates: cascade, cascade_step: 1, cascade_max_steps: 1 + cascade.length } : {}),
     };
     await roomCall("delegate", { deal_room_id: opened.deal_room_id, mandate_revision: opened.mandate_revision ?? 0, confirmed: true, rules });
@@ -98,6 +99,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
     setError("");
     if (!confirm) { setConfirm(true); return; }
     if (track==="opportunity") { setError("Utilisez la veille de cette opportunité."); return; }
+    if (mode==="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0)) { setError("Indiquez votre prix plancher privé."); return; }
     if (mode!=="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0 || (budgetMax!=null && draft.limit>budgetMax))) { setError("Indiquez un plafond valide dans votre budget."); return; }
     setBusy(true);
     try {
@@ -135,7 +137,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
           <div className="grid grid-cols-2 gap-2">
             {strategy.limitLabel && (
               <label className="text-[11px] font-bold text-slate-500">{strategy.limitLabel} (FCFA)
-                <input type="number" min={1} disabled={mode === "sell"} value={draft.limit ?? ""} onChange={(e) => setDraft({ ...draft, limit: e.target.value ? Number(e.target.value) : null })}
+                <input type="number" min={1} value={draft.limit ?? ""} onChange={(e) => setDraft({ ...draft, limit: e.target.value ? Number(e.target.value) : null })}
                   className="mt-0.5 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-slate-900" />
               </label>
             )}

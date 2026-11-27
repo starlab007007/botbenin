@@ -1,3 +1,4 @@
+import { smartRoomReply } from "../_shared/waouh-smart-room-reply.ts";
 import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
@@ -1159,7 +1160,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const deadline = Date.parse(String(mandate.cascade_expires_at ?? room.expires_at ?? ""));
       if (!Number.isFinite(deadline) || deadline <= Date.now() + 3600000) continue;
       if (Number(mandate.cascade_step ?? 1) >= Math.min(4, Number(mandate.cascade_max_steps ?? 4))) continue;
-      let exhausted = false;
+      let exhausted = mandate.cascade_refused === true;
       if (room.control_mode === "paused") {
         const { data: lastEvent } = await sb.from("waouh_room_events")
           .select("event_type").eq("room_id", room.id)
@@ -1167,7 +1168,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
         // waouh_room_tick pauses an expired room without logging an event; a user-initiated
         // pause always logs one. Only the former should resume as a cascade hand-off.
         exhausted = lastEvent?.event_type !== "pause";
-      } else {
+      } else if (!exhausted) {
         const maxFollowups = Number(mandate.max_followups ?? 1);
         if (room.initial_sent && Number(room.followups || 0) >= maxFollowups) {
           const { data: lastStep } = await sb.from("waouh_room_events")
@@ -1188,7 +1189,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
           }
         }
       }
-      if (exhausted && room.control_mode === "bot") {
+      if (exhausted && room.control_mode === "bot" && mandate.cascade_refused !== true) {
         // Un interlocuteur qui a écrit dans l'échange a répondu : pas de passage à l'offre suivante
         // (un arrêt demandé — STOP — ou un mandat échu laissent, eux, passer à la suivante).
         const { data: comp } = await sb.from("waouh_convergence_components").select("provider_id").eq("id", room.id).maybeSingle();
@@ -1266,34 +1267,15 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       };
       if (mandate.budget_max != null) openPayload.budget_max = mandate.budget_max;
 
-      const opened = await sb.rpc("waouh_room_command", { p_actor: ownerId, p_action: "open", p: openPayload });
-      if (opened.error || !opened.data?.deal_room_id) { result.errors++; continue; }
-      const newRoomId = opened.data.deal_room_id as string;
-      const newRevision = Number(opened.data.mandate_revision ?? 0);
-
-      const step = Number(mandate.cascade_step || 1) + 1;
-      const maxSteps = Number(mandate.cascade_max_steps || 4);
-      const rules: Record<string, any> = {
-        ...mandate, cascade_candidates: rest, cascade_step: step, cascade_max_steps: maxSteps,
-        cascade_previous_room_id: room.id,
-        cascade_expires_at: new Date(deadline).toISOString(),
-        duration_hours: Math.floor((deadline - Date.now()) / 3600000),
-      };
-      delete rules.one_step_approved; delete rules.approved_version; delete rules.cascade_done;
-
-      const {data: current} = await sb.from("waouh_deal_room_links").select("control_mode,mandate_revision").eq("id",room.id).maybeSingle();
-      if (current?.control_mode !== "bot" || current?.mandate_revision !== room.mandate_revision) continue;
-      const delegated = await sb.rpc("waouh_room_command", {
-        p_actor: ownerId, p_action: "delegate",
-        p: { request_id: crypto.randomUUID(), deal_room_id: newRoomId, mandate_revision: newRevision, confirmed: true, rules },
-      });
-      if (delegated.error) { result.errors++; continue; }
-
-      await sb.from("waouh_deal_room_links").update({
-        control_mode: "paused", next_run_at: null,
-        mandate: { ...mandate, cascade_candidates: [], cascade_done: true, cascade_handed_off_to: newRoomId },
-      }).eq("id", room.id);
-
+      const moved = await sb.rpc("waouh_room_cascade_transfer", {p_room:room.id,p_revision:room.mandate_revision,p_candidate:nextFabricId,p_open:openPayload});
+      if (moved.error) {
+        if (moved.error.message.includes("candidate_room_exists")) await dropCandidate();
+        else result.errors++;
+        continue;
+      }
+      const newRoomId=String(moved.data?.deal_room_id ?? "");
+      if (!newRoomId) {result.errors++;continue;}
+      const step=Number(moved.data?.step ?? 2),maxSteps=Number(moved.data?.max_steps ?? 4);
       await avatarNotice(sb, ownerId, `cascade_next_candidate:${room.id}:${newRoomId}`,
         `Pas de réponse : le bot négocie maintenant avec l'offre suivante (${Math.min(step, maxSteps)}/${maxSteps}).`,
         { previous_room_id: room.id, next_room_id: newRoomId, source_ref: sourceRef });
@@ -1640,6 +1622,7 @@ Deno.serve(async (req) => {
   }
 
   const followups = await runBoundedFollowUps(sb, Math.min(50, limit * 2));
+  const replies = await smartRoomReply(sb);
   const cascaded = await advanceCascadeRooms(sb, Math.min(50, limit * 2));
   const guests = await reachAndRelayRoomGuests(sb);
   if (result.contacted > 0 || followups.sent > 0) {
@@ -1649,7 +1632,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result, followups, cascaded, guests, lifecycle, maintenance });
+  return json({ ok: true, ...result, followups, replies, cascaded, guests, lifecycle, maintenance });
   } finally {
     await sb.rpc("waouh_avatar_release_worker", { p_token: lease });
   }

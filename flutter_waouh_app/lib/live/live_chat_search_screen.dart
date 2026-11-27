@@ -10,7 +10,7 @@ import 'live_chat_goal_facts.dart';
 import 'live_seller_brief.dart';
 import 'live_waouh_flow_ui.dart';
 import 'live_priority_facts.dart';
-import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, confirmBotDelegation, roomError;
+import 'live_deal_room.dart' show LiveDealRoomService, botRoomDefaultRules, roomError;
 import 'live_guided_ask.dart';
 import 'live_models.dart';
 import 'live_product_data.dart' show liveProductPhotos;
@@ -379,15 +379,12 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
 
   Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
     if (_delegating || fabricId.trim().isEmpty || widget.kind == 'opportunite') return;
-    num? limit = _goalFacts.budget;
-    if (!_sell) {
+    num? limit = _sell ? null : _goalFacts.budget;
+    {
       final controller=TextEditingController(text:limit?.toString()??'');
-      final selected=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update){final n=num.tryParse(controller.text);final valid=n!=null&&n.isFinite&&n>0&&(_goalFacts.budget==null||n<=_goalFacts.budget!);return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:controller,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Budget maximal (FCFA)'),onChanged:(_)=>update((){})),const SizedBox(height:12),const Text('Bot négocie dans cette limite. Vous validez l’accord final.')]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);}));
+      final selected=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update){final n=num.tryParse(controller.text);final valid=n!=null&&n.isFinite&&n>0&&(_sell||_goalFacts.budget==null||n<=_goalFacts.budget!);return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:controller,keyboardType:TextInputType.number,decoration:InputDecoration(labelText:_sell?'Prix plancher privé (FCFA)':'Budget maximal (FCFA)'),onChanged:(_)=>update((){})),const SizedBox(height:12),const Text('Bot négocie dans cette limite. Vous validez l’accord final.')]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);}));
       WidgetsBinding.instance.addPostFrameCallback((_)=>controller.dispose());
       if(selected==null||!mounted)return;limit=selected;
-    } else if (!confirmed) {
-      final ok = await confirmBotDelegation(context, alternates: cascade.length, selling: true);
-      if (!ok || !mounted) return;
     }
     setState(() => _delegating = true);
     try {
@@ -427,6 +424,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
         ...botRoomDefaultRules,
         'strategy': _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
         'budget_max': _sell ? null : limit,
+        if (_sell) 'price_floor': limit,
         if (rest.isNotEmpty) 'cascade_candidates': rest,
         if (rest.isNotEmpty) 'cascade_step': 1,
         if (rest.isNotEmpty) 'cascade_max_steps': 1 + rest.length,

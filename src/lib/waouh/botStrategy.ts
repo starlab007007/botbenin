@@ -31,9 +31,9 @@ export function suggestMandate(input: { track: BotTrack; price?: number | null; 
   const price = input.price && input.price > 0 ? input.price : null;
   const median = input.marketMedian && input.marketMedian > 0 ? input.marketMedian : null;
   let limit: number | null = null;
-  if (track === "sell") limit = price;
+  if (track === "sell") limit = null;
   else if (track !== "opportunity") limit = input.budgetMax && input.budgetMax > 0 ? input.budgetMax : price && median ? Math.min(price, median) : price ?? median;
-  const durationHours = track === "opportunity" || track === "service" ? 72 : 24;
+  const durationHours = track === "opportunity" ? 72 : 168;
   return { track, limit: limit == null ? null : Math.round(limit), durationHours, maxFollowups: 2 };
 }
 
