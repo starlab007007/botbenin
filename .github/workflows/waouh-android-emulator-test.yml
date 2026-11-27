@@ -32,8 +32,9 @@ on:
     branches: [prod]
 
 concurrency:
-  group: waouh-android-emulator
-  cancel-in-progress: true
+  # PR driver checks must never cancel a real production emulator recipe.
+  group: waouh-android-emulator-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write

@@ -58,5 +58,32 @@ class SearchSubmissionTest(unittest.TestCase):
             self.assertIn("swipe",adb.call_args.args)
 
 
+class CertificationGateTest(unittest.TestCase):
+    def complete(self):
+        return [{"step": name, "ok": True} for name in (
+            "installation", "lancement", "accueil_passe", "deal_room", "parcours_acheter",
+            "resultats", "raisonnement_en_direct", "raisonnement_bilan", "missions", "chat",
+            "notifications", "connexion", "notification_recovery", "notification_room_route",
+            "notification_read_ack", "deal_room_recovery", "notification_history")]
+
+    def test_complete_evidence_passes(self):
+        self.assertEqual(smoke.certification_gaps(self.complete(), True, True, True), [])
+
+    def test_empty_report_cannot_pass(self):
+        self.assertIn("installation", smoke.certification_gaps([], True, True, True))
+        self.assertIn("notification_read_ack", smoke.certification_gaps([], True, True, True))
+
+    def test_recovery_requires_authentication_even_without_credentials(self):
+        records = [s for s in self.complete() if s["step"] != "connexion"]
+        self.assertIn("connexion", smoke.certification_gaps(records, False, True, True))
+
+    def test_failed_required_step_and_missing_logs_fail_closed(self):
+        records = self.complete()
+        records.append({"step": "notification_history", "ok": False})
+        gaps = smoke.certification_gaps(records, True, True, False)
+        self.assertIn("notification_history", gaps)
+        self.assertIn("logcat_indisponible", gaps)
+
+
 if __name__ == "__main__":
     unittest.main()
