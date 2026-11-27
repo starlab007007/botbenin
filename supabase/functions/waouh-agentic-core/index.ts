@@ -2605,12 +2605,15 @@ Retourne uniquement JSON:
         }
 
         const searchArgs={query:semanticQuery,mode,city,budgetMax,limit,publicRead,missionKind:discoveryKind,missionContext};
-        const keepLive=(rows:any[])=>rows.filter((r:any)=>deadlineAcceptable(discoveryKind,missionDeadline({...r,fabric_id:String(r.fabric_id??'x')})));
+        // Les ajouts (villes voisines, recherche en direct) et les parcours hors achat doivent partager un vrai mot avec le besoin.
+        const fits=(r:any)=>matchVerdict(semanticQuery,{subject:r.subject??r.product_name,raw_text:r.raw_text??r.summary,category:r.category,brand:r.brand,model:r.model,city:r.city},{place:city}).acceptable;
+        const strictKind=discoveryKind!=='purchase'&&discoveryKind!=='sale';
+        const keepLive=(rows:any[],extra=false)=>rows.filter((r:any)=>deadlineAcceptable(discoveryKind,missionDeadline({...r,fabric_id:String(r.fabric_id??'x')}))&&(!(extra||strictKind)||fits(r)));
         let results:any[] = keepLive(await globalDiscoverySearch(sb, searchArgs));
         const fallback:{widened:boolean;live_search:string|null;watching:boolean}={widened:false,live_search:null,watching:false};
         // Jamais de « 0 résultat » sec : élargir aux villes voisines, puis chercher en direct.
         if(needsMore(discoveryKind,results.length)&&city&&trackRule(discoveryKind).widenCity){
-          const wider=keepLive(await globalDiscoverySearch(sb,{...searchArgs,city:null}));
+          const wider=keepLive(await globalDiscoverySearch(sb,{...searchArgs,city:null}).catch(()=>[]),true);
           const before=results.length;results=mergeResults(results,wider,{nearby:true}).slice(0,limit);fallback.widened=results.length>before;
         }
         if(needsMore(discoveryKind,results.length)&&!publicRead&&!(refreshExternal&&paidSources)){
@@ -2621,7 +2624,7 @@ Retourne uniquement JSON:
           ]);
           const done=await Promise.race([live.then(()=>true),new Promise<boolean>(r=>setTimeout(()=>r(false),9000))]);
           fallback.live_search=done?'done':'pending';
-          if(done){const fresh=keepLive(await globalDiscoverySearch(sb,searchArgs));results=mergeResults(results,fresh,{}).slice(0,limit);}
+          if(done){const fresh=keepLive(await globalDiscoverySearch(sb,searchArgs).catch(()=>[]),true);results=mergeResults(results,fresh,{}).slice(0,limit);}
           if(needsMore(discoveryKind,results.length)){await sb.rpc('waouh_collection_schedule',{p_handler:'site'}).then(()=>null,()=>null);fallback.watching=true;}
         }
         // Une recherche sans résultat devient une demande anonyme : les vendeurs WAOUH du domaine la voient.

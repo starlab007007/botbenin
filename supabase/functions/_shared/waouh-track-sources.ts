@@ -62,6 +62,7 @@ const CATEGORY_MAP: Array<[RegExp, string]> = [
 export function canonicalCategory(value: string | null | undefined): string | null {
   if (!value) return null;
   const clean = value.replace(/^[^\p{L}\d]+/u, "").trim();
+  if (/formation/i.test(clean)) return clean;
   for (const [re, name] of CATEGORY_MAP) if (re.test(clean)) return name;
   return clean || null;
 }
