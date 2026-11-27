@@ -504,7 +504,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   priceLabel: journey(row) == 'opportunity' ? 'Conditions à consulter' : reasonMoney(_rowPrice(row)),
                   showPriceTag: journey(row) == 'purchase',
                   tag: waouhPriceTag(_rowPrice(row), median),
-                  photo: liveProductPhotos(row).isEmpty ? null : liveProductPhotos(row).first,
+                  photos: liveProductPhotos(row),
                   city: row['city']?.toString(),
                   verified: _contactAllowed(row),
                   best: best,

@@ -102,6 +102,7 @@ class WaouhOfferCard extends StatelessWidget {
     required this.priceLabel,
     required this.tag,
     this.photo,
+    this.photos = const [],
     this.city,
     this.verified = false,
     this.best = false,
@@ -120,6 +121,7 @@ class WaouhOfferCard extends StatelessWidget {
   final String? priceLabel;
   final WaouhPriceTag tag;
   final String? photo;
+  final List<String> photos;
   final String? city;
   final bool verified, best, own, busy;
   final VoidCallback onWant;
@@ -128,6 +130,7 @@ class WaouhOfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gallery = <String>{...photos, if (photo != null) photo!}.where((p) => p.startsWith('https://') || p.startsWith('http://')).toList();
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -140,37 +143,12 @@ class WaouhOfferCard extends StatelessWidget {
       child: InkWell(
         onTap: onDetails,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Stack(children: [
-            AspectRatio(
-              aspectRatio: best ? 16 / 9 : 4 / 3,
-              child: photo == null
-                  ? Container(color: const Color(0xFFEFF4FF), child: const Icon(Icons.image_outlined, size: 48, color: _muted))
-                  : Image.network(photo!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFEFF4FF), child: const Icon(Icons.image_outlined, size: 48, color: _muted))),
-            ),
-            if (best)
-              Positioned(
-                left: 12, top: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: const Color(0xFFA8690A), borderRadius: BorderRadius.circular(99)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.star_rounded, size: 14, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text('Le choix de Bot', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
-                  ]),
-                ),
-              ),
-            if (verified)
-              Positioned(
-                right: 12, top: 12,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  child: const Icon(Icons.chat_bubble_outline, size: 18, color: _green),
-                ),
-              ),
-          ]),
+          if (gallery.isNotEmpty) _PremiumOfferPhotos(photos: gallery, title: title),
+          if (best || verified)
+            Padding(padding: const EdgeInsets.fromLTRB(14,12,14,0),child: Wrap(spacing: 8,runSpacing: 4,children: [
+              if (best) const Text('Le choix de Bot',style: TextStyle(color: Color(0xFF8A5708),fontSize: 12,fontWeight: FontWeight.w800)),
+              if (verified) const Tooltip(message: 'Contact possible',child: Icon(Icons.chat_bubble_outline,size: 17,color: _green)),
+            ])),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -220,6 +198,39 @@ class WaouhOfferCard extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+class _PremiumOfferPhotos extends StatefulWidget {
+  const _PremiumOfferPhotos({required this.photos, required this.title});
+  final List<String> photos;
+  final String title;
+  @override
+  State<_PremiumOfferPhotos> createState() => _PremiumOfferPhotosState();
+}
+class _PremiumOfferPhotosState extends State<_PremiumOfferPhotos> {
+  int index = 0;
+  @override
+  void didUpdateWidget(covariant _PremiumOfferPhotos oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.photos.join('|') != widget.photos.join('|')) index = 0;
+  }
+  @override
+  Widget build(BuildContext context) {
+    final photos = widget.photos;
+    if (photos.isEmpty) return const SizedBox.shrink();
+    final active = index.clamp(0, photos.length - 1).toInt();
+    return Column(children: [
+      Stack(alignment: Alignment.center,children: [
+        AspectRatio(aspectRatio: 16/10,child: ColoredBox(color: const Color(0xFFF7F5FA),child: Semantics(label: '${widget.title} — photo ${active+1}',image:true,child: Image.network(photos[active],fit:BoxFit.contain,errorBuilder: (_,__,___)=>const Center(child: Icon(Icons.image_not_supported_outlined,color: Color(0xFF9489A7),size:32)))))),
+        if (photos.length>1) ...[
+          Positioned(left:4,child: IconButton.filledTonal(tooltip:'Photo précédente',onPressed:()=>setState(()=>index=(active+photos.length-1)%photos.length),icon:const Icon(Icons.chevron_left))),
+          Positioned(right:4,child: IconButton.filledTonal(tooltip:'Photo suivante',onPressed:()=>setState(()=>index=(active+1)%photos.length),icon:const Icon(Icons.chevron_right))),
+          Positioned(top:8,right:8,child: Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),decoration:BoxDecoration(color:const Color(0xDD221735),borderRadius:BorderRadius.circular(20)),child:Text('${active+1} / ${photos.length}',style:const TextStyle(color:Colors.white,fontSize:12,fontWeight:FontWeight.w700)))),
+        ],
+      ]),
+      if (photos.length>1) SizedBox(height:60,child: ListView.separated(scrollDirection:Axis.horizontal,padding:const EdgeInsets.all(8),itemCount:photos.length,separatorBuilder:(_,__)=>const SizedBox(width:6),itemBuilder:(context,i)=>Semantics(button:true,selected:i==active,label:'Afficher la photo ${i+1}',child:InkWell(onTap:()=>setState(()=>index=i),child:Container(width:44,decoration:BoxDecoration(border:Border.all(color:i==active?const Color(0xFF6334CF):Colors.transparent,width:2),borderRadius:BorderRadius.circular(9)),clipBehavior:Clip.antiAlias,child:Image.network(photos[i],fit:BoxFit.cover,errorBuilder:(_,__,___)=>const Icon(Icons.image_not_supported_outlined,size:18))))))),
+    ]);
   }
 }
 

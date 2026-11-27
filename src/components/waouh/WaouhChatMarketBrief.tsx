@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BarChart3, MapPin, ShieldCheck, Sparkles, Trophy, ChevronDown } from "lucide-react";
+import { BarChart3, MapPin, ShieldCheck, Sparkles, Trophy, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { briefMoney, chatMarketBrief, type BriefRow } from "@/lib/waouh/chatMarketBrief";
@@ -10,7 +10,23 @@ import { missionFacts } from "../../../supabase/functions/_shared/waouh-mission-
 import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import "./waouh-search-live.css";
 
-const photoOf = (r: WaouhResultCard) => (Array.isArray(r.photos) ? r.photos.find((p) => typeof p === "string" && !!p) : null) ?? null;
+
+function PremiumOfferGallery({ photos, title }: { photos: string[]; title: string }) {
+  const [index, setIndex] = useState(0);
+  const [failed, setFailed] = useState<string[]>([]);
+  const images = photos.filter(p => !failed.includes(p));
+  const active = Math.min(index, Math.max(0, images.length - 1));
+  if (!images.length) return null;
+  return <div className="wsl-hero-gallery" aria-label="Photos de l’offre">
+    <img src={images[active]} alt={`${title} — photo ${active + 1}`} decoding="async" onError={() => {setFailed(old => [...old, images[active]]);setIndex(0);}} />
+    {images.length > 1 && <>
+      <button type="button" className="wsl-photo-prev" aria-label="Photo précédente" onClick={() => setIndex((active + images.length - 1) % images.length)}><ChevronLeft size={19}/></button>
+      <button type="button" className="wsl-photo-next" aria-label="Photo suivante" onClick={() => setIndex((active + 1) % images.length)}><ChevronRight size={19}/></button>
+      <span className="wsl-photo-count" aria-live="polite">{active + 1} / {images.length}</span>
+      <div className="wsl-photo-thumbs">{images.map((url,i) => <button key={url} type="button" aria-label={`Afficher la photo ${i+1}`} aria-pressed={i===active} onClick={()=>setIndex(i)}><img src={url} alt="" loading="lazy" onError={()=>setFailed(old=>[...old,url])}/></button>)}</div>
+    </>}
+  </div>;
+}
 
 const gapLabel = (row: BriefRow) => {
   if (row.vsMedianPct === null) return row.price === null ? "Prix à demander" : "—";
@@ -34,7 +50,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
   kind?: GuidedKind;
 }) {
   const brief = useMemo(() => chatMarketBrief(results, { city, budget, query }), [results, city, budget, query]);
-  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+
   if (!brief.total) return null;
   const { pick, compare, delegable } = brief;
   const journey = offerJourney(kind, pick ? resultKind(pick.result) : "");
@@ -77,7 +93,7 @@ export function WaouhChatMarketBrief({ results, city, budget, kind, query, rende
 
       {pick && (
         <article className="wsl-pick" aria-label="Le choix de Bot">
-          <div className="wsl-pick-photo">{photoOf(pick.result) && brokenPhoto !== photoOf(pick.result) ? <img src={photoOf(pick.result)!} alt="" loading="lazy" decoding="async" onError={() => setBrokenPhoto(photoOf(pick.result))} /> : <Trophy size={20} aria-hidden="true" />}</div>
+          <PremiumOfferGallery key={`${pick.result.id}:${pick.result.index}`} photos={Array.from(new Set((pick.result.photos ?? []).filter((p): p is string => typeof p === "string" && /^https?:\/\//i.test(p))))} title={pick.result.title} />
           <div className="wsl-pick-copy">
             <span className="wsl-tag"><Trophy size={11} aria-hidden="true" />{pick.match === 'near' || brief.exact === 0 ? 'Alternative à vérifier' : 'Le choix de Bot'}</span>
             <h4>{pick.result.title}</h4>

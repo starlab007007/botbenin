@@ -65,6 +65,17 @@ describe("fenêtre de recherche du Chat", () => {
     expect(document.querySelector("[data-delegate]")).toBeNull();
   });
 
+  it("affiche toutes les photos réelles dans la galerie et permet de les parcourir", async () => {
+    const value = search();
+    value.results[0] = {...value.results[0], photos:["https://example.org/one.jpg","https://example.org/two.jpg"]};
+    await render(value);
+    const gallery = document.querySelector(".wsl-hero-gallery")!;
+    expect(gallery.querySelector(".wsl-photo-count")?.textContent).toBe("1 / 2");
+    await act(async()=>{(gallery.querySelector(".wsl-photo-next") as HTMLButtonElement).click();});
+    expect(gallery.querySelector(".wsl-photo-count")?.textContent).toBe("2 / 2");
+    expect(gallery.querySelector(":scope > img")?.getAttribute("src")).toBe("https://example.org/two.jpg");
+  });
+
   it("n’expose aucun terme technique à l’utilisateur", async () => {
     await render(search());
     expect(document.body.textContent).not.toMatch(/fabric|nexus|supabase|payload|score|external:/i);
