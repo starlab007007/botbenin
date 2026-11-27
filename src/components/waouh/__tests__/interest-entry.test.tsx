@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ open: vi.fn() }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u' }, isLoading: false }) }));
 vi.mock('@/lib/waouh/interestNavigation', () => ({ openInterestedDiscussion: mocks.open }));
+vi.mock('@/pages/waouh/WaouhDealRoomPage', () => ({ default: () => <div>Parcours de candidature</div> }));
 import { WaouhChatRoomWindow } from '../WaouhChatRoomWindow';
 let root: Root, host: HTMLDivElement;
 beforeEach(() => {
@@ -28,4 +29,10 @@ it('keeps an opening error visible and permits a retry without manufacturing a r
   expect(host.querySelector('[role=dialog]')).toBeNull();
   await act(async () => host.querySelector('button')!.click());
   expect(mocks.open).toHaveBeenCalledTimes(2);
+});
+
+it('routes an explicit opportunity to the Deal Room without buyer interest', async () => {
+  await act(async () => root.render(<MemoryRouter initialEntries={['/app/chat?fabric_id=article%3Ao&kind=opportunity']}><WaouhChatRoomWindow><Chat /></WaouhChatRoomWindow></MemoryRouter>));
+  expect(mocks.open).not.toHaveBeenCalled();
+  expect(host.querySelector('[role=dialog]')).not.toBeNull();
 });

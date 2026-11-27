@@ -29,8 +29,9 @@ export function offerPrimaryLabel(kind?: MissionKind | string | null): string {
 export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id" | "price_min" | "price_max">, kind?: MissionKind | string | null, saleArticleId?: string): string {
   const params = new URLSearchParams({ fabric_id: result.fabric_id });
   if (saleArticleId) params.set("sale_article_id", saleArticleId);
-  if (kind === "sale") params.set("propose", "1");
-  else if (kind !== "opportunity") {
+  if (kind === "opportunity") params.set("kind", "opportunity");
+  else if (kind === "sale") params.set("propose", "1");
+  else {
     const price = result.price_min ?? result.price_max;
     if (price != null && Number.isFinite(Number(price))) params.set("offer", String(Math.round(Number(price))));
     else params.set("propose", "1");

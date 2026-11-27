@@ -10,6 +10,19 @@ const offer = (fabric_id: string) => ({ fabric_id, source_key: 'source', subject
 beforeEach(() => { vi.resetAllMocks(); mocks.user = 'u'; });
 
 describe('Interest enters the existing chat negotiation', () => {
+  it('rejects unauthenticated interest before any network action', async () => {
+    mocks.user = '';
+    await expect(openInterestedDiscussion(offer('article:a'), vi.fn())).rejects.toThrow('Connectez-vous');
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.external).not.toHaveBeenCalled();
+    expect(mocks.commerce).not.toHaveBeenCalled();
+  });
+  it.each(['', 'article:', 'external: '])('rejects malformed reference %s', async fabric => {
+    await expect(openInterestedDiscussion(offer(fabric), vi.fn())).rejects.toThrow();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.external).not.toHaveBeenCalled();
+    expect(mocks.commerce).not.toHaveBeenCalled();
+  });
   it.each(['article:a', 'catalog:c'])('reuses the canonical thread returned for %s', async fabric => {
     mocks.invoke.mockResolvedValue({ data: { ok: true, article_id: 'a', thread_id: 'existing', negotiation_id: 'n' } });
     const navigate = vi.fn();
