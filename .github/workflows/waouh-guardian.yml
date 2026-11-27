@@ -7,6 +7,8 @@ on:
     branches: [prod]
     paths: ['scripts/guardian/**','scripts/tests/waouh-guardian-db.mjs','supabase/functions/waouh-health-check/**','supabase/functions/_shared/waouh-guardian*','supabase/migrations/*guardian*','.github/workflows/waouh-guardian.yml']
   workflow_dispatch:
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
 permissions:
   contents: read
 concurrency:
@@ -14,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   validate:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +79,7 @@ jobs:
         run: rm -f guardian-config.json
   external:
     needs: [validate, deploy]
-    if: always() && github.ref == 'refs/heads/prod' && needs.deploy.result == 'success'
+    if: always() && github.ref == 'refs/heads/prod' && (github.event_name == 'schedule' || needs.deploy.result == 'success')
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 6
@@ -101,6 +104,7 @@ jobs:
       - name: Record independent observations
         run: python3 scripts/guardian/external.py /tmp/guardian-external.json /tmp/guardian-render.json
       - name: Activate only after healthy baselines
+        if: github.event_name != 'schedule'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: python3 scripts/guardian/provision.py activate
