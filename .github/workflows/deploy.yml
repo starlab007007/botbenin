@@ -79,23 +79,11 @@ jobs:
       - name: Construire et vérifier l’image sur le runner CI
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s server/collection-engines -p test_shipping.py -v
-          docker build -t "waouh-engines-ci:$GITHUB_SHA" server/collection-engines
-          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
-            --memory 2g --pids-limit 256 --shm-size 256m \
-            --tmpfs /tmp:uid=10001,gid=10001 --tmpfs /home/engines:uid=10001,gid=10001 \
-            "waouh-engines-ci:$GITHUB_SHA" python -m unittest test_runtime -v
           docker build --pull --label io.botbj.release=true --label org.opencontainers.image.revision="$GITHUB_SHA" -t "botbj-ci:$GITHUB_SHA" .
           docker run --rm --entrypoint nginx "botbj-ci:$GITHUB_SHA" -t
           docker run --rm --entrypoint sh "botbj-ci:$GITHUB_SHA" -c "grep -R -q 'avatar-premium-home' /usr/share/nginx/html/assets/js"
-          docker save "botbj-ci:$GITHUB_SHA" "waouh-engines-ci:$GITHUB_SHA" | gzip -1 > botbj-image.tar.gz
+          docker save "botbj-ci:$GITHUB_SHA" | gzip -1 > botbj-image.tar.gz
           sha256sum botbj-image.tar.gz > botbj-image.tar.gz.sha256
-
-      - name: Prepare collection runtime credential
-        if: github.event_name != 'pull_request'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: python3 server/collection-engines/provision.py collection-runtime-token
 
       - name: Transférer et vérifier les images via OpenSSH
         if: github.event_name != 'pull_request'
@@ -234,16 +222,6 @@ jobs:
           done
           echo '::error::Image transfer or remote integrity verification failed after three attempts.'
           exit 1
-
-      - name: Transfer private runtime credential as its owner
-        if: github.event_name != 'pull_request'
-        env:
-          RUNTIME_HOST: ${{ secrets.VPS_HOST }}
-          RUNTIME_USER: ${{ secrets.VPS_USER }}
-          RUNTIME_PORT: ${{ secrets.VPS_PORT || 22 }}
-          RUNTIME_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          RUNTIME_SHA: ${{ github.sha }}
-        run: python3 server/collection-engines/ship-token.py
 
       - name: Déployer sur le VPS avec Docker Compose
         if: github.event_name != 'pull_request'
@@ -412,19 +390,10 @@ jobs:
             docker load -i "$CI_IMAGE_DIR/botbj-image.tar.gz"
             docker run --rm --entrypoint nginx "botbj-ci:${DEPLOY_SHA}" -t
             docker tag "botbj-ci:${DEPLOY_SHA}" botbenin-react-app:latest
-            docker tag "waouh-engines-ci:${DEPLOY_SHA}" waouh-collection-engines:latest
-            mkdir -p /home/debian/waouh-collection-runtime
-            chmod 700 /home/debian/waouh-collection-runtime
-            install -m 444 "$CI_IMAGE_DIR/collection-runtime-token" /home/debian/waouh-collection-runtime/token
             docker volume create waouh-collection-engine-socket >/dev/null
-            docker run --rm --network none --user 0 \
-              -v waouh-collection-engine-socket:/socket --entrypoint python \
-              waouh-collection-engines:latest -c 'import os; os.chmod("/socket",0o777)'
-            docker compose up -d --no-build collection-engines privatai-downloads
             docker compose up -d --no-build --no-deps --force-recreate react-app
             docker inspect --format '{{json .NetworkSettings.Networks}}' react-app-botjs | grep -q '"web"'
             docker port react-app-botjs 80/tcp | grep -q ':8084$'
-            rm -f "$CI_IMAGE_DIR/collection-runtime-token"
             rm -f "$CI_IMAGE_DIR/botbj-image.tar.gz" "$CI_IMAGE_DIR/botbj-image.tar.gz.sha256"
             rmdir "$CI_IMAGE_DIR" || true
 
@@ -447,7 +416,7 @@ jobs:
               echo "⏳ Santé locale $i/15..."
               sleep 4
             done
-            [ "$READY" -eq 1 ] || { docker compose logs --tail=150; exit 1; }
+            [ "$READY" -eq 1 ] || { docker compose logs --tail=150 react-app; exit 1; }
 
             echo "🧪 Vérification des fichiers dans le conteneur..."
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
@@ -525,12 +494,6 @@ jobs:
             DEPLOY_MUTATED=0
             echo "✅ Déploiement production, AprèsBac IA et Web Chat public terminés"
 
-      - name: Verify installed engines through the administrator gateway
-        if: github.event_name != 'pull_request'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: python3 server/collection-engines/verify.py
-
       - name: Retain verified BOT.BJ images after successful deployment
         if: github.event_name != 'pull_request' && success()
         uses: appleboy/ssh-action@v0.1.10
@@ -557,8 +520,8 @@ jobs:
             valid = re.compile(r'[0-9a-f]{40}').fullmatch
             if not valid(sha):
                 raise SystemExit('Invalid deployment SHA')
-            repos = ('botbj-ci', 'waouh-engines-ci')
-            names = ('react-app-botjs', 'waouh-collection-engines')
+            repos = ('botbj-ci',)
+            names = ('react-app-botjs',)
             for repo, name in zip(repos, names):
                 expected = docker('image', 'inspect', '--format', '{{.Id}}', f'{repo}:{sha}')
                 state = json.loads(docker('inspect', name))[0]
@@ -587,8 +550,8 @@ jobs:
                     if row['Repository'] == repo and valid(row['Tag']):
                         rows.append(row)
             keep = set(verified)
-            # During bootstrap, preserve recent historical pairs until two verified backups exist.
-            pairs = {r['Tag'] for r in rows if r['Repository'] == repos[0]} & {r['Tag'] for r in rows if r['Repository'] == repos[1]}
+            # During bootstrap, preserve recent historical Web releases until two verified backups exist.
+            pairs = {r['Tag'] for r in rows if r['Repository'] == repos[0]}
             dates = {}
             for row in rows:
                 if row['Tag'] in pairs:
@@ -630,6 +593,24 @@ jobs:
                 print(f'::warning::VPS storage above 80%: {usage:.1f}% used')
             RETENTION
 
-      - name: Remove temporary runtime credential
-        if: always()
-        run: rm -f collection-runtime-token
+
+  privatai-downloads:
+    needs: deploy
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Refresh independent download service
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 5m
+          script: |
+            set -eu
+            exec 9>/home/debian/waouh-web-deploy.lock
+            flock -w 180 -x 9
+            cd /home/debian/botbenin
+            docker compose up -d --no-build --no-deps privatai-downloads

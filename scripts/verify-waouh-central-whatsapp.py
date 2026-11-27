@@ -24,7 +24,12 @@ status, keys = request(management + '/api-keys')
 assert status == 200, 'Cannot obtain project credentials'
 service = next(row['api_key'] for row in keys if row['name'] == 'service_role')
 edge_headers = {'Authorization': 'Bearer ' + service, 'apikey': service, 'Content-Type': 'application/json'}
-status, data = request('https://' + project + '.supabase.co/functions/v1/waouh-waha-control', {'action': 'session-status', 'session': 'WaouhApp'}, edge_headers)
+for attempt, delay in enumerate((5, 15, 30, None)):
+    status, data = request('https://' + project + '.supabase.co/functions/v1/waouh-waha-control', {'action': 'session-status', 'session': 'WaouhApp'}, edge_headers)
+    if status not in (408, 429, 500, 502, 503, 504, 544) or delay is None:
+        break
+    print(f'Central WAHA status HTTP {status}; retry {attempt+1}/3', flush=True)
+    time.sleep(delay)
 assert status == 200 and isinstance(data, dict), f'Central WAHA status failed HTTP {status}'
 phone = ''.join(c for c in str((data.get('me') or {}).get('id', '')) .split('@')[0] if c.isdigit())
 matched = phone in ('22965653468', '2290165653468')

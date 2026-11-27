@@ -1,0 +1,255 @@
+name: Deploy WAOUH Collection Engines
+on:
+  push:
+    branches: [prod]
+    paths: ['server/collection-engines/**', 'docker-compose.yml', '.github/workflows/deploy-waouh-collection.yml']
+  pull_request:
+    branches: [prod]
+    paths: ['server/collection-engines/**', 'docker-compose.yml', '.github/workflows/deploy-waouh-collection.yml']
+  workflow_dispatch:
+concurrency:
+  group: collection-engines-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test isolated collection image
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s server/collection-engines -p test_shipping.py -v
+          docker build -t "waouh-engines-ci:$GITHUB_SHA" server/collection-engines
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --memory 2g --pids-limit 256 --shm-size 256m \
+            --tmpfs /tmp:uid=10001,gid=10001 --tmpfs /home/engines:uid=10001,gid=10001 \
+            "waouh-engines-ci:$GITHUB_SHA" python -m unittest test_runtime -v
+          docker save "waouh-engines-ci:$GITHUB_SHA" | gzip -1 > collection-image.tar.gz
+          sha256sum collection-image.tar.gz > collection-image.tar.gz.sha256
+      - name: Prepare dedicated runtime credential
+        if: github.event_name != 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 server/collection-engines/provision.py collection-runtime-token
+      - name: Transférer et vérifier les images via OpenSSH
+        if: github.event_name != 'pull_request'
+        timeout-minutes: 38
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          VPS_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || { echo 'Invalid or missing VPS_HOST'; exit 1; }
+          [[ "$VPS_USER" =~ ^[A-Za-z_][A-Za-z0-9_.-]*$ ]] || { echo 'Invalid or missing VPS_USER'; exit 1; }
+          [[ "$VPS_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$VPS_PORT >= 1 && 10#$VPS_PORT <= 65535 )) || { echo 'Invalid VPS_PORT'; exit 1; }
+          [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          test -n "$VPS_KEY" || { echo 'SSH_PRIVATE_KEY missing'; exit 1; }
+          sha256sum -c collection-image.tar.gz.sha256
+          TMP_SSH=$(mktemp -d)
+          trap 'rm -rf -- "$TMP_SSH"' EXIT
+          printf '%s\n' "$VPS_KEY" | tr -d '\r' > "$TMP_SSH/key"
+          unset VPS_KEY
+          chmod 600 "$TMP_SSH/key"
+          : > "$TMP_SSH/known_hosts"
+          HOST_CHECK=accept-new
+          if [ -n "$VPS_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > "$TMP_SSH/known_hosts"
+            HOST_CHECK=yes
+          else
+            echo '::warning::VPS_KNOWN_HOSTS is not configured; first SSH host key is accepted for this job only.'
+          fi
+          unset VPS_KNOWN_HOSTS
+          OPTS=(-i "$TMP_SSH/key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o "StrictHostKeyChecking=$HOST_CHECK" -o "UserKnownHostsFile=$TMP_SSH/known_hosts")
+          DEST="$VPS_USER@$VPS_HOST"
+          REMOTE="/tmp/waouh-engines-ci-$GITHUB_SHA"
+          REQUIRED_KB=$(( $(du -k collection-image.tar.gz | awk '{print $1}') + 65536 ))
+          echo 'Checking SSH connectivity, remote directory ownership and available disk space...'
+          ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" bash -s -- "$REMOTE" "$REQUIRED_KB" <<'PREFLIGHT'
+          set -eu
+          dir=$1
+          required=$2
+          umask 077
+          # The VPS can be completely full: diagnose and reclaim before mkdir.
+          echo 'Disk blocks and inodes before cleanup:'
+          df -h / /tmp; df -i / /tmp
+          exec 9>/home/debian/waouh-web-deploy.lock
+          flock -w 60 -x 9 || { echo 'Another deployment is active'; exit 1; }
+          # Only abandoned BOT.BJ deployment artifacts, owned by this SSH user.
+          # Never touch Docker volumes, containers, databases or rollback tags.
+          for old in /tmp/waouh-engines-ci-*; do
+            [ -d "$old" ] && [ ! -L "$old" ] && [ -O "$old" ] || continue
+            [ "$old" != "$dir" ] || continue
+            [[ "${old##*/}" =~ ^waouh-engines-ci-[a-f0-9]{40}$ ]] || continue
+            for file in collection-image.tar.gz collection-image.tar.gz.sha256 collection-runtime-token; do
+              p="$old/$file"
+              if [ -f "$p" ] && [ ! -L "$p" ] && [ -O "$p" ]; then
+                rm -f -- "$p"
+              fi
+            done
+            rmdir -- "$old" 2>/dev/null || true
+          done
+          echo 'Disk blocks and inodes after cleanup:'
+          df -h / /tmp; df -i / /tmp
+          available=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+          inodes=$(df -Pi /tmp | awk 'NR==2 {print $4}')
+          partial=0
+          [ ! -L "$dir" ] || { echo 'Unsafe transfer directory (symlink)'; exit 1; }
+          if [ -d "$dir" ]; then
+            [ -O "$dir" ] || { echo 'Transfer directory is not owned by SSH user'; exit 1; }
+            for file in collection-image.tar.gz collection-image.tar.gz.sha256 collection-runtime-token; do
+              [ ! -L "$dir/$file" ] || { echo 'Unsafe transfer file (symlink)'; exit 1; }
+            done
+            if [ -f "$dir/collection-image.tar.gz" ]; then
+              partial=$(du -k "$dir/collection-image.tar.gz" | awk '{print $1}')
+            fi
+          fi
+          # Reserve space for transfer plus the existing post-transfer load budget.
+          image_kb=$((required - 65536))
+          total_required=$((image_kb * 5 + 524288))
+          echo "Available: ${available} KiB; reclaimable partial: ${partial} KiB; required: ${total_required} KiB; free inodes: ${inodes}"
+          if [ "$((available + partial))" -lt "$total_required" ] || [ "$inodes" -lt 128 ]; then
+            echo 'VPS storage still insufficient after safe cleanup; administrator must extend storage or remove verified obsolete files.'
+            docker system df 2>/dev/null || true
+            exit 1
+          fi
+          mkdir -p -- "$dir"
+          [ -O "$dir" ] || exit 1
+          chmod 700 "$dir"
+          PREFLIGHT
+          MODE=scp
+          if command -v rsync >/dev/null && ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" 'command -v rsync >/dev/null 2>&1'; then
+            MODE=rsync
+          fi
+          printf -v RSYNC_RSH '%q ' ssh "${OPTS[@]}" -p "$VPS_PORT"
+          export RSYNC_RSH
+          echo "Transfer method: $MODE"
+          for attempt in 1 2 3; do
+            echo "Image transfer attempt $attempt/3"
+            if [ "$MODE" = rsync ]; then
+              if timeout 10m rsync --partial --append-verify --timeout=90 --chmod=F600 collection-image.tar.gz collection-image.tar.gz.sha256 "$DEST:$REMOTE/"; then
+                TRANSFER_OK=1
+              else
+                TRANSFER_OK=0
+              fi
+            else
+              if timeout 10m scp "${OPTS[@]}" -P "$VPS_PORT" collection-image.tar.gz collection-image.tar.gz.sha256 "$DEST:$REMOTE/"; then
+                TRANSFER_OK=1
+              else
+                TRANSFER_OK=0
+              fi
+            fi
+            if [ "$TRANSFER_OK" -eq 1 ]; then
+              if ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" "cd '$REMOTE' && sha256sum -c collection-image.tar.gz.sha256"; then
+                echo 'Remote image checksum verified; deployment can continue.'
+                exit 0
+              fi
+              echo 'Remote checksum verification failed; discarding only the two transfer files before retry.'
+              ssh "${OPTS[@]}" -p "$VPS_PORT" "$DEST" "rm -f -- '$REMOTE/collection-image.tar.gz' '$REMOTE/collection-image.tar.gz.sha256'" || true
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 15; fi
+          done
+          echo '::error::Image transfer or remote integrity verification failed after three attempts.'
+          exit 1
+
+      - name: Transfer credential privately
+        if: github.event_name != 'pull_request'
+        env:
+          RUNTIME_HOST: ${{ secrets.VPS_HOST }}
+          RUNTIME_USER: ${{ secrets.VPS_USER }}
+          RUNTIME_PORT: ${{ secrets.VPS_PORT || 22 }}
+          RUNTIME_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          RUNTIME_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          RUNTIME_SHA: ${{ github.sha }}
+          RUNTIME_TRANSFER_PREFIX: waouh-engines-ci
+        run: python3 server/collection-engines/ship-token.py
+      - name: Deploy collection engines only with local rollback
+        if: github.event_name != 'pull_request'
+        uses: appleboy/ssh-action@v0.1.10
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: DEPLOY_SHA
+          command_timeout: 15m
+          script: |
+            set -eu
+            umask 077
+            exec 9>/home/debian/waouh-web-deploy.lock
+            flock -w 600 -x 9
+            cd /home/debian/botbenin
+            dir="/tmp/waouh-engines-ci-${DEPLOY_SHA}"
+            runtime=/home/debian/waouh-collection-runtime
+            mkdir -p "$runtime"
+            chmod 700 "$runtime"
+            (cd "$dir" && sha256sum -c collection-image.tar.gz.sha256)
+            test -f "$dir/collection-runtime-token"
+            test ! -L "$runtime/token"
+            previous=$(docker inspect --format '{{.Image}}' waouh-collection-engines 2>/dev/null || true)
+            backup=$(mktemp "$runtime/token-backup.XXXXXX")
+            had_token=0
+            if [ -f "$runtime/token" ]; then
+              cp "$runtime/token" "$backup"
+              had_token=1
+            fi
+            mutated=0
+            cleanup() {
+              rc=$?
+              trap - EXIT
+              if [ "$rc" -ne 0 ] && [ "$mutated" -eq 1 ]; then
+                if [ "$had_token" -eq 1 ]; then
+                  install -m 444 "$backup" "$runtime/token"
+                else
+                  rm -f "$runtime/token"
+                fi
+                if [ -n "$previous" ] && [ "$had_token" -eq 1 ]; then
+                  docker tag "$previous" waouh-collection-engines:latest
+                  docker compose up -d --no-build --no-deps --force-recreate collection-engines || true
+                else
+                  docker compose stop collection-engines || true
+                fi
+              fi
+              rm -f "$backup" "$dir/collection-runtime-token" "$dir/collection-image.tar.gz" "$dir/collection-image.tar.gz.sha256"
+              rmdir "$dir" || true
+              exit "$rc"
+            }
+            trap cleanup EXIT
+            docker load -i "$dir/collection-image.tar.gz"
+            if [ -n "$previous" ]; then docker tag "$previous" waouh-engines-rollback:previous; fi
+            mutated=1
+            docker tag "waouh-engines-ci:${DEPLOY_SHA}" waouh-collection-engines:latest
+            install -m 444 "$dir/collection-runtime-token" "$runtime/token"
+            docker volume create waouh-collection-engine-socket >/dev/null
+            docker run --rm --network none --user 0 -v waouh-collection-engine-socket:/socket --entrypoint python waouh-collection-engines:latest -c 'import os; os.chmod("/socket",0o777)'
+            docker compose up -d --no-build --no-deps --force-recreate collection-engines
+            ready=0
+            for attempt in $(seq 1 12); do
+              if docker exec waouh-collection-engines python -c 'import os,socket,http.client,pathlib; p=os.environ.get("ENGINE_SOCKET","/run/waouh-engines/runner.sock"); s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(p); c=http.client.HTTPConnection("localhost",timeout=5); c.sock=s; c.request("POST","/health",headers={"Authorization":"Bearer "+pathlib.Path("/run/secrets/runtime_token").read_text().strip()}); r=c.getresponse(); assert r.status==200; r.read(); c.close()'; then ready=1; break; fi
+              sleep 5
+            done
+            test "$ready" -eq 1
+            docker tag "waouh-engines-ci:${DEPLOY_SHA}" waouh-engines-rollback:last-known-good
+            mutated=0
+      - name: Remove local temporary credential
+        if: always()
+        run: rm -f collection-runtime-token
+  certify:
+    needs: deploy
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify installed engines through administrator gateway
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: python3 server/collection-engines/verify.py
