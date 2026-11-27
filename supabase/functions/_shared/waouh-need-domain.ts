@@ -109,6 +109,28 @@ export function sharedWords(need: unknown, candidateText: unknown): string[] {
   return contentWords(need).filter((word) => candidateWords.some((other) => sameWord(word, other)));
 }
 
+/**
+ * Un qualificatif qui change la nature de l'objet même quand le mot central est partagé :
+ * « moule pour ventilateur » n'est pas un ventilateur, « pièce détachée pour iPhone » n'est
+ * pas un iPhone. Sans ceci, le partage d'un seul mot-clé (ex. « ventilateur ») suffisait à
+ * accepter une annonce qui parle d'autre chose. Liste à ajuster selon les faux positifs
+ * réellement observés dans la collecte.
+ */
+const NEGATIVE_QUALIFIERS =
+  /\b(moule|moules|piece|pieces|accessoire|accessoires|support|supports|housse|housses|coque|coques|chargeur|chargeurs|cable|cables|adaptateur|adaptateurs|notice|manuel|miniature|miniatures|jouet|jouets|maquette|maquettes|replique|repliques|emballage|carton vide|affiche|autocollant|autocollants)\s+(pour|de|d|du|des)\b/;
+
+/**
+ * Vrai quand l'annonce qualifie l'objet (pièce, accessoire, moule, jouet...) pour un usage
+ * que le besoin ne demande pas lui-même. Si le besoin cherche justement une pièce détachée
+ * ou un accessoire, ce n'est pas un faux positif.
+ */
+export function hasUnrequestedQualifier(need: unknown, candidateText: unknown): boolean {
+  const text = ` ${foldText(candidateText)} `;
+  if (!NEGATIVE_QUALIFIERS.test(text)) return false;
+  const needText = ` ${foldText(need)} `;
+  return !NEGATIVE_QUALIFIERS.test(needText);
+}
+
 export type MatchVerdict = {
   domain: NeedDomain;
   candidateDomain: NeedDomain;
@@ -141,12 +163,16 @@ export function matchVerdict(need: unknown, candidate: {
   const domainWords=new Set(['emploi','emplois','job','jobs','travail','poste','recrutement','recrute','stage','formation','formations','cours','bourse','bourses','service','services','prestation','prestataire','agent','produit','moto','voiture']);
   const topics=meaningful.filter(word=>!domainWords.has(word));
   const words=topics.length?topics:meaningful;
-  const found = new Set(sharedWords(need, [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" ")));
+  const candidateText = [candidate.subject, candidate.raw_text, candidate.category, candidate.brand, candidate.model].filter(Boolean).join(" ");
+  const found = new Set(sharedWords(need, candidateText));
   const shared = words.filter(word=>found.has(word));
   const coverage = words.length ? Math.round((shared.length / words.length) * 100) : 0;
   const compatible = domainsCompatible(domain, candidateDomain);
+  // Une pièce, un accessoire ou une miniature de l'objet cherché n'est pas l'objet lui-même,
+  // même quand son nom apparaît dans les deux textes (« moule pour ventilateur » / « ventilateur »).
+  const disqualified = hasUnrequestedQualifier(need, candidateText);
   // Un besoin sans mot propre (« je cherche ») ne permet aucun rapprochement sérieux.
-  const acceptable = compatible && (words.length === 0 ? false : shared.length > 0);
+  const acceptable = compatible && !disqualified && (words.length === 0 ? false : shared.length > 0);
   // Un modèle demandé (iPhone 13) n'est pas satisfait par un autre (iPhone 11) :
   // tant qu'un chiffre du besoin manque, l'offre reste « proche », jamais « exacte ».
   const numbers = words.filter((word) => /\d/.test(word));

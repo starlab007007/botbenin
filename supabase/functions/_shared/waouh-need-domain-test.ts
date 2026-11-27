@@ -47,6 +47,17 @@ Deno.test("les mots du gabarit de demande ne valent pas rapprochement", () => {
   assertEquals(matchVerdict("Je cherche une opportunité : un stage en informatique", { subject: "Stage informatique · assistant" }).acceptable, true);
 });
 
+Deno.test("une pièce, un accessoire ou un moule de l'objet n'est pas l'objet lui-même", () => {
+  // Faux positifs réels identifiés dans la collecte (diagnostic du 2026-11-27) : le mot-clé
+  // central est partagé, mais l'annonce parle d'un composant industriel, pas du bien cherché.
+  assertEquals(matchVerdict("ventilateur", { subject: "Moule pour ventilateur", category: "Moules de fonderie" }).acceptable, false);
+  assertEquals(matchVerdict("je cherche un électricien", { subject: "Machine à coudre industrielle", category: "Couture" }).acceptable, false);
+  // Un vrai ventilateur, même avec un accessoire mentionné en plus, reste accepté.
+  assertEquals(matchVerdict("ventilateur", { subject: "Ventilateur sur pied avec télécommande", category: "Électroménager" }).acceptable, true);
+  // Si le besoin demande lui-même une pièce détachée, ce n'est plus un faux positif.
+  assertEquals(matchVerdict("pièce détachée pour ventilateur", { subject: "Pièce détachée moteur ventilateur", category: "Pièces détachées" }).acceptable, true);
+});
+
 Deno.test("la ville ne prouve jamais la pertinence", () => {
   const place = "Abomey-Calavi";
   assertEquals(matchVerdict("Je cherche une opportunité : un travail de secrétaire à Abomey-Calavi",
