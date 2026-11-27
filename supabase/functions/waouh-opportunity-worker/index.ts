@@ -1159,7 +1159,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
     try {
       const deadline = Date.parse(String(mandate.cascade_expires_at ?? room.expires_at ?? ""));
       if (!Number.isFinite(deadline) || deadline <= Date.now() + 3600000) continue;
-      if (Number(mandate.cascade_step ?? 1) >= Math.min(4, Number(mandate.cascade_max_steps ?? 4))) continue;
+
       let exhausted = mandate.cascade_refused === true;
       if (room.control_mode === "paused") {
         const { data: lastEvent } = await sb.from("waouh_room_events")
@@ -1207,11 +1207,11 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const ownerId = room.owner_id as string;
       const candidates: any[] = Array.isArray(mandate.cascade_candidates) ? mandate.cascade_candidates : [];
 
-      if (!candidates.length) {
+      if (!candidates.length || Number(mandate.cascade_step ?? 1) >= Math.min(4, Number(mandate.cascade_max_steps ?? 4))) {
         await sb.from("waouh_deal_room_links").update({
           control_mode: "paused", next_run_at: null,
           mandate: { ...mandate, cascade_done: true },
-        }).eq("id", room.id);
+        }).eq("id", room.id).eq("mandate_revision",room.mandate_revision).eq("control_mode","bot");
         await avatarNotice(sb, ownerId, `cascade_exhausted:${room.id}`,
           "Aucune des offres contactées n'a répondu. La négociation repasse en gestion manuelle.",
           { room_id: room.id });
@@ -1226,7 +1226,7 @@ async function advanceCascadeRooms(sb: SupabaseClient, limit = 30) {
       const sale = roomSaleSource(room.source_ref);
       const sourceRef = sale && nextFabricId ? `sale:${sale.articleId}:${nextFabricId}` : nextFabricId;
       const dropCandidate = async () => {
-        await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id);
+        await sb.from("waouh_deal_room_links").update({ mandate: { ...mandate, cascade_candidates: rest } }).eq("id", room.id).eq("mandate_revision",room.mandate_revision).eq("control_mode","bot");
       };
       if (!sourceRef) { await dropCandidate(); continue; }
       // Bot ne retient que des offres dont le propriétaire peut être joint.

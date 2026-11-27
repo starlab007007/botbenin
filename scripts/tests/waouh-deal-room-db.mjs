@@ -177,4 +177,35 @@ for(const fixture of cases){
 }
 if(process.env.UPDATE_GUIDANCE_FIXTURES==='1'){const {writeFile}=await import('node:fs/promises');await writeFile(guidancePath,JSON.stringify(cases,null,2)+'\n');}
 console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and completion states passed.');
+
+ // Test the exact reviewed new SQL after the existing legacy contract fixtures.
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261116214600_waouh_sale_deal_rooms.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261127171000_waouh_room_autonomy_atomic.sql',import.meta.url),'utf8'));
+ await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $select k,true,true,true from unnest(array['nexus','missions','avatar']) k$;");
+ const cascadeA='00000000-0000-4000-8000-000000000021',cascadeB='00000000-0000-4000-8000-000000000022';
+ for(const a of [cascadeA,cascadeB])await db.query("insert into public.waouh_articles values($1,$2,'active')",[a,seller]);
+ const nextSource={...source,source_ref:'article:'+cascadeB};
+ let ca=await cmd(owner,'open',{source:{...source,source_ref:'article:'+cascadeA},city:'Cotonou',confirmed:false});
+ const cascadeId=ca.deal_room_id;
+ await assert.rejects(cmd(owner,'delegate',{deal_room_id:cascadeId,mandate_revision:0,confirmed:true,rules:{...rules,budget_max:null,initial_offer:null}}),/budget_required/);
+ ca=await cmd(owner,'delegate',{deal_room_id:cascadeId,mandate_revision:0,confirmed:true,rules:{...rules,initial_offer:null,duration_hours:168,max_followups:0,cascade_candidates:[{fabric_id:nextSource.source_ref}],cascade_step:1,cascade_max_steps:2}});
+ const transfer=async(revision=ca.mandate_revision,candidate=nextSource.source_ref)=>(await db.query('select public.waouh_room_cascade_transfer($1,$2,$3,$4) d',[cascadeId,revision,candidate,{source:nextSource,city:'Cotonou'}])).rows[0].d;
+ await assert.rejects(transfer(),/cascade_not_due/);
+ await db.query("update public.waouh_deal_room_links set initial_sent=true where id=$1",[cascadeId]);
+ await db.query("insert into public.waouh_room_events(room_id,actor_id,actor_kind,event_type,created_at) values($1,$2,'bot','bot_step',now()-interval '25 hours')",[cascadeId,owner]);
+ await assert.rejects(transfer(ca.mandate_revision,'article:wrong'),/candidate_changed/);
+ const moved=await transfer();assert.ok(moved.deal_room_id);assert.notEqual(moved.deal_room_id,cascadeId);
+ const replay=await transfer();assert.equal(replay.deal_room_id,moved.deal_room_id);assert.equal(replay.replayed,true);
+ const links=(await db.query('select id,control_mode,expires_at,mandate from public.waouh_deal_room_links where id in ($1,$2)',[cascadeId,moved.deal_room_id])).rows;
+ const oldLink=links.find(x=>x.id===cascadeId),newLink=links.find(x=>x.id===moved.deal_room_id);
+ assert.equal(oldLink.control_mode,'paused');assert.equal(newLink.control_mode,'bot');assert.ok(new Date(newLink.expires_at)<=new Date(oldLink.expires_at));
+ const target=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});
+ await cmd(seller,'message',{deal_room_id:moved.deal_room_id,text:'Oui, disponible à 120000 FCFA'});
+ const inbound=(await db.query('select id from public.waouh_business_messages where component_id=$1 and actor_id=$2 order by created_at desc limit 1',[moved.deal_room_id,seller])).rows[0].id;
+ const apply=async()=>(await db.query('select public.waouh_room_apply_reply($1,$2,$3,$4) ok',[moved.deal_room_id,target.mandate_revision,inbound,'price'])).rows[0].ok;
+ assert.equal(await apply(),true);assert.equal(await apply(),false);
+ const after=await cmd(owner,'get',{deal_room_id:moved.deal_room_id});assert.equal(after.agreement,null);assert.ok(after.messages.some(x=>x.author_kind==='bot'&&x.text.includes('prix total')));
+ const peer=await cmd(seller,'get',{deal_room_id:moved.deal_room_id});assert.equal(peer.mandate,null);
+ console.log('Autonomy: mandatory budget, delayed atomic handoff, idempotent replay, deadline preserved, safe reply once, limits private.');
+
 await db.close();

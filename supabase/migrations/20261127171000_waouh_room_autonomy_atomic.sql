@@ -74,6 +74,7 @@ begin
  if budget is not null and (budget<1 or budget>1e8 or budget::text='NaN') then raise exception 'invalid_budget';end if;
  floor_price=nullif(rules->>'price_floor','')::numeric;
  if floor_price is not null and (floor_price<1 or floor_price>1e8 or floor_price::text='NaN') then raise exception 'invalid_price_floor';end if;
+ if m.criteria ? 'workflow:sale' and floor_price is not null and c.amount>0 and floor_price>c.amount then raise exception 'floor_above_asking_price';end if;
  if rules->>'mode'='autonomous' and p_action='delegate' then
   if m.criteria ? 'workflow:sale' and floor_price is null then raise exception 'price_floor_required';end if;
   if not (m.criteria ? 'workflow:sale') and c.kind<>'announcement' and budget is null then raise exception 'budget_required';end if;
@@ -148,8 +149,8 @@ begin
  msg=null;
  if a.id is not null and r.last_offer_actor=c.provider_id and a.version>r.processed_offer_version then
  if r.mandate->>'mode'='autonomous' and r.counter_rounds<3 and ((is_sale and floor_price is not null and (a.terms->>'amount')::numeric<floor_price)
-   or (not is_sale and budget is not null and (a.terms->>'amount')::numeric+coalesce(c.extra_cost,0)>budget)) then
- price=case when is_sale then greatest(floor_price,coalesce(c.amount,floor_price)) else budget-coalesce(c.extra_cost,0) end;
+   or (not is_sale and budget is not null and (a.terms->>'amount')::numeric+greatest(coalesce(c.extra_cost,0),coalesce(nullif(a.terms->>'delivery_fee','')::numeric,0))>budget)) then
+ price=case when is_sale then greatest(floor_price,coalesce(c.amount,floor_price)) else budget-greatest(coalesce(c.extra_cost,0),coalesce(nullif(a.terms->>'delivery_fee','')::numeric,0)) end;
  if price<=0 then update public.waouh_deal_room_links set control_mode='paused',next_run_at=null where id=r.id;continue;end if;
  terms=a.terms||jsonb_build_object('amount',price,'workflow_version',2);
  perform public.waouh_convergence_command(r.owner_id,'agreement_propose',jsonb_build_object('component_id',c.id,'terms',terms));
@@ -205,12 +206,14 @@ begin
  if r.mandate ? 'cascade_handed_off_to' then return jsonb_build_object('deal_room_id',r.mandate->>'cascade_handed_off_to','replayed',true);end if;
  if not r.active or r.control_mode<>'bot' or r.mandate_revision<>p_revision then raise exception 'mandate_revision_changed';end if;
  if r.mandate->>'mode'<>'autonomous' then raise exception 'confirmation_required';end if;
+ if to_char(now() at time zone 'Africa/Lagos','HH24:MI')<r.mandate->>'active_start' or to_char(now() at time zone 'Africa/Lagos','HH24:MI')>=r.mandate->>'active_end' then raise exception 'outside_intervention_hours';end if;
  deadline=least(r.expires_at,coalesce(nullif(r.mandate->>'cascade_expires_at','')::timestamptz,r.expires_at));
  hours_left=floor(extract(epoch from deadline-now())/3600);
  if deadline is null or hours_left<1 then raise exception 'mandate_expired';end if;
  if (select count(*) from public.waouh_module_policy(r.owner_id) where module_key in ('nexus','missions','avatar') and access_enabled and automation_enabled)<>3 or exists(select 1 from public.waouh_avatar_prefs where auth_user_id=r.owner_id and autonomy_settings->>'paused'='true') then raise exception 'automation_paused';end if;
  select * into c from public.waouh_convergence_components where id=r.id;
  if exists(select 1 from public.waouh_convergence_agreements where component_id=r.id) or (coalesce(r.mandate->>'cascade_refused','false')<>'true' and exists(select 1 from public.waouh_business_messages where component_id=r.id and actor_id=c.provider_id)) then raise exception 'counterparty_engaged';end if;
+ if coalesce(r.mandate->>'cascade_refused','false')<>'true' and not ((r.initial_sent and r.followups>=coalesce((r.mandate->>'max_followups')::integer,1) and exists(select 1 from public.waouh_room_events where room_id=r.id and event_type='bot_step' and actor_kind='bot' having max(created_at)<=now()-interval '24 hours')) or (not r.initial_sent and c.provider_id is null and exists(select 1 from public.waouh_room_events where room_id=r.id and event_type='delegate' having max(created_at)<=now()-interval '48 hours'))) then raise exception 'cascade_not_due';end if;
  q=coalesce(r.mandate->'cascade_candidates','[]');
  if jsonb_typeof(q)<>'array' or jsonb_array_length(q)=0 then raise exception 'no_candidate';end if;
  first_candidate=q->0;rest=q-0;
@@ -247,10 +250,11 @@ begin
  if to_char(now() at time zone 'Africa/Lagos','HH24:MI')<r.mandate->>'active_start' or to_char(now() at time zone 'Africa/Lagos','HH24:MI')>=r.mandate->>'active_end' then return false;end if;
  select * into c from public.waouh_convergence_components where id=r.id;
  select * into incoming from public.waouh_business_messages where component_id=r.id and actor_id=c.provider_id order by created_at desc,id desc limit 1;
+ if p_kind not in ('stop','negative','price','positive','clarify') then return false;end if;
  if incoming.id is distinct from p_message or r.mandate->>'last_reply_id'=p_message::text or incoming.created_at<(select max(created_at) from public.waouh_room_events where room_id=r.id and event_type='delegate') then return false;end if;
  if exists(select 1 from public.waouh_convergence_agreements where component_id=r.id) then return false;end if;
  n=coalesce((r.mandate->>'reply_count')::integer,0);
- if n>=8 then return false;end if;
+ if n>=8 and p_kind<>'stop' then return false;end if;
  strategy=coalesce(r.mandate->>'strategy',case when c.kind='service' then 'service' else 'buy' end);
  if p_kind='stop' then
   -- STOP is never answered with a sales message.
@@ -264,6 +268,7 @@ begin
    when 'find' then 'Merci. Confirmez la correspondance, la localisation, la disponibilité et les conditions.'
    when 'opportunity' then 'Merci. Précisez les conditions, les pièces et la date limite. Le candidat décide de la transmission.'
    else 'Merci. Confirmez le prix total avec livraison, la disponibilité, l’état et les conditions de remise.' end;
+  if p_kind='price' then msg='Proposition reçue. '||msg;end if;
   req=md5('room-smart-reply:'||r.id||':'||p_message)::uuid;
   perform public.waouh_business_command(r.owner_id,'business.message',jsonb_build_object('component_id',r.id,'request_id',req,'text',msg));
   update public.waouh_business_messages set author_kind='bot' where actor_id=r.owner_id and request_id=req;
