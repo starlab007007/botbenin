@@ -1,0 +1,20 @@
+[Unit]
+Description=WAOUH independent external observation
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=waouh-guardian-probe
+Group=waouh-guardian-probe
+WorkingDirectory=/opt/waouh-guardian-probe
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/waouh-guardian-probe/browsers
+Environment=HOME=/var/lib/waouh-guardian-probe
+StateDirectory=waouh-guardian-probe
+ExecStart=/bin/bash /opt/waouh-guardian-probe/run-external.sh /etc/waouh-guardian-probe/external.json
+TimeoutStartSec=120
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
