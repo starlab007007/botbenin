@@ -255,7 +255,7 @@ begin
  if p_kind<>'stop' and (to_char(now() at time zone 'Africa/Lagos','HH24:MI')<r.mandate->>'active_start' or to_char(now() at time zone 'Africa/Lagos','HH24:MI')>=r.mandate->>'active_end') then return false;end if;
  select * into c from public.waouh_convergence_components where id=r.id;
  select * into incoming from public.waouh_business_messages where component_id=r.id and actor_id=c.provider_id order by created_at desc,id desc limit 1;
- if p_kind not in ('stop','negative','price','positive','clarify') then return false;end if;
+ if p_kind is null or p_kind not in ('stop','negative','price','positive','clarify') then return false;end if;
  if incoming.id is distinct from p_message or r.mandate->>'last_reply_id'=p_message::text or incoming.created_at<(select max(created_at) from public.waouh_room_events where room_id=r.id and event_type='delegate') then return false;end if;
  if p_kind<>'stop' and exists(select 1 from public.waouh_convergence_agreements where component_id=r.id) then return false;end if;
  n=coalesce((r.mandate->>'reply_count')::integer,0);
@@ -265,7 +265,7 @@ begin
   -- STOP is never answered with a sales message.
   update public.waouh_deal_room_links set control_mode='paused',next_run_at=null,mandate_revision=mandate_revision+1,mandate=mandate||jsonb_build_object('last_reply_id',p_message,'reply_count',n+1) where id=r.id;
  elsif p_kind='negative' then
-  update public.waouh_deal_room_links set mandate=mandate||jsonb_build_object('last_reply_id',p_message,'reply_count',n+1,'cascade_refused',true),next_run_at=now() where id=r.id;
+  update public.waouh_deal_room_links set mandate=mandate||jsonb_build_object('last_reply_id',p_message,'reply_count',n+1,'cascade_refused',true),control_mode=case when jsonb_typeof(mandate->'cascade_candidates')='array' and jsonb_array_length(mandate->'cascade_candidates')>0 then 'bot' else 'paused' end,next_run_at=case when jsonb_typeof(mandate->'cascade_candidates')='array' and jsonb_array_length(mandate->'cascade_candidates')>0 then now() else null end where id=r.id;
  else
   msg=case strategy when 'sell' then 'Merci. Précisez la quantité souhaitée, votre proposition totale et les conditions de remise.'
    when 'service' then 'Merci. Pouvez-vous confirmer le périmètre, le devis total avec frais, vos qualifications et la garantie ?'

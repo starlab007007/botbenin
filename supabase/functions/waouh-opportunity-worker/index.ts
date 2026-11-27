@@ -1431,8 +1431,10 @@ Deno.serve(async (req) => {
   const maintenance = await maintainAvatarQueues(sb);
   const lifecycle = await advanceAvatarLifecycle(sb, 15, body.advance_only === true ? body.journey_id : undefined);
   if (body.advance_only === true) return json({ ok: true, lifecycle });
+  const {error: agreedExpiryError} = await sb.from("waouh_avatar_mandates").update({status:"completed"}).eq("status","active").not("metadata->agreement_reached_at","is",null).lt("expires_at",now.toISOString());
+  if (agreedExpiryError) throw agreedExpiryError;
   const { data: expired, error: expiryError } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
-    .eq("status", "active").lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
+    .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
   if (expiryError) throw expiryError;
   for (const m of expired ?? []) {
     await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "mandate_expired", completed_at: now.toISOString(),

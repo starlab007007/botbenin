@@ -181,7 +181,8 @@ console.log('Progressive guidance: '+cases.length+' role, evidence, blocked and 
  // Test the exact reviewed new SQL after the existing legacy contract fixtures.
  await db.exec(await readFile(new URL('../../supabase/migrations/20261116214600_waouh_sale_deal_rooms.sql',import.meta.url),'utf8'));
  await db.exec(await readFile(new URL('../../supabase/migrations/20261127171000_waouh_room_autonomy_atomic.sql',import.meta.url),'utf8'));
- await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $select k,true,true,true from unnest(array['nexus','missions','avatar']) k$;");
+ await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $test_policy$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$test_policy$;");
+ await db.query('insert into public.waouh_users values($1,$1) on conflict do nothing',[owner]);
  const cascadeA='00000000-0000-4000-8000-000000000021',cascadeB='00000000-0000-4000-8000-000000000022';
  for(const a of [cascadeA,cascadeB])await db.query("insert into public.waouh_articles values($1,$2,'active')",[a,seller]);
  const nextSource={...source,source_ref:'article:'+cascadeB};
