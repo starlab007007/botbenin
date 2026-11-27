@@ -75,6 +75,27 @@ serve(async (req) => {
       return handleAdminContactHub(sb, { id: user.id }, requestBody as Record<string, any>);
     }
 
+    if (action === "search_health") {
+      const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+      const [searches, targets] = await Promise.all([
+        sb.from("waouh_agent_audit_log").select("details,created_at").eq("event_type", "nexus.global_discovery").gte("created_at", since).limit(5000),
+        sb.from("waouh_collection_targets").select("label,enabled,error_streak,empty_streak,last_success_at,last_attempt_at").eq("enabled", true).limit(1000),
+      ]);
+      if (searches.error) throw searches.error;
+      if (targets.error) throw targets.error;
+      const byKind: Record<string, { total: number; found: number; widened: number }> = {};
+      for (const row of searches.data ?? []) {
+        const d = (row as any).details ?? {};
+        const kind = String(d.discovery_kind ?? (d.resolved_mode === "find_buyers" ? "sale" : "purchase"));
+        const k = byKind[kind] ??= { total: 0, found: 0, widened: 0 };
+        k.total++; if (Number(d.result_count) > 0) k.found++; if (d.fallback?.widened) k.widened++;
+      }
+      const dayAgo = Date.now() - 86400_000 * 2;
+      const down = (targets.data ?? []).filter((t: any) => Number(t.error_streak) >= 3 || (t.last_attempt_at && (!t.last_success_at || Date.parse(t.last_success_at) < dayAgo) && Date.parse(t.last_attempt_at) > Date.parse(t.last_success_at ?? "1970-01-01")))
+        .map((t: any) => ({ label: t.label, last_success_at: t.last_success_at, failures: Number(t.error_streak) || 0 }));
+      return new Response(JSON.stringify({ ok: true, by_kind: byKind, sources_down: down, sources_total: targets.data?.length ?? 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
+
     if (action === "contact_layer_get") {
       const [sources, contacts, fabric] = await Promise.all([
         sb.from("waouh_discovery_sources")

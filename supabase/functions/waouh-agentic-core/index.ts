@@ -2624,6 +2624,16 @@ Retourne uniquement JSON:
           if(done){const fresh=keepLive(await globalDiscoverySearch(sb,searchArgs));results=mergeResults(results,fresh,{}).slice(0,limit);}
           if(needsMore(discoveryKind,results.length)){await sb.rpc('waouh_collection_schedule',{p_handler:'site'}).then(()=>null,()=>null);fallback.watching=true;}
         }
+        // Une recherche sans résultat devient une demande anonyme : les vendeurs WAOUH du domaine la voient.
+        if(!publicRead&&mode==='find_sellers'&&results.length===0&&semanticQuery.trim().length>=3){
+          const externalId='search:'+(await sha256Hex(`${ownerId}|${semanticQuery.toLowerCase().trim()}|${city??''}`)).slice(0,32);
+          const demand={submitted_by:ownerId,source_key:'waouh_app',source_external_id:externalId,intent:'BUY',actor_type:'buyer',contactability_level:'C2',contact_consent_basis:'initiated',
+            product_name:semanticQuery.slice(0,240),category:null,price_max:budgetMax,currency:'XOF',city,country_code:'BJ',raw_text:`Recherche : ${semanticQuery}`.slice(0,500),
+            evidence:{origin:'empty_search',discovery_kind:discoveryKind},ai_extraction:{},confidence:0.7,trust_score:70,status:'active',observed_at:new Date().toISOString(),expires_at:new Date(Date.now()+14*86400_000).toISOString()};
+          const {data:known}=await sb.from('waouh_external_commerce_signals').select('id').eq('source_key','waouh_app').eq('source_external_id',externalId).maybeSingle();
+          const {error:demandError}=known?await sb.from('waouh_external_commerce_signals').update({status:'active',observed_at:demand.observed_at,expires_at:demand.expires_at}).eq('id',known.id):await sb.from('waouh_external_commerce_signals').insert(demand);
+          if(demandError)console.warn('[nexus] empty search demand',demandError.message);else fallback.watching=true;
+        }
         const comparableOffers=mode==='find_buyers'
           ? (await loadDiscoveryRecords(sb,{query:semanticQuery,mode:'find_sellers',publicSources:publicRead?PUBLIC_NEXUS_SOURCES:undefined})).records : [];
         const priceReference=mode==='find_buyers'?marketReference(semanticQuery,comparableOffers,city):null;
@@ -2640,6 +2650,8 @@ Retourne uniquement JSON:
           city,
           budget_max: budgetMax,
           result_count: results.length,
+          discovery_kind: discoveryKind,
+          fallback,
           source_mix: sourceMix,
           market_reference:priceReference,
           ai_confidence: intelligence.confidence,

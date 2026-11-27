@@ -18,6 +18,7 @@ import WaouhCollectionEnginesPanel from '@/components/admin/WaouhCollectionEngin
 import WaouhSourceCatalogPanel from '@/components/admin/WaouhSourceCatalogPanel';
 import {CollectionControlProvider,useCollectionControl} from '@/components/admin/collection/CollectionControlContext';
 import WaouhCollectionOverview from '@/components/admin/collection/WaouhCollectionOverview';
+import WaouhSearchHealthCard from '@/components/admin/collection/WaouhSearchHealthCard';
 import type {CollectionSection} from '@/lib/admin/collectionControl';
 import '@/components/admin/collection/collection-control.css';
 import {
@@ -603,7 +604,7 @@ function DataControlWorkspace() {
           <TabsTrigger value="contacts"><Phone size={16}/>Contacts</TabsTrigger>
           <TabsTrigger value="settings"><Settings2 size={16}/>Réglages</TabsTrigger>
         </TabsList></div>
-        <TabsContent value="overview"><WaouhCollectionOverview onNavigate={navigate}/></TabsContent>
+        <TabsContent value="overview"><WaouhSearchHealthCard/><WaouhCollectionOverview onNavigate={navigate}/></TabsContent>
         {sourcesVisited&&<TabsContent value="platforms" forceMount className="data-[state=inactive]:hidden"><WaouhSourceCatalogPanel initialPlatformKey={selectedPlatform} onPlatformChange={setSelectedPlatform}/></TabsContent>}
 
         <TabsContent value="search">
