@@ -46,7 +46,9 @@ async function resolveInterest(item: Offer): Promise<Record<string, unknown>> {
 
 /** Every interest opens the existing product chat; never create a second room workflow. */
 export async function openInterestedDiscussion(item: Offer, navigate: (path: string) => void, isCurrent: () => boolean = () => true): Promise<void> {
-  const owner = (await supabase.auth.getSession()).data.session?.user.id ?? '';
+  const owner = (await supabase.auth.getSession()).data.session?.user.id;
+  if (!owner || !owner.trim()) throw new LegacyInterestError('Connectez-vous pour ouvrir cet échange.');
+  if (!item.fabric_id?.trim() || !item.fabric_id.split(':')[1]?.trim()) throw unavailable();
   const key = `${owner}:${getWaouhSessionId()}:${item.fabric_id}`;
   let request = pending.get(key);
   if (!request) {
@@ -55,6 +57,6 @@ export async function openInterestedDiscussion(item: Offer, navigate: (path: str
     void request.finally(() => pending.delete(key)).catch(() => {});
   }
   const detail = await request;
-  if ((await supabase.auth.getSession()).data.session?.user.id !== (owner || undefined)) throw unavailable();
+  if ((await supabase.auth.getSession()).data.session?.user.id !== owner) throw unavailable();
   if (isCurrent()) openCommerceDiscussion(detail, navigate);
 }
