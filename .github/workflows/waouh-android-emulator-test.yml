@@ -60,7 +60,7 @@ jobs:
       contents: read
     timeout-minutes: 15
     env:
-      OUT_DIR: ${{ runner.temp }}/waouh-host-preflight
+      OUT_DIR: ${{ github.workspace }}/waouh-host-preflight
     steps:
       - uses: actions/checkout@v4
       - name: Prepare host virtualization and native emulator libraries
