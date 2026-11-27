@@ -31,7 +31,7 @@ it('names the main action after the kind of search', () => {
 it('opens the existing Deal Room with the price proposal, or the application process for opportunities', () => {
   expect(offerDealRoomPath(offer('article:a'), 'purchase')).toBe('/app/chat?fabric_id=article%3Aa&offer=50000');
   expect(offerDealRoomPath(offer('article:b', null), 'purchase')).toBe('/app/chat?fabric_id=article%3Ab&propose=1');
-  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/chat?fabric_id=article%3Ac');
+  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/chat?fabric_id=article%3Ac&kind=opportunity');
 });
 
 it('“Intéressé” goes to the Deal Room, “Bot” keeps the other offers as fallbacks, “Détails” opens the analysis', async () => {
@@ -119,7 +119,7 @@ it('an opportunity keeps its application process in the Deal Room', async () => 
   </Routes></MemoryRouter>));
   await act(async () => button('Postuler').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Ao');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Ao&kind=opportunity');
 });
 
 describe("offre d'un site marchand sans contact", () => {
