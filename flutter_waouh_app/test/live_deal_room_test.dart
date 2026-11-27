@@ -45,9 +45,18 @@ void main(){
   final api=await serviceFor(tester,owner:false);
   api.data={...api.data,'kind':'announcement','control_mode':'manual','agreement':null,'current_offer_version':0,'allowed_actions':['message','application_outcome'],'evidence':{'application_prepared_at':'ok','application_submitted_at':'ok'}};
   await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('Répondre au dossier'));await tester.tap(find.text('Répondre au dossier'));await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextField).last,'Entretien lundi');await tester.pump();
-  await tester.tap(find.text('Retenir ce dossier'));await tester.pumpAndSettle();
+  final reply=find.widgetWithText(FilledButton,'Répondre au dossier');
+  await tester.scrollUntilVisible(reply.hitTestable(),120,scrollable:find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
+  expect(reply.hitTestable(),findsOneWidget);
+  await tester.tap(reply.hitTestable());await tester.pumpAndSettle();
+  final sheet=find.byType(BottomSheet);
+  expect(sheet,findsOneWidget);
+  await tester.enterText(find.descendant(of:sheet,matching:find.byType(TextField)),'Entretien lundi');await tester.pumpAndSettle();
+  final retain=find.descendant(of:sheet,matching:find.widgetWithText(FilledButton,'Retenir ce dossier'));
+  await tester.ensureVisible(retain);await tester.pumpAndSettle();
+  expect(retain.hitTestable(),findsOneWidget);
+  await tester.tap(retain.hitTestable());await tester.pumpAndSettle();
   expect(api.calls,contains('application_outcome'));
   final sent=api.requests.lastWhere((r)=>r['action']=='application_outcome');
   expect(sent['outcome'],'retained');expect(sent['text'],'Entretien lundi');
@@ -71,7 +80,21 @@ void main(){
  },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('seller can reply while the buyer delegates and no agreement is falsely confirmed',(tester)async{
   final api=await serviceFor(tester,owner:false);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'seller')));await tester.pumpAndSettle();
-  expect(find.text('Reprendre la main'),findsNothing);expect(find.text('Votre message'),findsOneWidget);expect(find.text('Accord confirmé'),findsNothing);
+  expect(find.text('Reprendre la main'),findsNothing);
+  expect(find.text('Accord confirmé'),findsNothing);
+  final composer=find.byWidgetPredicate((w)=>w is TextField&&w.decoration?.labelText=='Votre message');
+  await tester.scrollUntilVisible(composer.hitTestable(),120,scrollable:find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
+  expect(composer.hitTestable(),findsOneWidget);
+  await tester.enterText(composer,'Le téléphone est disponible.');await tester.pumpAndSettle();
+  final send=find.widgetWithText(FilledButton,'Envoyer');
+  await tester.scrollUntilVisible(send.hitTestable(),80,scrollable:find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
+  await tester.tap(send.hitTestable());await tester.pumpAndSettle();
+  expect(api.requests.lastWhere((r)=>r['action']=='message')['text'],'Le téléphone est disponible.');
+  expect(api.calls,isNot(contains('accept')));
+  expect(api.calls,isNot(contains('takeover')));
+  expect(find.text('Accord confirmé'),findsNothing);
   await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('guided review submits the version actually read, even if the server changes',(tester)async{
