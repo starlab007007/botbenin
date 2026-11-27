@@ -147,12 +147,12 @@ export function chatMarketBrief(results: WaouhResultCard[], ctx: { city?: string
   const exactCount = matches.some((m) => m !== null) ? matches.filter((m) => m === "exact").length : null;
   // Les repères de prix portent sur les offres qui correspondent à la demande, dès qu'il y en a assez.
   const exactPrices = pool.filter((_, i) => matches[i] === "exact").map(briefPrice).filter((p): p is number => p !== null);
-  const rawPrices = exactPrices.length >= 2 ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
+  const rawPrices = ctx.query?.trim() ? exactPrices : pool.map(briefPrice).filter((p): p is number => p !== null);
   // Un prix manifestement faux (1 F au milieu d'offres à 25 000 F) fausserait tout le repère.
   const prices = specialized || pool.some(r=>missionEntity(offer(r))!=="product") ? [] : plausiblePrices(rawPrices);
   const low = prices.length ? Math.min(...prices) : null;
   const high = prices.length ? Math.max(...prices) : null;
-  const median = medianOf(prices);
+  const median = prices.length>=2 ? medianOf(prices) : null;
   const budget = ctx.budget && ctx.budget > 0 ? ctx.budget : null;
 
   const base = pool.map((result, order) => {

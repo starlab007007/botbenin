@@ -54,7 +54,7 @@ describe("fenêtre de recherche du Chat", () => {
   });
 
   it("une prestation est confiée comme une demande, pas comme un achat", async () => {
-    await render(search({ kind: "prestation", budget: null }));
+    await render(search({ kind: "prestation", goal:"Création site web", budget: null, results:[{id:"service-a",index:1,title:"Création site web",fabric_id:"external:service-a",price:150000,city:"Cotonou",evidence:{offer_kind:"service",scope:"Site web",delivery_days:7},contact_policy:{can_auto_contact:true}}] as ChatSearch["results"] }));
     expect((document.querySelector("[data-delegate]") as HTMLElement).dataset.mode).toBe("ask");
   });
 

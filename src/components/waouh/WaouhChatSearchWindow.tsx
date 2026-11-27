@@ -13,6 +13,7 @@ import { WaouhProductResults, type WaouhResultCard } from "@/components/waouh/Wa
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
 import { offerReachable, WaouhOfferActions } from "./WaouhOfferActions";
 import { offerJourney, journeyCopy } from "@/lib/waouh/offerJourney";
+import { missionMatches, missionCriteria, normalizeMissionContext, missionEntity } from "../../../supabase/functions/_shared/waouh-mission-domain";
 import { resultKind } from "@/lib/waouh/convergence";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
 import { resultContact, channelLabel } from "@/lib/waouh/resultCardData";
@@ -105,10 +106,12 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
   const scroller = useRef<HTMLDivElement>(null);
   // Les offres qui correspondent à la demande passent devant les modèles proches (ordre reçu conservé sinon).
   const orderedResults = useMemo(() => {
-    const list = search?.results ?? [];
+    const kind = search?.kind;
+    const domain = kind==="opportunite"?"opportunity":kind==="service"?"service":kind==="prestation"?"project":null;
+    const list = (search?.results ?? []).filter(r=>{const offer={...r,subject:r.title,fabric_id:r.fabric_id??r.id};if(missionEntity(offer)==="announcement"&&!missionMatches(offer,{missionKind:"opportunity"}))return false;return !domain||missionMatches(offer,missionCriteria(normalizeMissionContext({},domain,search?.goal??"")));});
     const rank = (r: WaouhResultCard) => (briefMatch(r, search?.goal) === "near" ? 1 : 0);
     return list.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i).map((x) => x.r);
-  }, [search?.results, search?.goal]);
+  }, [search?.results, search?.goal, search?.kind]);
 
   useEffect(() => {
     if (!search || startedFor.current === search.id) return;
@@ -186,11 +189,11 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
         <div ref={scroller} className="wsl-body">
           <div hidden={revealed && !!search?.results.length}><WaouhReasoningFeed steps={feed.shown} running={running} pending={feed.pending} summary={revealed ? outcome?.summary ?? null : null} onSkip={feed.skip} /></div>
           <div ref={outcomeRef} className="wsl-anchor" aria-hidden="true" />
-          {revealed && search && search.results.length > 0 && (
+          {revealed && search && orderedResults.length > 0 && (
             <>
               {search.kind === "vendre" || search.priceReference
-                ? <WaouhSellerBrief onWatch={search.articleId ? onWatch : undefined} watchBusy={watchBusy} renderPrimary={requireAuth ? row=>{const offer=asOffer(row);return offer && search.articleId ? <WaouhOfferActions primaryOnly primaryLabel="Contacter l’acheteur" result={offer} alternates={[]} mode="sell" kind="sale" articleId={search.articleId} requireAuth={requireAuth}/> : null;}:undefined} results={search.results} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
-                : <WaouhChatMarketBrief onWatch={onWatch} watchBusy={watchBusy} key={search.id} results={search.results} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = offerJourney(search.kind, resultKind(row)); return <WaouhOfferActions primaryOnly primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
+                ? <WaouhSellerBrief onWatch={search.articleId ? onWatch : undefined} watchBusy={watchBusy} renderPrimary={requireAuth ? row=>{const offer=asOffer(row);return offer && search.articleId ? <WaouhOfferActions primaryOnly primaryLabel="Contacter l’acheteur" result={offer} alternates={[]} mode="sell" kind="sale" articleId={search.articleId} requireAuth={requireAuth}/> : null;}:undefined} results={orderedResults} reference={search.priceReference} city={search.city} query={search.goal} articleId={search.articleId ?? undefined} />
+                : <WaouhChatMarketBrief onWatch={onWatch} watchBusy={watchBusy} key={search.id} results={orderedResults} city={search.city} budget={search.budget ?? null} kind={search.kind} query={search.goal} renderPrimary={requireAuth ? row => { const offer = asOffer(row); if (!offer) return null; const kind = offerJourney(search.kind, resultKind(row)); return <WaouhOfferActions primaryOnly primaryLabel={journeyCopy(kind, search.kind).manual} result={offer} alternates={alternatives} mode="buy" kind={kind} city={search.city} budgetMax={search.budget} requireAuth={requireAuth} />; } : undefined} />}
               <details className="wsl-offers wsl-other-offers" open={selling || undefined}><summary>{selling ? "Acheteurs" : search.kind === "opportunite" ? "Opportunités" : search.kind === "service" ? "Services" : search.kind === "prestation" ? "Prestataires" : search.kind === "trouver" ? "Autres pistes" : "Autres offres"} · {orderedResults.length}</summary>
                 {search.sources?.length ? <p className="wsl-advice">Sources des résultats · {search.sources.join(", ")}</p> : null}
 
@@ -204,7 +207,7 @@ export function WaouhChatSearchWindow({ search, onClose, onAction, requireAuth, 
               </details>
             </>
           )}
-          {revealed && search && search.results.length === 0 && (
+          {revealed && search && orderedResults.length === 0 && (
             <div className="wsl-empty" role="status">
               <strong>{failed ? "La recherche a été interrompue" : "Aucune offre assez proche pour le moment"}</strong>
               <p>{failed ? "Rien n’a été envoyé. Vous pouvez relancer votre demande depuis le chat." : "Précisez le modèle, la ville ou le budget : Bot relance aussitôt la recherche."}</p>
