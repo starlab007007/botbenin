@@ -1088,8 +1088,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _delegateToBot(NexusDiscoveryItem item) async {
     if(widget.mode!=LiveAvatarCommerceMode.sell){
       final alternates=essentialUnique(_response?.results??const <NexusDiscoveryItem>[]).where((r)=>r.fabricId!=item.fabricId).take(3).toList();
-      if(!await confirmBotDelegation(context,alternates:alternates.length,budgetMax:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')))||!mounted)return;
-      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_city.text,budgetMax:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),'')),alternates:alternates);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)setState(()=>_error=roomError(e));}
+      final limit=await requestBotLimit(context,initial:double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'),''))??item.priceMin??item.priceMax);
+      if(limit==null||!mounted)return;
+      try{final id=await delegateRoomToBot(LiveDealRoomService(legacy.supabase),fabricId:item.fabricId,city:_city.text,budgetMax:limit,alternates:alternates);if(mounted)context.push('/app/deal-room?room_id=$id');}catch(e){if(mounted)setState(()=>_error=roomError(e));}
       return;
     }
 

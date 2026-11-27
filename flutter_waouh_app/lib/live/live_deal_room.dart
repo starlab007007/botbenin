@@ -47,13 +47,29 @@ Future<bool> confirmBotDelegation(BuildContext context,{int alternates=0,num? bu
   actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Annuler')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Confirmer'))],
  ))==true;
 
+Future<num?> requestBotLimit(BuildContext context,{bool selling=false,num? initial}) async {
+ final controller=TextEditingController(text:initial?.toString()??'');
+ final result=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh){
+  final n=num.tryParse(controller.text.trim());
+  final valid=n!=null&&n.isFinite&&n>0&&n<=100000000;
+  return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[
+   TextField(controller:controller,keyboardType:TextInputType.number,decoration:InputDecoration(labelText:selling?'Prix plancher privé (FCFA)':'Budget total maximal (FCFA)'),onChanged:(_)=>refresh((){})),
+   const SizedBox(height:12),const Text('Bot respecte cette limite. Vous validez l’accord final.')
+  ]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);
+ }));
+ WidgetsBinding.instance.addPostFrameCallback((_)=>controller.dispose());
+ return result;
+}
+
 /// « Confier à Bot » en un geste : ouvre le Deal Room, délègue la négociation avec les
 /// règles par défaut et transmet jusqu’à 3 pistes de repli (reprise automatique si pas de réponse).
-Future<String> delegateRoomToBot(LiveDealRoomService api,{required String fabricId,String? city,num? budgetMax,String? saleArticleId,Iterable<NexusDiscoveryItem> alternates=const []}) async {
+Future<String> delegateRoomToBot(LiveDealRoomService api,{required String fabricId,String? city,num? budgetMax,num? priceFloor,String? saleArticleId,Iterable<NexusDiscoveryItem> alternates=const []}) async {
+ if(saleArticleId==null&&!(budgetMax!=null&&budgetMax.isFinite&&budgetMax>0))throw StateError('budget_required');
+ if(saleArticleId!=null&&!(priceFloor!=null&&priceFloor.isFinite&&priceFloor>0))throw StateError('price_floor_required');
  final opened=await api.call('open',{'fabric_id':fabricId,if(city!=null&&city.trim().isNotEmpty)'city':city.trim(),'budget_max':saleArticleId==null?budgetMax:null,if(saleArticleId!=null)'sale_article_id':saleArticleId,'confirmed':false});
  final id='${opened['deal_room_id']}';
  final cascade=alternates.where((a)=>a.fabricId.isNotEmpty&&a.fabricId!=fabricId).take(3).map((a)=><String,dynamic>{'fabric_id':a.fabricId,if(a.city!=null)'city':a.city}).toList();
- final rules=<String,dynamic>{...botRoomDefaultRules,'budget_max':saleArticleId==null?budgetMax:null,if(cascade.isNotEmpty)...{'cascade_candidates':cascade,'cascade_step':1,'cascade_max_steps':1+cascade.length}};
+ final rules=<String,dynamic>{...botRoomDefaultRules,'budget_max':saleArticleId==null?budgetMax:null,if(saleArticleId!=null)'price_floor':priceFloor,if(cascade.isNotEmpty)...{'cascade_candidates':cascade,'cascade_step':1,'cascade_max_steps':1+cascade.length}};
  await api.call('delegate',{'deal_room_id':id,'mandate_revision':opened['mandate_revision']??0,'confirmed':true,'rules':rules});
  return id;
 }
@@ -191,7 +207,8 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> mandate() async {
   final r=room;if(r==null)return;
   final sheetOwner=owner,revision=r['mandate_revision'];
-  final cap=TextEditingController(text:budget.text),initial=TextEditingController(),start=TextEditingController(text:'${botRoomDefaultRules['active_start']}'),end=TextEditingController(text:'${botRoomDefaultRules['active_end']}');
+  final selling=r['buyer']==false;
+  final cap=TextEditingController(text:selling?'':budget.text),initial=TextEditingController(),start=TextEditingController(text:'${botRoomDefaultRules['active_start']}'),end=TextEditingController(text:'${botRoomDefaultRules['active_end']}');
   String mode='${botRoomDefaultRules['mode']}';int hours=botRoomDefaultRules['duration_hours'] as int,followups=botRoomDefaultRules['max_followups'] as int;
   InputDecoration deco(String label)=>InputDecoration(labelText:label,border:const OutlineInputBorder());
   final ok=await showModalBottomSheet<bool>(context:context,isScrollControlled:true,useSafeArea:true,backgroundColor:Colors.white,
@@ -202,7 +219,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
      const SizedBox(height:8),
      const Text('Bot choisit la meilleure offre, négocie dans votre plafond et revient si besoin.',style:TextStyle(fontSize:13,color:Colors.black54)),
      const SizedBox(height:16),
-     TextField(controller:cap,keyboardType:TextInputType.number,decoration:deco('Plafond · F (facultatif)')),
+     TextField(controller:cap,keyboardType:TextInputType.number,decoration:deco(selling?'Prix plancher privé · F':'Budget total maximal · F')),
      Theme(data:Theme.of(ctx).copyWith(dividerColor:Colors.transparent),child:ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('Personnaliser',style:TextStyle(fontSize:13,fontWeight:FontWeight.w600)),children:[
       DropdownButtonFormField<String>(initialValue:mode,decoration:deco('Mode'),items:const [DropdownMenuItem(value:'assisted',child:Text('Assisté')),DropdownMenuItem(value:'semi_autonomous',child:Text('Semi-auto')),DropdownMenuItem(value:'autonomous',child:Text('Autonome'))],onChanged:(v)=>update(()=>mode=v??mode)),
       const SizedBox(height:10),
@@ -221,7 +238,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     ])),
    )),
   );
-  final rules={'mode':mode,'budget_max':num.tryParse(cap.text.replaceAll(RegExp(r'[^0-9.]'),'')),'initial_offer':num.tryParse(initial.text.replaceAll(RegExp(r'[^0-9.]'),'')),'duration_hours':hours,'max_followups':followups,'active_start':start.text.trim(),'active_end':end.text.trim()};
+  final rules={'mode':mode,'budget_max':selling?null:num.tryParse(cap.text.replaceAll(RegExp(r'[^0-9.]'),'')),if(selling)'price_floor':num.tryParse(cap.text.replaceAll(RegExp(r'[^0-9.]'),'')),'initial_offer':selling?null:num.tryParse(initial.text.replaceAll(RegExp(r'[^0-9.]'),'')),'duration_hours':hours,'max_followups':followups,'active_start':start.text.trim(),'active_end':end.text.trim()};
   WidgetsBinding.instance.addPostFrameCallback((_){for(final c in [cap,initial,start,end]){c.dispose();}});
   if(ok!=true||!mounted||owner!=sheetOwner)return;
   await act('delegate',{'mandate_revision':revision,'confirmed':true,'rules':rules});
@@ -230,9 +247,10 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> delegateFromSearch(NexusDiscoveryItem item) async {
   if(busy)return;
   final alternates=offers.where((o)=>o.fabricId!=item.fabricId).take(3).toList();
-  if(!await confirmBotDelegation(context,alternates:alternates.length,budgetMax:num.tryParse(budget.text))||!mounted)return;
+  final confirmedLimit=await requestBotLimit(context,initial:num.tryParse(budget.text)??item.priceMin??item.priceMax);
+  if(confirmedLimit==null||!mounted)return;
   final v=++generation;setState((){busy=true;error='';notice='';});
-  try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:num.tryParse(budget.text),alternates:alternates);if(mounted&&v==generation)setState((){roomId=id;botTakeover=true;notice='Bot a pris en charge votre démarche, de bout en bout. Vous êtes prévenu à chaque étape et vous gardez la main.';});}
+  try{final id=await delegateRoomToBot(api,fabricId:item.fabricId,city:city.text,budgetMax:confirmedLimit,alternates:alternates);if(mounted&&v==generation)setState((){roomId=id;botTakeover=true;notice='Bot a pris en charge votre démarche, de bout en bout. Vous êtes prévenu à chaque étape et vous gardez la main.';});}
   catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));}
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
   if(mounted&&v==generation&&roomId!=null)await load();
