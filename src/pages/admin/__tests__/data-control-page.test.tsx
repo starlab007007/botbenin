@@ -20,6 +20,10 @@ it('opens the lightweight overview first and preserves the source workspace duri
   await act(async()=>tab('Sources').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0,ctrlKey:false})));
   expect(mock.invoke).toHaveBeenCalledTimes(4);
   await act(async()=>tab('Vue d’ensemble').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0,ctrlKey:false})));
-  expect(mock.invoke).toHaveBeenCalledTimes(4);
+  // Returning to overview refreshes search health, not the cached collection workspace.
+  expect(mock.invoke).toHaveBeenCalledTimes(5);
+  expect(mock.invoke.mock.calls.at(-1)?.[1]?.body?.action).toBe('search_health');
+  expect(mock.invoke.mock.calls.filter(([,args])=>args.body.action==='search_health')).toHaveLength(2);
+  expect(host.textContent).toContain('50 % · 1/2');
  }finally{await act(async()=>root.unmount());host.remove();}
 });
