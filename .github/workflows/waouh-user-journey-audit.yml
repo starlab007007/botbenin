@@ -1,0 +1,70 @@
+name: WAOUH six user journeys audit
+on:
+  pull_request:
+    branches: [prod]
+    paths:
+      - 'scripts/waouh-audit-public-browser.mjs'
+      - '.github/workflows/waouh-user-journey-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: waouh-journey-audit-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  public-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AUDIT_OUT: ${{ github.workspace }}/journey-audit/browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install isolated browser
+        run: |
+          npm install --prefix /tmp/waouh-audit --no-audit --no-fund playwright@1.56.1
+          /tmp/waouh-audit/node_modules/.bin/playwright install --with-deps chromium
+          cp scripts/waouh-audit-public-browser.mjs /tmp/waouh-audit/
+      - name: Capture six actual production entry paths on three screen sizes
+        run: node /tmp/waouh-audit/waouh-audit-public-browser.mjs
+      - name: Upload real browser screenshots and verdicts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-six-journeys-public-screenshots
+          path: journey-audit/browser
+          if-no-files-found: error
+          retention-days: 14
+  isolated-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.21 vitest@2.1.9
+      - name: Isolated business, discovery and recovery contracts
+        run: |
+          set -o pipefail
+          mkdir -p journey-audit/contracts
+          for suite in waouh-business-journey-db waouh-convergence-db waouh-deal-room-db waouh-discovery-db waouh-unified-search-db; do
+            node "scripts/tests/$suite.mjs" 2>&1 | tee "journey-audit/contracts/$suite.log"
+          done
+      - name: User interface and sale transition contracts (mocked services)
+        run: |
+          set -o pipefail
+          mkdir -p journey-audit/contracts
+          npx vitest run src/components/waouh/__tests__ src/lib/waouh/__tests__ 2>&1 | tee journey-audit/contracts/web-ui.log
+      - name: Upload contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-six-journeys-isolated-contracts
+          path: journey-audit/contracts
+          if-no-files-found: error
+          retention-days: 14
