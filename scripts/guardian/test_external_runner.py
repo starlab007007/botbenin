@@ -46,3 +46,32 @@ class ExternalRunnerTests(unittest.TestCase):
             result = subprocess.run(['bash', str(ROOT / 'run-external.sh'), str(cfg)], env=env, capture_output=True)
             self.assertEqual(result.returncode, 7)
             self.assertFalse(called.exists())
+
+    def test_install_verifier_requires_fresh_success_and_active_timer(self):
+        verifier=ROOT/'verify-external-install.sh'
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp)
+            systemctl=base/'systemctl'
+            systemctl.write_text("""#!/bin/sh
+case "$1" in
+is-enabled|is-active) test "${MODE:-}" != inactive ;;
+show)
+  case "$4" in
+    Unit) echo waouh-guardian-external.service ;;
+    User) echo waouh-guardian-probe ;;
+    Result) if [ "$MODE" = failed ]; then echo exit-code; else echo success; fi ;;
+    ExecMainExitTimestampMonotonic) if [ "$MODE" = stale ]; then echo 1; else echo 999000000; fi ;;
+    NextElapseUSecMonotonic) if [ "$MODE" = unscheduled ]; then echo 0; else echo 21min; fi ;;
+    *) exit 2 ;;
+  esac ;;
+*) exit 2 ;;
+esac
+""")
+            systemctl.chmod(0o700)
+            python=base/'python3'
+            python.write_text('#!/bin/sh\necho 1000000000\n')
+            python.chmod(0o700)
+            for mode in ('healthy','inactive','failed','stale','unscheduled'):
+                with self.subTest(mode=mode):
+                    result=subprocess.run(['bash',str(verifier)],env=dict(os.environ,PATH=str(base)+':'+os.environ['PATH'],MODE=mode),capture_output=True,text=True)
+                    self.assertEqual(result.returncode==0,mode=='healthy',result.stderr)
