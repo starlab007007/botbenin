@@ -7,6 +7,7 @@
 import { CENTRAL_WAHA_SESSION, centralWhatsAppHealth } from "./waouh-central-whatsapp.ts";
 import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "./waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "./waouh-tel/phone.ts";
+import { roomGuestBasisAllowed, type ContactPurpose } from "./waouh-external-contact-permission.ts";
 
 export const ROOM_GUEST_ACTOR = "00000000-0000-4000-8000-0000000ae01e";
 export const ROOM_GUEST_TEMPLATE = "deal_room_guest_outreach";
@@ -168,6 +169,9 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
   const delegated = link.control_mode === "bot" && Date.parse(link.expires_at) > Date.now();
   const contact = await resolveRoomContact(sb, String(comp.source_ref || ""), { delegated });
   if (!contact) return await waitForContact();
+  // Politique du propriétaire : contact ayant donné son accord ou professionnel public uniquement.
+  const purpose: ContactPurpose = roomSaleSource(String(comp.source_ref || "")) ? "prospection" : "offer_request";
+  if (!roomGuestBasisAllowed(contact.basis, purpose)) return await waitForContact();
   if (contact.basis === "listing_contact" && (
     existing?.phone_encrypted ? !(await centralWhatsAppHealth()).working : !(await listingContactAllowed(sb, link?.owner_id))
   )) return await waitForContact();
@@ -204,7 +208,7 @@ export async function reachRoomOwner(sb: any, roomId: string): Promise<"joined" 
       : contact.basis === "listing_contact"
       ? `Bonjour${contact.name ? ` ${contact.name}` : ""}, je suis l’assistant WAOUH d’${who === "un candidat" ? "un candidat" : "un acheteur"} intéressé par ${what} « ${comp.title} », publiée en ligne avec ce numéro. Il souhaite en discuter avec vous. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`
       : `Bonjour${contact.name ? ` ${contact.name}` : ""}, ${who} passe par WAOUH pour ${what} « ${comp.title} ». Son assistant va vous écrire pour en discuter. Répondez simplement ici, ou ouvrez l’échange sans application ni compte : ${guestLink(token)} · Réf. ${reference} · Répondez STOP pour ne plus être contacté.`,
-    { room_id: roomId, reference, first_contact: true }, firstKey);
+    { room_id: roomId, reference, first_contact: true, purpose }, firstKey);
   // Bot écrit tout de suite (proposition initiale), puis ce message est relayé.
   await sb.rpc("waouh_room_tick", { p_limit: 1, p_room_id: roomId });
   await relayRoomGuests(sb, roomId);

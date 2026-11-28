@@ -1,4 +1,4 @@
-import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
+import { consentAllows, permitsExternalWhatsApp, purposeFromPayload, roomGuestBasisAllowed } from "../_shared/waouh-external-contact-permission.ts";
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
 import {avatarAccountPaused} from "../_shared/waouh-automatic-mission.ts";
 import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
@@ -723,13 +723,21 @@ Deno.serve(async (req) => {
           skipped++;
           continue;
         }
-        // Prospection autonome : une fiche publique ou un numéro joignable
-        // ne prouvent pas le consentement au contact promotionnel.
+        // Premier message : démarcher exige un accord explicite ; répondre à l'offre publiée par ce
+        // contact est permis pour un professionnel public ou un contact qui a déjà écrit.
+        const purpose = purposeFromPayload(it.payload?.purpose);
         const contactId = typeof it.payload?.contact_id === "string" ? it.payload.contact_id : null;
         const { data: contactConsent, error: consentError } = contactId
           ? await sb.from("waouh_entity_contacts").select("consent_state").eq("id", contactId).maybeSingle()
           : { data: null, error: null };
-        if (consentError || !["opt_in", "partner_contract"].includes(String(contactConsent?.consent_state || ""))) {
+        let consentOk = !consentError && consentAllows(contactConsent?.consent_state, purpose);
+        if (!consentError && it.template === "deal_room_guest_outreach" && it.payload?.room_id) {
+          // Salle d'échange : la base retenue à l'ouverture fait foi ; un contact révoqué reste bloqué.
+          const { data: guest } = await sb.from("waouh_room_guests").select("consent_basis,status").eq("room_id", it.payload.room_id).maybeSingle();
+          consentOk = !!guest && guest.status !== "stopped" && contactConsent?.consent_state !== "revoked" &&
+            roomGuestBasisAllowed(guest.consent_basis, purpose);
+        }
+        if (!consentOk) {
           await sb.from("waouh_outbound_queue").update({
             status: "failed", last_error: "cold_outreach_requires_explicit_consent",
             next_attempt_at: null,
@@ -874,7 +882,7 @@ Deno.serve(async (req) => {
         if (it.payload?.contact_id) {
           const { data: contact, error } = await sb.from("waouh_entity_contacts")
             .select("channel,consent_state,contactability_level").eq("id", it.payload.contact_id).maybeSingle();
-          if (error || !permitsExternalWhatsApp(contact)) blocked = "contact_permission_unavailable";
+          if (error || !permitsExternalWhatsApp(contact, purposeFromPayload(it.payload?.purpose))) blocked = "contact_permission_unavailable";
         } else if (!it.payload?.request_id) {
           blocked = "contact_permission_unavailable";
         }

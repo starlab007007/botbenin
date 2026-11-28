@@ -1,5 +1,5 @@
 import { smartRoomReply } from "../_shared/waouh-smart-room-reply.ts";
-import { permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
+import { contactPurposeFor, permitsExternalWhatsApp } from "../_shared/waouh-external-contact-permission.ts";
 import {loadDiscoveryRecords} from '../_shared/waouh-discovery-records.ts';
 import { withJourneyProducts } from '../_shared/waouh-mission-feed.ts';
 import { productSnapshot } from '../_shared/waouh-product-presentation.ts';
@@ -887,7 +887,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
     return row.is_whatsapp_reachable === true && !!row.value_encrypted &&
-      permitsExternalWhatsApp(row);
+      permitsExternalWhatsApp(row, contactPurposeFor(mandate.mode));
   });
   if (!target) return { contacted: false, reason: "contact_not_permitted" };
   if (level === "C1" && mandate.require_approval_for_c1 === true) return { contacted: false, reason: "c1_requires_approval" };
@@ -917,6 +917,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
       mandate_id: mandate.id,
       journey_id: journey.id,
       contact_id: target.id,
+      purpose: contactPurposeFor(mandate.mode),
     },
     p_web_session_id: null,
     p_image_url: null,
@@ -1006,7 +1007,7 @@ async function runExternalFollowUp(
   const level = String(resolved.externalSignal?.contactability_level || "C0");
   const target = resolved.contacts.find((row: any) => {
     return row.is_whatsapp_reachable === true && !!row.value_encrypted &&
-      permitsExternalWhatsApp(row);
+      permitsExternalWhatsApp(row, contactPurposeFor(mandate.mode));
   });
   if (!target) return { sent: false, reason: "followup_contact_unavailable" };
   if (level === "C1" && mandate.require_approval_for_c1 === true) {
@@ -1034,6 +1035,7 @@ async function runExternalFollowUp(
       mandate_id: mandate.id,
       journey_id: journey.id,
       contact_id: target.id,
+      purpose: contactPurposeFor(mandate.mode),
       followup_index: followupIndex,
     },
     p_web_session_id: null,
