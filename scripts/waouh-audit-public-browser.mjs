@@ -4,7 +4,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 const out=process.env.AUDIT_OUT||'journey-audit/browser';
 await mkdir(out,{recursive:true});
 const base='https://bot.bj';
-const actions={acheter:'/app/avatar/acheter',vendre:'/app/avatar/vendre',trouver:'/app/chat',service:'/app/chat',opportunite:'/app/chat',prestation:'/app/chat'};
+const actions={acheter:{sheet:'Acheter'},vendre:{path:'/app/avatar/vendre'},trouver:{sheet:'Trouver'},service:{sheet:'Service'},opportunite:{sheet:'Opportunit'},prestation:{sheet:'Prestation'}};
 const results=[];
 // Only the access-policy read is let through: without it the fail-closed gate hides every page.
 const READ_ONLY_RPC=new Set(['/rest/v1/rpc/waouh_module_policy']);
@@ -57,7 +57,12 @@ try{
     const after=await state(page);
     entry.path=after.path;entry.auth=after.auth;entry.overflow=after.overflow;entry.pageErrors=errors.length;
     if(after.fallback||after.overflow||errors.length)throw new Error('fallback, overflow or runtime error');
-    if(targetOk(page.url(),expected))entry.status='pass';
+    const dialog=expected.sheet ? page.getByRole('dialog') : null;
+    if(dialog)await dialog.waitFor({state:'visible',timeout:10000});
+    const intentOk=expected.sheet
+     ? new URL(page.url()).origin===base && after.path==='/' && (await dialog.innerText()).includes(expected.sheet)
+     : targetOk(page.url(),expected.path);
+    if(intentOk)entry.status='pass';
     else {entry.status='review';entry.reason='Intermediate UI or route differs; inspect screenshot. No authenticated step executed.';}
    }catch(error){
     entry.reason=String(error?.message||error).slice(0,180);
