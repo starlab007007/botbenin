@@ -15,6 +15,7 @@ import 'live_auth_screens.dart';
 import 'live_broadcast_screen.dart';
 import 'live_avatar_banner.dart';
 import 'live_avatar_screen.dart';
+import 'live_bot_home.dart' show LiveAvatarHomeScreen;
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
@@ -162,9 +163,9 @@ class LiveWaouhProductionApp extends StatelessWidget {
 GoRouter _router(legacy.AuthController auth) => GoRouter(
   errorBuilder: (context, state) => LiveErrorFallback(
     onRetry: () => context.go(state.uri.toString()),
-    onHome: () => context.go('/app/avatar'),
+    onHome: () => context.go(waouhGuidedHomePath),
   ),
-  initialLocation: '/app/avatar',
+  initialLocation: waouhGuidedHomePath,
   refreshListenable: auth,
   redirect: (_, state) {
     final canonicalRoom = canonicalWaouhRoomRoute(state.uri);
@@ -180,7 +181,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: '/', redirect: (_, __) => '/app/avatar'),
+    GoRoute(path: '/', redirect: (_, __) => waouhGuidedHomePath),
     GoRoute(
       path: '/app/auth',
       builder: (_, __) => const LiveOnboardingScreen(),
@@ -226,6 +227,10 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(
           path: '/app/ia',
           builder: (_, __) => const LiveIaFinalHubScreen(),
+        ),
+        GoRoute(
+          path: waouhGuidedHomePath,
+          builder: (_, __) => const LiveAvatarHomeScreen(),
         ),
         GoRoute(
           path: '/app/avatar',
@@ -530,7 +535,7 @@ class LiveProductionShell extends StatelessWidget {
                                   ),
                                   (
                                     key: 'avatar',
-                                    route: '/app/avatar',
+                                    route: waouhGuidedHomePath,
                                     label: 'Avatar',
                                     icon: Icons.account_circle_outlined,
                                   ),

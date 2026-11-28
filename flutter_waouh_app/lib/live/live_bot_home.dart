@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../main.dart' as legacy;
 import 'avatar/bot_character.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_quick_ask.dart';
+import 'live_controller.dart';
 import 'live_theme.dart';
 import 'live_avatar_autonomy.dart';
 
@@ -68,6 +70,45 @@ BotExpression liveBotGreetingExpression({
   if (shown == 0) return BotExpression.hello;
   if (shown < lineCount) return BotExpression.talk;
   return BotExpression.ask;
+}
+
+/// Public entry for the same guided actions as the Web home.
+class LiveAvatarHomeScreen extends StatelessWidget {
+  const LiveAvatarHomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<legacy.AuthController>();
+    final avatar = context.watch<LiveAvatarController>();
+    final agentic = context.read<LiveWaouhController>().agentic;
+
+    return Scaffold(
+      backgroundColor: avatarPremiumBg,
+      body: SafeArea(
+        bottom: false,
+        child: ListenableBuilder(
+          listenable: agentic,
+          builder: (context, _) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+            child: BotHomeHero(
+              avatarName: avatar.name,
+              firstName: auth.signedIn ? auth.profile?.fullName : null,
+              missionCount: auth.signedIn ? agentic.activeMissionCount : 0,
+              approvalCount: auth.signedIn ? agentic.pendingApprovalCount : 0,
+              activeDeals: 0,
+              onAvatar: () => context.push('/app/avatar'),
+              onMissions: () => context.push('/app/missions'),
+              onAsk: () =>
+                  liveGuidedQuickAsk(context, LiveQuickAskKind.demander),
+              onFindOpportunity: () =>
+                  liveGuidedQuickAsk(context, LiveQuickAskKind.opportunite),
+              onNegotiate: () => context.push('/app/chat/waouh'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class BotHomeHero extends StatefulWidget {
@@ -136,7 +177,7 @@ class _BotHomeHeroState extends State<BotHomeHero> {
         },
       ).toString(),
     );
-    _prompt.clear();
+    setState(_prompt.clear);
   }
 
   @override
@@ -145,284 +186,338 @@ class _BotHomeHeroState extends State<BotHomeHero> {
     final first = (widget.firstName ?? '').trim().split(RegExp(r'\s+')).first;
     final named = first.isNotEmpty && first.toLowerCase() != 'waouhapp';
     final count = widget.missionCount;
-    return Container(
-      key: const ValueKey('avatar-premium-home'),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: avatarPremiumBg,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Votre Avatar',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: avatarPremiumInk,
+    final compact = MediaQuery.sizeOf(context).width <= 380;
+    return Center(
+      child: Container(
+        key: const ValueKey('avatar-premium-home'),
+        constraints: const BoxConstraints(maxWidth: 414),
+        padding: EdgeInsets.all(compact ? 12 : 18),
+        decoration: BoxDecoration(
+          color: avatarPremiumBg,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Votre Avatar',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: avatarPremiumInk,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'WAOUH, à vos côtés.',
-                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Paramétrer mon avatar',
-                onPressed: widget.onAvatar,
-                icon: const Icon(Icons.tune_rounded, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Semantics(
-              label: 'Ouvrir mon avatar',
-              button: true,
-              child: GestureDetector(
-                onTap: widget.onAvatar,
-                child: LiveAvatarVisual(
-                  preset: avatar.profile.preset,
-                  expression: widget.approvalCount > 0
-                      ? BotExpression.ask
-                      : count > 0
-                      ? BotExpression.work
-                      : BotExpression.idle,
-                  size: 84,
-                  showStatusBadge: true,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 11),
-          Text(
-            '${avatar.name} · À vos côtés',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: avatarPremiumMuted,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Container(
-            key: const ValueKey('avatar-greeting-below'),
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: avatarPremiumLine),
-              boxShadow: [
-                BoxShadow(
-                  color: avatarPremiumInk.withValues(alpha: .04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Text(
-                  named ? 'Bonjour $first' : 'Bonjour',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    color: avatarPremiumInk,
+                      SizedBox(height: 3),
+                      Text(
+                        'WAOUH, à vos côtés.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: avatarPremiumMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Que puis-je faire pour vous ?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: avatarPremiumMuted),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: avatarPremiumLine),
-              borderRadius: BorderRadius.circular(19),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _prompt,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _submit(),
-                    decoration: const InputDecoration(
-                      hintText: 'Décrivez votre besoin…',
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.all(7),
-                    ),
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                ),
-                const SizedBox(width: 7),
-                IconButton.filled(
+                IconButton.outlined(
+                  tooltip: 'Paramétrer mon avatar',
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF008B87),
+                    minimumSize: const Size.square(42),
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: avatarPremiumLine),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  tooltip: 'Démarrer ma demande',
-                  onPressed: _submit,
-                  icon: const Icon(Icons.arrow_upward, size: 20),
+                  onPressed: widget.onAvatar,
+                  icon: const Icon(Icons.tune_rounded, size: 18),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: () => liveGuidedQuickAsk(
-              context, LiveQuickAskKind.demander, initialQuery: _prompt.text.trim(),
+            const SizedBox(height: 22),
+            Center(
+              child: Semantics(
+                label: 'Ouvrir mon avatar',
+                button: true,
+                child: GestureDetector(
+                  onTap: widget.onAvatar,
+                  child: LiveAvatarVisual(
+                    preset: avatar.profile.preset,
+                    expression: widget.approvalCount > 0
+                        ? BotExpression.ask
+                        : count > 0
+                        ? BotExpression.work
+                        : BotExpression.idle,
+                    size: 84,
+                    showStatusBadge: true,
+                  ),
+                ),
+              ),
             ),
-            icon: const Icon(Icons.auto_awesome_rounded, size: 17),
-            label: const Text('Confier à Bot'),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF17233A)),
-          ),
-          const SizedBox(height: 13),
-          for (final row in [
-            [
-              (
-                LiveQuickAskKind.acheter,
-                'Acheter',
-                Icons.shopping_bag_outlined,
+            const SizedBox(height: 11),
+            Text(
+              '${avatar.name} · À vos côtés',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: avatarPremiumMuted,
               ),
-              (LiveQuickAskKind.vendre, 'Vendre', Icons.sell_outlined),
-            ],
-            [
-              (LiveQuickAskKind.trouver, 'Trouver', Icons.travel_explore),
-              (
-                LiveQuickAskKind.opportunite,
-                'Opportunité',
-                Icons.rocket_launch_outlined,
+            ),
+            const SizedBox(height: 18),
+            Container(
+              key: const ValueKey('avatar-greeting-below'),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: avatarPremiumLine),
+                boxShadow: [
+                  BoxShadow(
+                    color: avatarPremiumInk.withValues(alpha: .04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-            ],
-            [
-              (LiveQuickAskKind.service, 'Service', Icons.build_outlined),
-              (
-                LiveQuickAskKind.prestation,
-                'Prestation',
-                Icons.business_center_outlined,
-              ),
-            ],
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
+              child: Column(
                 children: [
-                  for (var i = 0; i < row.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: avatarPremiumInk,
-                          side: const BorderSide(color: avatarPremiumLine),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 14,
-                          ),
-                        ),
-                        onPressed: () => _askQuick(row[i].$1),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 35,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEDF1FF),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                row[i].$3,
-                                size: 19,
-                                color: avatarPremiumBlue,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                row[i].$2,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  Text(
+                    named ? 'Bonjour $first' : 'Bonjour',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: avatarPremiumInk,
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Que puis-je faire pour vous ?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: avatarPremiumMuted),
+                  ),
                 ],
               ),
             ),
-          if (count > 0 || widget.approvalCount > 0)
+            const SizedBox(height: 20),
             Container(
-              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: const Color(0xFFEDF1FF),
-                borderRadius: BorderRadius.circular(18),
+                color: Colors.white,
+                border: Border.all(color: avatarPremiumLine),
+                borderRadius: BorderRadius.circular(19),
               ),
-              child: Material(
-                type: MaterialType.transparency,
-                child: ListTile(
-                  dense: true,
-                  onTap: widget.onMissions,
-                  leading: const Icon(
-                    Icons.circle,
-                    size: 8,
-                    color: Color(0xFF008B87),
-                  ),
-                  title: Text(
-                    widget.approvalCount > 0
-                        ? '${widget.approvalCount} décision(s) à valider'
-                        : '$count mission${count > 1 ? 's' : ''} en cours',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _prompt,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _submit(),
+                      decoration: const InputDecoration(
+                        hintText: 'Décrivez votre besoin…',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.all(7),
+                      ),
+                      style: const TextStyle(fontSize: 15),
                     ),
                   ),
-                  subtitle: const Text(
-                    'Voir l’activité et la prochaine action',
-                    style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                  const SizedBox(width: 7),
+                  IconButton.filled(
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF008B87),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    tooltip: 'Démarrer ma demande',
+                    onPressed: _prompt.text.trim().isEmpty ? null : _submit,
+                    icon: const Icon(Icons.arrow_upward, size: 20),
                   ),
-                  trailing: const Icon(Icons.north_east, size: 18),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () => liveGuidedQuickAsk(
+                context,
+                LiveQuickAskKind.demander,
+                initialQuery: _prompt.text.trim(),
+              ),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+              label: const Text('Confier à Bot'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          TextButton.icon(
-            onPressed: widget.onAvatar,
-            icon: const Icon(Icons.verified_user_outlined, size: 15),
-            label: const Text(
-              'Mon Avatar, mes règles',
-              style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+            const SizedBox(height: 13),
+            for (final row in const [
+              [
+                (
+                  LiveQuickAskKind.acheter,
+                  'Acheter',
+                  Icons.shopping_bag_outlined,
+                  Color(0xFFEDF1FF),
+                  avatarPremiumBlue,
+                ),
+                (
+                  LiveQuickAskKind.vendre,
+                  'Vendre',
+                  Icons.sell_outlined,
+                  Color(0xFFFFF2E1),
+                  Color(0xFFAD651E),
+                ),
+              ],
+              [
+                (
+                  LiveQuickAskKind.trouver,
+                  'Trouver',
+                  Icons.travel_explore,
+                  Color(0xFFE6F7F3),
+                  Color(0xFF008B87),
+                ),
+                (
+                  LiveQuickAskKind.opportunite,
+                  'Opportunité',
+                  Icons.rocket_launch_outlined,
+                  Color(0xFFF3ECFF),
+                  Color(0xFF6D3FC4),
+                ),
+              ],
+              [
+                (
+                  LiveQuickAskKind.service,
+                  'Service',
+                  Icons.build_outlined,
+                  Color(0xFFE8F4FF),
+                  Color(0xFF1667B7),
+                ),
+                (
+                  LiveQuickAskKind.prestation,
+                  'Prestation',
+                  Icons.business_center_outlined,
+                  Color(0xFFFFEEF0),
+                  Color(0xFFB4324A),
+                ),
+              ],
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < row.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: avatarPremiumInk,
+                            side: const BorderSide(color: avatarPremiumLine),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            minimumSize: Size(0, compact ? 54 : 64),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: compact ? 8 : 9,
+                              vertical: compact ? 12 : 14,
+                            ),
+                          ),
+                          onPressed: () => _askQuick(row[i].$1),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: compact ? 30 : 35,
+                                height: compact ? 30 : 35,
+                                decoration: BoxDecoration(
+                                  color: row[i].$4,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  row[i].$3,
+                                  size: 19,
+                                  color: row[i].$5,
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  row[i].$2,
+                                  style: TextStyle(
+                                    fontSize: compact ? 13 : 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (count > 0 || widget.approvalCount > 0)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDF1FF),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: ListTile(
+                    dense: true,
+                    onTap: widget.onMissions,
+                    leading: const Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: Color(0xFF008B87),
+                    ),
+                    title: Text(
+                      widget.approvalCount > 0
+                          ? '${widget.approvalCount} décision(s) à valider'
+                          : '$count mission${count > 1 ? 's' : ''} en cours',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Voir l’activité et la prochaine action',
+                      style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+                    ),
+                    trailing: const Icon(Icons.north_east, size: 18),
+                  ),
+                ),
+              ),
+            TextButton.icon(
+              onPressed: widget.onAvatar,
+              icon: const Icon(Icons.verified_user_outlined, size: 15),
+              label: const Text(
+                'Mon Avatar, mes règles',
+                style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 const defaultPublicWaouhPath = '/app/chat';
+const waouhGuidedHomePath = '/app/avatar/accueil';
 
 const waouhAuthRequiredPrefixes = <String>[
   '/app/chat/',
@@ -18,7 +19,7 @@ const waouhAuthRequiredPrefixes = <String>[
 ];
 
 bool requiresWaouhAuthentication(String path) {
-  if (path == '/app/chat' || path == '/app/presence/checkin') return false;
+  if (path == defaultPublicWaouhPath || path == waouhGuidedHomePath || path == '/app/presence/checkin') return false;
   for (final prefix in waouhAuthRequiredPrefixes) {
     if (prefix.endsWith('/')) {
       if (path.startsWith(prefix)) return true;
