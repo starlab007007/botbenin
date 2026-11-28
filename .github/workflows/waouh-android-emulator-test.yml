@@ -55,7 +55,7 @@ jobs:
     # Exercise the same native runner without access to production accounts or secrets.
     if: github.event_name == 'pull_request'
     needs: driver-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
     timeout-minutes: 15
@@ -85,22 +85,18 @@ jobs:
           path: ${{ env.OUT_DIR }}
           retention-days: 7
 
-  emulator:
+  build-qa-apk:
     needs: driver-tests
     # A deliberate QA-only production push must also exercise the published APK.
     if: github.ref == 'refs/heads/prod' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
-    environment: production
+    permissions:
+      contents: read
     timeout-minutes: 45
-    env:
-      OUT_DIR: ${{ github.workspace }}/emulator-out
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Prepare host virtualization and native emulator libraries
-        run: bash scripts/android-emulator-host.sh
 
       - name: Download published APK
         env:
@@ -150,6 +146,52 @@ jobs:
           flutter build apk --release --build-number="$BUILD_NUMBER" --target lib/live/live_app_production.dart --target-platform android-x64
           cp build/app/outputs/flutter-apk/app-release.apk ../apk/waouh-android-x64.apk
           ls -la ../apk
+          cd ../apk
+          sha256sum waouh-android-x64.apk waouh-android.json > qa-sha256.txt
+
+      - name: Transfer exact QA build to isolated runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-android-x64-qa
+          path: |
+            apk/waouh-android-x64.apk
+            apk/waouh-android.json
+            apk/qa-sha256.txt
+          if-no-files-found: error
+          retention-days: 1
+
+
+  emulator:
+    needs: build-qa-apk
+    # A deliberate QA-only production push must also exercise the published APK.
+    if: github.ref == 'refs/heads/prod' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-22.04
+    environment: production
+    timeout-minutes: 45
+    env:
+      OUT_DIR: ${{ github.workspace }}/emulator-out
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare host virtualization and native emulator libraries
+        run: bash scripts/android-emulator-host.sh
+
+      - name: Download the isolated QA build
+        uses: actions/download-artifact@v4
+        with:
+          name: waouh-android-x64-qa
+          path: apk
+
+      - name: Verify exact QA build and release metadata
+        run: |
+          set -euo pipefail
+          cd apk
+          sha256sum -c qa-sha256.txt
+          COMMIT="$(python3 -c "import json;print(json.load(open('waouh-android.json'))['commit'])")"
+          test "${#COMMIT}" -eq 40
+          echo "APK_COMMIT=$COMMIT" >> "$GITHUB_ENV"
+          mkdir -p "$OUT_DIR"
+          cp waouh-android.json qa-sha256.txt "$OUT_DIR/"
 
       - name: Create disposable test account
         id: account
