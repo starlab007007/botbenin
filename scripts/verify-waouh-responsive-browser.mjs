@@ -309,13 +309,15 @@ async function testRoot(viewport) {
     if (!hasMenu) fail(`${viewport.name}: full modules menu button missing`);
   }
 
+  // Visiteur : l'intention choisie ouvre sa demande sur l'accueil (elle survit à la connexion) ;
+  // Vendre garde son parcours dédié, derrière la connexion.
   const actionPaths = {
-    acheter: { path: "/app/avatar/acheter", auth: true },
+    acheter: { sheet: "Acheter" },
     vendre: { path: "/app/avatar/vendre", auth: true },
-    trouver: { path: "/app/chat", auth: false },
-    opportunite: { path: "/app/chat", auth: false },
-    service: { path: "/app/chat", auth: false },
-    prestation: { path: "/app/chat", auth: false },
+    trouver: { sheet: "Trouver" },
+    opportunite: { sheet: "Opportunit" },
+    service: { sheet: "Service" },
+    prestation: { sheet: "Prestation" },
   };
   for (const [action, expected] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
@@ -328,7 +330,12 @@ async function testRoot(viewport) {
     if (!clicked) fail(`${viewport.name}: Avatar action ${action} is not clickable`);
     await sleep(450);
     const target = await evaluate(`({ path: location.pathname, search: location.search })`);
-    if (expected.auth) {
+    if (expected.sheet) {
+      const sheet = await evaluate(`(document.querySelector('[role="dialog"]')?.textContent || "")`);
+      if (target.path !== "/" || !String(sheet).includes(expected.sheet)) {
+        fail(`${viewport.name}: ${action} should open its request sheet on the home page; got ${target.path}${target.search}`);
+      }
+    } else if (expected.auth) {
       const next = new URLSearchParams(target.search).get("next");
       if (!target.path.startsWith("/app/auth") || next !== expected.path) {
         fail(`${viewport.name}: ${action} should require auth and preserve ${expected.path}; got ${target.path}${target.search}`);
