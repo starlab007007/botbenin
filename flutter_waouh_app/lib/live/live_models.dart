@@ -914,7 +914,10 @@ class LiveNotification {
     final value = liveText(
       smart['route'] ?? payload['target_route'] ?? payload['action_url'],
     ).trim();
-    return value.startsWith('/app/') && !value.startsWith('//') ? value : null;
+    if (value.startsWith('/app/') && !value.startsWith('//')) return value;
+    final roomRoute = liveText(payload['url']);
+    return RegExp(r'^/app/deal-room\?room_id=[0-9a-f-]{36}(&decision_version=[1-9][0-9]*)?$')
+        .hasMatch(roomRoute) ? roomRoute : null;
   }
 
   List<LiveSmartAction> get smartActions {

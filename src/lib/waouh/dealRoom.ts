@@ -32,6 +32,7 @@ export function pollDelay(room:DealRoom|null):number{
  const status=room.agreement?.status;
  if(room.closed||status==='completed')return 60000;
  if(status==='accepted'&&room.agreement?.terms?.delivery_mode==='delivery'&&room.delivery?.status!=='delivered')return 5000;
+ if(status==='proposed')return 3000;
  if(room.control_mode==='bot'&&status!=='accepted')return 3000;
  return 10000;
 }

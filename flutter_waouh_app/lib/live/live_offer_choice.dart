@@ -249,7 +249,7 @@ LiveChoiceCost choiceCost(NexusDiscoveryItem o) {
       break;
     }
   }
-  if (delivery == null && e['delivery_included'] == true) delivery = 0;
+  if (e['delivery_included'] == true) delivery = 0;
   final ranged =
       o.priceMin != null &&
       o.priceMax != null &&

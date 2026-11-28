@@ -106,6 +106,7 @@ class WaouhOfferCard extends StatelessWidget {
     this.priorityFacts = const {},
     this.city,
     this.verified = false,
+    this.contactLabel,
     this.best = false,
     this.own = false,
     this.busy = false,
@@ -124,7 +125,7 @@ class WaouhOfferCard extends StatelessWidget {
   final String? photo;
   final List<String> photos;
   final Map<String,String> priorityFacts;
-  final String? city;
+  final String? city, contactLabel;
   final bool verified, best, own, busy;
   final VoidCallback onWant;
   final VoidCallback? onBot;
@@ -146,6 +147,8 @@ class WaouhOfferCard extends StatelessWidget {
         onTap: onDetails,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (gallery.isNotEmpty) _PremiumOfferPhotos(photos: gallery, title: title),
+          if (contactLabel case final label?)
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
           if (best || verified)
             Padding(padding: const EdgeInsets.fromLTRB(14,12,14,0),child: Wrap(spacing: 8,runSpacing: 4,children: [
               if (best) const Text('Le choix de Bot',style: TextStyle(color: Color(0xFF8A5708),fontSize: 12,fontWeight: FontWeight.w800)),
@@ -279,11 +282,12 @@ class WaouhBotBar extends StatelessWidget {
 
 /// Accord simplifié : montant en gros, pastille, Valider / Modifier.
 class WaouhAgreementPanel extends StatelessWidget {
-  const WaouhAgreementPanel({super.key, required this.amount, required this.tag, this.waitingOther = false, this.busy = false, this.onValidate, this.onEdit});
+  const WaouhAgreementPanel({super.key, required this.amount, required this.tag, this.waitingOther = false, this.busy = false, this.onValidate, this.onEdit, this.validateLabel = 'Valider'});
   final String amount;
   final WaouhPriceTag tag;
   final bool waitingOther, busy;
   final VoidCallback? onValidate, onEdit;
+  final String validateLabel;
   @override
   Widget build(BuildContext context) {
     return _Panel(children: [
@@ -303,7 +307,7 @@ class WaouhAgreementPanel extends StatelessWidget {
         Row(children: [
           if (onEdit != null) Expanded(child: _Big(label: 'Modifier', icon: Icons.edit_rounded, onTap: busy ? null : onEdit, outlined: true)),
           if (onEdit != null && onValidate != null) const SizedBox(width: 10),
-          if (onValidate != null) Expanded(child: _Big(label: 'Valider', icon: Icons.check_rounded, onTap: busy ? null : onValidate)),
+          if (onValidate != null) Expanded(child: _Big(label: validateLabel, icon: Icons.check_rounded, onTap: busy ? null : onValidate)),
         ]),
     ]);
   }

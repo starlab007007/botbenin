@@ -69,7 +69,7 @@ LiveFollowUpView liveFollowUpView(Map<String, dynamic>? room) {
   final events = room?['events'] is List ? (room!['events'] as List).whereType<Map>().toList() : <Map>[];
   final messages = room?['messages'] is List ? room!['messages'] as List : const [];
   final closed = room?['closed'] == true || status == 'completed';
-  final agreed = closed || status == 'accepted';
+  final agreed = status == 'accepted' || status == 'completed';
   final paused = room?['control_mode'] == 'paused';
   final contacted = room?['provider_joined'] == true ||
       room?['external_contact'] != null ||
@@ -91,7 +91,10 @@ LiveFollowUpView liveFollowUpView(Map<String, dynamic>? room) {
               ? 'Bot prépare le premier contact'
               : !negotiating
                   ? 'En attente de la réponse du vendeur'
-                  : 'Bot négocie pour vous';
+                  : status == 'proposed'
+                    ? (agreement is Map && agreement['owner_accepted_at'] != null
+                      ? 'En attente de l’interlocuteur' : 'Votre confirmation est attendue')
+                    : 'Bot négocie pour vous';
   final hint = agreed
       ? 'Il ne reste qu’à finaliser ensemble.'
       : paused
