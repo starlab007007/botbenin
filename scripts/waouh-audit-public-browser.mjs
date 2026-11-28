@@ -67,7 +67,7 @@ try{
      text:(document.body?.innerText||'').replace(/\s+/g,' ').trim().slice(0,240)}));}catch{}
     try{entry.screenshots.push(await capture(page,device+'-'+action+'-03-erreur'));}catch{}
    }finally{entry.blockedWrites=blocked.length;entry.blockedPaths=[...new Set(blocked)].slice(0,12);results.push(entry);await context.close();}
-   console.log(device+' '+action+' '+entry.status+(entry.reason?' | '+entry.reason.split('\n')[0]:'')+(entry.diagnosis?' | '+JSON.stringify(entry.diagnosis):'')+(entry.entryVisibleMs!=null?' | entry visible after '+entry.entryVisibleMs+' ms':'')+(blocked.length?' | blocked '+JSON.stringify(entry.blockedPaths):''));
+   console.log(device+' '+action+' '+entry.status+(entry.path?' -> '+entry.path+(entry.auth?' (sign-in form)':''):'')+(entry.reason?' | '+entry.reason.split('\n')[0]:'')+(entry.diagnosis?' | '+JSON.stringify(entry.diagnosis):'')+(entry.entryVisibleMs!=null?' | entry visible after '+entry.entryVisibleMs+' ms':'')+(blocked.length?' | blocked '+JSON.stringify(entry.blockedPaths):''));
    await writeFile(out+'/report.json',JSON.stringify({generated_at:new Date().toISOString(),target:base,scope:'public production read-only; no sign-in, no publication, no negotiation',results},null,2));
   }
  }
