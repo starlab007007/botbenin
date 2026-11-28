@@ -8,7 +8,7 @@ import {WaouhCityField} from './WaouhCityField';
 import './smart-sale.css';
 
 const vague=(value:string)=>!value.trim()||/^(mon|ma|un|une|le|la)?\s*(téléphone|telephone|moto|ordinateur|produit|article)\s*$/i.test(value.trim());
-export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Record<string,unknown>;onPublished:(sale:PublishedSale)=>void;onConnect?:()=>void}){
+export function WaouhSmartSale({initial={},onPublished,onConnect,beforePublish,publishLabel}:{initial?:Record<string,unknown>;onPublished:(sale:PublishedSale)=>void;onConnect?:()=>void;beforePublish?:()=>boolean;publishLabel?:string}){
  const {user}=useAuth();
  const [draft,setDraft]=useState<SaleDraft>(()=>newSaleDraft(initial)),[suggestions,setSuggestions]=useState<SaleSuggestions>({});
  const [analyzing,setAnalyzing]=useState(false),[uploading,setUploading]=useState(false),[publishing,setPublishing]=useState(false),[notice,setNotice]=useState(''),[attempted,setAttempted]=useState(false),[saved,setSaved]=useState(false);
@@ -66,6 +66,7 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
  const submit=async()=>{
   if(submitLock.current)return;
   if(!user){onConnect?.();return;}
+  if(beforePublish?.()===false)return;
   if(published.current){openPublished();return;}
   setAttempted(true);if(!ready)return;
   submitLock.current=true;
@@ -86,6 +87,6 @@ export function WaouhSmartSale({initial={},onPublished,onConnect}:{initial?:Reco
   <div className={`wss-place ${attempted&&!draft.city?'invalid':''}`}><label>Lieu</label><fieldset disabled={publishing||saved}><WaouhCityField value={draft.location_label||[draft.district,draft.city].filter(Boolean).join(', ')} onChange={value=>{if(submitLock.current||published.current)return;dirty.current.add('city');setDraft(d=>({...d,...salePlace(value),location_label:value,latitude:null,longitude:null}));}} placeholder="Ville ou quartier" onCoordinatesChange={coords=>{if(!submitLock.current&&!published.current)setDraft(d=>({...d,latitude:coords?.latitude??null,longitude:coords?.longitude??null}));}}/></fieldset></div>
   <details className="wss-extra"><summary>Précisions</summary><textarea aria-label="Précisions sur le produit" maxLength={2000} value={draft.description} disabled={publishing||saved} placeholder="Modèle, défaut à signaler, accessoires…" onChange={e=>update('description',e.target.value)}/><div className="wss-fields"><label className="wss-field">Quantité<input aria-label="Quantité" type="number" min={0.001} step="any" disabled={publishing||saved} value={draft.quantity??''} onChange={e=>update('quantity',Number(e.target.value)||null)}/></label><label className="wss-field">Unité<input aria-label="Unité" disabled={publishing||saved} value={draft.unit} placeholder="pièce, kg, tonne…" onChange={e=>update('unit',e.target.value)}/></label></div></details>
   {notice&&<p className="wss-notice" role="status">{notice}</p>}
-  <div className="wss-footer"><button type="button" className="wss-publish" disabled={uploading||publishing||draft.title.trim().length<3} onClick={()=>void submit()}>{publishing?<><Loader2 className="animate-spin"/>Publication…</>:saved?'Reprendre la recherche':user?'Publier et trouver':'Continuer'}</button><small>Vérifiez les suggestions avant de publier.</small></div>
+  <div className="wss-footer"><button type="button" className="wss-publish" disabled={uploading||publishing||draft.title.trim().length<3} onClick={()=>void submit()}>{publishing?<><Loader2 className="animate-spin"/>Publication…</>:saved?(publishLabel?'Réessayer le mandat':'Reprendre la recherche'):user?(publishLabel??'Publier et trouver'):'Continuer'}</button><small>Vérifiez les suggestions avant de publier.</small></div>
  </div>;
 }

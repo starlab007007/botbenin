@@ -2,7 +2,7 @@ import type {MissionKind,MissionContext} from '../../../supabase/functions/_shar
 import {autonomyWindowOpen,normalizeAvatarAutonomy} from '../../../supabase/functions/_shared/waouh-avatar-autonomy-settings';
 import { invokeWaouhAgentic } from './agenticClient';
 import type { NexusAvatarMandate } from './nexus';
-export type AutomaticSearch={goal:string;city?:string;budget_max?:number;mode:'buy'|'sell'|'ask';article_id?:string;comparison_priority?:'price'|'availability';discovery_kind?:MissionKind;mission_context?:MissionContext;confirmed_watch?:boolean};
+export type AutomaticSearch={goal:string;city?:string;budget_max?:number;mode:'buy'|'sell'|'ask';article_id?:string;comparison_priority?:'price'|'availability';discovery_kind?:MissionKind;mission_context?:MissionContext;confirmed_watch?:boolean;confirmed_entry_delegation?:boolean;completion_goal?:'recommendations'|'agreement'|'transaction'};
 export type AutomaticMission={mandate:NexusAvatarMandate|null;skipped?:'paused'|'approval_required'|'article_required'};
 const pending=new Map<string,Promise<AutomaticMission>>();
 /** Coalesce concurrent mounts; the server additionally deduplicates across devices. */

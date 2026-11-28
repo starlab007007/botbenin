@@ -382,6 +382,7 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
   };
 
   const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
+  const [initialQuery, setInitialQuery] = useState("");
   /** Recherche guidée : la demande part par le moteur du Chat, comme une demande écrite dans le Chat. */
   const goGuided = (ask: GuidedAskInput) => { if (queueGuidedAsk(ask)) navigate(guidedChatPath()); };
 
@@ -450,6 +451,6 @@ export default function WaouhAvatarHomePage({ onAsk, settingsOnly = false }: Wao
       : ["Trouve-moi un bon téléphone à Cotonou", "Je veux vendre un produit", "Aide-moi à trouver un service"];
 
   if (settingsOnly) return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhAutonomySettings key={user?.id??'guest'} name={profile.name} appearance={<><AvatarSettingsFields draft={draft} setDraft={setDraft}/><Button className="mt-4 w-full" onClick={storeProfile}>Enregistrer ma présentation</Button></>}/></main>;
-  return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhPremiumAvatar name={profile.name} firstName={mobileProfile?.full_name} missions={summary.missions} approvals={summary.approvals} onAction={kind=>{if(kind==='vendre'){if(user)goGuided({kind});else navigate('/app/avatar/vendre');}else setQuickAsk(kind);}} onSettings={()=>navigate('/app/avatar')} onMissions={()=>navigate('/app/missions')} onAsk={value=>user?goGuided({kind:'trouver',q:value,free:true}):navigate(`/app/nexus?${new URLSearchParams({q:value,go:'1',kind:'trouver',mode:'auto'})}`)}/><WaouhQuickAsk kind={quickAsk} onClose={()=>setQuickAsk(null)} onSubmit={path=>{setQuickAsk(null);navigate(path);}} onAsk={ask=>{setQuickAsk(null);goGuided(ask);}}/></main>;
+  return <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28"><WaouhPremiumAvatar name={profile.name} firstName={mobileProfile?.full_name} missions={summary.missions} approvals={summary.approvals} onDelegateAsk={value=>{setInitialQuery(value);setQuickAsk("demander");}} onAction={kind=>{setInitialQuery("");if(kind==='vendre'){if(user)setQuickAsk(kind);else navigate('/app/avatar/vendre');}else setQuickAsk(kind);}} onSettings={()=>navigate('/app/avatar')} onMissions={()=>navigate('/app/missions')} onAsk={value=>user?goGuided({kind:'trouver',q:value,free:true}):navigate(`/app/nexus?${new URLSearchParams({q:value,go:'1',kind:'trouver',mode:'auto'})}`)}/><WaouhQuickAsk initialQuery={initialQuery} kind={quickAsk} onClose={()=>setQuickAsk(null)} onSubmit={path=>{setQuickAsk(null);navigate(path);}} onAsk={ask=>{setQuickAsk(null);goGuided(ask);}}/></main>;
 /* Previous composition retained in git history. */
 }

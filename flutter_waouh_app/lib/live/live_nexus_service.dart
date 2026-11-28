@@ -1221,12 +1221,16 @@ class LiveNexusService {
     String? discoveryKind,
     Map<String, dynamic>? missionContext,
     bool confirmedWatch = false,
+    bool confirmedEntryDelegation = false,
+    String? completionGoal,
     required String expectedOwner,
   }) => _invoke('nexus.mandate.create', {
     'automatic_follow': true,
     if (discoveryKind != null) 'discovery_kind': discoveryKind,
     if (missionContext != null) 'mission_context': missionContext,
     if (confirmedWatch) 'confirmed_watch': true,
+    if (confirmedEntryDelegation) 'confirmed_entry_delegation': true,
+    if (completionGoal != null) 'completion_goal': completionGoal,
     'goal': goal,
     'mode': mode,
     if (city != null && city.trim().isNotEmpty) 'city': city,
@@ -1235,6 +1239,40 @@ class LiveNexusService {
     'comparison_priority': priority,
     'origin_surface': 'flutter_minimal_search',
   }, expectedOwner);
+
+  Future<String> startGuidedMission({
+    required String goal,
+    required String mode,
+    required String expectedOwner,
+    String? city,
+    double? budgetMax,
+    String? discoveryKind,
+    String? articleId,
+    Map<String, dynamic>? missionContext,
+    required String completionGoal,
+  }) async {
+    final result = await followSearch(
+      goal: goal,
+      mode: mode,
+      city: city,
+      budgetMax: budgetMax,
+      discoveryKind: discoveryKind,
+      articleId: articleId,
+      missionContext: missionContext,
+      expectedOwner: expectedOwner,
+      completionGoal: completionGoal,
+      confirmedEntryDelegation: true,
+    );
+    if (result['skipped'] == 'paused') {
+      throw const NexusApiException('Bot est en pause. Réactivez-le dans les réglages de l’Avatar.');
+    }
+    final mandate = result['mandate'];
+    if (mandate is! Map || mandate['id'] is! String ||
+        (mandate['metadata'] as Map?)?['entry_delegation'] != true) {
+      throw const NexusApiException('La mission n’a pas été activée. Réessayez.');
+    }
+    return mandate['id'] as String;
+  }
 
   Future<Map<String, dynamic>> createMandate({
     String? expectedOwner,

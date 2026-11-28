@@ -151,8 +151,6 @@ export default function ChatListScreen() {
       else setQuickAsk(kind);
       return;
     }
-    // Vendre : la fiche de vente du Chat s'ouvre directement.
-    if (kind === "vendre") { sendGuided({ kind }); return; }
     setQuickAsk(kind);
   };
 

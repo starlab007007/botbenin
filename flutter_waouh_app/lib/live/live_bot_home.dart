@@ -290,6 +290,15 @@ class _BotHomeHeroState extends State<BotHomeHero> {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: () => liveGuidedQuickAsk(
+              context, LiveQuickAskKind.demander, initialQuery: _prompt.text.trim(),
+            ),
+            icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+            label: const Text('Confier à Bot'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF17233A)),
+          ),
           const SizedBox(height: 13),
           for (final row in [
             [
