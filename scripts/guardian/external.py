@@ -12,6 +12,11 @@ def main():
     observations.append({'component':'runtime','status':'healthy' if working else 'degraded','cause':'OK' if working else 'OBSERVATION_STALE','observed_at':now()})
     render=json.loads(Path(sys.argv[2]).read_text())['ok'];observations.append({'component':'web_render','status':'healthy' if render else 'down','cause':'OK' if render else 'RENDER_FAILED','observed_at':now()})
     observations.append({'component':'external_monitor','status':'healthy','cause':'OK','observed_at':now()})
-    request_json(CONTROL,{'action':'guardian.ingest','report_id':str(uuid.uuid4()),'observations':observations},token,timeout=20)
+    try:
+        ack=request_json(CONTROL,{'action':'guardian.ingest','report_id':str(uuid.uuid4()),'observations':observations},token,timeout=20)
+        if not isinstance(ack,dict) or ack.get('ok') is not True:
+            print('GUARDIAN: external report not acknowledged');return 1
+    except Exception:
+        print('GUARDIAN: external ingestion unavailable');return 1
     passed=all(x['status']=='healthy' for x in observations);print('GUARDIAN: external controls '+('passed' if passed else 'require attention'));return 0 if passed else 1
 if __name__=='__main__': sys.exit(main())
