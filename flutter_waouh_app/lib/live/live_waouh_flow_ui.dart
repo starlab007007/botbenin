@@ -282,11 +282,12 @@ class WaouhBotBar extends StatelessWidget {
 
 /// Accord simplifié : montant en gros, pastille, Valider / Modifier.
 class WaouhAgreementPanel extends StatelessWidget {
-  const WaouhAgreementPanel({super.key, required this.amount, required this.tag, this.waitingOther = false, this.busy = false, this.onValidate, this.onEdit});
+  const WaouhAgreementPanel({super.key, required this.amount, required this.tag, this.waitingOther = false, this.busy = false, this.onValidate, this.onEdit, this.validateLabel = 'Valider'});
   final String amount;
   final WaouhPriceTag tag;
   final bool waitingOther, busy;
   final VoidCallback? onValidate, onEdit;
+  final String validateLabel;
   @override
   Widget build(BuildContext context) {
     return _Panel(children: [
@@ -306,7 +307,7 @@ class WaouhAgreementPanel extends StatelessWidget {
         Row(children: [
           if (onEdit != null) Expanded(child: _Big(label: 'Modifier', icon: Icons.edit_rounded, onTap: busy ? null : onEdit, outlined: true)),
           if (onEdit != null && onValidate != null) const SizedBox(width: 10),
-          if (onValidate != null) Expanded(child: _Big(label: 'Valider', icon: Icons.check_rounded, onTap: busy ? null : onValidate)),
+          if (onValidate != null) Expanded(child: _Big(label: validateLabel, icon: Icons.check_rounded, onTap: busy ? null : onValidate)),
         ]),
     ]);
   }
