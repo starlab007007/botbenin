@@ -161,7 +161,8 @@ jobs:
             src/components/waouh/__tests__/interest-entry.test.tsx \
             src/components/waouh/__tests__/interest-chat-tab.test.tsx \
             src/components/waouh/__tests__/offer-actions.test.tsx \
-            src/components/waouh/__tests__/buyerInterestOnce.test.ts
+            src/components/waouh/__tests__/buyerInterestOnce.test.ts \
+            src/pages/waouh/__tests__/avatar-home-guest-entry.test.tsx
 
       - name: Deno
         uses: denoland/setup-deno@v2
