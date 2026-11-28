@@ -1,6 +1,7 @@
 """Contrôle de mise en production WAOUH : fonctions déployées, moteur WhatsApp, parcours réels A/B/C,
 réponses guidées, clôture, cœur agentique. Aucun envoi vers un tiers : numéros de test 2299000xxxx et sessions web jetables."""
 import json, os, sys, time, uuid, urllib.request, urllib.error
+from waouh_readiness_evidence import channel_evidence_ok
 
 project = os.environ['SUPABASE_PROJECT_REF']
 management = 'https://api.supabase.com/v1/projects/' + project
@@ -37,7 +38,7 @@ required = ['waouh-channel-in', 'waouh-channel-in-secure', 'waouh-webhook', 'wah
             'waouh-outbound-dispatch', 'waouh-negotiation-router', 'waouh-deal-ops', 'waouh-notify-dispatch',
             'waouh-studio-e2e-v21465', 'waouh-e2e-v3-relay', 'waouh-opportunity-worker', 'waouh-commerce-action', 'waouh-e2e-test']
 for slug in required: check(slug in active, 'fonction active : ' + slug)
-check('waouh-agentic-core' not in active or True, 'cœur agentique servi par l\'alias waouh-studio-e2e-v21465')
+check('waouh-studio-e2e-v21465' in active, 'cœur agentique servi par l\'alias waouh-studio-e2e-v21465')
 
 # 2. Moteur WhatsApp central
 st, ctl = request(base + 'waouh-waha-control', {'action': 'central-status'}, H)
@@ -60,11 +61,15 @@ check(st == 200 and ('Aucune discussion terminée' in reply or 'Discussion ferm�
 # 5. Parcours réels A / B / C (vrais handlers)
 for letter in ['A', 'B', 'C']:
     st, res = request(base + 'waouh-e2e-test', {'mode': 'parcours', 'parcours': [letter]}, H, timeout=170)
-    check(st == 200 and isinstance(res, dict), f'exécution du parcours {letter}', f'HTTP {st}')
-    if isinstance(res, dict):
-        for p in res.get('results', []):
+    check(channel_evidence_ok(st, res, letter), f'preuves complètes du parcours canal {letter}', f'HTTP {st}')
+    if isinstance(res, dict) and isinstance(res.get('results'), list):
+        for p in res['results']:
+            if not isinstance(p, dict) or not isinstance(p.get('steps'), list):
+                continue
             print(f"\n— Parcours {p['parcours']} · {p['label']} → {p['status']}")
             for s_ in p['steps']:
+                if not isinstance(s_, dict):
+                    continue
                 line = f"   {'✅' if s_['status']=='ok' else ('⚠️' if s_['status']=='warn' else '❌')} {letter}.{s_['step']} : {s_['got']}"[:230]
                 print(line); report.append(line)
             check(p['status'] == 'ok', f"parcours {p['parcours']} ({p['label']})")
@@ -74,7 +79,7 @@ if os.environ.get('LIVE_WHATSAPP') == '1':
     t0 = time.time()
     st, res = request(base + 'waouh-e2e-test', {'mode': 'parcours', 'parcours': ['A'], 'cleanup': True,
         'state': {'sellerPhone': '279319607771317@lid', 'buyerPhone': '2290191299191'}}, H, timeout=170)
-    check(st == 200 and isinstance(res, dict), 'parcours WhatsApp RÉEL (vos deux numéros)', f'HTTP {st}')
+    check(channel_evidence_ok(st, res, 'A'), 'preuves complètes du parcours WhatsApp RÉEL', f'HTTP {st}')
     if isinstance(res, dict):
         for p in res.get('results', []):
             for s_ in p['steps']:
