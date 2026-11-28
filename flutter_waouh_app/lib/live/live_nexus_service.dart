@@ -847,6 +847,7 @@ class LiveNexusService {
                 : [
                     'nexus.global_discovery',
                     'nexus.mandate.create',
+                    'nexus.mandate.start_guided',
                     'nexus.sale.analyze',
                   ].contains(action)
                 ? 120
@@ -1224,7 +1225,7 @@ class LiveNexusService {
     bool confirmedEntryDelegation = false,
     String? completionGoal,
     required String expectedOwner,
-  }) => _invoke('nexus.mandate.create', {
+  }) => _invoke(confirmedEntryDelegation ? 'nexus.mandate.start_guided' : 'nexus.mandate.create', {
     'automatic_follow': true,
     if (discoveryKind != null) 'discovery_kind': discoveryKind,
     if (missionContext != null) 'mission_context': missionContext,

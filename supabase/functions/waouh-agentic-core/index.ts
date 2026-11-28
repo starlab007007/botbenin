@@ -1553,7 +1553,7 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const ownerId = authUser?.id ?? (publicRead || guestAction ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
 
-    if(!await modulePolicyAllowed(sb,modulesForAction(action),ownerId||null,serviceCall||payload.automatic_follow===true))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
+    if(!await modulePolicyAllowed(sb,modulesForAction(action),ownerId||null,serviceCall||action==='nexus.mandate.start_guided'||payload.automatic_follow===true))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
 
     if (exchangeAction) return jsonResponse({ ok:true, data:await handleExternalExchange(sb, action, payload, ownerId) });
 
@@ -2733,12 +2733,16 @@ Retourne uniquement JSON:
         if (error) throw new ApiError(500, "owned_articles_failed");
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
-      case "nexus.mandate.create": {
+      case "nexus.mandate.create":
+      case "nexus.mandate.start_guided": {
         const paidSources=bool(payload.use_paid_sources,false);
         const {data:avatarPrefs,error:avatarPrefsError}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
         if(avatarPrefsError)throw new ApiError(503,'avatar_rules_unavailable');
-        const automatic=payload.automatic_follow===true;
-        const entryDelegation=automatic&&payload.confirmed_entry_delegation===true;
+        const entryDelegation=action==='nexus.mandate.start_guided';
+        if(entryDelegation&&payload.confirmed_entry_delegation!==true){
+          throw new ApiError(422,'mandate_confirmation_required','Confirmez la délégation de cette mission.');
+        }
+        const automatic=entryDelegation||payload.automatic_follow===true;
         const discoveryOnly=entryDelegation&&(payload.discovery_kind==='opportunity'||payload.completion_goal==='recommendations');
         const comparisonPriority=pickEnum(payload.comparison_priority,'comparison_priority',['price','availability'] as const,'price');
         const storedRules=automatic?(avatarPrefs?.autonomy_settings??{}):(payload.autonomy_settings??avatarPrefs?.autonomy_settings);
