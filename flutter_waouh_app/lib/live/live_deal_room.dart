@@ -174,7 +174,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
           reviewVersion=int.tryParse(widget.decisionVersion!);
         }
       }
-    }else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
+    }else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&!(room!['is_owner']==true&&room!['control_mode']=='bot')&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
   }catch(e){if(mounted&&generation==v)setState(()=>error=roomError(e));}finally{refreshing=false;}
  }
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
@@ -201,7 +201,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
   final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();
   // « Intéressé » : la proposition d'offre s'ouvre aussitôt (prix de l'annonce prérempli), sans étape intermédiaire.
-  if(d!=null&&!delegate&&mounted&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose'))await propose(amount:item.priceMin??item.priceMax);}
+  if(d!=null&&!delegate&&mounted&&room!=null&&!(d['is_owner']==true&&d['control_mode']=='bot')&&(room!['allowed_actions'] as List? ?? []).contains('propose'))await propose(amount:item.priceMin??item.priceMax);}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
  String money(dynamic n) {
   final value=num.tryParse('$n');
@@ -450,7 +450,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    Text('Version $version'),
    for(final entry in (agreement['terms'] as Map).entries.where((e)=>!['workflow_version','delivery_fee'].contains(e.key)))
     Text('${termLabels[entry.key]??'Condition'} · ${termValue('${entry.key}',entry.value)}'),
-   if(agreementFees(data)>0) Text('Frais · ${money(agreementFees(data))}'),
+   if(agreementFees(data)>0) Text('Frais retenus · ${money(agreementFees(data))}'),
    Text('Total · ${money(agreementAmount(data))}',style:Theme.of(context).textTheme.titleMedium),
    if(limit!=null) Text(limit),
    if(changed) button('Relire la version $version',()=>setState(()=>reviewVersion=version),primary:true)
@@ -531,7 +531,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     if(r['provider_joined']!=true&&r['is_owner']==true&&r['external_contact']==null)...[button('Confirmer la prise de contact',()=>act('contact',{'confirmed':true})),if(guide?['action']!='invite')button('Préparer et copier l’invitation',copyInvite),button('Révoquer l’invitation',()=>act('revoke_invite'))],
     if(a==null&&r['initial_price_proposal'] is Map&&r['initial_price_proposal']['amount']!=null)card([const Text('Prix proposé par Bot'),Text(money(r['initial_price_proposal']['amount'])),Text('Proposition ${r['initial_price_proposal']['revision']} · Conditions à préciser avant l’accord.')]),
     if(allowed.contains('rating'))card([const Text('Évaluer cet échange'),Wrap(spacing:8,children:[for(var score=1;score<=5;score++)OutlinedButton(onPressed:busy?null:()=>act('rating',{'rating':score}),child:Text('$score ★'))])]),
-    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':a['status']=='rejected'?'Proposition refusée':canConfirmAgreement(r)?'Votre confirmation est attendue':'En attente de l’interlocuteur',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(agreementAmount(r)),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),if(a['status']!='accepted'&&a['status']!='completed')...[for(final v in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??''}'))])if(v!=null)LiveMarketVerdictLine(verdict:v,referenceLabel:'prix du marché')else for(final w in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['price']??''}'))])if(w!=null)LiveMarketVerdictLine(verdict:w,referenceLabel:'prix affiché')],Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'),if(a['status']=='accepted'&&(a['terms'] as Map)['delivery_mode']=='delivery')deliveryBox(),agreementProgress(r,a),
+    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':a['status']=='rejected'?'Proposition refusée':canConfirmAgreement(r)?'Votre confirmation est attendue':'En attente de l’interlocuteur',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(agreementAmount(r)),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),if(a['status']!='accepted'&&a['status']!='completed')...[for(final v in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??''}'))])if(v!=null)LiveMarketVerdictLine(verdict:v,referenceLabel:'prix du marché')else for(final w in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['price']??''}'))])if(w!=null)LiveMarketVerdictLine(verdict:w,referenceLabel:'prix affiché')],Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>!['workflow_version','delivery_fee'].contains(e.key)))Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'),if(agreementFees(r)>0)Text('Frais retenus · ${money(agreementFees(r))}'),if(a['status']=='accepted'&&(a['terms'] as Map)['delivery_mode']=='delivery')deliveryBox(),agreementProgress(r,a),
 
      if(a['status']=='accepted')...[
       if(guide==null)const Text('Réception et paiement à confirmer ensuite.'),

@@ -11,7 +11,7 @@ export function choicePriceConfirmed(o:ChoiceOffer){const e=o.evidence??{};retur
 /** Unknown shipping never becomes free shipping; ranges are not exact totals. */
 export function choiceCost(o:ChoiceOffer){
   const e=o.evidence??{},price=choicePrice(o);
-  const delivery=[e.delivery_fee,e.delivery_cost,e.shipping_cost].find(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0);
+  const delivery=[e.delivery_fee,e.delivery_cost,e.shipping_cost].find((v):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=0);
   const shipping=e.delivery_included===true?0:delivery??null;
   const ranged=positive(o.price_min)!==null&&positive(o.price_max)!==null&&o.price_min!==o.price_max;
   return {price,delivery:shipping,total:price!==null&&shipping!==null&&!ranged?price+shipping:null};
