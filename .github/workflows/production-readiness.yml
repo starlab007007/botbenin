@@ -1,5 +1,12 @@
 name: WAOUH production readiness
 on:
+  pull_request:
+    branches: [prod]
+    paths:
+      - 'scripts/verify-production-readiness.py'
+      - 'scripts/waouh_readiness_evidence.py'
+      - 'scripts/tests/test_waouh_readiness_evidence.py'
+      - '.github/workflows/production-readiness.yml'
   workflow_dispatch:
     inputs:
       live_whatsapp:
@@ -9,9 +16,18 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: waouh-production-readiness
+  group: waouh-production-readiness-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  evidence-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m py_compile scripts/verify-production-readiness.py scripts/waouh_readiness_evidence.py
+      - run: PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -p test_waouh_readiness_evidence.py
   readiness:
+    needs: evidence-tests
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: production
