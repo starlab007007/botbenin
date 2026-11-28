@@ -29,6 +29,17 @@ jobs:
           cp scripts/waouh-audit-public-browser.mjs /tmp/waouh-audit/
       - name: Capture six actual production entry paths on three screen sizes
         run: node /tmp/waouh-audit/waouh-audit-public-browser.mjs
+      - name: Publish verdicts in job summary
+        if: always()
+        run: |
+          node -e '
+          const fs=require("fs"),f=process.env.AUDIT_OUT+"/report.json";
+          if(!fs.existsSync(f)){fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"No browser report produced.\n");process.exit(0);}
+          const r=JSON.parse(fs.readFileSync(f,"utf8")).results;
+          const esc=v=>String(v??"").replace(/[|\n]/g," ").slice(0,200);
+          let md="| Écran | Entrée | Verdict | Route | Raison / diagnostic |\n|---|---|---|---|---|\n";
+          for(const x of r)md+=`| ${x.device} | ${x.action} | ${x.status} | ${esc(x.path||x.diagnosis?.url)} | ${esc((x.reason||"")+" "+(x.diagnosis?JSON.stringify(x.diagnosis):""))} |\n`;
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,md);'
       - name: Upload real browser screenshots and verdicts
         if: always()
         uses: actions/upload-artifact@v4

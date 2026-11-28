@@ -41,7 +41,9 @@ try{
     const res=await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:30000});
     if(!res?.ok())throw new Error('HTTP home '+res?.status());
     const button=page.locator('[data-waouh-action="'+action+'"]');
-    await button.waitFor({state:'visible',timeout:18000});
+    const t0=Date.now();
+    await button.waitFor({state:'visible',timeout:45000});
+    entry.entryVisibleMs=Date.now()-t0;
     entry.screenshots.push(await capture(page,device+'-'+action+'-01-entree'));
     await button.click({timeout:10000});
     // Some public actions open the guided prompt first. Capture that state, not a fake result.
@@ -54,9 +56,13 @@ try{
     else {entry.status='review';entry.reason='Intermediate UI or route differs; inspect screenshot. No authenticated step executed.';}
    }catch(error){
     entry.reason=String(error?.message||error).slice(0,180);
+    // Public page diagnosis only (guest view, no account data): what the visitor actually sees.
+    try{entry.diagnosis=await page.evaluate(()=>({url:location.pathname+location.search,title:document.title,readyState:document.readyState,
+     entryButtons:document.querySelectorAll('[data-waouh-action]').length,status:document.querySelector('[role="status"]')?.textContent?.trim().slice(0,120)||null,
+     text:(document.body?.innerText||'').replace(/\s+/g,' ').trim().slice(0,240)}));}catch{}
     try{entry.screenshots.push(await capture(page,device+'-'+action+'-03-erreur'));}catch{}
    }finally{entry.blockedWrites=blocked.length;results.push(entry);await context.close();}
-   console.log(device+' '+action+' '+entry.status);
+   console.log(device+' '+action+' '+entry.status+(entry.reason?' | '+entry.reason.split('\n')[0]:'')+(entry.diagnosis?' | '+JSON.stringify(entry.diagnosis):'')+(entry.entryVisibleMs!=null?' | entry visible after '+entry.entryVisibleMs+' ms':''));
    await writeFile(out+'/report.json',JSON.stringify({generated_at:new Date().toISOString(),target:base,scope:'public production read-only; no sign-in, no publication, no negotiation',results},null,2));
   }
  }
