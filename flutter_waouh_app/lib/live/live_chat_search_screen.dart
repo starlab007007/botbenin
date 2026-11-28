@@ -368,39 +368,88 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     }
   }
 
-  /// Dossier court que Bot transmet à l'annonceur (même règle que le Web : 30 à 1800 caractères).
-  Future<String?> _askApplication() async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
+  Future<({num? limit, String? application, int hours})?> _confirmMandate(
+    bool opportunity,
+  ) {
+    final initialLimit = _sell ? null : _goalFacts.budget;
+    num? limit = initialLimit;
+    var application = '';
+    var hours = opportunity ? 72 : 168;
+    return showModalBottomSheet<({num? limit, String? application, int hours})>(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, update) {
-        final text = controller.text.trim();
-        final valid = text.length >= 30 && text.length <= 1800;
-        return AlertDialog(
-          title: const Text('Confier la candidature à Bot'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              controller: controller,
-              maxLines: 5,
-              maxLength: 1800,
-              decoration: const InputDecoration(
-                labelText: 'Votre candidature en quelques lignes',
-                hintText: 'Formation, expérience, compétences clés, disponibilité…',
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheet) => StatefulBuilder(builder: (sheet, update) {
+        final amount = limit;
+        final summary = application.trim();
+        final valid = opportunity
+            ? summary.length >= 30 && summary.length <= 1800
+            : amount != null && amount.isFinite && amount > 0 &&
+                (_sell || initialLimit == null || amount <= initialLimit);
+        final theme = Theme.of(sheet);
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24, 4, 24, 24 + MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Confier la mission', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(opportunity
+                  ? 'Bot transmet votre candidature et vous prévient de la réponse.'
+                  : 'Bot négocie dans vos limites et vous prévient quand l’accord est à valider.'),
+              const SizedBox(height: 20),
+              TextFormField(
+                initialValue: opportunity ? '' : initialLimit?.toString(),
+                keyboardType: opportunity ? TextInputType.multiline : TextInputType.number,
+                maxLines: opportunity ? 4 : 1,
+                maxLength: opportunity ? 1800 : null,
+                decoration: InputDecoration(
+                  labelText: opportunity
+                      ? 'Votre candidature'
+                      : _sell ? 'Prix plancher privé (FCFA)' : 'Budget maximal (FCFA)',
+                  helperText: opportunity ? '30 caractères minimum' : null,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (value) => update(() {
+                  if (opportunity) {
+                    application = value;
+                  } else {
+                    limit = num.tryParse(value);
+                  }
+                }),
               ),
-              onChanged: (_) => update(() {}),
-            ),
-            const SizedBox(height: 8),
-            const Text('Bot la transmet à l’annonceur et vous prévient de sa réponse.'),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-            FilledButton(onPressed: valid ? () => Navigator.pop(ctx, text) : null, child: const Text('Confirmer')),
-          ],
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                initialValue: hours,
+                decoration: const InputDecoration(
+                  labelText: 'Durée du mandat',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 24, child: Text('24 heures')),
+                  DropdownMenuItem(value: 72, child: Text('3 jours')),
+                  DropdownMenuItem(value: 168, child: Text('7 jours')),
+                ],
+                onChanged: (value) => update(() => hours = value ?? hours),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: valid ? () => Navigator.pop(sheet, (
+                  limit: opportunity ? null : amount,
+                  application: opportunity ? summary : null,
+                  hours: hours,
+                )) : null,
+                child: const Text('Confirmer le mandat'),
+              ),
+            ],
+          ),
         );
       }),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-    return value;
   }
 
   Future<void> _delegateAll(LiveChatBrief brief) async {
@@ -420,17 +469,10 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     if (_delegating || fabricId.trim().isEmpty) return;
     // Opportunité : Bot transmet lui-même la candidature, comme sur le Web.
     final isOpportunity = opportunity || widget.kind == 'opportunite';
-    num? limit = _sell ? null : _goalFacts.budget;
-    String? application;
-    if (isOpportunity) {
-      application = await _askApplication();
-      if (application == null || !mounted) return;
-    } else {
-      final controller=TextEditingController(text:limit?.toString()??'');
-      final selected=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update){final n=num.tryParse(controller.text);final valid=n!=null&&n.isFinite&&n>0&&(_sell||_goalFacts.budget==null||n<=_goalFacts.budget!);return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:controller,keyboardType:TextInputType.number,decoration:InputDecoration(labelText:_sell?'Prix plancher privé (FCFA)':'Budget maximal (FCFA)'),onChanged:(_)=>update((){})),const SizedBox(height:12),const Text('Bot négocie dans cette limite. Vous validez l’accord final.')]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);}));
-      WidgetsBinding.instance.addPostFrameCallback((_)=>controller.dispose());
-      if(selected==null||!mounted)return;limit=selected;
-    }
+    final mandate = await _confirmMandate(isOpportunity);
+    if (!mounted || mandate == null || _delegating) return;
+    final limit = mandate.limit;
+    final application = mandate.application;
     setState(() => _delegating = true);
     try {
       final saleArticle = await _saleArticle();
@@ -467,6 +509,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
+        'duration_hours': mandate.hours,
         'strategy': isOpportunity ? 'opportunity' : _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
         'budget_max': _sell || isOpportunity ? null : limit,
         if (application != null) 'application': <String, dynamic>{'summary': application},
