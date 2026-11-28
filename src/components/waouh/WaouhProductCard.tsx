@@ -89,6 +89,7 @@ export interface WaouhResultCard {
   actor_type?: string | null;
   contactability_level?: string | null;
   contactability?: string | null;
+  contact_policy?: { can_auto_contact?: boolean } | null;
   total_score?: number | null;
   relevance_score?: number | null;
   trust_score?: number | null;
