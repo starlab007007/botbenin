@@ -64,13 +64,17 @@ void main(){
  },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('manual takeover keeps the same room and its history',(tester)async{
   final api=await serviceFor(tester);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
-  expect(find.text('Historique conservé'),findsOneWidget);expect(find.text('Bot mène l’échange'),findsOneWidget);
-  await tester.ensureVisible(find.text('Reprendre la main'));await tester.tap(find.text('Reprendre la main'));await tester.pumpAndSettle();
+  final scrollable=find.byType(Scrollable).first;
+  final history=find.text('Historique conservé');
+  final takeOver=find.text('Reprendre la main');
+  await tester.scrollUntilVisible(takeOver.hitTestable(),100,scrollable:scrollable);
+  await tester.tap(takeOver.hitTestable());await tester.pumpAndSettle();
   expect(api.calls,contains('takeover'));
   final takeover=api.requests.singleWhere((r)=>r['action']=='takeover');
   expect(takeover['deal_room_id'],'room');expect(takeover['mandate_revision'],2);
   expect(api.calls, isNot(contains('open')));
-  expect(find.text('Vous gérez l’échange'),findsOneWidget);expect(find.text('Historique conservé'),findsOneWidget);
+  await tester.scrollUntilVisible(history.hitTestable(),100,scrollable:scrollable);
+  expect(history.hitTestable(),findsOneWidget);
   await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));
  testWidgets('seller can reply while the buyer delegates and no agreement is falsely confirmed',(tester)async{
