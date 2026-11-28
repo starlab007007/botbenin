@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' as legacy;
 import 'live_chat_market_brief.dart';
@@ -585,7 +586,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           )
         : null;
     String journey(Map<String,dynamic> row) => _sell ? 'sale' : widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE' ? 'opportunity' : widget.kind == 'prestation' ? 'project' : widget.kind == 'service' || row['result_kind'] == 'service' ? 'service' : 'purchase';
-    String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => 'Postuler', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
+    String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => _applicationSource(row) == null ? 'Postuler dans WAOUH' : 'Déposer sur le site de l’annonce', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
     Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
                   title: _rowTitle(row),
                   priorityFacts: livePriorityFacts(row,journey(row),guided:widget.kind),
@@ -600,7 +601,18 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   best: best,
                   own: _isOwn(row),
                   busy: _delegating,
-                  onWant: () => _openManually(row),
+                  onWant: () async {
+                    final source = journey(row) == 'opportunity' ? _applicationSource(row) : null;
+                    if (source == null) {
+                      await _openManually(row);
+                      return;
+                    }
+                    if (!await launchUrl(source, mode: LaunchMode.externalApplication) && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Le site de l’annonce n’a pas pu s’ouvrir.')),
+                      );
+                    }
+                  },
                   onBot: _contactAllowed(row) && (journey(row) == 'opportunity' || _sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const [], opportunity: journey(row) == 'opportunity') : null,
                   onDetails: () => showLiveProductDetails(context, row),
                 );
@@ -699,6 +711,13 @@ String _seenAgo(DateTime date) {
   if (h < 24) return 'Vu il y a $h h';
   final d = h ~/ 24;
   return d < 31 ? 'Vu il y a $d j' : 'Vu le ${date.day}/${date.month}/${date.year}';
+}
+
+Uri? _applicationSource(Map row) {
+  final source = row['source_url'] ?? (row['source'] is Map ? row['source']['url'] : null);
+  final uri = source is String ? Uri.tryParse(source) : null;
+  return uri != null && uri.host.isNotEmpty &&
+      (uri.scheme == 'https' || uri.scheme == 'http') ? uri : null;
 }
 
 String _rowSource(Map row) {
