@@ -21679,6 +21679,16 @@ export type Database = {
         Returns: boolean
       }
       waouh_resolve_phone: { Args: { input: string }; Returns: string }
+      waouh_room_apply_reply: {
+        Args: {
+          p_amount?: number
+          p_kind: string
+          p_message: string
+          p_revision: number
+          p_room: string
+        }
+        Returns: boolean
+      }
       waouh_room_assign_courier: {
         Args: {
           p_courier: string
@@ -21692,6 +21702,15 @@ export type Database = {
       waouh_room_attach_pending_guest: {
         Args: { p_room: string }
         Returns: boolean
+      }
+      waouh_room_cascade_transfer: {
+        Args: {
+          p_candidate: string
+          p_open: Json
+          p_revision: number
+          p_room: string
+        }
+        Returns: Json
       }
       waouh_room_command: {
         Args: { p: Json; p_action: string; p_actor: string }
