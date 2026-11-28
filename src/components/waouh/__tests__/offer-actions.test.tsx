@@ -25,13 +25,13 @@ const button = (text: string) => [...host.querySelectorAll('button')].find(b => 
 it('names the main action after the kind of search', () => {
   expect(offerPrimaryLabel('purchase')).toBe('Intéressé');
   expect(offerPrimaryLabel('service')).toBe('Demander un devis');
-  expect(offerPrimaryLabel('opportunity')).toBe('Postuler');
+  expect(offerPrimaryLabel('opportunity')).toBe('Postuler dans WAOUH');
 });
 
 it('opens the existing Deal Room with the price proposal, or the application process for opportunities', () => {
-  expect(offerDealRoomPath(offer('article:a'), 'purchase')).toBe('/app/chat?fabric_id=article%3Aa&offer=50000');
-  expect(offerDealRoomPath(offer('article:b', null), 'purchase')).toBe('/app/chat?fabric_id=article%3Ab&propose=1');
-  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/chat?fabric_id=article%3Ac&kind=opportunity');
+  expect(offerDealRoomPath(offer('article:a'), 'purchase')).toBe('/app/chat?fabric_id=article%3Aa&unified=1&offer=50000');
+  expect(offerDealRoomPath(offer('article:b', null), 'purchase')).toBe('/app/chat?fabric_id=article%3Ab&unified=1&propose=1');
+  expect(offerDealRoomPath(offer('article:c'), 'opportunity')).toBe('/app/chat?fabric_id=article%3Ac&unified=1&kind=opportunity');
 });
 
 it('“Intéressé” goes to the Deal Room, “Bot” keeps the other offers as fallbacks, “Détails” opens the analysis', async () => {
@@ -43,8 +43,8 @@ it('“Intéressé” goes to the Deal Room, “Bot” keeps the other offers as
   expect(button('Bot').dataset.alternates).toBe('article:b,article:c');
   await act(async () => button('Détails').click()); expect(details).toHaveBeenCalledTimes(1);
   await act(async () => button('Intéressé').click());
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
-  expect(interest.open).toHaveBeenCalledWith(expect.objectContaining({ fabric_id: 'article:a' }), expect.any(Function));
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Aa&unified=1&offer=50000');
+  expect(interest.open).not.toHaveBeenCalled();
 });
 
 it('asks to sign in instead of opening the Deal Room when signed out', async () => {
@@ -54,7 +54,7 @@ it('asks to sign in instead of opening the Deal Room when signed out', async () 
     <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
-  expect(auth).toHaveBeenCalledWith('/app/chat?fabric_id=article%3Aa&offer=50000');
+  expect(auth).toHaveBeenCalledWith('/app/chat?fabric_id=article%3Aa&unified=1&offer=50000');
   expect(host.querySelector('[data-testid=where]')).toBeNull();
 });
 
@@ -82,10 +82,10 @@ it('opens a manual room for a listing without an automatic contact', async () =>
     <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
   expect(host.querySelector('a')?.textContent).toContain('Voir l’annonce d’origine');
-  expect(host.textContent).toContain('Contact non disponible');
+  expect(host.textContent).toContain('Contact via WAOUH à confirmer');
   expect(host.textContent).not.toContain('Bot');
   await act(async () => button('Ouvrir l’échange').click());
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=external%3Ay&unified=1&offer=50000');
 });
 
 it('the banner hands Bot only reachable offers, and says so when none is', async () => {
@@ -97,7 +97,7 @@ it('the banner hands Bot only reachable offers, and says so when none is', async
   expect(host.querySelector('button')).toBeNull();
 });
 
-it('“Intéressé” opens the existing chat tab without another room URL', async () => {
+it('“Intéressé” opens the unified room inside the existing chat tab', async () => {
   legacy.open.mockClear();
   const member = { ...(offer('article:m') as object), source_key: 'waouh_app' } as never;
   await act(async () => root.render(<MemoryRouter initialEntries={['/app/nexus']}><Routes>
@@ -106,8 +106,8 @@ it('“Intéressé” opens the existing chat tab without another room URL', asy
   </Routes></MemoryRouter>));
   await act(async () => button('Intéressé').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat');
-  expect(interest.open).toHaveBeenCalledWith(expect.objectContaining({ fabric_id: 'article:m' }), expect.any(Function));
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Am&unified=1&offer=50000');
+  expect(interest.open).not.toHaveBeenCalled();
 });
 
 it('an opportunity keeps its application process in the Deal Room', async () => {
@@ -117,9 +117,9 @@ it('an opportunity keeps its application process in the Deal Room', async () => 
     <Route path="/app/nexus" element={<WaouhOfferActions result={member} alternates={[]} mode="buy" kind="opportunity" requireAuth={() => true} />} />
     <Route path="/app/chat" element={<Where />} />
   </Routes></MemoryRouter>));
-  await act(async () => button('Postuler').click());
+  await act(async () => button('Postuler dans WAOUH').click());
   expect(legacy.open).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Ao&kind=opportunity');
+  expect(host.querySelector('[data-testid=where]')?.textContent).toBe('/app/chat?fabric_id=article%3Ao&unified=1&kind=opportunity');
 });
 
 describe("offre d'un site marchand sans contact", () => {

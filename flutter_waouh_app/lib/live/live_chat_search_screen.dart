@@ -586,7 +586,8 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
           )
         : null;
     String journey(Map<String,dynamic> row) => _sell ? 'sale' : widget.kind == 'opportunite' || row['result_kind'] == 'announcement' || row['intent'] == 'ANNOUNCE' ? 'opportunity' : widget.kind == 'prestation' ? 'project' : widget.kind == 'service' || row['result_kind'] == 'service' ? 'service' : 'purchase';
-    String actionLabel(Map<String,dynamic> row) => switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => _applicationSource(row) == null ? 'Postuler dans WAOUH' : 'Déposer sur le site de l’annonce', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => widget.kind == 'trouver' ? 'Voir la piste' : 'Je prends' };
+    String actionLabel(Map<String,dynamic> row) => !_contactAllowed(row)&&journey(row)!='opportunity'
+        ? 'Ouvrir l’échange' : switch(journey(row)) { 'sale' => 'Contacter l’acheteur', 'opportunity' => _applicationSource(row) == null ? 'Postuler dans WAOUH' : 'Déposer sur le site de l’annonce', 'service' => 'Demander un devis', 'project' => 'Discuter du projet', _ => const ['trouver','demander'].contains(widget.kind) ? 'Voir la piste' : 'Intéressé' };
     Widget offerCard(Map<String,dynamic> row, {bool best=false}) => WaouhOfferCard(
                   title: _rowTitle(row),
                   priorityFacts: livePriorityFacts(row,journey(row),guided:widget.kind),
@@ -598,6 +599,12 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   photos: liveProductPhotos(row),
                   city: row['city']?.toString(),
                   verified: _contactAllowed(row),
+                  contactLabel: _applicationSource(row)!=null&&journey(row)=='opportunity'
+                      ? 'Portail de l’annonceur'
+                      : !_contactAllowed(row)
+                          ? 'Contact via WAOUH à confirmer'
+                          : (_roomFabric(row)?.startsWith('article:')==true||_roomFabric(row)?.startsWith('buyer:')==true)
+                              ? 'Échange WAOUH disponible' : 'Contact autorisé via WAOUH',
                   best: best,
                   own: _isOwn(row),
                   busy: _delegating,
@@ -613,7 +620,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                       );
                     }
                   },
-                  onBot: _contactAllowed(row) && (journey(row) == 'opportunity' || _sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const [], opportunity: journey(row) == 'opportunity') : null,
+                  onBot: _contactAllowed(row) && (journey(row)!='opportunity'||_applicationSource(row)==null) && (journey(row) == 'opportunity' || _sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const [], opportunity: journey(row) == 'opportunity') : null,
                   onDetails: () => showLiveProductDetails(context, row),
                 );
     return Scaffold(

@@ -46,7 +46,7 @@ export function mandateSummary(d: MandateDraft): string {
 }
 
 /** Ligne Bot : dernière action + prochaine étape, en mots simples. */
-export function botLine(room: { control_mode?: string | null; agreement?: { status?: string; terms?: { delivery_mode?: string } } | null; delivery?: { status?: string } | null; events?: Array<{ event_type?: string; created_at?: string }> | null; initial_sent?: boolean; next_run_at?: string | null; mandate?: { cascade_step?: number } | null } | null) {
+export function botLine(room: { control_mode?: string | null; agreement?: { status?: string; owner_accepted_at?: string | null; terms?: { delivery_mode?: string } } | null; delivery?: { status?: string } | null; events?: Array<{ event_type?: string; created_at?: string }> | null; initial_sent?: boolean; next_run_at?: string | null; mandate?: { cascade_step?: number } | null } | null) {
   if (!room) return null;
   const status = room.agreement?.status ?? "";
   const events = (room.events ?? []).filter((e) => e.event_type);
@@ -58,7 +58,7 @@ export function botLine(room: { control_mode?: string | null; agreement?: { stat
       : room.delivery?.status === "picked_up" ? "Livraison en cours"
       : room.delivery?.status === "assigned" ? "Livreur assigné · collecte attendue"
       : "Recherche d’un livreur"
-    : status === "proposed" ? "Accord à valider par vous"
+    : status === "proposed" ? room.agreement?.owner_accepted_at ? "En attente de l’interlocuteur" : "Votre confirmation est attendue"
     : room.control_mode === "paused" ? "Reprendre Bot ou continuer vous-même"
     : room.control_mode !== "bot" ? "Vous menez l’échange"
     : !events.some((e) => e.event_type === "bot_step" || e.event_type === "guest_contacted") ? "Premier message au vendeur"

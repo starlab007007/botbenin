@@ -28,6 +28,6 @@ describe("Bot strategy", () => {
     expect(mandateSummary({ track: "sell", limit: 90000, durationHours: 24, maxFollowups: 2 })).toContain("jamais sous 90 000 FCFA");
   });
   it("Bot line asks user to validate a proposed agreement", () => {
-    expect(botLine({ control_mode: "bot", agreement: { status: "proposed" }, events: [{ event_type: "propose", created_at: "x" }] })).toMatchObject({ last: "Proposition envoyée", next: "Accord à valider par vous" });
+    expect(botLine({ control_mode: "bot", agreement: { status: "proposed" }, events: [{ event_type: "propose", created_at: "x" }] })).toMatchObject({ last: "Proposition envoyée", next: "Votre confirmation est attendue" });
   });
 });

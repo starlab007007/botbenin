@@ -2,6 +2,7 @@ import {createClient} from 'npm:@supabase/supabase-js@2.49.8';
 import {notifyInApp} from '../_shared/waouh-avatar-inapp.ts';
 import {getRequestUser,jsonResponse,waouhCorsHeaders} from '../_shared/waouh-auth.ts';
 import {productSnapshot} from '../_shared/waouh-product-presentation.ts';
+import {choiceCost} from '../_shared/waouh-offer-choice.ts';
 import {resultKind} from '../_shared/waouh-convergence-contract.ts';
 import {compareMarketPrice} from '../_shared/waouh-price.ts';
 import {modulePolicyAllowed} from '../_shared/waouh-module-policy.ts';
@@ -29,6 +30,16 @@ async function includeOutreachState(sb: any, data: any) {
   : row?.status === "sent" ? "sent"
   : row ? "queued"
   : contact.channel === "link" ? "link_shared" : "waiting";
+}
+
+async function includeAgreementTotal(sb: any, data: any) {
+ const terms = data?.agreement?.terms;
+ if (!terms || !data.deal_room_id) return;
+ const {data: component, error} = await sb.from('waouh_convergence_components')
+  .select('extra_cost').eq('id', data.deal_room_id).single();
+ if (error) throw error;
+ const fees = Math.max(0, Number(component.extra_cost ?? 0), Number(terms.delivery_fee ?? 0));
+ data.agreement_total = { fees, amount: Number(terms.amount) + fees };
 }
 
 async function deliveryFor(sb:any,userId:string,roomId:string){
@@ -141,7 +152,7 @@ Deno.serve(async req=>{
   if (kind !== "announcement" && product.currency !== "XOF") return jsonResponse({ ok: false, error: "quote_in_xof_required" }, 422);
   const sourceRef = saleArticleId ? `sale:${saleArticleId}:${fabric}` : fabric;
   p.source = { title: product.title, kind, source_ref: sourceRef, source_url: signal?.source_url,
-   amount: product.price_min, extra_cost: null, source_snapshot: { product } };
+   amount: product.price_min, extra_cost: saleArticleId ? null : choiceCost({...signal, fabric_id: fabric}).delivery, source_snapshot: { product } };
   p.city = signal?.city || record?.city || p.city || "À préciser";
  }
 
@@ -151,6 +162,9 @@ Deno.serve(async req=>{
   if(viewError)return jsonResponse({ok:false,error:viewError.code==='42501'?'forbidden':'request_failed'},viewError.code==='42501'?403:400);
   return jsonResponse({ok:true,data:view});
  }
+ if(action==='propose'&&p.terms?.delivery_fee!=null&&
+    (!Number.isFinite(Number(p.terms.delivery_fee))||Number(p.terms.delivery_fee)<0||Number(p.terms.delivery_fee)>1e10))
+  return jsonResponse({ok:false,error:'invalid_delivery_fee'},422);
  if(action==='propose'&&p.terms?.delivery_mode==='delivery'&&String(p.terms.delivery_address||'').trim().length<5)return jsonResponse({ok:false,error:'delivery_address_required'},422);
  if(action==='share_link'){
   const id=String(p.deal_room_id||'');if(!/^[0-9a-f-]{36}$/.test(id))return jsonResponse({ok:false,error:'invalid_request'},400);
@@ -158,6 +172,11 @@ Deno.serve(async req=>{
   catch(e){console.error('[deal-room] share',e instanceof Error?e.message:'failed');return jsonResponse({ok:false,error:'request_failed'},400);}
  }
  const since=typeof p.since==='string'?p.since:'';delete p.since;
+ if(action==='list'){
+  const followup=await sb.rpc('waouh_room_followup',{p_actor:user.id});
+  if(!followup.error)return jsonResponse({ok:true,data:followup.data});
+  if(followup.error.code!=='PGRST202')return jsonResponse({ok:false,error:'request_failed'},400);
+ }
  const {data,error}=await sb.rpc('waouh_room_command',{p_actor:user.id,p_action:action,p});
  if(error)return jsonResponse({ok:false,error:error.code==='42501'?'forbidden':error.message},error.code==='42501'?403:409);
  // Prise en charge de bout en bout : l'utilisateur est prévenu dans l'application dès que Bot reprend la démarche.
@@ -189,7 +208,7 @@ Deno.serve(async req=>{
  if(tick.error)console.warn('[deal-room] scheduled retry',tick.error.code);
  await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  const fresh=await sb.rpc('waouh_room_snapshot',{p_actor:user.id,p_room:data.deal_room_id});
- if(!fresh.error){await includeOutreachState(sb,fresh.data);return jsonResponse({ok:true,data:fresh.data});}
+ if(!fresh.error){await includeOutreachState(sb,fresh.data);await includeAgreementTotal(sb,fresh.data);return jsonResponse({ok:true,data:fresh.data});}
  }
  if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
  if(action==='accept'&&data?.deal_room_id&&data.agreement?.status==='accepted'){
@@ -198,6 +217,7 @@ Deno.serve(async req=>{
   });
  }
  await includeOutreachState(sb,data);
+ await includeAgreementTotal(sb,data);
  // Lecture légère : la livraison voyage avec le salon et rien n'est renvoyé tant que rien n'a changé.
  if(data?.deal_room_id&&['get','accept'].includes(action)&&
     ['accepted','completed'].includes(data.agreement?.status)&&data.agreement?.terms?.delivery_mode==='delivery'){

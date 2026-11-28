@@ -1,3 +1,5 @@
+import {roomCall} from '@/lib/waouh/dealRoom';
+import {roomFollowupText, type RoomFollowup} from '@/lib/waouh/roomAgreement';
 import {WaouhQuickAsk} from '@/components/waouh/WaouhQuickAsk';
 import {offerDealRoomPath} from '@/components/waouh/WaouhOfferActions';
 import {WaouhProductPresentation} from '@/components/waouh/WaouhProductPresentation';
@@ -24,6 +26,7 @@ import '@/components/waouh/minimal-premium.css';
 const finished=new Set(['completed','cancelled','expired','failed']);
 export default function WaouhMissionsPage(){
   const {user}=useAuth(),navigate=useNavigate();const [params]=useSearchParams();
+  const [rooms,setRooms]=useState<RoomFollowup[]>([]);
   const [dataOwner,setDataOwner]=useState<string|undefined>(undefined);
   const [mandates,setMandates]=useState<NexusAvatarMandate[]>([]),[journeys,setJourneys]=useState<NexusOpportunityJourney[]>([]),[legacy,setLegacy]=useState<AgentMission[]>([]),[approvals,setApprovals]=useState<NonFinancialApproval[]>([]);
   const [loading,setLoading]=useState(false),[error,setError]=useState(''),[paused,setPaused]=useState(false),[busy,setBusy]=useState(false);
@@ -31,12 +34,12 @@ export default function WaouhMissionsPage(){
   const generation=useRef(0), refreshNow=useRef<()=>void>(()=>{});
   useEffect(()=>{
     const version=++generation.current;let pending=false,retries=0,retryTimer:number|undefined;
-    setMandates([]);setJourneys([]);setLegacy([]);setApprovals([]);setActive(null);setPaused(false);setError('');setDataOwner(user?.id);
+    setRooms([]);setMandates([]);setJourneys([]);setLegacy([]);setApprovals([]);setActive(null);setPaused(false);setError('');setDataOwner(user?.id);
     if(!user){setLoading(false);refreshNow.current=()=>{};return;}
     const refresh=async()=>{
       if(pending||document.visibilityState==='hidden')return;
       pending=true;setLoading(true);
-      const calls=await Promise.allSettled([listNexusMandates(),listNexusOpportunityJourneys({include_completed:true,limit:100}),invokeWaouhAgentic('mission.list',{limit:30}),invokeWaouhAgentic('approval.list',{status:'pending',limit:30}),loadAvatarAutonomy()]);
+      const calls=await Promise.allSettled([listNexusMandates(),listNexusOpportunityJourneys({include_completed:true,limit:100}),invokeWaouhAgentic('mission.list',{limit:30}),invokeWaouhAgentic('approval.list',{status:'pending',limit:30}),loadAvatarAutonomy(),roomCall('list')]);
       pending=false;if(version!==generation.current)return;
       setLoading(false);setDataOwner(user.id);
       const failed=calls.slice(0,4).some(c=>c.status==='rejected');
@@ -46,6 +49,7 @@ export default function WaouhMissionsPage(){
       if(calls[2].status==='fulfilled')setLegacy(listFromAgenticData<AgentMission>(calls[2].value,'missions'));
       if(calls[3].status==='fulfilled')setApprovals(listFromAgenticData<NonFinancialApproval>(calls[3].value,'approvals'));
       if(calls[4].status==='fulfilled')setPaused(calls[4].value.paused);
+      if(calls[5].status==='fulfilled')setRooms(calls[5].value.rooms??[]);
       clearTimeout(retryTimer);
       if(failed){retries++;retryTimer=window.setTimeout(()=>void refresh(),retries===1?5000:retries===2?15000:30000);}else retries=0;
     };
@@ -77,17 +81,26 @@ export default function WaouhMissionsPage(){
     return typeof row.fabric_id==='string'&&typeof row.subject==='string';
   }):[];
   const openChoice=(fabricId:string)=>navigate(offerDealRoomPath({fabric_id:fabricId},watch?'opportunity':undefined));
+  const roomRows=own?rooms.filter(r=>archive===['accepted','completed','rejected','application_answered'].includes(r.next_status??'')):[];
   const update=async(status:'active'|'paused'|'cancelled')=>{if(!selected||busy)return;const version=generation.current;setBusy(true);setError('');try{const r=await updateNexusMandate(selected.id,{status});if(version===generation.current)setMandates(rows=>rows.map(m=>m.id===r.mandate.id?r.mandate:m));}catch{setError('Modification impossible. Réessayez.');}finally{if(version===generation.current)setBusy(false);}};
   return <div className="wmn-surface"><main className="wmn" data-waouh-ui="minimal-missions">
     <header className="wmn-head"><h1>Missions</h1><span className="wmn-grow"/><button type="button" className="wmn-icon" aria-label="Autres outils de mission" onClick={()=>setSheet('tools')}><MoreHorizontal/></button></header>
     <button type="button" className="wmn-new" onClick={()=>setSheet('new')}><span className="wmn-grow">Quel est votre besoin ?</span><span><ArrowUpRight/></span></button>
     <button type="button" className="wmn-primary" onClick={()=>navigate('/app/premium')}>Mon parcours achat, service et vente<ChevronRight size={17}/></button>
+    {roomRows.length>0&&<section>
+      <div className="wmn-sectionline"><span>Mes échanges</span></div>
+      {roomRows.map(r=><button type="button" className="wmn-mission compact" key={r.deal_room_id} onClick={()=>{
+        const query=new URLSearchParams({room_id:r.deal_room_id});
+        if(r.next_status==='awaiting_you'&&r.decision_version)query.set('decision_version',String(r.decision_version));
+        navigate(`/app/chat?${query}`);
+      }}><span className="wmn-mode-icon"><Workflow/></span><span className="wmn-grow"><h3>{r.title}</h3><p>{roomFollowupText(r)}</p></span><ChevronRight className="wmn-chevron"/></button>)}
+    </section>}
     {loading&&!mandates.length&&!legacy.length?<p className="wmn-description mt-6" role="status">Chargement…</p>:<>
       {scopedApprovals.length>0&&!archive&&<button type="button" className="wmn-mission mt-6" onClick={()=>setSheet('advanced')}><span className="wmn-flag">À valider</span><h3>{scopedApprovals.length===1?scopedApprovals[0].title:`${scopedApprovals.length} décisions vous attendent`}</h3><span className="wmn-mission-bottom">Examiner<span className="wmn-grow"/><ArrowUpRight/></span></button>}
       <div className="wmn-sectionline"><span>{archive?'Terminées':'En cours'}</span><span>{current.length+legacyRows.length}</span></div>
       {current.map(m=>{const decision=pending(m),isPaused=m.status==='paused'||paused,line=isPaused?'Bot attend la reprise.':finished.has(m.status)?'Terminée':decision?'Votre accord est attendu.':m.replied_count?`${m.replied_count} réponse${m.replied_count>1?'s':''} reçue${m.replied_count>1?'s':''}`:m.contacted_count?`${m.contacted_count} contact${m.contacted_count>1?'s':''} sollicité${m.contacted_count>1?'s':''}`:automaticMissionMessage(m);return <button type="button" className={`wmn-mission ${decision?'':'compact'}`} key={m.id} onClick={()=>{setActive(m);setSheet('mission');}}>{decision?<><span className="wmn-flag">{isPaused?'En pause':'À valider'}</span><h3>{m.goal}</h3><p>{line}</p><span className="wmn-mission-bottom">Voir la décision<span className="wmn-grow"/><ArrowUpRight/></span></>:<><span className="wmn-mode-icon"><Workflow/></span><span className="wmn-grow"><h3>{m.goal}</h3><p>{line}</p></span><ChevronRight className="wmn-chevron"/></>}</button>;})}
       {legacyRows.map(m=><button type="button" className="wmn-mission" key={m.id} onClick={()=>setSheet('advanced')}><h3 className="!mt-0">{m.title}</h3><p>{m.status==='paused'?'En pause':finished.has(m.status)?'Terminée':'Voir le suivi de Bot'}</p></button>)}
-      {!current.length&&!legacyRows.length&&!error&&<div className="wmn-screen-empty"><BotLiveAvatar size={48}/><h2>{archive?'Aucune mission terminée':user?'Votre prochaine mission commence ici':'Confiez un besoin à Bot'}</h2><p>{user?'Décrivez votre besoin en une phrase.':'La recherche est ouverte. Connectez-vous pour le suivi.'}</p>{!user&&<button type="button" className="wmn-text mx-auto" onClick={()=>navigate(buildWaouhAuthRedirect('/app/missions'))}>Se connecter</button>}</div>}
+      {!current.length&&!legacyRows.length&&!roomRows.length&&!error&&<div className="wmn-screen-empty"><BotLiveAvatar size={48}/><h2>{archive?'Aucune mission terminée':user?'Votre prochaine mission commence ici':'Confiez un besoin à Bot'}</h2><p>{user?'Décrivez votre besoin en une phrase.':'La recherche est ouverte. Connectez-vous pour le suivi.'}</p>{!user&&<button type="button" className="wmn-text mx-auto" onClick={()=>navigate(buildWaouhAuthRedirect('/app/missions'))}>Se connecter</button>}</div>}
     </>}
     {user&&<button type="button" className="wmn-archive" onClick={()=>setArchive(v=>!v)}><span>{archive?'En cours':'Terminées'}</span><span className="wmn-grow"/>{archive?'':archived}<ChevronRight className="wmn-chevron"/></button>}
     <div className="wmn-bot-foot"><BotLiveAvatar size={24}/><span>{paused?'Bot est en pause.':error?'Actualisation automatique du suivi…':'Bot s’occupe de la suite.'}</span></div>

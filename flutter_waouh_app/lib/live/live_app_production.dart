@@ -213,7 +213,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             initial: state.extra as LiveMatch?,
           ),
         ),
-        GoRoute(path: '/app/chat/room', builder: (_, state) => state.uri.queryParameters['fabric_id'] != null && state.uri.queryParameters['delegate'] != '1' && state.uri.queryParameters['sale_article_id'] == null ? LiveInterestEntry(fabricId: state.uri.queryParameters['fabric_id']!) : LiveDealRoomScreen(key:ValueKey(state.uri.toString()),roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],fabricId:state.uri.queryParameters['fabric_id'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
+        GoRoute(path: '/app/chat/room', builder: (_, state) => state.uri.queryParameters['fabric_id'] != null && state.uri.queryParameters['unified'] != '1' && state.uri.queryParameters['delegate'] != '1' && state.uri.queryParameters['sale_article_id'] == null ? LiveInterestEntry(fabricId: state.uri.queryParameters['fabric_id']!) : LiveDealRoomScreen(key:ValueKey(state.uri.toString()),roomId:state.uri.queryParameters['room_id'],componentId:state.uri.queryParameters['component_id'],fabricId:state.uri.queryParameters['fabric_id'],saleArticleId:state.uri.queryParameters['sale_article_id'],decisionVersion:state.uri.queryParameters['decision_version'],delegate:state.uri.queryParameters['delegate']=='1',proposeOnOpen:state.uri.queryParameters['propose']=='1')),
         GoRoute(
           path: '/app/chat/:id',
           builder: (_, state) => LiveConversationScreen(

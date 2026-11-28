@@ -1,6 +1,5 @@
 import 'package:url_launcher/url_launcher.dart';
 import 'live_market_analysis.dart';
-import 'live_legacy_interest.dart';
 import 'live_offer_channels.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -25,11 +24,20 @@ import 'package:go_router/go_router.dart';
 
 List<dynamic> mergeRoomMessages(List<dynamic> old,List<dynamic> fresh){final all=<String,dynamic>{for(final m in [...old,...fresh])'${m['id']}':m};return all.values.toList()..sort((a,b){final n='${a['created_at']}'.compareTo('${b['created_at']}');return n!=0?n:'${a['id']}'.compareTo('${b['id']}');});}
 
-String roomError(Object error){
+String roomErrorCode(Object error){
  dynamic detail;String code='';
- if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(error.status==401)return 'Reconnectez-vous pour retrouver cet échange.';if(error.status==404)return 'Le service des échanges est momentanément indisponible. Réessayez.';}
+ if(error is FunctionException){detail=error.details;if(detail is Map)code='${detail['error']??''}';if(code.isEmpty&&error.status==401)return 'authentication_required';}
  if(code.isEmpty)code=error is StateError?'${error.message}':error.toString();
- return {'sale_article_required':'Choisissez votre article à vendre.','application_dossier_required':'Présentez votre candidature en quelques lignes (30 caractères minimum).','own_offer':'Cette piste vous appartient.','application_not_submitted':'Le dossier doit d’abord être transmis.','application_outcome_recorded':'Votre réponse à ce dossier est déjà enregistrée.','invalid_outcome':'Choisissez si le dossier est retenu ou non.','invalid_outcome_note':'La note doit contenir entre 3 et 500 caractères.','agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','contact_unavailable':'Ce vendeur ne peut pas être joint pour le moment. Choisissez une autre offre.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[code]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
+ return code;
+}
+
+String roomError(Object error){
+ return {'authentication_required':'Reconnectez-vous pour retrouver cet échange.',
+  'agreement_unavailable_or_changed':'Les conditions ont changé. Relisez la nouvelle version.',
+  'budget_exceeded':'Le total dépasse le budget du mandat.',
+  'price_floor_not_met':'Le prix proposé est inférieur au prix plancher du mandat.',
+  'invalid_delivery_fee':'Indiquez des frais de livraison valides.',
+  'sale_article_required':'Choisissez votre article à vendre.','application_dossier_required':'Présentez votre candidature en quelques lignes (30 caractères minimum).','own_offer':'Cette piste vous appartient.','application_not_submitted':'Le dossier doit d’abord être transmis.','application_outcome_recorded':'Votre réponse à ce dossier est déjà enregistrée.','invalid_outcome':'Choisissez si le dossier est retenu ou non.','invalid_outcome_note':'La note doit contenir entre 3 et 500 caractères.','agreement_already_confirmed':'L’accord est déjà confirmé. En cas de souci, utilisez « Signaler un problème ».','offer_not_found':'Cette offre n’est plus accessible. Reprenez la recherche.','article_unavailable':'Cette offre n’est plus disponible.','quote_in_xof_required':'Cette offre n’est pas dans un format compatible pour l’instant.','offer_version_changed':'Les conditions ont changé. Relisez la nouvelle version avant de confirmer.','mandate_revision_changed':'Le mandat a changé. Actualisez avant de continuer.','initial_offer_outside_budget':'L’offre de départ doit respecter votre plafond.','takeover_required':'Reprenez la main avant d’écrire ou de proposer.','mandate_expired':'Le mandat est arrivé à échéance. Définissez un nouveau mandat.','invalid_hours':'Vérifiez les horaires du mandat.','invalid_limits':'Choisissez une durée de 1 à 168 heures et au maximum 2 relances.','module_unavailable':'Ce module est actuellement indisponible.','forbidden':'Cet échange est privé.','contact_unavailable':'Ce vendeur ne peut pas être joint pour le moment. Choisissez une autre offre.','legacy_room_requires_reconciliation':'Un échange historique doit être relié avant de continuer.'}[roomErrorCode(error)]??'Cette action n’a pas pu être confirmée. Actualisez puis réessayez.';
 }
 
 /// Règles par défaut de « Confier à Bot » — identiques au web.
@@ -113,15 +121,16 @@ class LiveDealRoomService {
 }
 
 class LiveDealRoomScreen extends StatefulWidget {
- const LiveDealRoomScreen({super.key,this.roomId,this.query,this.city,this.componentId,this.fabricId,this.delegate=false,this.service,this.ownerScope,this.proposeOnOpen=false});
- final String? roomId,query,city,componentId,fabricId;final bool delegate;final bool proposeOnOpen;final LiveDealRoomService? service;final String? ownerScope;
+ const LiveDealRoomScreen({super.key,this.roomId,this.query,this.city,this.componentId,this.fabricId,this.delegate=false,this.service,this.ownerScope,this.proposeOnOpen=false,this.saleArticleId,this.decisionVersion});
+ final String? roomId,query,city,componentId,fabricId,saleArticleId,decisionVersion;final bool delegate;final bool proposeOnOpen;final LiveDealRoomService? service;final String? ownerScope;
  @override State<LiveDealRoomScreen> createState()=>_LiveDealRoomScreenState();
 }
 class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBindingObserver {
  late final SupabaseClient client;late final LiveDealRoomService api;late final LiveNexusService nexus;
  late final TextEditingController query,city;final budget=TextEditingController(),message=TextEditingController();
  Map<String,dynamic>? room;List<Map<String,dynamic>> rooms=[];List<NexusDiscoveryItem> offers=[];
- bool delegationShown=false,proposalShown=false;String? draftRoom;
+ bool delegationShown=false,proposalShown=false,decisionOpened=false;String? draftRoom;
+ int? reviewVersion;
  String? roomId;String kind='purchase',error='',notice='';bool busy=false,searching=false,refreshing=false,botTakeover=false;int generation=0;
  Timer? timer;StreamSubscription<AuthState>? auth;String? owner;String seen='';Timer? pollTimer;
  Duration pollDelay(){
@@ -129,7 +138,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   final st=(r['agreement'] as Map?)?['status'];
   if(r['closed']==true||st=='completed')return const Duration(seconds:60);
   if(st=='accepted'&&((r['agreement'] as Map)['terms'] as Map)['delivery_mode']=='delivery'&&(r['delivery'] as Map?)?['status']!='delivered')return const Duration(seconds:5);
-  if(r['control_mode']=='bot'&&st!='accepted')return const Duration(seconds:3);
+  if(st=='proposed'||r['control_mode']=='bot'&&st!='accepted')return const Duration(seconds:3);
   return const Duration(seconds:10);
  }
  void schedulePoll(){timer?.cancel();timer=Timer(pollDelay(),(){if(!mounted)return;if(WidgetsBinding.instance.lifecycleState==AppLifecycleState.resumed)unawaited(load());schedulePoll();});}
@@ -142,7 +151,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
  // Suit l'étape en cours : la dernière ligne du raisonnement reste visible pendant la recherche.
  void followReason(){WidgetsBinding.instance.addPostFrameCallback((_){final c=reasonKey.currentContext;if(mounted&&c!=null)Scrollable.ensureVisible(c,duration:const Duration(milliseconds:300),alignment:1.0,alignmentPolicy:ScrollPositionAlignmentPolicy.keepVisibleAtEnd);});}
  void skipReason(){reasonTimer?.cancel();reasonTimer=null;setState((){reasonShown.addAll(reasonQueue);reasonQueue.clear();});}
- @override void initState(){super.initState();client=widget.service?.client??Supabase.instance.client;api=widget.service??LiveDealRoomService(client);nexus=LiveNexusService(client);query=TextEditingController(text:widget.query);city=TextEditingController(text:widget.city??'Cotonou');roomId=widget.roomId;owner=widget.ownerScope??client.auth.currentUser?.id;WidgetsBinding.instance.addObserver(this);unawaited(load());schedulePoll();auth=client.auth.onAuthStateChange.listen((_){if(owner!=(widget.ownerScope??client.auth.currentUser?.id)){owner=widget.ownerScope??client.auth.currentUser?.id;generation++;setState((){room=null;rooms=[];offers=[];message.clear();budget.clear();});unawaited(load());}});}
+ @override void initState(){super.initState();client=widget.service?.client??Supabase.instance.client;api=widget.service??LiveDealRoomService(client);nexus=LiveNexusService(client);query=TextEditingController(text:widget.query);city=TextEditingController(text:widget.city??'Cotonou');roomId=widget.roomId;owner=widget.ownerScope??client.auth.currentUser?.id;WidgetsBinding.instance.addObserver(this);unawaited(load());schedulePoll();auth=client.auth.onAuthStateChange.listen((_){if(owner!=(widget.ownerScope??client.auth.currentUser?.id)){owner=widget.ownerScope??client.auth.currentUser?.id;generation++;setState((){room=null;rooms=[];offers=[];reviewVersion=null;seen='';busy=false;message.clear();budget.clear();});unawaited(load());}});}
  @override void dispose(){timer?.cancel();reasonTimer?.cancel();auth?.cancel();WidgetsBinding.instance.removeObserver(this);for(final c in [query,city,budget,message]){c.dispose();}super.dispose();}
  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(load());}
  Future<void> load() async {
@@ -151,20 +160,35 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    final data=roomId!=null
     ? await api.call('get',{'deal_room_id':roomId,'since':seen})
     : widget.fabricId!=null
-     ? await api.call('open',{'fabric_id':widget.fabricId,'confirmed':!widget.delegate})
+     ? await api.call('open',{'fabric_id':widget.fabricId,'confirmed':!widget.delegate,if(widget.saleArticleId!=null)'sale_article_id':widget.saleArticleId})
      : widget.componentId!=null
       ? await api.call('adopt',{'component_id':widget.componentId})
       : await api.call('list');
    if(data['unchanged']==true)return;if(roomId!=null)seen='${data['hash']??''}';
    if(!mounted||generation!=v)return;
    final nextId=data['deal_room_id']?.toString();if(nextId!=null&&draftRoom!=nextId){draftRoom=nextId;final prefs=await SharedPreferences.getInstance();if(!mounted||generation!=v)return;message.text=prefs.getString('waouh.room.draft.$owner.$nextId')??'';}
-   setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';}else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
+   setState((){error='';if(data['deal_room_id']!=null){room={...data,'messages':mergeRoomMessages(room?['deal_room_id']==data['deal_room_id']?(room?['messages'] as List? ?? []):[],data['messages'] as List? ?? [])};roomId='${data['deal_room_id']}';
+      if(!decisionOpened&&widget.decisionVersion!=null){
+        decisionOpened=true;
+        if((data['agreement'] as Map?)?['status']=='proposed'&&canConfirmAgreement(data)) {
+          reviewVersion=int.tryParse(widget.decisionVersion!);
+        }
+      }
+    }else{rooms=(data['rooms'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}});if(widget.delegate&&!delegationShown&&room!=null){delegationShown=true;await mandate();}if(widget.proposeOnOpen&&!proposalShown&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose')){proposalShown=true;await propose();}
   }catch(e){if(mounted&&generation==v)setState(()=>error=roomError(e));}finally{refreshing=false;}
  }
  Future<Map<String,dynamic>?> act(String action,[Map<String,dynamic> p=const {}]) async {
   if(busy)return null;final v=++generation;setState((){busy=true;error='';notice='';});
   try{final d=await api.call(action,{if(roomId!=null)'deal_room_id':roomId,...p});if(!mounted||v!=generation)return null;setState((){if(d['deal_room_id']!=null){room={...d,'messages':mergeRoomMessages(room?['deal_room_id']==d['deal_room_id']?(room?['messages'] as List? ?? []):[],d['messages'] as List? ?? [])};roomId='${d['deal_room_id']}';}});return d;}
-  catch(e){if(mounted&&v==generation)setState(()=>error=roomError(e));return null;}
+  catch(e){
+   if(mounted&&v==generation){
+    setState(()=>error=roomError(e));
+    if(const ['offer_version_changed','agreement_unavailable_or_changed'].contains(roomErrorCode(e))){
+      seen='';setState(()=>busy=false);await load();
+    }
+   }
+   return null;
+  }
   finally{if(mounted&&v==generation)setState(()=>busy=false);}
  }
  void showError(){if(!mounted||error.isEmpty)return;final m=ScaffoldMessenger.maybeOf(context);m?.hideCurrentSnackBar();m?.showSnackBar(SnackBar(content:Text(error)));}
@@ -175,19 +199,14 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
    if(mounted&&v==generation){final base=buildSummary(const [],d,ctx);final reach=d.results.where(liveOfferReachable).length;final summary=ReasonSummary(found:base.found,inZone:base.inZone,contactable:reach,bestPrice:base.bestPrice,nextSteps:[if(reach>0)'Choisissez une offre ou confiez-la à Bot : il écrit et négocie.' else 'Ouvrez l’annonce d’origine pour joindre le vendeur.',...base.nextSteps.where((t)=>!t.startsWith('Choisissez une offre')&&!t.startsWith('Je peux contacter'))].take(3).toList());setState((){offers=d.results;reasonSummary=summary;});pushReason([...discoveryResultSteps(d.results,ctx,reachable:liveOfferReachable),summaryStep(summary,ctx)]);}}
   catch(_){if(mounted&&v==generation){setState(()=>error='Recherche partielle. Réessayez.');pushReason(const [ReasonStep(id:'res-partial',tone:ReasonTone.warn,text:'Une partie n’a pas répondu. Les offres reçues restent affichées.')]);}}finally{if(mounted)setState(()=>searching=false);}}
  Future<void> open(NexusDiscoveryItem item,{bool delegate=false}) async {
-  if(!delegate && kind!='opportunity'){
-   if(busy)return;setState(()=>busy=true);
-   try{await openLiveInterestedDiscussion(context,item);}
-   catch(e){if(mounted)setState(()=>error=roomError(e));}
-   finally{if(mounted)setState(()=>busy=false);}
-   return;
-  }
-  // Vendeur WAOUH : « Intéressé » suit le parcours de négociation historique (offre, contre-offres, accord).
   final d=await act('open',{'fabric_id':item.fabricId,'city':city.text,'budget_max':double.tryParse(budget.text),'confirmed':!delegate});if(d==null)showError();if(d!=null&&delegate&&mounted)await mandate();
   // « Intéressé » : la proposition d'offre s'ouvre aussitôt (prix de l'annonce prérempli), sans étape intermédiaire.
   if(d!=null&&!delegate&&mounted&&room!=null&&(room!['allowed_actions'] as List? ?? []).contains('propose'))await propose(amount:item.priceMin??item.priceMax);}
  String when(dynamic value){final date=DateTime.tryParse('$value');return date==null?'À préciser':DateFormat('dd/MM à HH:mm').format(date.toUtc().add(const Duration(hours:1)))+' · Bénin';}
- String money(dynamic n)=>n==null?'À préciser':'${(n as num).round()} F';
+ String money(dynamic n) {
+  final value=num.tryParse('$n');
+  return value==null?'À préciser':'${NumberFormat.decimalPattern('fr_FR').format(value)} F';
+ }
  Widget deliveryBox(){
   final d=room?['delivery'] as Map?;final st='${d?['status']??'pending'}';final buyer=d?['is_buyer']==true;final name=d?['courier_name'];
   final text=st=='assigned'?'Livreur assigné${name!=null?' : $name':''}. ${buyer?'Donnez-lui le code à la remise.':'Remettez-lui l’article.'}':st=='picked_up'?'Commande en route.':st=='delivered'?'Livré.':'Un livreur va être assigné automatiquement.';
@@ -362,20 +381,99 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
   if(action=='message'){final p=await form('Votre message',{'text':message.text});if(p!=null)await act('message',{'text':p['text']});return;}
   if(action=='receipt'){await receiptPanel();return;}
   if(action=='application_outcome'){await outcomePanel();return;}
-  if(action=='review'&&a!=null){
-   final allowed=r['allowed_actions'] as List? ?? [];
-   final decision=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Relire les conditions · Version $version'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Padding(padding:const EdgeInsets.only(bottom:10),child:Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer')),if(allowed.contains('reject'))TextButton(onPressed:()=>Navigator.pop(ctx,'reject'),child:const Text('Refuser cette version')),if(allowed.contains('accept'))FilledButton(onPressed:()=>Navigator.pop(ctx,'accept'),child:const Text('Confirmer ces conditions'))]));
-   if(decision!=null&&mounted&&owner==account)await act(decision,{'version':version});return;
-  }
+  if(action=='review'&&a!=null){openAgreementReview(a['version'] as int);return;}
   if(action=='rating'){final score=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Évaluer cet échange'),content:Wrap(spacing:8,children:[for(var n=1;n<=5;n++)OutlinedButton(onPressed:()=>Navigator.pop(ctx,n),child:Text('$n ★'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Plus tard'))]));if(score!=null&&mounted&&owner==account)await act('rating',{'rating':score});return;}
   if(action=='issue'){await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Problème signalé'),content:Text('${(r['evidence'] as Map?)?['issue']??'La clôture est suspendue.'}'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Fermer'))]));return;}
   await act(action,{if(['payment_report','payment_receive','complete','approve_step'].contains(action))'version':version,if(['takeover','resume_bot','approve_step'].contains(action))'mandate_revision':r['mandate_revision'],if(action=='resume_bot')'confirmed':true,if(action=='application_submit')'confirmation':'submitted'});
  }
+ bool canConfirmAgreement(Map<String,dynamic> data) {
+  final agreement=data['agreement'] as Map?;
+  final mine=data['is_owner']==true?'owner_accepted_at':'provider_accepted_at';
+  return agreement?[mine]==null&&(data['allowed_actions'] as List? ?? []).contains('accept');
+ }
+
+ num agreementFees(Map<String,dynamic> data) {
+  final terms=(data['agreement'] as Map?)?['terms'] as Map?;
+  final total=data['agreement_total'] as Map?;
+  return num.tryParse('${total?['fees']??terms?['delivery_fee']??0}')??0;
+ }
+
+ num agreementAmount(Map<String,dynamic> data) {
+  final terms=(data['agreement'] as Map?)?['terms'] as Map?;
+  final total=data['agreement_total'] as Map?;
+  return num.tryParse('${total?['amount']}') ??
+   ((num.tryParse('${terms?['amount']}')??0)+agreementFees(data));
+ }
+
+ String? privateLimit(Map<String,dynamic> data) {
+  if(data['is_owner']!=true) return null;
+  final mandate=data['mandate'] as Map?;
+  final floor=num.tryParse('${mandate?['price_floor']}');
+  final budget=num.tryParse('${mandate?['budget_max']}');
+  if(floor!=null) return 'Votre prix plancher · ${money(floor)} · Visible uniquement par vous';
+  if(budget!=null) return 'Votre budget maximal · ${money(budget)} · Visible uniquement par vous';
+  return null;
+ }
+
+ Widget agreementProgress(Map<String,dynamic> data, Map agreement) {
+  final mine=agreement[data['is_owner']==true?'owner_accepted_at':'provider_accepted_at']!=null;
+  final other=agreement[data['is_owner']==true?'provider_accepted_at':'owner_accepted_at']!=null;
+  final count=(mine?1:0)+(other?1:0);
+  return Semantics(liveRegion:true,child:Container(
+   padding:const EdgeInsets.all(12),
+   decoration:BoxDecoration(color:const Color(0xFFEDF3FF),borderRadius:BorderRadius.circular(16)),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text('$count confirmation${count==1?'':'s'} sur 2 · Version ${agreement['version']}',
+     style:const TextStyle(fontWeight:FontWeight.w700)),
+    Text('Vous · ${mine?'Confirmé':'En attente'}'),
+    Text('Interlocuteur · ${other?'Confirmé':'En attente'}'),
+   ]),
+  ));
+ }
+
+ final reviewKey=GlobalKey();
+ void openAgreementReview(int version) {
+  setState(()=>reviewVersion=version);
+  WidgetsBinding.instance.addPostFrameCallback((_){
+   final target=reviewKey.currentContext;
+   if(mounted&&target!=null) Scrollable.ensureVisible(target);
+  });
+ }
+
+ Widget agreementReview(Map<String,dynamic> data, Map agreement) {
+  final version=agreement['version'] as int;
+  final changed=version!=reviewVersion;
+  final limit=privateLimit(data);
+  return KeyedSubtree(key:reviewKey,child:card([
+   Text('Relire les conditions',style:Theme.of(context).textTheme.titleLarge),
+   if(changed)const Semantics(liveRegion:true,child:Text('Les conditions ont changé. Relisez la nouvelle version.')),
+   Text('Version $version'),
+   for(final entry in (agreement['terms'] as Map).entries.where((e)=>!['workflow_version','delivery_fee'].contains(e.key)))
+    Text('${termLabels[entry.key]??'Condition'} · ${termValue('${entry.key}',entry.value)}'),
+   if(agreementFees(data)>0) Text('Frais · ${money(agreementFees(data))}'),
+   Text('Total · ${money(agreementAmount(data))}',style:Theme.of(context).textTheme.titleMedium),
+   if(limit!=null) Text(limit),
+   if(changed) button('Relire la version $version',()=>setState(()=>reviewVersion=version),primary:true)
+   else if(canConfirmAgreement(data)) ...[
+    button('Confirmer la version $version',()async{
+     final accepted=await act('accept',{'version':version});
+     if(accepted!=null&&mounted)setState(()=>reviewVersion=null);
+    },primary:true),
+    if((data['allowed_actions'] as List? ?? []).contains('reject'))
+     button('Refuser cette version',()async{
+      final result=await act('reject',{'version':version});
+      if(result!=null&&mounted)setState(()=>reviewVersion=null);
+     }),
+   ],
+   button('Fermer',()=>setState(()=>reviewVersion=null)),
+  ]));
+ }
+
  @override Widget build(BuildContext context){
   final r=room,a=r?['agreement'] as Map?,allowed=(r?['allowed_actions'] as List? ?? []),bot=r?['control_mode']=='bot';
   final guide=r?['guidance'] is Map&&r?['guidance']['schema']=='waouh.room_guidance.v1'?Map<String,dynamic>.from(r!['guidance'] as Map):null;
   final expired=r?['control_mode']!='manual'&&(DateTime.tryParse('${r?['expires_at']}')?.isBefore(DateTime.now())??false);
-  return Theme(data:Theme.of(context).copyWith(colorScheme:Theme.of(context).colorScheme.copyWith(primary:WaouhColors.blue)),child:Scaffold(backgroundColor:WaouhColors.pearl,appBar:AppBar(title:const Text('WAOUH'),leading:roomId==null?null:IconButton(icon:const Icon(Icons.arrow_back),onPressed:(){generation++;setState((){roomId=null;room=null;message.clear();});unawaited(load());}),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh))]),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[
+  return Theme(data:Theme.of(context).copyWith(colorScheme:Theme.of(context).colorScheme.copyWith(primary:WaouhColors.blue)),child:Scaffold(backgroundColor:WaouhColors.pearl,appBar:AppBar(title:const Text('WAOUH'),leading:roomId==null?null:IconButton(icon:const Icon(Icons.arrow_back),onPressed:(){generation++;setState((){roomId=null;room=null;reviewVersion=null;seen='';message.clear();});unawaited(load());}),actions:[IconButton(onPressed:busy?null:load,icon:const Icon(Icons.refresh))]),body:SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[
    if(notice.isNotEmpty)Card(color:const Color(0xFFECFAF6),child:Padding(padding:const EdgeInsets.all(12),child:Text(notice,style:const TextStyle(color:Color(0xFF087E70))))),if(error.isNotEmpty)Semantics(liveRegion:true,child:Text(error,style:TextStyle(color:Theme.of(context).colorScheme.error))),if(busy||searching)const LinearProgressIndicator(),
    if(roomId==null)...[
     Row(children:[Image.asset('assets/bot/bot_avatar.png',width:64),const SizedBox(width:12),const Expanded(child:Text('Que cherchez-vous ?',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)))]),
@@ -386,10 +484,11 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     for(final item in offers)card([LiveProductGallery(photos:item.photoUrls,title:item.title,detail:true),Text(item.title,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold)),Text(money(item.priceMin??item.priceMax),style:const TextStyle(fontSize:25,color:WaouhColors.deep)),Text('${item.city??''} · Disponibilité à confirmer'),if(liveOfferReachable(item))...[button('Intéressé',()=>open(item),primary:true),button('Confier à l’avatar',()=>delegateFromSearch(item))]else if((item.sourceUrl??'').isNotEmpty)button('Voir l’annonce d’origine',()=>unawaited(launchUrl(Uri.parse(item.sourceUrl!),mode:LaunchMode.externalApplication)),primary:true)else const Padding(padding:EdgeInsets.only(top:8),child:Text('Contact non disponible',style:TextStyle(color:Color(0xFF64748B)))),LiveDirectContactBar(item:item,nexus:nexus)]),
     for(final row in rooms)ListTile(title:Text('${row['title']}'),trailing:const Icon(Icons.chevron_right),onTap:(){setState(()=>roomId='${row['deal_room_id']}');unawaited(load());}),
    ]else if(r!=null)...[
-    if(guide!=null)LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),
+    if(reviewVersion!=null&&a!=null)agreementReview(r,a),
+    if(guide!=null&&reviewVersion==null&&!(guide['action']=='review'&&!canConfirmAgreement(r)))LiveDealGuidance(guide:guide,busy:busy,onAction:(action)=>unawaited(guideAction(action))),
     card([if(r['product'] is Map)LiveProductPresentation(value:r['product']),Text('${r['title']}',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(r['price'])),if(r['market'] is Map)LiveMarketVerdictCard(market:r['market'] as Map,amount:a!=null&&!['accepted','completed'].contains(a['status'])?num.tryParse('${(a['terms'] as Map)['amount']}'):num.tryParse('${r['price']??''}'),amountLabel:a!=null&&!['accepted','completed'].contains(a['status'])?'Offre en cours':'Prix affiché'),Text('${r['counterparty_name']??'Interlocuteur'}'),if(r['blocked_reason']!=null)const Text('Dossier historique : liaison à vérifier.'),Text(externalContactText(r['external_contact'])??(r['provider_joined']==true?(r['external_contact']==null&&r['events'] is List&&(r['events'] as List).any((e)=>e is Map&&e['event_type']=='seller_pending')?'Vendeur à joindre · votre message et votre offre partent dès qu’un contact est trouvé':'Interlocuteur dans l’échange'):'Invitation nécessaire'))]),
     Padding(padding:const EdgeInsets.symmetric(vertical:10),child:WaouhStepBar(step:a==null?3:a['status']=='pending'||!['accepted','completed'].contains(a['status'])?4:5)),
-    if(a!=null&&!['accepted','completed'].contains(a['status']))WaouhAgreementPanel(amount:money((a['terms'] as Map)['amount']),tag:waouhPriceTag(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??r['price']??''}')),busy:busy,waitingOther:!allowed.contains('accept'),onValidate:allowed.contains('accept')?()=>act('accept',{'version':a['version']}):null,onEdit:allowed.contains('propose')?propose:null),
+    if(a!=null&&a['status']=='proposed'&&reviewVersion==null)WaouhAgreementPanel(amount:money(agreementAmount(r)),tag:waouhPriceTag(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??r['price']??''}')),busy:busy,waitingOther:!canConfirmAgreement(r),onValidate:canConfirmAgreement(r)?()=>openAgreementReview(a['version'] as int):null,onEdit:allowed.contains('propose')?propose:null),
     if(a!=null&&a['status']=='accepted'&&(allowed.contains('receipt')||allowed.contains('issue')))WaouhReceiptPanel(done:false,busy:busy,receivedLabel:r['buyer']==true?'J’ai reçu':'C’est remis',onReceived:allowed.contains('receipt')?receiptPanel:null,onProblem:allowed.contains('issue')?()async{final p=await form('Problème',{'text':''});if(p!=null)await act('issue',{'version':a['version'],'text':p['text']});}:null),
     if(a!=null&&a['status']=='completed'&&(guide==null||guide['status']=='completed'))const WaouhReceiptPanel(done:true),
     if(a?['status']=='accepted')
@@ -404,8 +503,11 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
                 _ => 'Recherche d’un livreur',
               }),
       ]),
+    if(r['is_owner']==true&&bot&&r['closed']!=true)
+     button('Reprendre la main',()=>act('takeover',{'mandate_revision':r['mandate_revision']})),
+    if(privateLimit(r) case final limit?) Text(limit),
     Card(child:ExpansionTile(dense:true,leading:Image.asset('assets/bot/bot_avatar.png',width:28),title:Text(a?['status']=='completed'?'Échange clôturé':a?['status']=='accepted'?'Négociation terminée':expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),trailing:const Text('Voir détail',style:TextStyle(fontSize:12)),childrenPadding:const EdgeInsets.fromLTRB(16,0,16,12),expandedCrossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     if(r['is_owner']==true&&r['closed']!=true&&!['accepted','completed'].contains(a?['status'])&&guide?['action']!='takeover')button(bot?'Reprendre la main':'Confier à Bot',()=>bot?act('takeover',{'mandate_revision':r['mandate_revision']}):mandate()),
+     if(r['is_owner']==true&&r['closed']!=true&&!['accepted','completed'].contains(a?['status'])&&guide?['action']!='takeover'&&!bot)button('Confier à Bot',mandate),
      if(r['is_owner']==true&&allowed.contains('approve_step')&&guide?['action']!='approve_step')button('Autoriser la prochaine proposition / relance dans les limites du mandat',()=>act('approve_step',{'mandate_revision':r['mandate_revision'],'version':r['current_offer_version']})),
      if(r['is_owner']==true&&bot)button('Mettre en pause',()=>act('pause',{'mandate_revision':r['mandate_revision']})),
      if(r['is_owner']==true&&r['control_mode']=='paused'&&!expired&&guide?['action']!='resume_bot')button('Reprendre avec le mandat conservé',()=>act('resume_bot',{'mandate_revision':r['mandate_revision'],'confirmed':true})),
@@ -421,7 +523,7 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     if(allowed.contains('application_submit')&&guide?['action']!='application_submit')button('Je confirme avoir transmis mon dossier',()=>act('application_submit',{'confirmation':'submitted'})),
     if(allowed.contains('application_outcome')&&guide?['action']!='application_outcome')button('Répondre au dossier',outcomePanel,primary:true),
     if(r['evidence'] is Map&&r['evidence']['application_outcome']!=null)Container(margin:const EdgeInsets.only(top:8),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:r['evidence']['application_outcome']=='retained'?const Color(0xFFECFDF5):const Color(0xFFF8FAFC),borderRadius:BorderRadius.circular(12)),child:Text('${r['evidence']['application_outcome']=='retained'?'✓ Candidature retenue':'Candidature non retenue'}${(r['evidence']['application_outcome_note']??'').toString().isNotEmpty?' — ${r['evidence']['application_outcome_note']}':''}',style:TextStyle(fontWeight:FontWeight.w600,color:r['evidence']['application_outcome']=='retained'?const Color(0xFF047857):const Color(0xFF475569))))
-    else if(r['evidence'] is Map&&r['evidence']['application_submitted_at']!=null)const Text('Démarche déclarée transmise. Réponse attendue.'),
+    else if(r['evidence'] is Map&&r['evidence']['application_submitted_at']!=null)const Text('Dépôt enregistré. Réponse de l’annonceur attendue.'),
     if((!bot||r['is_owner']!=true)&&allowed.contains('propose')&&guide?['action']!='propose')button('Proposer un prix / des conditions',propose),
     if(r['is_owner']==true&&r['provider_joined']==true&&(
       (r['external_contact'] is Map && const ['failed','queued','link_shared','waiting'].contains(r['external_contact']['delivery_status']))
@@ -429,8 +531,8 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     if(r['provider_joined']!=true&&r['is_owner']==true&&r['external_contact']==null)...[button('Confirmer la prise de contact',()=>act('contact',{'confirmed':true})),if(guide?['action']!='invite')button('Préparer et copier l’invitation',copyInvite),button('Révoquer l’invitation',()=>act('revoke_invite'))],
     if(a==null&&r['initial_price_proposal'] is Map&&r['initial_price_proposal']['amount']!=null)card([const Text('Prix proposé par Bot'),Text(money(r['initial_price_proposal']['amount'])),Text('Proposition ${r['initial_price_proposal']['revision']} · Conditions à préciser avant l’accord.')]),
     if(allowed.contains('rating'))card([const Text('Évaluer cet échange'),Wrap(spacing:8,children:[for(var score=1;score<=5;score++)OutlinedButton(onPressed:busy?null:()=>act('rating',{'rating':score}),child:Text('$score ★'))])]),
-    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':'Accord à confirmer',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money((a['terms'] as Map)['amount']),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),if(a['status']!='accepted'&&a['status']!='completed')...[for(final v in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??''}'))])if(v!=null)LiveMarketVerdictLine(verdict:v,referenceLabel:'prix du marché')else for(final w in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['price']??''}'))])if(w!=null)LiveMarketVerdictLine(verdict:w,referenceLabel:'prix affiché')],Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'),if(a['status']=='accepted'&&(a['terms'] as Map)['delivery_mode']=='delivery')deliveryBox(),Text('${a['owner_accepted_at']!=null?'✓':'○'} Demandeur · ${a['provider_accepted_at']!=null?'✓':'○'} Interlocuteur'),
-     if(guide==null&&allowed.contains('reject'))button('Refuser cette version',()=>act('reject',{'version':a['version']})),
+    if(a!=null)card([Text(a['status']=='completed'?(guide!=null&&guide['status']!='completed'?'Clôture à vérifier':'Échange clôturé'):a['status']=='accepted'?'Accord confirmé':a['status']=='rejected'?'Proposition refusée':canConfirmAgreement(r)?'Votre confirmation est attendue':'En attente de l’interlocuteur',style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold)),Text(money(agreementAmount(r)),style:const TextStyle(fontSize:28,color:WaouhColors.deep)),if(a['status']!='accepted'&&a['status']!='completed')...[for(final v in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??''}'))])if(v!=null)LiveMarketVerdictLine(verdict:v,referenceLabel:'prix du marché')else for(final w in [liveMarketVerdict(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['price']??''}'))])if(w!=null)LiveMarketVerdictLine(verdict:w,referenceLabel:'prix affiché')],Text('Version ${a['version']}'),for(final entry in (a['terms'] as Map).entries.where((e)=>e.key!='workflow_version'))Text('${termLabels[entry.key]??'Condition'} : ${termValue('${entry.key}',entry.value)}'),if(a['status']=='accepted'&&(a['terms'] as Map)['delivery_mode']=='delivery')deliveryBox(),agreementProgress(r,a),
+
      if(a['status']=='accepted')...[
       if(guide==null)const Text('Réception et paiement à confirmer ensuite.'),
       if(r['evidence'] is Map)_receiptStatus(r['evidence'] as Map),

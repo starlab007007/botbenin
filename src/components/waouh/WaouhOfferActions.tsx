@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bot, ExternalLink, Eye, HeartHandshake } from "lucide-react";
 import type { NexusDiscoveryResult } from "@/lib/waouh/nexus";
@@ -8,15 +8,14 @@ import { WaouhDelegateButton } from "./WaouhDelegateButton";
 import { WaouhDirectContact } from "./WaouhDirectContact";
 import "./waouh-market.css";
 import { offerChannels } from "@/lib/waouh/offerChannels";
-import { openInterestedDiscussion } from '@/lib/waouh/interestNavigation';
-import { toast } from 'sonner';
 
 type Mode = "buy" | "sell" | "ask";
 
 /** Verbe de l'action principale, selon le type de recherche. */
 export function offerPrimaryLabel(kind?: MissionKind | string | null): string {
-  if (kind === "service" || kind === "project") return "Demander un devis";
-  if (kind === "opportunity") return "Postuler";
+  if (kind === "service") return "Demander un devis";
+  if (kind === "project") return "Discuter du projet";
+  if (kind === "opportunity") return "Postuler dans WAOUH";
   if (kind === "sale") return "Contacter l’acheteur";
   return "Intéressé";
 }
@@ -27,7 +26,7 @@ export function offerPrimaryLabel(kind?: MissionKind | string | null): string {
  * connu). Opportunité : le Deal Room suit son propre parcours de dossier.
  */
 export function offerDealRoomPath(result: Pick<NexusDiscoveryResult, "fabric_id" | "price_min" | "price_max">, kind?: MissionKind | string | null, saleArticleId?: string): string {
-  const params = new URLSearchParams({ fabric_id: result.fabric_id });
+  const params = new URLSearchParams({ fabric_id: result.fabric_id, unified: "1" });
   if (saleArticleId) params.set("sale_article_id", saleArticleId);
   if (kind === "opportunity") params.set("kind", "opportunity");
   else if (kind === "sale") params.set("propose", "1");
@@ -49,9 +48,7 @@ export function offerReachable(result: Pick<NexusDiscoveryResult, "fabric_id" | 
   if (id.startsWith("article:") || id.startsWith("buyer:")) return true;
   const evidence = (result.evidence || {}) as Record<string, unknown>;
   if (id.startsWith("catalog:") && (evidence.source === "partner" || evidence.has_contact === true || evidence.has_contact === "true")) return true;
-  if (result.contact_policy?.can_auto_contact === true) return true;
-  // Contact WhatsApp retrouvé par Nexus, Radar ou une autre source : Bot peut l'écrire.
-  return offerChannels(result as never).includes("whatsapp");
+  return result.contact_policy?.can_auto_contact === true;
 }
 
 /** Les offres dont le vendeur est joignable passent devant, l'ordre de pertinence est conservé à l'intérieur de chaque groupe. */
@@ -89,23 +86,17 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   contactAction?: ReactNode;
 }) {
   const navigate = useNavigate();
-  const [opening, setOpening] = useState(false);
   const { mode, kind, requireAuth } = shared;
   const reachable = offerReachable(result);
   const externalApplication = kind === "opportunity" &&
     /^https?:\/\//i.test(result.source_url ?? "") ? result.source_url : null;
   const canOpen = !!result.fabric_id && (mode !== "sell" || !!shared.articleId);
-  const primary = canOpen ? (
-    <button type="button" className={primaryOnly ? "wsl-premium-manual" : "wgd-offer-primary"} disabled={opening} onClick={async () => {
+  const primary = canOpen && !externalApplication ? (
+    <button type="button" className={primaryOnly ? "wsl-premium-manual" : "wgd-offer-primary"} onClick={() => {
       const path = offerDealRoomPath(result, mode === "sell" ? "sale" : kind, shared.articleId);
-      if (!requireAuth(path)) return;
-      if (mode === 'sell' || kind === 'opportunity') { navigate(path); return; }
-      setOpening(true);
-      try { await openInterestedDiscussion(result, navigate); }
-      catch (error) { toast.error(error instanceof Error ? error.message : 'Cet échange n’a pas pu être ouvert. Réessayez.'); }
-      finally { setOpening(false); }
+      if (requireAuth(path)) navigate(path);
     }}>
-      <HeartHandshake size={16} aria-hidden="true" />{reachable ? (primaryLabel ?? (primaryOnly && (!kind || kind === "purchase") ? "Je prends" : offerPrimaryLabel(mode === "sell" ? "sale" : kind))) : "Ouvrir l’échange"}
+      <HeartHandshake size={16} aria-hidden="true" />{reachable ? (primaryLabel ?? offerPrimaryLabel(mode === "sell" ? "sale" : kind)) : "Ouvrir l’échange"}
     </button>
   ) : saleAction ?? null;
   const applyOnSource = externalApplication ? (
@@ -121,7 +112,7 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
       {applyOnSource}
       {!externalApplication && !reachable && result.source_url && <a href={result.source_url} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost"><ExternalLink size={15} aria-hidden="true" />Voir l’annonce d’origine</a>}
       <div className="wgd-offer-secondary">
-        {!reachable && <span className="wgd-offer-unreachable">Contact non disponible</span>}
+        <span className="wgd-offer-unreachable">{reachable ? (offerChannels(result).includes("waouh") || result.fabric_id.startsWith("buyer:") ? "Échange WAOUH disponible" : "Contact autorisé via WAOUH") : "Contact via WAOUH à confirmer"}</span>
         {reachable && canOpen && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
           city={shared.city} budgetMax={shared.budgetMax} variant="secondary" label="Bot" className="h-10"
           alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a) && (a.intent ?? null) === (result.intent ?? null)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}

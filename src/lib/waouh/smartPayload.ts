@@ -162,7 +162,11 @@ export function waouhSmartActions(value: unknown, max = 3): WaouhSmartAction[] {
 
 export function waouhSmartRoute(value: unknown): string | null {
   const smart = readWaouhSmartEnvelope(value);
-  return primaryWaouhSmartAction(value)?.route ?? smart?.route ?? null;
+  const payload = value as { url?: unknown; target_route?: unknown } | null;
+  const roomRoute = payload?.target_route ?? payload?.url;
+  const validRoomRoute = typeof roomRoute === 'string' &&
+    /^\/app\/deal-room\?room_id=[0-9a-f-]{36}(?:&decision_version=[1-9][0-9]*)?$/.test(roomRoute);
+  return primaryWaouhSmartAction(value)?.route ?? smart?.route ?? (validRoomRoute ? roomRoute : null);
 }
 
 export function waouhSmartDisplayText(value: unknown, fallback: string) {

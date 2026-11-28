@@ -30,10 +30,18 @@ it('takes over the same room before allowing a manual message, keeping the histo
  expect(mocks.call).toHaveBeenCalledWith('message',{deal_room_id:'room',text:'Je reprends cet échange'});
 });
 it('confirms the exact offer version and never infers bilateral agreement',async()=>{
- mocks.call.mockResolvedValue(base);await mount();
- expect(host.textContent).toContain('Accord à confirmer');await click('Confirmer ces conditions');
+ let current:any=base;
+ mocks.call.mockImplementation(async(action)=>{
+  if(action==='accept')current={...current,agreement:{...current.agreement,owner_accepted_at:'now'}};
+  return current;
+ });
+ await mount();await click('Relire les conditions');await click('Confirmer la version 3');
  expect(mocks.call).toHaveBeenCalledWith('accept',{deal_room_id:'room',version:3});
+ expect(host.textContent).toContain('1 confirmation sur 2');
  expect(host.textContent).not.toContain('Accord confirmé');
+ current={...current,agreement:{...current.agreement,provider_accepted_at:'now',status:'accepted'}};
+ await click('Actualiser');expect(host.textContent).toContain('2 confirmations sur 2');
+ expect(host.textContent).toContain('Accord confirmé');
 });
 it('allows the seller to reply while the buyer is represented by Bot',async()=>{
  mocks.call.mockResolvedValue({...base,is_owner:false,mandate:null});await mount();
@@ -127,10 +135,22 @@ it('freezes the reviewed version and requires another review if the server condi
  mocks.call.mockImplementation(async()=>current);
  await mount();await click('Relire les conditions');
  expect(host.querySelector('[aria-label="Relire les conditions"]')?.textContent).toContain('Version 2');
- expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer ces conditions')!.disabled).toBe(false);
+ expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer la version 2')!.disabled).toBe(false);
  current={...current,current_offer_version:3,agreement:{...current.agreement,version:3,terms:{amount:147000}}};
  await click('Actualiser');
- const confirm=[...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer ces conditions')!;
- expect(confirm.disabled).toBe(true);expect(host.textContent).toContain('Les conditions ont changé');
+ const confirm=[...host.querySelectorAll('button')].find(b=>b.textContent==='Confirmer la version 2')!;
+ expect(confirm).toBeUndefined();expect(host.textContent).toContain('Les conditions ont changé');
+ expect(mocks.call.mock.calls.some(c=>c[0]==='accept')).toBe(false);
+ await click('Relire la version 3');await click('Confirmer la version 3');
+ expect(mocks.call).toHaveBeenCalledWith('accept',{deal_room_id:'room',version:3});
+});
+
+it('opens the versioned review from a decision notification and shows the all-in total',async()=>{
+ mocks.call.mockResolvedValue({...base,agreement_total:{amount:150000,fees:5000},mandate:{budget_max:160000}});
+ await mount('/?room_id=room&decision_version=3');
+ const dialog=host.querySelector('[aria-label="Relire les conditions"]')!;
+ expect(dialog.textContent).toContain('Confirmer la version 3');
+ expect(dialog.textContent?.replace(/[^0-9]/g,'')).toContain('150000');
+ expect(dialog.textContent).toContain('Votre budget maximal');
  expect(mocks.call.mock.calls.some(c=>c[0]==='accept')).toBe(false);
 });

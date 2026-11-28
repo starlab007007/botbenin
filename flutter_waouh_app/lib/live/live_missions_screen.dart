@@ -1,4 +1,5 @@
 import 'live_quick_ask.dart';
+import 'live_deal_room.dart' show LiveDealRoomService;
 import 'live_mission_feed.dart';
 import 'live_product_presentation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -185,7 +186,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
   String? _account;
   int _version = 0;
   final _missionRevision = ValueNotifier<int>(0);
-  List<Map<String, dynamic>> _mandates = [];
+  List<Map<String, dynamic>> _mandates = [], _rooms = [];
   List<NexusOpportunityJourney> _journeys = [];
   bool _loading = false, _archive = false, _paused = false;
   bool _openedInitial = false;
@@ -204,6 +205,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
         setState(() {
           _account = next;
           _mandates = [];
+          _rooms = [];
           _journeys = [];
           _paused = false;
           _loading = false;
@@ -285,6 +287,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
           () => _service.listOpportunities(includeCompleted: true, limit: 100),
         ),
         readMissionPart(() => loadLiveAvatarAutonomy()),
+        readMissionPart(() => LiveDealRoomService(legacy.supabase).call('list')),
       ]);
       if (!mounted ||
           v != _version ||
@@ -292,7 +295,8 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
         return;
       final data = parts[0].value,
           journeys = parts[1].value,
-          rules = parts[2].value;
+          rules = parts[2].value,
+          roomData = parts[3].value;
       final failed = parts.take(2).any((part) => part.failed);
       setState(() {
         if (data is Map && data['mandates'] is List)
@@ -300,6 +304,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
               .whereType<Map>()
               .map((r) => Map<String, dynamic>.from(r))
               .toList();
+        if (roomData is Map && roomData['rooms'] is List) {
+          _rooms = (roomData['rooms'] as List).whereType<Map>().map(Map<String,dynamic>.from).toList();
+        }
         if (journeys is List<NexusOpportunityJourney>) _journeys = journeys;
         if (rules is Map) _paused = rules['paused'] == true;
         _error = failed ? 'Je rétablis le suivi automatiquement…' : null;
@@ -461,7 +468,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                           final id = choice['fabric_id'];
                           if (id is! String || id.isEmpty) return;
                           Navigator.pop(ctx);
-                          context.push(Uri(path: '/app/chat/room', queryParameters: {'fabric_id': id}).toString());
+                          context.push(Uri(path: '/app/chat/room', queryParameters: {'fabric_id': id, 'unified': '1', if (!watch) 'propose': '1'}).toString());
                         },
                       ),
                   ],
@@ -682,6 +689,8 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
           (m) => !linked.contains(m.id) && (_archive ? !m.active : m.active),
         )
         .toList();
+    const roomFinalStates = {'accepted', 'completed', 'rejected', 'application_answered'};
+    final roomRows = _rooms.where((room) => _archive == roomFinalStates.contains(room['next_status'])).toList();
     final archived =
         _mandates.where((m) => _finished.contains('${m['status']}')).length +
         agentic.missions
@@ -769,6 +778,37 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
               ),
             ),
             const SizedBox(height: 26),
+            if (roomRows.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text('Mes échanges'),
+              ),
+            for (final room in roomRows)
+              LiveMinimalMissionTile(
+                title: '${room['title']}',
+                line: switch (room['next_status']) {
+                  'awaiting_you' => 'Votre confirmation est attendue',
+                  'awaiting_other' => 'En attente de l’interlocuteur',
+                  'accepted' => 'Accord confirmé',
+                  'completed' => 'Échange clôturé',
+                  'rejected' => 'Proposition refusée',
+                  'application_prepared' => 'Dossier prêt à transmettre',
+                  'application_submitted' => 'Dépôt enregistré · Réponse attendue',
+                  'application_answered' => 'Réponse au dossier reçue',
+                  'awaiting_contact' => 'Contact en attente',
+                  'bot' => 'Bot mène l’échange',
+                  'paused' => 'Bot en pause',
+                  'blocked' => 'Liaison de l’échange à vérifier',
+                  _ => 'Voir le suivi de l’échange',
+                },
+                status: 'À valider',
+                decision: room['next_status'] == 'awaiting_you',
+                onTap: () => context.push(Uri(path: '/app/chat/room', queryParameters: {
+                  'room_id': '${room['deal_room_id']}',
+                  if (room['next_status'] == 'awaiting_you' && room['decision_version'] != null)
+                    'decision_version': '${room['decision_version']}',
+                }).toString()),
+              ),
             if (agentic.pendingApprovalCount > 0 && !_archive)
               LiveMinimalMissionTile(
                 title:
@@ -830,7 +870,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                 status: m.active ? 'En cours' : 'Terminée',
                 onTap: _advanced,
               ),
-            if (!_loading && current.isEmpty && legacyRows.isEmpty)
+            if (!_loading && current.isEmpty && legacyRows.isEmpty && roomRows.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 30),
                 child: Column(

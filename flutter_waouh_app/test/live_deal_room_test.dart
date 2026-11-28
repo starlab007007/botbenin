@@ -65,11 +65,6 @@ void main(){
  testWidgets('manual takeover keeps the same room and its history',(tester)async{
   final api=await serviceFor(tester);await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
   expect(find.text('Historique conservé'),findsOneWidget);expect(find.text('Bot mène l’échange'),findsOneWidget);
-  // The compact Bot card hides its controls until the owner expands it.
-  final botPanel=find.widgetWithText(ExpansionTile,'Bot mène l’échange');
-  expect(botPanel,findsOneWidget);
-  await tester.ensureVisible(botPanel);
-  await tester.tap(botPanel);await tester.pumpAndSettle();
   await tester.ensureVisible(find.text('Reprendre la main'));await tester.tap(find.text('Reprendre la main'));await tester.pumpAndSettle();
   expect(api.calls,contains('takeover'));
   final takeover=api.requests.singleWhere((r)=>r['action']=='takeover');
@@ -97,19 +92,30 @@ void main(){
   expect(find.text('Accord confirmé'),findsNothing);
   await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));
- testWidgets('guided review submits the version actually read, even if the server changes',(tester)async{
+ testWidgets('a versioned notification opens the review and a new offer requires a fresh review',(tester)async{
   final api=await serviceFor(tester);
   final fixtures=jsonDecode(File('../tests/fixtures/waouh-room-guidance.json').readAsStringSync()) as List;
   final fixture=fixtures.firstWhere((f)=>f['name']=='review') as Map;
-  api.data={...api.data,...Map<String,dynamic>.from(fixture['room'] as Map),'current_offer_version':2,'guidance':fixture['guidance']};
-  await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',service:api,ownerScope:'owner')));await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(FilledButton,'Relire les conditions'));await tester.pumpAndSettle();
-  expect(find.text('Relire les conditions · Version 2'),findsOneWidget);
-  api.data={...api.data,'current_offer_version':3};
-  await tester.tap(find.widgetWithText(FilledButton,'Confirmer ces conditions'));await tester.pumpAndSettle();
-  expect(api.requests.lastWhere((r)=>r['action']=='accept')['version'],2);
+  api.data={...api.data,...Map<String,dynamic>.from(fixture['room'] as Map),
+   'current_offer_version':2,'guidance':fixture['guidance'],'agreement_total':{'amount':150000,'fees':5000}};
+  await tester.pumpWidget(MaterialApp(home:LiveDealRoomScreen(roomId:'room',decisionVersion:'2',service:api,ownerScope:'owner')));
+  await tester.pumpAndSettle();
+  expect(find.text('Relire les conditions'),findsOneWidget);
+  expect(find.textContaining('Total ·'),findsOneWidget);
+  final confirm=find.widgetWithText(FilledButton,'Confirmer la version 2');
+  expect(confirm,findsOneWidget);
+  api.data={...api.data,'current_offer_version':3,'agreement':{...(api.data['agreement'] as Map),'version':3}};
+  await tester.tap(find.byIcon(Icons.refresh));await tester.pumpAndSettle();
+  expect(confirm,findsNothing);
   expect(find.textContaining('Les conditions ont changé'),findsOneWidget);
-  expect(find.text('Accord confirmé'),findsNothing);
+  expect(api.calls, isNot(contains('accept')));
+  final review=find.widgetWithText(FilledButton,'Relire la version 3');
+  await tester.ensureVisible(review);await tester.pumpAndSettle();
+  await tester.tap(review);await tester.pumpAndSettle();
+  final confirmLatest=find.widgetWithText(FilledButton,'Confirmer la version 3');
+  await tester.ensureVisible(confirmLatest);await tester.pumpAndSettle();
+  await tester.tap(confirmLatest);await tester.pumpAndSettle();
+  expect(api.requests.lastWhere((r)=>r['action']=='accept')['version'],3);
   await tester.pumpWidget(const SizedBox.shrink());await tester.runAsync(()=>api.client.dispose());
  },timeout:const Timeout(Duration(seconds:60)));
 

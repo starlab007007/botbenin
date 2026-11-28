@@ -10,7 +10,7 @@ create function public.waouh_module_policy(uuid) returns table(module_key text,v
 create table public.waouh_users(id uuid primary key,auth_user_id uuid);create table public.waouh_avatar_prefs(auth_user_id uuid,autonomy_settings jsonb);create table public.waouh_articles(id uuid primary key,seller_id uuid,status text);
 create table public.waouh_notifications(user_id uuid,notification_type text,article_id uuid,photos text[],payload jsonb,channel text,delivery_status text,dedupe_key text unique);`);
 for(const f of ['20261024095753_waouh_convergence.sql','20261024103115_waouh_convergence_group_quote_guard.sql','20261029214830_waouh_business_journey.sql','20261030075851_waouh_atomic_interest.sql','20261104082300_waouh_unified_deal_rooms.sql','20261104105439_waouh_room_followup_resume_cooldown.sql','20261104111700_waouh_room_progressive_guidance.sql','20261106130900_waouh_receipt_mutual_proof.sql','20261106190000_waouh_room_guidance_restore_and_agreement_lock.sql','20261106200000_waouh_opportunity_outcome.sql','20261106220000_waouh_room_external_owner.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
-for(const f of ['20261116214600_waouh_sale_deal_rooms.sql','20261127171000_waouh_room_autonomy_atomic.sql','20261128100000_waouh_autonomous_commerce.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
+for(const f of ['20261116214600_waouh_sale_deal_rooms.sql','20261127171000_waouh_room_autonomy_atomic.sql','20261128100000_waouh_autonomous_commerce.sql','20261128120000_waouh_agreement_decision.sql'])await db.exec(await readFile(new URL('../../supabase/migrations/'+f,import.meta.url),'utf8'));
 await db.exec("create or replace function public.waouh_module_policy(uuid) returns table(module_key text,visible boolean,access_enabled boolean,automation_enabled boolean) language sql as $p$select k,true,true,true from unnest(array['nexus','missions','avatar']) k$p$;");
 const owner='00000000-0000-4000-8000-000000000101',seller='00000000-0000-4000-8000-000000000102',ownerUser='00000000-0000-4000-8000-000000000111';
 for(const id of [owner,seller])await db.query('insert into auth.users values($1)',[id]);
@@ -82,4 +82,24 @@ await tick(ext);r=await cmd(owner,'get',{deal_room_id:ext});
 assert.equal(r.messages.filter(m=>m.author_kind==='bot'&&m.text.includes(summary)).length,0);assert.ok(!r.evidence?.application_submitted_at);
 assert.equal((await notes('bot-first:'+ext)).length,0);
 console.log('Consent: no announcer in the exchange, nothing is transmitted.');
-await db.close();await rm(storage,{recursive:true,force:true});
+
+// A versioned notification points to its exact room and the limit covers the all-in amount.
+const destination=(await db.query("select payload->>'target_route' route from public.waouh_notifications where dedupe_key like $1",['bot-decision:'+within+':%'])).rows[0].route;
+assert.match(destination,new RegExp('/app/deal-room\\?room_id='+within+'&decision_version=[1-9][0-9]*$'));
+r=await cmd(owner,'get',{deal_room_id:within});
+await db.query('update public.waouh_convergence_components set extra_cost=7000 where id=$1',[within]);
+const expensive=await cmd(seller,'propose',{deal_room_id:within,version:r.agreement.version,terms:{...terms(95000),delivery_fee:6000}});
+await assert.rejects(cmd(owner,'accept',{deal_room_id:within,version:expensive.agreement.version}),/budget_exceeded/);
+const affordable=await cmd(seller,'propose',{deal_room_id:within,version:expensive.agreement.version,terms:{...terms(93000),delivery_fee:6000}});
+await assert.rejects(cmd(owner,'accept',{deal_room_id:within,version:expensive.agreement.version}),/agreement_unavailable_or_changed/);
+await cmd(owner,'accept',{deal_room_id:within,version:affordable.agreement.version});
+const followup=async(actor)=>(await db.query('select public.waouh_room_followup($1) data',[actor])).rows[0].data.rooms.find(x=>x.deal_room_id===within);
+assert.equal((await followup(owner)).next_status,'awaiting_other');
+assert.equal((await followup(seller)).next_status,'awaiting_you');
+assert.equal((await followup(seller)).decision_version,affordable.agreement.version);
+r=await cmd(seller,'accept',{deal_room_id:within,version:affordable.agreement.version});
+assert.equal(r.agreement.status,'accepted','Fees are counted once, including known source fees');
+assert.equal((await followup(seller)).next_status,'accepted');
+console.log('Review: versioned link, fee-inclusive budget, stale version blocked, one and two confirmations.');
+await db.close();
+await rm(storage,{recursive:true,force:true});
