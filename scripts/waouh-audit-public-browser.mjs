@@ -6,6 +6,8 @@ await mkdir(out,{recursive:true});
 const base='https://bot.bj';
 const actions={acheter:'/app/avatar/acheter',vendre:'/app/avatar/vendre',trouver:'/app/chat',service:'/app/chat',opportunite:'/app/chat',prestation:'/app/chat'};
 const results=[];
+// Only the access-policy read is let through: without it the fail-closed gate hides every page.
+const READ_ONLY_RPC=new Set(['/rest/v1/rpc/waouh_module_policy']);
 const browser=await chromium.launch({headless:true});
 function targetOk(url,expected){
  const u=new URL(url);
@@ -29,9 +31,12 @@ try{
    const context=await browser.newContext({viewport:{width,height},serviceWorkers:'block'});
    const blocked=[];
    await context.route('**/*',route=>{
-    const method=route.request().method();
-    if(!['GET','HEAD','OPTIONS'].includes(method)){blocked.push(method);return route.abort();}
-    return route.continue();
+    const request=route.request(),method=request.method();
+    if(['GET','HEAD','OPTIONS'].includes(method))return route.continue();
+    let path='';try{path=new URL(request.url()).pathname;}catch{}
+    // Read-only RPCs sent as POST by the client (STABLE functions, verified in the database).
+    if(method==='POST'&&READ_ONLY_RPC.has(path))return route.continue();
+    blocked.push(method+' '+path);return route.abort();
    });
    const page=await context.newPage();
    const errors=[];
@@ -61,8 +66,8 @@ try{
      entryButtons:document.querySelectorAll('[data-waouh-action]').length,status:document.querySelector('[role="status"]')?.textContent?.trim().slice(0,120)||null,
      text:(document.body?.innerText||'').replace(/\s+/g,' ').trim().slice(0,240)}));}catch{}
     try{entry.screenshots.push(await capture(page,device+'-'+action+'-03-erreur'));}catch{}
-   }finally{entry.blockedWrites=blocked.length;results.push(entry);await context.close();}
-   console.log(device+' '+action+' '+entry.status+(entry.reason?' | '+entry.reason.split('\n')[0]:'')+(entry.diagnosis?' | '+JSON.stringify(entry.diagnosis):'')+(entry.entryVisibleMs!=null?' | entry visible after '+entry.entryVisibleMs+' ms':''));
+   }finally{entry.blockedWrites=blocked.length;entry.blockedPaths=[...new Set(blocked)].slice(0,12);results.push(entry);await context.close();}
+   console.log(device+' '+action+' '+entry.status+(entry.reason?' | '+entry.reason.split('\n')[0]:'')+(entry.diagnosis?' | '+JSON.stringify(entry.diagnosis):'')+(entry.entryVisibleMs!=null?' | entry visible after '+entry.entryVisibleMs+' ms':'')+(blocked.length?' | blocked '+JSON.stringify(entry.blockedPaths):''));
    await writeFile(out+'/report.json',JSON.stringify({generated_at:new Date().toISOString(),target:base,scope:'public production read-only; no sign-in, no publication, no negotiation',results},null,2));
   }
  }
