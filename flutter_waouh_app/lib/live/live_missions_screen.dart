@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' as legacy;
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
@@ -183,6 +184,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
   int _retryAttempt = 0;
   String? _account;
   int _version = 0;
+  final _missionRevision = ValueNotifier<int>(0);
   List<Map<String, dynamic>> _mandates = [];
   List<NexusOpportunityJourney> _journeys = [];
   bool _loading = false, _archive = false, _paused = false;
@@ -206,6 +208,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
           _paused = false;
           _loading = false;
         });
+        _missionRevision.value++;
         _retryTimer?.cancel();
         _retryAttempt = 0;
         _subscribe();
@@ -239,6 +242,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
     _retryTimer?.cancel();
     if (_updates != null) legacy.supabase.removeChannel(_updates!);
     _auth?.cancel();
+    _missionRevision.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -300,6 +304,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
         if (rules is Map) _paused = rules['paused'] == true;
         _error = failed ? 'Je rétablis le suivi automatiquement…' : null;
       });
+      _missionRevision.value++;
       _retryTimer?.cancel();
       if (failed) {
         _retryAttempt++;
@@ -348,67 +353,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
     context.go('/app/chat/waouh');
   }
 
-  Future<void> _newNeed() async {
-    final input = TextEditingController();
-    final need = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          22,
-          0,
-          22,
-          24 + MediaQuery.viewInsetsOf(ctx).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Confier un besoin',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: input,
-              autofocus: true,
-              maxLength: 1000,
-              decoration: const InputDecoration(
-                labelText: 'Votre besoin',
-                hintText: 'Un produit, un service, une annonce…',
-              ),
-              onSubmitted: (v) {
-                if (v.trim().isNotEmpty) Navigator.pop(ctx, v.trim());
-              },
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Bot recherche, compare et suit selon vos règles.',
-              style: TextStyle(fontSize: 12, color: avatarPremiumMuted),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () {
-                if (input.text.trim().isNotEmpty)
-                  Navigator.pop(ctx, input.text.trim());
-              },
-              icon: const Icon(Icons.auto_awesome_outlined, size: 16),
-              label: const Text('Confier à Bot'),
-            ),
-          ],
-        ),
-      ),
-    );
-    input.dispose();
-    if (need != null && mounted)
-      liveOpenGuidedPath(
-        context,
-        '/app/chat/waouh?${Uri(queryParameters: {'q': need, 'kind': 'trouver'}).query}',
-      );
-  }
+  Future<void> _newNeed() => liveGuidedQuickAsk(context, LiveQuickAskKind.demander);
 
   Future<void> _advanced() async {
     if (legacy.supabase.auth.currentUser == null) {
@@ -438,15 +383,21 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
         !_finished.contains(j.stage),
   );
   Future<void> _open(Map<String, dynamic> mission) async {
+    final owner = _account;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (ctx) => StatefulBuilder(
-        builder: (sheet, update) {
-          var row = _mandates.firstWhere(
+      builder: (ctx) => ValueListenableBuilder<int>(
+        valueListenable: _missionRevision,
+        builder: (_, revision, child) {
+          if (_account != owner || owner == null) {
+            return const Padding(padding: EdgeInsets.all(20), child: Text('Votre compte a changé.'));
+          }
+          return StatefulBuilder(builder: (sheet, update) {
+          final row = _mandates.firstWhere(
             (m) => m['id'] == mission['id'],
             orElse: () => mission,
           );
@@ -454,9 +405,9 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
               ? row['metadata'] as Map
               : const {};
           final watch = meta['discovery_kind'] == 'opportunity';
-          final selection = meta['latest_selection'] is List
-              ? (meta['latest_selection'] as List).whereType<Map>().toList()
-              : <Map>[];
+          final recommendations = meta['completion_goal'] == 'recommendations';
+          final stored = watch ? meta['latest_selection'] : meta['results'];
+          final selection = stored is List ? stored.whereType<Map>().toList() : <Map>[];
           final related = _journeys
               .where((j) => j.mandateId == row['id'])
               .toList();
@@ -490,25 +441,28 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
                       value: meta['article_snapshot'],
                       label: 'Mon article à vendre',
                     ),
-                  if (watch) ...[
-                    Text(
-                      liveAutomaticMissionMessage(row),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: avatarPremiumMuted,
-                      ),
-                    ),
-                    for (final selected in selection)
+                  if (recommendations || watch) ...[
+                    if (row['status'] == 'completed' && !watch)
+                      Text(selection.isEmpty ? 'Aucune piste suffisamment pertinente.' : 'Pistes prêtes à examiner.'),
+                    for (final choice in selection)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          '${selected['subject'] ?? 'Piste repérée'}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Text(_watchDeadline(selected['deadline'])),
+                        title: Text('${choice['subject'] ?? 'Piste repérée'}'),
+                        subtitle: watch ? Text(_watchDeadline(choice['deadline'])) : null,
+                        trailing: const Icon(Icons.arrow_outward, size: 18),
+                        onTap: () async {
+                          final url = Uri.tryParse('${choice['source_url'] ?? ''}');
+                          if (url != null && url.host.isNotEmpty && (url.scheme == 'https' || url.scheme == 'http')) {
+                            if (!await launchUrl(url, mode: LaunchMode.externalApplication) && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Le site de l’annonce n’a pas pu s’ouvrir.')));
+                            }
+                            return;
+                          }
+                          final id = choice['fabric_id'];
+                          if (id is! String || id.isEmpty) return;
+                          Navigator.pop(ctx);
+                          context.push(Uri(path: '/app/chat/room', queryParameters: {'fabric_id': id}).toString());
+                        },
                       ),
                   ],
                   FilledButton.icon(
@@ -690,6 +644,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen>
               ),
             ),
           );
+          });
         },
       ),
     );

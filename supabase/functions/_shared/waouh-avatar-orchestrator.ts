@@ -236,7 +236,8 @@ export async function finishLegacySearch(sb: any, mandate: any, results: any[]) 
     if (mandate.metadata?.completion_goal === 'recommendations') {
       const { error } = await sb.from('waouh_avatar_mandates').update({ status: 'completed', metadata: {
         ...mandate.metadata, outcome: results.length ? 'recommendations_ready' : 'no_match',
-        results: results.slice(0,12).map(r => ({ fabric_id: r.fabric_id, subject: r.subject, score: r.scores?.total_score }))
+        results: results.slice(0,12).map(r => ({ fabric_id: r.fabric_id, subject: r.subject, score: r.scores?.total_score,
+          ...(typeof r.source_url==='string'&&/^https?:\/\//i.test(r.source_url)?{source_url:r.source_url}:{}) }))
       } }).eq('id', mandate.id);
       if (error) throw error;
       await avatarNotice(sb, mandate.owner_id, `avatar-results:${mandate.id}`, `${results.length} pistes pertinentes trouvées. Consultez les résultats de votre recherche.`, { mandate_id: mandate.id });

@@ -181,7 +181,7 @@ class _LiveGuidedRedirectState extends State<LiveGuidedRedirect> {
 }
 
 /// Entrée guidée de l'accueil (Acheter, Vendre, Trouver, Opportunité, Service, Prestation).
-/// Vendre, compte connecté : la fiche de vente du Chat s'ouvre directement.
+/// La vente demande le choix de délégation avant la publication.
 Future<void> liveGuidedQuickAsk(BuildContext context, LiveQuickAskKind kind, {String initialQuery = ""}) async {
   final path = await showLiveQuickAsk(context, kind, initialQuery: initialQuery);
   if (path == null || !context.mounted) return;

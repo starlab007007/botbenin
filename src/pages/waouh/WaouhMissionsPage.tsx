@@ -1,11 +1,12 @@
-import {openGuidedChat} from '@/lib/waouh/guidedAsk';
+import {WaouhQuickAsk} from '@/components/waouh/WaouhQuickAsk';
+import {offerDealRoomPath} from '@/components/waouh/WaouhOfferActions';
 import {WaouhProductPresentation} from '@/components/waouh/WaouhProductPresentation';
 import {supabase} from '@/integrations/supabase/client';
 import {normalizeMissionKind} from '@/lib/waouh/guidedDiscovery';
 import {automaticMissionMessage} from '@/lib/waouh/automaticMission';
 import { useEffect,useRef,useState } from 'react';
 import { useNavigate,useSearchParams } from 'react-router-dom';
-import { ArrowUpRight,ChevronRight,MoreHorizontal,Workflow,Pause,Play,RefreshCw,Sparkles } from 'lucide-react';
+import { ArrowUpRight,ChevronRight,MoreHorizontal,Workflow,Pause,Play,RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sheet,SheetContent,SheetTitle,SheetDescription } from '@/components/ui/sheet';
 import { BotLiveAvatar } from '@/components/waouh/bot/BotLiveAvatar';
@@ -26,7 +27,7 @@ export default function WaouhMissionsPage(){
   const [dataOwner,setDataOwner]=useState<string|undefined>(undefined);
   const [mandates,setMandates]=useState<NexusAvatarMandate[]>([]),[journeys,setJourneys]=useState<NexusOpportunityJourney[]>([]),[legacy,setLegacy]=useState<AgentMission[]>([]),[approvals,setApprovals]=useState<NonFinancialApproval[]>([]);
   const [loading,setLoading]=useState(false),[error,setError]=useState(''),[paused,setPaused]=useState(false),[busy,setBusy]=useState(false);
-  const [need,setNeed]=useState(''),[sheet,setSheet]=useState(params.get('view')==='suivi'||params.has('focus')?'advanced':''),[active,setActive]=useState<NexusAvatarMandate|null>(null),[archive,setArchive]=useState(false),[convergence,setConvergence]=useState(params.has('convergence_invite'));
+  const [sheet,setSheet]=useState(params.get('view')==='suivi'||params.has('focus')?'advanced':''),[active,setActive]=useState<NexusAvatarMandate|null>(null),[archive,setArchive]=useState(false),[convergence,setConvergence]=useState(params.has('convergence_invite'));
   const generation=useRef(0), refreshNow=useRef<()=>void>(()=>{});
   useEffect(()=>{
     const version=++generation.current;let pending=false,retries=0,retryTimer:number|undefined;
@@ -67,9 +68,16 @@ export default function WaouhMissionsPage(){
   current.sort((a,b)=>Number(pending(b))-Number(pending(a))||Date.parse(b.created_at)-Date.parse(a.created_at));
   const archived=scopedMandates.filter(m=>finished.has(m.status)).length+scopedLegacy.filter(m=>!linked.has(m.id)&&finished.has(m.status)).length;
   const selected=own&&active?mandates.find(m=>m.id===active.id)??active:null;
-  const watchRows=selected?.metadata?.discovery_kind==='opportunity'&&Array.isArray(selected.metadata.latest_selection)?selected.metadata.latest_selection.filter((r:unknown):r is {fabric_id:string;subject:string;deadline?:number|string|null}=>!!r&&typeof r==='object'&&typeof (r as {subject?:unknown}).subject==='string'):[];
+  const watch=selected?.metadata?.discovery_kind==='opportunity';
+  const recommendations=selected?.metadata?.completion_goal==='recommendations';
+  const stored=watch?selected?.metadata?.latest_selection:selected?.metadata?.results;
+  const savedRows=Array.isArray(stored)?stored.filter((r:unknown):r is {fabric_id:string;subject:string;deadline?:number|string|null;source_url?:string}=>{
+    if(!r||typeof r!=='object')return false;
+    const row=r as Record<string,unknown>;
+    return typeof row.fabric_id==='string'&&typeof row.subject==='string';
+  }):[];
+  const openChoice=(fabricId:string)=>navigate(offerDealRoomPath({fabric_id:fabricId},watch?'opportunity':undefined));
   const update=async(status:'active'|'paused'|'cancelled')=>{if(!selected||busy)return;const version=generation.current;setBusy(true);setError('');try{const r=await updateNexusMandate(selected.id,{status});if(version===generation.current)setMandates(rows=>rows.map(m=>m.id===r.mandate.id?r.mandate:m));}catch{setError('Modification impossible. Réessayez.');}finally{if(version===generation.current)setBusy(false);}};
-  const start=()=>{if(need.trim())openGuidedChat(navigate,{kind:'trouver',q:need.trim()},true);else setSheet('new');};
   return <div className="wmn-surface"><main className="wmn" data-waouh-ui="minimal-missions">
     <header className="wmn-head"><h1>Missions</h1><span className="wmn-grow"/><button type="button" className="wmn-icon" aria-label="Autres outils de mission" onClick={()=>setSheet('tools')}><MoreHorizontal/></button></header>
     <button type="button" className="wmn-new" onClick={()=>setSheet('new')}><span className="wmn-grow">Quel est votre besoin ?</span><span><ArrowUpRight/></span></button>
@@ -84,11 +92,21 @@ export default function WaouhMissionsPage(){
     {user&&<button type="button" className="wmn-archive" onClick={()=>setArchive(v=>!v)}><span>{archive?'En cours':'Terminées'}</span><span className="wmn-grow"/>{archive?'':archived}<ChevronRight className="wmn-chevron"/></button>}
     <div className="wmn-bot-foot"><BotLiveAvatar size={24}/><span>{paused?'Bot est en pause.':error?'Actualisation automatique du suivi…':'Bot s’occupe de la suite.'}</span></div>
     {error&&<div role="alert"><p className="wmn-description" role="status">{error}</p><button type="button" className="wmn-text" onClick={()=>refreshNow.current()}><RefreshCw size={14}/>Actualiser maintenant</button></div>}
-    <Sheet open={!!sheet} onOpenChange={v=>{if(!v&&!busy)setSheet('');}}><SheetContent side="bottom" className="wmn-sheet" aria-describedby="wmn-mission-desc"><SheetTitle>{sheet==='new'?'Confier un besoin':sheet==='mission'?selected?.goal||'Ma mission':sheet==='advanced'?'Suivi détaillé':'Mes outils'}</SheetTitle><SheetDescription id="wmn-mission-desc" className="sr-only">Suivez et gérez vos missions.</SheetDescription><div className="wmn">
-      {sheet==='new'&&<form onSubmit={e=>{e.preventDefault();start();}}><label className="wmn-field">Votre besoin<input autoFocus maxLength={1000} value={need} onChange={e=>setNeed(e.target.value)} placeholder="Un produit, un service, une annonce…" required/></label><p className="wmn-description">Bot recherche, compare et suit selon vos règles.</p><button type="submit" className="wmn-primary"><Sparkles size={16}/>Confier à Bot</button></form>}
+    <WaouhQuickAsk kind={sheet==='new'?'demander':null} onClose={()=>setSheet('')} onSubmit={path=>{setSheet('');navigate(path);}}/>
+    <Sheet open={!!sheet&&sheet!=='new'} onOpenChange={v=>{if(!v&&!busy)setSheet('');}}><SheetContent side="bottom" className="wmn-sheet" aria-describedby="wmn-mission-desc"><SheetTitle>{sheet==='new'?'Confier un besoin':sheet==='mission'?selected?.goal||'Ma mission':sheet==='advanced'?'Suivi détaillé':'Mes outils'}</SheetTitle><SheetDescription id="wmn-mission-desc" className="sr-only">Suivez et gérez vos missions.</SheetDescription><div className="wmn">
       {sheet==='tools'&&<>{[['Suivi détaillé','advanced'],['Organiser un besoin','convergence'],['Mon avatar','avatar'],['Radar','radar']].map(([label,id])=><button type="button" className="wmn-setting" key={id} onClick={()=>id==='avatar'?navigate('/app/avatar'):id==='radar'?navigate('/app/radar-map'):id==='convergence'?(setSheet(''),setConvergence(true)):setSheet(id)}><span className="wmn-grow">{label}</span><ChevronRight className="wmn-chevron"/></button>)}</>}
       {sheet==='advanced'&&<><WaouhContactLedger/><WaouhAgentCenter embedded initialTab={params.get('focus')??undefined}/></>}
-      {sheet==='mission'&&selected&&<>{selected.metadata?.article_snapshot&&<WaouhProductPresentation value={selected.metadata.article_snapshot} label="Mon article à vendre"/>}<p className="wmn-description">{selected.city||'Zone à préciser'}{selected.budget_max?` · ${new Intl.NumberFormat('fr-FR').format(selected.budget_max)} F max`:''}</p>{scopedJourneys.filter(j=>j.mandate_id===selected.id).map(j=><div key={j.id} className="py-4 border-b"><strong className="text-sm">{j.subject||'Opportunité'}</strong><WaouhJourneyProgress journey={j}/>{j.thread_id&&<button type="button" className="wmn-text" onClick={()=>navigate(`/app/chat/${j.thread_id}`)}>Ouvrir l’échange</button>}</div>)}{selected.metadata?.discovery_kind==='opportunity'?<><p className="wmn-description">{automaticMissionMessage(selected)}</p>{watchRows.map(r=>{const d=typeof r.deadline==='number'?r.deadline:Date.parse(String(r.deadline??''));return <div className="py-3 border-b" key={r.fabric_id}><strong className="text-sm">{r.subject}</strong><p className="wmn-description">{Number.isFinite(d)?`Échéance annoncée · ${new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short',timeZone:'Africa/Porto-Novo'}).format(d)}`:'Échéance à préciser'}</p></div>})}</>:!scopedJourneys.some(j=>j.mandate_id===selected.id)&&<p className="wmn-description">Bot cherche les bonnes pistes dans vos limites.</p>}<button type="button" className="wmn-text" onClick={()=>navigate(`/app/nexus?${new URLSearchParams({q:selected.goal,city:selected.city||'',kind:normalizeMissionKind(selected.metadata?.discovery_kind,selected.goal,selected.mode)})}`)}>Nouvelle recherche</button>{pending(selected)&&<button type="button" className="wmn-primary" onClick={()=>setSheet('advanced')}>Examiner la décision</button>}{!finished.has(selected.status)&&<div className="wmn-grid mt-5"><button type="button" className="wmn-secondary" disabled={busy} onClick={()=>void update(selected.status==='paused'?'active':'paused')}>{selected.status==='paused'?<Play/>:<Pause/>}{selected.status==='paused'?'Reprendre':'Pause'}</button><button type="button" className="wmn-secondary" disabled={busy} onClick={()=>{if(window.confirm('Arrêter cette mission ?'))void update('cancelled');}}>Arrêter</button></div>}{error&&<p className="wmn-error" role="alert">{error}</p>}</>}
+      {sheet==='mission'&&selected&&<>{selected.metadata?.article_snapshot&&<WaouhProductPresentation value={selected.metadata.article_snapshot} label="Mon article à vendre"/>}<p className="wmn-description">{selected.city||'Zone à préciser'}{selected.budget_max?` · ${new Intl.NumberFormat('fr-FR').format(selected.budget_max)} F max`:''}</p>{scopedJourneys.filter(j=>j.mandate_id===selected.id).map(j=><div key={j.id} className="py-4 border-b"><strong className="text-sm">{j.subject||'Opportunité'}</strong><WaouhJourneyProgress journey={j}/>{j.thread_id&&<button type="button" className="wmn-text" onClick={()=>navigate(`/app/chat/${j.thread_id}`)}>Ouvrir l’échange</button>}</div>)}{recommendations||watch?<section aria-label={watch?'Opportunités repérées':'Pistes retenues'}>
+      <p className="wmn-description">{selected.status==='completed'&&!watch?savedRows.length?'Pistes prêtes à examiner.':'Aucune piste suffisamment pertinente.':automaticMissionMessage(selected)}</p>
+      {savedRows.map(r=>{
+        const deadline=typeof r.deadline==='number'?r.deadline:Date.parse(String(r.deadline??''));
+        const source=typeof r.source_url==='string'&&/^https?:\/\//i.test(r.source_url)?r.source_url:null;
+        return <div className="border-b py-3" key={r.fabric_id}><strong className="text-sm">{r.subject}</strong>
+          {watch&&<p className="wmn-description">{Number.isFinite(deadline)?`Échéance annoncée · ${new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short',timeZone:'Africa/Porto-Novo'}).format(deadline)}`:'Échéance à préciser'}</p>}
+          {source?<a className="wmn-text" href={source} target="_blank" rel="noopener noreferrer">{watch?'Ouvrir le site de l’annonce':'Voir la source'}</a>:<button className="wmn-text" type="button" onClick={()=>openChoice(r.fabric_id)}>{watch?'Ouvrir la candidature':'Choisir cette piste'}</button>}
+        </div>;
+      })}
+    </section>:!scopedJourneys.some(j=>j.mandate_id===selected.id)&&<p className="wmn-description">Bot cherche les bonnes pistes dans vos limites.</p>}<button type="button" className="wmn-text" onClick={()=>navigate(`/app/nexus?${new URLSearchParams({q:selected.goal,city:selected.city||'',kind:normalizeMissionKind(selected.metadata?.discovery_kind,selected.goal,selected.mode)})}`)}>Nouvelle recherche</button>{pending(selected)&&<button type="button" className="wmn-primary" onClick={()=>setSheet('advanced')}>Examiner la décision</button>}{!finished.has(selected.status)&&<div className="wmn-grid mt-5"><button type="button" className="wmn-secondary" disabled={busy} onClick={()=>void update(selected.status==='paused'?'active':'paused')}>{selected.status==='paused'?<Play/>:<Pause/>}{selected.status==='paused'?'Reprendre':'Pause'}</button><button type="button" className="wmn-secondary" disabled={busy} onClick={()=>{if(window.confirm('Arrêter cette mission ?'))void update('cancelled');}}>Arrêter</button></div>}{error&&<p className="wmn-error" role="alert">{error}</p>}</>}
     </div></SheetContent></Sheet>
     <WaouhConvergenceDialog open={convergence} onOpenChange={setConvergence}/>
   </main></div>;
