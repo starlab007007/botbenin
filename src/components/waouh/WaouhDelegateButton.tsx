@@ -44,6 +44,9 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
   const strategy = botStrategy(track);
   const shownPrice = Number((result as { price_min?: number | null; price_max?: number | null }).price_min ?? (result as { price_max?: number | null }).price_max ?? 0) || null;
   const [draft, setDraft] = useState(() => suggestMandate({ track, price: shownPrice, marketMedian, budgetMax }));
+  // Opportunité : le dossier court que Bot transmet à l’annonceur.
+  const [application, setApplication] = useState("");
+  const applicationReady = application.trim().length >= 30 && application.trim().length <= 1800;
 
   const openAndDelegate = async () => {
     const { data } = await supabase.auth.getSession();
@@ -83,7 +86,8 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
       duration_hours: draft.durationHours,
       max_followups: draft.maxFollowups,
       strategy: track,
-      budget_max: mode === "sell" ? null : draft.limit ?? budgetMax ?? null,
+      budget_max: mode === "sell" || track === "opportunity" ? null : draft.limit ?? budgetMax ?? null,
+      ...(track === "opportunity" ? { application: { summary: application.trim() } } : {}),
       ...(mode === "sell" ? { price_floor: draft.limit } : {}),
       ...(cascade.length ? { cascade_candidates: cascade, cascade_step: 1, cascade_max_steps: 1 + cascade.length } : {}),
     };
@@ -98,9 +102,9 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
     if (busy) return;
     setError("");
     if (!confirm) { setConfirm(true); return; }
-    if (track==="opportunity") { setError("Utilisez la veille de cette opportunité."); return; }
+    if (track==="opportunity" && !applicationReady) { setError("Présentez votre candidature en quelques lignes (30 caractères minimum)."); return; }
     if (mode==="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0)) { setError("Indiquez votre prix plancher privé."); return; }
-    if (mode!=="sell" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0 || (budgetMax!=null && draft.limit>budgetMax))) { setError("Indiquez un plafond valide dans votre budget."); return; }
+    if (mode!=="sell" && track!=="opportunity" && (draft.limit===null || !Number.isFinite(draft.limit) || draft.limit<=0 || (budgetMax!=null && draft.limit>budgetMax))) { setError("Indiquez un plafond valide dans votre budget."); return; }
     setBusy(true);
     try {
       await openAndDelegate();
@@ -148,6 +152,14 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
               </select>
             </label>
           </div>
+          {track === "opportunity" && (
+            <label className="block text-[11px] font-bold text-slate-500">Votre candidature en quelques lignes
+              <textarea value={application} onChange={(e) => setApplication(e.target.value)} maxLength={1800} rows={4}
+                placeholder="Formation, expérience, compétences clés, disponibilité…"
+                className="mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900" />
+              <span className="font-semibold text-slate-400">Bot la transmet à l’annonceur et vous prévient de sa réponse.</span>
+            </label>
+          )}
           <p className="text-xs font-semibold text-slate-700">{mandateSummary(draft)}</p>
           <button type="button" onClick={() => setConfirm(false)} className="text-xs font-bold text-slate-500 underline">Annuler</button>
         </div>

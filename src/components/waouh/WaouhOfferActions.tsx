@@ -114,7 +114,7 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
       {!reachable && result.source_url && <a href={result.source_url} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost"><ExternalLink size={15} aria-hidden="true" />Voir l’annonce d’origine</a>}
       <div className="wgd-offer-secondary">
         {!reachable && <span className="wgd-offer-unreachable">Contact non disponible</span>}
-        {reachable && canOpen && kind !== "opportunity" && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
+        {reachable && canOpen && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}
           city={shared.city} budgetMax={shared.budgetMax} variant="secondary" label="Bot" className="h-10"
           alternates={alternates.filter(a => a.fabric_id !== result.fabric_id && offerReachable(a) && (a.intent ?? null) === (result.intent ?? null)).slice(0, 3).map(a => ({ fabric_id: a.fabric_id, city: a.city }))} />}
         {onDetails && <button type="button" className="wgd-offer-ghost" onClick={onDetails}><Eye size={15} aria-hidden="true" />Détails</button>}

@@ -9,7 +9,7 @@ const STRATEGIES: Record<BotTrack, Omit<BotStrategy, "track">> = {
   find: { title: "Trouver ce qu’il vous faut", actions: ["Élargit la recherche aux villes voisines", "Garde les offres les plus pertinentes", "Vous prévient dès qu’une offre arrive"], userKeeps: "Vous choisissez l’offre.", limitLabel: "Budget maximum" },
   service: { title: "Obtenir le bon service", actions: ["Demande un devis détaillé", "Compare sur la même base", "Négocie sous votre budget"], userKeeps: "Vous validez le prestataire.", limitLabel: "Budget maximum" },
   job: { title: "Organiser la prestation", actions: ["Vérifie les livrables et le lieu", "Compare les délais et les créneaux", "Négocie le coût total"], userKeeps: "Vous confirmez les conditions de réalisation.", limitLabel: "Coût maximum" },
-  opportunity: { title: "Saisir l’opportunité", actions: ["Vérifie l’éligibilité et la date limite", "Prépare le dossier", "Vous rappelle avant l’échéance"], userKeeps: "Vous déposez le dossier.", limitLabel: null },
+  opportunity: { title: "Saisir l’opportunité", actions: ["Vérifie l’éligibilité et la date limite", "Transmet votre candidature", "Relance et vous prévient de la réponse"], userKeeps: "Vous êtes prévenu à chaque étape.", limitLabel: null },
 };
 
 export function botTrack(mode: "buy" | "sell" | "ask", kind?: string | null): BotTrack {

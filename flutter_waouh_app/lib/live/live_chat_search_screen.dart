@@ -368,6 +368,41 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     }
   }
 
+  /// Dossier court que Bot transmet à l'annonceur (même règle que le Web : 30 à 1800 caractères).
+  Future<String?> _askApplication() async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, update) {
+        final text = controller.text.trim();
+        final valid = text.length >= 30 && text.length <= 1800;
+        return AlertDialog(
+          title: const Text('Confier la candidature à Bot'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: controller,
+              maxLines: 5,
+              maxLength: 1800,
+              decoration: const InputDecoration(
+                labelText: 'Votre candidature en quelques lignes',
+                hintText: 'Formation, expérience, compétences clés, disponibilité…',
+              ),
+              onChanged: (_) => update(() {}),
+            ),
+            const SizedBox(height: 8),
+            const Text('Bot la transmet à l’annonceur et vous prévient de sa réponse.'),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            FilledButton(onPressed: valid ? () => Navigator.pop(ctx, text) : null, child: const Text('Confirmer')),
+          ],
+        );
+      }),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+    return value;
+  }
+
   Future<void> _delegateAll(LiveChatBrief brief) async {
     if (_delegating || brief.delegable.isEmpty || widget.kind == 'opportunite') return;
     if (brief.delegable.first.row['result_kind'] == 'announcement' || brief.delegable.first.row['intent'] == 'ANNOUNCE') return;
@@ -381,10 +416,16 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
     );
   }
 
-  Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false}) async {
-    if (_delegating || fabricId.trim().isEmpty || widget.kind == 'opportunite') return;
+  Future<void> _delegateFabric(String fabricId, String? fabricCity, List<Map<String, dynamic>> cascade, {bool confirmed = false, bool opportunity = false}) async {
+    if (_delegating || fabricId.trim().isEmpty) return;
+    // Opportunité : Bot transmet lui-même la candidature, comme sur le Web.
+    final isOpportunity = opportunity || widget.kind == 'opportunite';
     num? limit = _sell ? null : _goalFacts.budget;
-    {
+    String? application;
+    if (isOpportunity) {
+      application = await _askApplication();
+      if (application == null || !mounted) return;
+    } else {
       final controller=TextEditingController(text:limit?.toString()??'');
       final selected=await showDialog<num>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,update){final n=num.tryParse(controller.text);final valid=n!=null&&n.isFinite&&n>0&&(_sell||_goalFacts.budget==null||n<=_goalFacts.budget!);return AlertDialog(title:const Text('Confirmer le mandat'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:controller,keyboardType:TextInputType.number,decoration:InputDecoration(labelText:_sell?'Prix plancher privé (FCFA)':'Budget maximal (FCFA)'),onChanged:(_)=>update((){})),const SizedBox(height:12),const Text('Bot négocie dans cette limite. Vous validez l’accord final.')]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Annuler')),FilledButton(onPressed:valid?()=>Navigator.pop(ctx,n):null,child:const Text('Confirmer'))]);}));
       WidgetsBinding.instance.addPostFrameCallback((_)=>controller.dispose());
@@ -411,7 +452,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
             'fabric_id': '${c['fabric_id']}',
             if (saleArticle != null) 'sale_article_id': saleArticle,
             if (city.isNotEmpty) 'city': city,
-            'budget_max': _sell ? null : limit,
+            'budget_max': _sell || isOpportunity ? null : limit,
             'confirmed': false,
           });
           break;
@@ -426,8 +467,9 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       final id = '${opened['deal_room_id']}';
       final rules = <String, dynamic>{
         ...botRoomDefaultRules,
-        'strategy': _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
-        'budget_max': _sell ? null : limit,
+        'strategy': isOpportunity ? 'opportunity' : _sell ? 'sell' : widget.kind == 'service' ? 'service' : widget.kind == 'prestation' ? 'job' : widget.kind == 'trouver' ? 'find' : 'buy',
+        'budget_max': _sell || isOpportunity ? null : limit,
+        if (application != null) 'application': <String, dynamic>{'summary': application},
         if (_sell) 'price_floor': limit,
         if (rest.isNotEmpty) 'cascade_candidates': rest,
         if (rest.isNotEmpty) 'cascade_step': 1,
@@ -442,7 +484,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
       if (!mounted) return;
       setState(() => _delegatedRoom = id);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bot s’en occupe. Vous confirmerez l’accord final.')),
+        SnackBar(content: Text(isOpportunity ? 'Bot transmet votre candidature et vous prévient de la réponse.' : 'Bot s’en occupe. Vous confirmerez l’accord final.')),
       );
       // Comme sur le Web : la Deal Room s'ouvre directement.
       context.push('/app/chat/room?room_id=$id');
@@ -516,7 +558,7 @@ class _LiveChatSearchScreenState extends State<LiveChatSearchScreen> {
                   own: _isOwn(row),
                   busy: _delegating,
                   onWant: () => _openManually(row),
-                  onBot: journey(row) != 'opportunity' && _contactAllowed(row) && (_sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const []) : null,
+                  onBot: _contactAllowed(row) && (journey(row) == 'opportunity' || _sell || _goalFacts.budget==null || _rowPrice(row)==null || _rowPrice(row)!<=_goalFacts.budget!) ? () => _delegateFabric(_roomFabric(row)!, row['city']?.toString(), best ? [for(final alt in otherRows.where((alt)=>journey(alt)==journey(row)&&!_isOwn(alt)&&_contactAllowed(alt)&&(_goalFacts.budget==null||_rowPrice(alt)==null||_rowPrice(alt)!<=_goalFacts.budget!)).take(3)) {'fabric_id':_roomFabric(alt),'city':alt['city']?.toString()}] : const [], opportunity: journey(row) == 'opportunity') : null,
                   onDetails: () => showLiveProductDetails(context, row),
                 );
     return Scaffold(
