@@ -16,6 +16,7 @@ export function WaouhGuidedHome() {
   const navigate = useNavigate();
   const { profile } = useMobileProfile();
   const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
+  const [initialQuery, setInitialQuery] = useState("");
 
   const launch = (ask: GuidedAskInput) => openGuidedChat(navigate, ask, !!user);
 
@@ -23,7 +24,8 @@ export function WaouhGuidedHome() {
     <main className="h-full overflow-y-auto bg-[#f5f7fc] px-3 py-4 pb-28" data-waouh-ui="guided-search-home">
       <WaouhPremiumAvatar
         firstName={user ? profile?.full_name ?? null : null}
-        onAction={(kind) => (kind === "vendre" ? launch({ kind }) : setQuickAsk(kind))}
+        onDelegateAsk={(value) => { setInitialQuery(value); setQuickAsk("demander"); }}
+        onAction={(kind) => { setInitialQuery(""); if (kind === "vendre" && !user) launch({ kind }); else setQuickAsk(kind); }}
         // Une demande écrite ici est toujours une recherche : elle ouvre la fenêtre de résultats en direct.
         onAsk={(value) => launch({ kind: "trouver", q: value, free: true })}
         onSettings={() => navigate("/app/avatar")}
@@ -31,8 +33,9 @@ export function WaouhGuidedHome() {
       />
       <WaouhQuickAsk
         kind={quickAsk}
+        initialQuery={initialQuery}
         onClose={() => setQuickAsk(null)}
-        onSubmit={() => setQuickAsk(null)}
+        onSubmit={(path) => { setQuickAsk(null); navigate(path); }}
         onAsk={(ask) => { setQuickAsk(null); launch(ask); }}
       />
     </main>

@@ -1,4 +1,7 @@
 import 'live_smart_sale.dart';
+import '../main.dart' as legacy;
+import 'live_nexus_service.dart';
+import 'live_guest_action_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -178,40 +181,92 @@ class _LiveGuidedRedirectState extends State<LiveGuidedRedirect> {
 }
 
 /// Entrée guidée de l'accueil (Acheter, Vendre, Trouver, Opportunité, Service, Prestation).
-/// Vendre, compte connecté : la fiche de vente du Chat s'ouvre directement.
-Future<void> liveGuidedQuickAsk(BuildContext context, LiveQuickAskKind kind) async {
-  final controller = _guidedController(context);
-  if (controller != null && controller.auth.signedIn && kind == LiveQuickAskKind.vendre) {
-    controller.setComposerSeed('', meta: const <String, dynamic>{'open_sell': true});
-    context.push('/app/chat/waouh');
+/// La vente demande le choix de délégation avant la publication.
+Future<void> liveGuidedQuickAsk(BuildContext context, LiveQuickAskKind kind, {String initialQuery = ""}) async {
+  final path = await showLiveQuickAsk(context, kind, initialQuery: initialQuery);
+  if (path == null || !context.mounted) return;
+  if (Uri.parse(path).queryParameters.containsKey('sale_draft')) {
+    context.push(path);
     return;
   }
-  final path = await showLiveQuickAsk(context, kind);
-  if (path == null || !context.mounted) return;
   liveOpenGuidedPath(context, path);
 }
 
 /// Ouvre le formulaire et renvoie l'URL (avec ?q=…&go=1) ou null.
-Future<String?> showLiveQuickAsk(BuildContext context, LiveQuickAskKind kind) {
+Future<String?> showLiveQuickAsk(BuildContext context, LiveQuickAskKind kind, {String initialQuery = ""}) {
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => kind == LiveQuickAskKind.vendre ? const LiveSmartSaleSheet() : _QuickAskSheet(kind: kind),
+    builder: (_) => kind == LiveQuickAskKind.vendre ? const LiveSmartSaleSheet() : _QuickAskSheet(kind: kind, initialQuery: initialQuery),
   );
 }
 
 class _QuickAskSheet extends StatefulWidget {
-  const _QuickAskSheet({required this.kind});
+  const _QuickAskSheet({required this.kind, required this.initialQuery});
   final LiveQuickAskKind kind;
+  final String initialQuery;
   @override
   State<_QuickAskSheet> createState() => _QuickAskSheetState();
 }
 
 class _QuickAskSheetState extends State<_QuickAskSheet> {
-  final _q = TextEditingController();
+  late final _q = TextEditingController(text: widget.initialQuery);
   final _city = TextEditingController();
   final _budget = TextEditingController();
+
+  var _busy = false;
+  String? _error;
+
+  bool get _needsBudget => const {
+    LiveQuickAskKind.acheter, LiveQuickAskKind.service, LiveQuickAskKind.prestation,
+  }.contains(widget.kind);
+
+  String get _botSummary => switch (widget.kind) {
+    LiveQuickAskKind.acheter => 'Bot compare et négocie dans votre budget. Vous validez l’accord.',
+    LiveQuickAskKind.service => 'Bot demande des devis comparables. Vous validez le prestataire.',
+    LiveQuickAskKind.prestation => 'Bot compare les conditions et le coût. Vous validez les modalités.',
+    LiveQuickAskKind.opportunite => 'Bot surveille les annonces et les échéances. Vous choisissez où déposer votre dossier.',
+    _ => 'Bot cherche, compare et vous prévient. Vous choisissez la piste.',
+  };
+
+  Future<void> _delegate() async {
+    if (_busy || _q.text.trim().length < 3) return;
+    final owner = legacy.supabase.auth.currentUser?.id;
+    if (owner == null) {
+      await requireLiveAuthentication(context, next: '/app/chat/waouh', actionLabel: 'confier une mission à Bot');
+      return;
+    }
+    final budget = liveGuidedBudget(_budget.text);
+    if (_needsBudget && budget == null) {
+      setState(() => _error = 'Indiquez votre budget maximal pour confier la mission.');
+      return;
+    }
+    setState(() { _busy = true; _error = null; });
+    try {
+      final id = await LiveNexusService(legacy.supabase).startGuidedMission(
+        goal: _q.text.trim(),
+        city: _city.text.trim(),
+        budgetMax: budget?.toDouble(),
+        expectedOwner: owner,
+        mode: widget.kind == LiveQuickAskKind.acheter ? 'buy' : 'ask',
+        discoveryKind: switch (widget.kind) {
+          LiveQuickAskKind.acheter => 'purchase',
+          LiveQuickAskKind.service => 'service',
+          LiveQuickAskKind.prestation => 'project',
+          LiveQuickAskKind.opportunite => 'opportunity',
+          _ => null,
+        },
+        completionGoal: _needsBudget ? 'agreement' : 'recommendations',
+      );
+      if (mounted) Navigator.pop(context, Uri(path: '/app/missions', queryParameters: {'mandate': id}).toString());
+    } catch (error) {
+      if (mounted) setState(() => _error = error is NexusApiException
+          ? error.message : 'La mission n’a pas pu être démarrée. Réessayez.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   _Copy get c => _copy[widget.kind]!;
 
@@ -225,7 +280,7 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
 
   void _go() {
     final text = _q.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _busy) return;
     final params = <String, String>{
       'q': text,
       'go': '1',
@@ -257,7 +312,7 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
         ),
         child: SafeArea(
           top: false,
-          child: Column(
+          child: SingleChildScrollView(child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -371,10 +426,12 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                 ],
               ],
               const SizedBox(height: 14),
+              Text(_botSummary, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 8),
               SizedBox(
                 height: 52,
                 child: FilledButton(
-                  onPressed: hasText ? _go : null,
+                  onPressed: _q.text.trim().length >= 3 && !_busy ? _delegate : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: WaouhPalette.blue,
                     shape: RoundedRectangleBorder(
@@ -382,7 +439,7 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                     ),
                   ),
                   child: Text(
-                    c.cta,
+                    _busy ? 'Activation du mandat…' : 'Confier à Bot',
                     style: const TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
@@ -390,8 +447,13 @@ class _QuickAskSheetState extends State<_QuickAskSheet> {
                   ),
                 ),
               ),
+              TextButton(
+                onPressed: hasText && !_busy ? _go : null,
+                child: const Text('Voir les résultats moi-même'),
+              ),
+              if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
-          ),
+          )),
         ),
       ),
     );

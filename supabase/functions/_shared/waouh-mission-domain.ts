@@ -5,7 +5,7 @@ export const MISSION_KINDS=['purchase','opportunity','service','project','sale']
 export type MissionKind=typeof MISSION_KINDS[number];
 export type MissionContext={kind:MissionKind;brief:string;max_days:number|null;required_pages:number|null;quantity:number|null;unit:string;price_floor:number|null};
 export type MissionCriteria={missionKind?:MissionKind;brief?:string;maxDays?:number|null;requiredPages?:number|null;quantity?:number|null;unit?:string;priceFloor?:number|null;now?:number};
-export type MissionOffer={fabric_id:string;subject?:string|null;category?:string|null;intent?:string|null;condition?:string|null;offer_kind?:string;kind?:string;price_min?:number|null;price_max?:number|null;currency?:string|null;expires_at?:string|null;evidence?:Record<string,unknown>|null};
+export type MissionOffer={fabric_id:string;subject?:string|null;source_url?:string|null;category?:string|null;intent?:string|null;condition?:string|null;offer_kind?:string;kind?:string;price_min?:number|null;price_max?:number|null;currency?:string|null;expires_at?:string|null;evidence?:Record<string,unknown>|null};
 export const missionCopy=copy;
 export const missionText=(v:unknown)=>typeof v==='string'?v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim():'';
 const str=(v:unknown)=>typeof v==='string'?v.trim():'';
@@ -91,7 +91,7 @@ export function compareMissionOffers(a:MissionOffer,b:MissionOffer,c:MissionCrit
 }
 export function opportunityWatchOnly(value:unknown){const m=value&&typeof value==='object'?value as Record<string,unknown>:{};return m.discovery_kind==='opportunity';}
 export function opportunityWatchPlan(metadata:Record<string,unknown>,rows:MissionOffer[],intervalMinutes:number,now=Date.now()){
- const selection=rows.slice(0,4).map(r=>({fabric_id:r.fabric_id,subject:r.subject??'',deadline:missionDeadline(r)}));
+ const selection=rows.slice(0,4).map(r=>({fabric_id:r.fabric_id,subject:r.subject??'',deadline:missionDeadline(r),...(typeof r.source_url==='string'&&/^https?:\/\//i.test(r.source_url)?{source_url:r.source_url}:{})}));
  const previous=Array.isArray(metadata.latest_selection)?metadata.latest_selection as Array<{fabric_id?:string;deadline?:number|null}>:[];
  const changed=JSON.stringify(previous.map(r=>[r.fabric_id,r.deadline??null]))!==JSON.stringify(selection.map(r=>[r.fabric_id,r.deadline]));
  const imminent=selection.filter(r=>r.deadline!==null&&r.deadline>=now&&r.deadline-now<=48*3600_000).sort((a,b)=>(a.deadline??0)-(b.deadline??0))[0]??null;

@@ -1553,7 +1553,7 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const ownerId = authUser?.id ?? (publicRead || guestAction ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
 
-    if(!await modulePolicyAllowed(sb,modulesForAction(action),ownerId||null,serviceCall||payload.automatic_follow===true))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
+    if(!await modulePolicyAllowed(sb,modulesForAction(action),ownerId||null,serviceCall||action==='nexus.mandate.start_guided'||payload.automatic_follow===true))throw new ApiError(403,'module_unavailable','Ce module est actuellement indisponible.');
 
     if (exchangeAction) return jsonResponse({ ok:true, data:await handleExternalExchange(sb, action, payload, ownerId) });
 
@@ -2733,14 +2733,23 @@ Retourne uniquement JSON:
         if (error) throw new ApiError(500, "owned_articles_failed");
         return jsonResponse({ ok: true, data: { articles: data ?? [] } });
       }
-      case "nexus.mandate.create": {
+      case "nexus.mandate.create":
+      case "nexus.mandate.start_guided": {
         const paidSources=bool(payload.use_paid_sources,false);
         const {data:avatarPrefs,error:avatarPrefsError}=await sb.from('waouh_avatar_prefs').select('autonomy_settings').eq('auth_user_id',ownerId).maybeSingle();
         if(avatarPrefsError)throw new ApiError(503,'avatar_rules_unavailable');
-        const automatic=payload.automatic_follow===true;
+        const entryDelegation=action==='nexus.mandate.start_guided';
+        if(entryDelegation&&payload.confirmed_entry_delegation!==true){
+          throw new ApiError(422,'mandate_confirmation_required','Confirmez la délégation de cette mission.');
+        }
+        const automatic=entryDelegation||payload.automatic_follow===true;
+        const discoveryOnly=entryDelegation&&(payload.discovery_kind==='opportunity'||payload.completion_goal==='recommendations');
         const comparisonPriority=pickEnum(payload.comparison_priority,'comparison_priority',['price','availability'] as const,'price');
         const storedRules=automatic?(avatarPrefs?.autonomy_settings??{}):(payload.autonomy_settings??avatarPrefs?.autonomy_settings);
-        const autonomyRules=storedRules?normalizeAvatarAutonomy(storedRules):null;
+        const defaults=storedRules?normalizeAvatarAutonomy(storedRules):null;
+        const autonomyRules=entryDelegation&&defaults&&!defaults.paused
+          ? {...defaults,mode:'autonomous' as const,allow_contact:!discoveryOnly,allow_negotiate:!discoveryOnly}
+          : defaults;
         if(autonomyRules){const err=avatarAutonomyError(autonomyRules);if(err)throw new ApiError(422,'invalid_avatar_rules',err);}
         const followBlock=automatic?automaticFollowBlock(autonomyRules,payload):null;
         if(followBlock)return jsonResponse({ok:true,data:{mandate:null,skipped:followBlock}});
@@ -2757,6 +2766,11 @@ Retourne uniquement JSON:
         if(discoveryKind&&((discoveryKind==='sale')!==(mode==='sell')))throw new ApiError(422,'mission_mode_mismatch');
         const context=discoveryKind?normalizeMissionContext(payload.mission_context,discoveryKind,goal,discoveryKind==='sale'?autonomyRules?.price_floor:undefined):null;
         const watchOnly=discoveryKind==='opportunity';
+        const recommendationsOnly=watchOnly||discoveryOnly;
+        if(entryDelegation&&!recommendationsOnly){
+          const limit=mode==='sell'?context?.price_floor:positiveNumber(payload.budget_max,"budget_max",true);
+          if(!limit)throw new ApiError(422,'mandate_limit_required','Fixez votre budget maximal ou votre prix plancher pour confier cette mission.');
+        }
         const city = optionalString(payload.city??autonomyRules?.city, "city", 120);
         const requestedBudget = positiveNumber(payload.budget_max??autonomyRules?.budget_max, "budget_max", true);
         const budgetMax=watchOnly?null:automatic&&requestedBudget&&autonomyRules?.budget_max?Math.min(requestedBudget,autonomyRules.budget_max):requestedBudget;
@@ -2778,7 +2792,7 @@ Retourne uniquement JSON:
         }
 
         const automaticIntentValues=(m:any)=>({owner_id:ownerId,mandate_id:m.id,mode:mode==='sell'?'find_buyers':'find_sellers',query_text:goal,city,budget_max:budgetMax,min_match_score:minMatchScore,min_actionability_score:minActionabilityScore,scan_interval_minutes:autonomyRules?.scan_interval_minutes??60,status:'active',next_scan_at:new Date().toISOString(),expires_at:m.expires_at,metadata:{autonomy_mode:autonomyMode,article_id:mandateArticleId,...(context?{discovery_kind:discoveryKind,mission_context:context}:{})}});
-        if(automatic)requestKey=await automaticMissionKey(ownerId,{goal,mode,city,budget:budgetMax,article:mandateArticleId,...(context?{mission:context}:{})});
+        if(automatic)requestKey=await automaticMissionKey(ownerId,{goal,mode,city,budget:budgetMax,article:mandateArticleId,...(entryDelegation?{mission:{context,entry_delegation:true,recommendationsOnly}}:context?{mission:context}:{})});
         if (requestKey) {
           const { data: existingMandate, error: existingMandateError } = await sb
             .from("waouh_avatar_mandates")
@@ -2842,6 +2856,7 @@ Retourne uniquement JSON:
               ...(autonomyRules?{autonomy_settings:autonomyRules,starts_at:startsAt.toISOString()}:{}),
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               automatic_follow: automatic,
+              ...(entryDelegation?{entry_delegation:true}:{}),
               use_paid_sources: paidSources,
               comparison_priority: comparisonPriority,
               ...(context?{discovery_kind:discoveryKind,mission_context:context}:{}),
@@ -2850,7 +2865,7 @@ Retourne uniquement JSON:
               followup_hours: autonomyRules?.followup_hours??followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
               price_floor: context?.price_floor??(automatic?autonomyRules?.price_floor:positiveNumber(payload.price_floor??autonomyRules?.price_floor, "price_floor", true)),
-              completion_goal: watchOnly?"recommendations":pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
+              completion_goal: recommendationsOnly?"recommendations":pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
               terms: { quantity: context?.quantity??integer(payload.quantity, "quantity", 1, 1, 100000), delivery: optionalString(payload.delivery_terms, "delivery_terms", 1000), acceptance: optionalString(payload.acceptance_terms, "acceptance_terms", 1000) },
@@ -2946,7 +2961,7 @@ Retourne uniquement JSON:
           Number(row.scores?.total_score ?? 0) >= minMatchScore &&
           Number(row.actionability_score ?? 0) >= minActionabilityScore
         );
-        for (const row of (watchOnly?[]:actionable.slice(0, maxContacts))) {
+        for (const row of (recommendationsOnly?[]:actionable.slice(0, maxContacts))) {
           await ensureOpportunityJourney(sb, ownerId, {
             fabricId: row.fabric_id,
             mode,

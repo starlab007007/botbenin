@@ -9,8 +9,69 @@ import 'live_nexus_service.dart';
 import 'live_smart_sale_data.dart';
 import 'live_product_presentation.dart';
 
-class LiveSmartSaleSheet extends StatelessWidget {
+class LiveSmartSaleSheet extends StatefulWidget {
   const LiveSmartSaleSheet({super.key});
+  @override
+  State<LiveSmartSaleSheet> createState() => _LiveSmartSaleSheetState();
+}
+
+class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
+  final _floor = TextEditingController();
+  var _delegate = false;
+  var _starting = false;
+  int? _submittedFloor;
+  String? _error;
+
+  @override
+  void dispose() {
+    _floor.dispose();
+    super.dispose();
+  }
+
+  int? get _priceFloor => int.tryParse(_floor.text.replaceAll(RegExp(r'\s'), ''));
+
+  bool _canPublish() {
+    if (_starting) return false;
+    _submittedFloor = _delegate ? _priceFloor : null;
+    if (!_delegate || (_submittedFloor ?? 0) > 0) return true;
+    setState(() => _error = 'Indiquez votre prix plancher avant de publier.');
+    return false;
+  }
+
+  Future<void> _onPublished(LivePublishedSale sale) async {
+    final floor = _submittedFloor;
+    if (floor == null) {
+      Navigator.pop(context, LiveSaleHandoff.path(sale));
+      return;
+    }
+    if (_starting) return;
+    setState(() { _starting = true; _error = null; });
+    try {
+      final id = await LiveNexusService(legacy.supabase).startGuidedMission(
+        goal: '${sale.article['title']}',
+        city: '${sale.draft['city'] ?? ''}',
+        expectedOwner: sale.owner,
+        mode: 'sell',
+        discoveryKind: 'sale',
+        articleId: sale.articleId,
+        missionContext: {
+          'brief': sale.draft['description'],
+          'quantity': sale.draft['quantity'],
+          'unit': sale.draft['unit'],
+          'price_floor': floor,
+        },
+        completionGoal: 'transaction',
+      );
+      if (mounted) Navigator.pop(context, Uri(path: '/app/missions', queryParameters: {'mandate': id}).toString());
+    } catch (error) {
+      if (mounted) setState(() => _error = error is NexusApiException
+          ? 'Annonce publiée. ${error.message}'
+          : 'Annonce publiée. Réessayez l’activation du mandat.');
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final m = MediaQuery.of(context);
@@ -65,18 +126,35 @@ class LiveSmartSaleSheet extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Fermer',
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _starting ? null : () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  title: const Text('Confier la vente à Bot'),
+                  subtitle: const Text('Bot cherche des acheteurs. Vous validez la vente.'),
+                  value: _delegate,
+                  onChanged: _starting ? null : (value) => setState(() { _delegate = value; _error = null; }),
+                ),
+                if (_delegate)
+                  TextField(
+                    controller: _floor,
+                    enabled: !_starting,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Prix plancher privé (FCFA)'),
+                  ),
+                if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                if (_starting) const LinearProgressIndicator(),
                 const SizedBox(height: 18),
                 StreamBuilder(
                   stream: legacy.supabase.auth.onAuthStateChange,
                   builder: (context, snapshot) => LiveSmartSale(
                     key: ValueKey(legacy.supabase.auth.currentUser?.id),
-                    onPublished: (sale) =>
-                        Navigator.pop(context, LiveSaleHandoff.path(sale)),
+                    beforePublish: _canPublish,
+                    publishLabel: _delegate ? 'Publier et confier à Bot' : null,
+                    onPublished: (sale) => unawaited(_onPublished(sale)),
                   ),
                 ),
               ],
@@ -106,6 +184,8 @@ class LiveSmartSale extends StatefulWidget {
     this.analyze,
     this.publish,
     this.autoLocate = true,
+    this.beforePublish,
+    this.publishLabel,
   });
   final Map<String, dynamic> initial;
   final ValueChanged<LivePublishedSale> onPublished;
@@ -114,6 +194,8 @@ class LiveSmartSale extends StatefulWidget {
   final SaleAnalyze? analyze;
   final SalePublish? publish;
   final bool autoLocate;
+  final bool Function()? beforePublish;
+  final String? publishLabel;
   @override
   State<LiveSmartSale> createState() => _LiveSmartSaleState();
 }
@@ -339,7 +421,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
   }
 
   Future<void> _submit() async {
-    if (_publishing || _uploading || !_valid) return;
+    if (_publishing || _uploading || !_valid || widget.beforePublish?.call() == false) return;
     if (_published != null) {
       _openPublished();
       return;
@@ -790,8 +872,8 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                   )
                 : Text(
                     _published == null
-                        ? 'Publier et trouver'
-                        : 'Reprendre la recherche',
+                        ? (widget.publishLabel ?? 'Publier et trouver')
+                        : (widget.publishLabel == null ? 'Reprendre la recherche' : 'Réessayer le mandat'),
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
           ),

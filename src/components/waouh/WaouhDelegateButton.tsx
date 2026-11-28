@@ -135,19 +135,19 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
         {confirm ? "Confirmer le mandat" : label}
       </button>
       {confirm && (
-        <div className="mt-2 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 text-left">
-          <p className="text-sm font-black text-slate-900">{strategy.title}</p>
-          <ul className="space-y-0.5 text-xs font-semibold text-slate-600">{strategy.actions.map((a) => <li key={a}>• {a}</li>)}</ul>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="mt-3 space-y-4 rounded-3xl border border-slate-200/80 bg-white p-5 text-left shadow-sm">
+          <p className="text-lg font-semibold tracking-tight text-slate-900">{strategy.title}</p>
+          <ul className="space-y-1.5 text-sm text-slate-600">{strategy.actions.map((a) => <li key={a}>• {a}</li>)}</ul>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {strategy.limitLabel && (
               <label className="text-[11px] font-bold text-slate-500">{strategy.limitLabel} (FCFA)
                 <input type="number" min={1} value={draft.limit ?? ""} onChange={(e) => setDraft({ ...draft, limit: e.target.value ? Number(e.target.value) : null })}
-                  className="mt-0.5 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-slate-900" />
+                  className="mt-0.5 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900" />
               </label>
             )}
             <label className="text-[11px] font-bold text-slate-500">Durée
               <select value={draft.durationHours} onChange={(e) => setDraft({ ...draft, durationHours: Number(e.target.value) })}
-                className="mt-0.5 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-slate-900">
+                className="mt-0.5 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900">
                 <option value={24}>24 h</option><option value={72}>3 jours</option><option value={168}>7 jours</option>
               </select>
             </label>
@@ -160,7 +160,7 @@ export function WaouhDelegateButton({ result, mode, articleId, discoveryKind, ma
               <span className="font-semibold text-slate-400">Bot la transmet à l’annonceur et vous prévient de sa réponse.</span>
             </label>
           )}
-          <p className="text-xs font-semibold text-slate-700">{mandateSummary(draft)}</p>
+          <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">{mandateSummary(draft)}</p>
           <button type="button" onClick={() => setConfirm(false)} className="text-xs font-bold text-slate-500 underline">Annuler</button>
         </div>
       )}

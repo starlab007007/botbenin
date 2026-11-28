@@ -37,8 +37,13 @@ async function pickCourier(sb: any, city: string) {
 }
 
 /** Accords « livraison » confirmés : crée la livraison puis assigne un livreur. Rejouable sans doublon. */
-export async function assignRoomDeliveries(sb: any): Promise<number> {
-  const { data: agreements } = await sb.from("waouh_convergence_agreements").select("component_id,version,terms").eq("status", "accepted").limit(200);
+export async function assignRoomDeliveries(sb: any, roomId?: string): Promise<number> {
+  let query = sb.from("waouh_convergence_agreements")
+    .select("component_id,version,terms").eq("status", "accepted")
+    .eq("terms->>delivery_mode", "delivery");
+  if (roomId) query = query.eq("component_id", roomId);
+  const { data: agreements, error } = await query.limit(200);
+  if (error) throw error;
   const wanted = (agreements ?? []).filter((a: any) => a.terms?.delivery_mode === "delivery" && String(a.terms?.delivery_address || "").trim().length >= 5);
   if (!wanted.length) return 0;
   const ids = wanted.map((a: any) => a.component_id);

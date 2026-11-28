@@ -192,11 +192,19 @@ Deno.serve(async req=>{
  if(!fresh.error){await includeOutreachState(sb,fresh.data);return jsonResponse({ok:true,data:fresh.data});}
  }
  if(data?.deal_room_id&&!['get','list','events','open','adopt'].includes(action))await relayRoomGuests(sb,data.deal_room_id).catch(()=>undefined);
- if(action==='accept')await assignRoomDeliveries(sb).catch(()=>undefined);
+ if(action==='accept'&&data?.deal_room_id&&data.agreement?.status==='accepted'){
+  await assignRoomDeliveries(sb,String(data.deal_room_id)).catch(error=>{
+   console.warn('[deal-room] delivery assignment deferred',error instanceof Error?error.name:'failed');
+  });
+ }
  await includeOutreachState(sb,data);
  // Lecture légère : la livraison voyage avec le salon et rien n'est renvoyé tant que rien n'a changé.
+ if(data?.deal_room_id&&['get','accept'].includes(action)&&
+    ['accepted','completed'].includes(data.agreement?.status)&&data.agreement?.terms?.delivery_mode==='delivery'){
+  const {view}=await deliveryFor(sb,user.id,String(data.deal_room_id)) as any;
+  if(view)data.delivery=view;
+ }
  if(action==='get'&&data?.deal_room_id){
-  if(data.agreement?.status==='accepted'&&data.agreement?.terms?.delivery_mode==='delivery'){const {view}=await deliveryFor(sb,user.id,String(data.deal_room_id)) as any;if(view)data.delivery=view;}
   const market=await roomMarket(sb,data).catch(()=>null);if(market){data.market=market;data.market_median=market.median;}
   const hash=await digest(data);
   if(since&&since===hash)return jsonResponse({ok:true,data:{unchanged:true,hash,deal_room_id:data.deal_room_id}});

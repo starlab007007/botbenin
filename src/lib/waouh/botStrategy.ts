@@ -46,12 +46,18 @@ export function mandateSummary(d: MandateDraft): string {
 }
 
 /** Ligne Bot : dernière action + prochaine étape, en mots simples. */
-export function botLine(room: { control_mode?: string | null; agreement?: { status?: string } | null; events?: Array<{ event_type?: string; created_at?: string }> | null; initial_sent?: boolean; next_run_at?: string | null; mandate?: { cascade_step?: number } | null } | null) {
+export function botLine(room: { control_mode?: string | null; agreement?: { status?: string; terms?: { delivery_mode?: string } } | null; delivery?: { status?: string } | null; events?: Array<{ event_type?: string; created_at?: string }> | null; initial_sent?: boolean; next_run_at?: string | null; mandate?: { cascade_step?: number } | null } | null) {
   if (!room) return null;
   const status = room.agreement?.status ?? "";
   const events = (room.events ?? []).filter((e) => e.event_type);
   const last = [...events].reverse().find((e) => LAST[e.event_type as string]);
-  const next = status === "accepted" || status === "completed" ? "Finaliser ensemble"
+  const delivery = room.agreement?.terms?.delivery_mode === "delivery";
+  const next = status === "completed" ? "Échange clôturé"
+    : status === "accepted" ? !delivery ? "Suivre la réalisation de l’accord"
+      : room.delivery?.status === "delivered" ? "Remise confirmée · suivre la clôture"
+      : room.delivery?.status === "picked_up" ? "Livraison en cours"
+      : room.delivery?.status === "assigned" ? "Livreur assigné · collecte attendue"
+      : "Recherche d’un livreur"
     : status === "proposed" ? "Accord à valider par vous"
     : room.control_mode === "paused" ? "Reprendre Bot ou continuer vous-même"
     : room.control_mode !== "bot" ? "Vous menez l’échange"

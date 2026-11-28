@@ -92,6 +92,8 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
   const [opening, setOpening] = useState(false);
   const { mode, kind, requireAuth } = shared;
   const reachable = offerReachable(result);
+  const externalApplication = kind === "opportunity" &&
+    /^https?:\/\//i.test(result.source_url ?? "") ? result.source_url : null;
   const canOpen = !!result.fabric_id && (mode !== "sell" || !!shared.articleId);
   const primary = canOpen ? (
     <button type="button" className={primaryOnly ? "wsl-premium-manual" : "wgd-offer-primary"} disabled={opening} onClick={async () => {
@@ -106,12 +108,18 @@ export function WaouhOfferActions({ result, alternates, onDetails, saleAction, c
       <HeartHandshake size={16} aria-hidden="true" />{reachable ? (primaryLabel ?? (primaryOnly && (!kind || kind === "purchase") ? "Je prends" : offerPrimaryLabel(mode === "sell" ? "sale" : kind))) : "Ouvrir l’échange"}
     </button>
   ) : saleAction ?? null;
-  if (primaryOnly) return <>{primary}</>;
+  const applyOnSource = externalApplication ? (
+    <a href={externalApplication} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost">
+      <ExternalLink size={15} aria-hidden="true" />Déposer sur le site de l’annonce
+    </a>
+  ) : null;
+  if (primaryOnly) return <>{primary}{applyOnSource}</>;
   return (
     <div className="wgd-offer-actions">
       {primary}
       <WaouhDirectContact result={result} requireAuth={requireAuth} />
-      {!reachable && result.source_url && <a href={result.source_url} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost"><ExternalLink size={15} aria-hidden="true" />Voir l’annonce d’origine</a>}
+      {applyOnSource}
+      {!externalApplication && !reachable && result.source_url && <a href={result.source_url} target="_blank" rel="noopener noreferrer" className="wgd-offer-ghost"><ExternalLink size={15} aria-hidden="true" />Voir l’annonce d’origine</a>}
       <div className="wgd-offer-secondary">
         {!reachable && <span className="wgd-offer-unreachable">Contact non disponible</span>}
         {reachable && canOpen && <WaouhDelegateButton result={result} mode={mode} articleId={shared.articleId} discoveryKind={kind} missionContext={shared.missionContext}

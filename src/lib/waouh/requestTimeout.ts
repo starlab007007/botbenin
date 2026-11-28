@@ -11,7 +11,7 @@ export function waouhRequestTimeout(url: string, init?: RequestInit): number {
   }
   try {
     const { action } = JSON.parse(init.body);
-    if (action === "nexus.global_discovery" || action === "nexus.mandate.create") return 120_000;
+    if (action === "nexus.global_discovery" || action === "nexus.mandate.create" || action === "nexus.mandate.start_guided") return 120_000;
   } catch { /* Keep the default for malformed requests. */ }
   return defaultTimeout;
 }

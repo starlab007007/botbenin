@@ -392,7 +392,19 @@ class _LiveDealRoomScreenState extends State<LiveDealRoomScreen> with WidgetsBin
     if(a!=null&&!['accepted','completed'].contains(a['status']))WaouhAgreementPanel(amount:money((a['terms'] as Map)['amount']),tag:waouhPriceTag(num.tryParse('${(a['terms'] as Map)['amount']}'),num.tryParse('${r['market_median']??r['price']??''}')),busy:busy,waitingOther:!allowed.contains('accept'),onValidate:allowed.contains('accept')?()=>act('accept',{'version':a['version']}):null,onEdit:allowed.contains('propose')?propose:null),
     if(a!=null&&a['status']=='accepted'&&(allowed.contains('receipt')||allowed.contains('issue')))WaouhReceiptPanel(done:false,busy:busy,receivedLabel:r['buyer']==true?'J’ai reçu':'C’est remis',onReceived:allowed.contains('receipt')?receiptPanel:null,onProblem:allowed.contains('issue')?()async{final p=await form('Problème',{'text':''});if(p!=null)await act('issue',{'version':a['version'],'text':p['text']});}:null),
     if(a!=null&&a['status']=='completed'&&(guide==null||guide['status']=='completed'))const WaouhReceiptPanel(done:true),
-    Card(child:ExpansionTile(dense:true,leading:Image.asset('assets/bot/bot_avatar.png',width:28),title:Text(expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),trailing:const Text('Voir détail',style:TextStyle(fontSize:12)),childrenPadding:const EdgeInsets.fromLTRB(16,0,16,12),expandedCrossAxisAlignment:CrossAxisAlignment.stretch,children:[
+    if(a?['status']=='accepted')
+      card([
+        Text('Suivi de l’accord', style: Theme.of(context).textTheme.titleMedium),
+        Text((a?['terms'] as Map?)?['delivery_mode'] != 'delivery'
+            ? 'Suivre la réalisation de l’accord'
+            : switch ((r['delivery'] as Map?)?['status']) {
+                'delivered' => 'Remise confirmée · suivre la clôture',
+                'picked_up' => 'Livraison en cours',
+                'assigned' => 'Livreur assigné · collecte attendue',
+                _ => 'Recherche d’un livreur',
+              }),
+      ]),
+    Card(child:ExpansionTile(dense:true,leading:Image.asset('assets/bot/bot_avatar.png',width:28),title:Text(a?['status']=='completed'?'Échange clôturé':a?['status']=='accepted'?'Négociation terminée':expired?'Mandat arrivé à échéance':bot?'Bot mène l’échange':r['control_mode']=='paused'?'Bot en pause':'Vous gérez l’échange',style:const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),trailing:const Text('Voir détail',style:TextStyle(fontSize:12)),childrenPadding:const EdgeInsets.fromLTRB(16,0,16,12),expandedCrossAxisAlignment:CrossAxisAlignment.stretch,children:[
      if(r['is_owner']==true&&r['closed']!=true&&!['accepted','completed'].contains(a?['status'])&&guide?['action']!='takeover')button(bot?'Reprendre la main':'Confier à Bot',()=>bot?act('takeover',{'mandate_revision':r['mandate_revision']}):mandate()),
      if(r['is_owner']==true&&allowed.contains('approve_step')&&guide?['action']!='approve_step')button('Autoriser la prochaine proposition / relance dans les limites du mandat',()=>act('approve_step',{'mandate_revision':r['mandate_revision'],'version':r['current_offer_version']})),
      if(r['is_owner']==true&&bot)button('Mettre en pause',()=>act('pause',{'mandate_revision':r['mandate_revision']})),
