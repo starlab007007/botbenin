@@ -1,6 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart' show botAvatarAsset;
 import 'live_city_field.dart';
@@ -28,7 +31,8 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
     super.dispose();
   }
 
-  int? get _priceFloor => int.tryParse(_floor.text.replaceAll(RegExp(r'\s'), ''));
+  int? get _priceFloor =>
+      int.tryParse(_floor.text.replaceAll(RegExp(r'\s'), ''));
 
   bool _canPublish() {
     if (_starting) return false;
@@ -45,7 +49,10 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
       return;
     }
     if (_starting) return;
-    setState(() { _starting = true; _error = null; });
+    setState(() {
+      _starting = true;
+      _error = null;
+    });
     try {
       final id = await LiveNexusService(legacy.supabase).startGuidedMission(
         goal: '${sale.article['title']}',
@@ -62,11 +69,21 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
         },
         completionGoal: 'transaction',
       );
-      if (mounted) Navigator.pop(context, Uri(path: '/app/missions', queryParameters: {'mandate': id}).toString());
+      if (mounted)
+        Navigator.pop(
+          context,
+          Uri(
+            path: '/app/missions',
+            queryParameters: {'mandate': id},
+          ).toString(),
+        );
     } catch (error) {
-      if (mounted) setState(() => _error = error is NexusApiException
-          ? 'Annonce publiée. ${error.message}'
-          : 'Annonce publiée. Réessayez l’activation du mandat.');
+      if (mounted)
+        setState(
+          () => _error = error is NexusApiException
+              ? 'Annonce publiée. ${error.message}'
+              : 'Annonce publiée. Réessayez l’activation du mandat.',
+        );
     } finally {
       if (mounted) setState(() => _starting = false);
     }
@@ -79,11 +96,11 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
       padding: EdgeInsets.only(bottom: m.viewInsets.bottom),
       child: Container(
         constraints: BoxConstraints(
-          maxHeight: (m.size.height - m.viewInsets.bottom) * .94,
+          maxHeight: (m.size.height - m.viewInsets.bottom) * .92,
         ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        padding: const EdgeInsets.fromLTRB(20, 19, 20, 18),
         decoration: const BoxDecoration(
-          color: Color(0xFFF9FBFF),
+          color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SafeArea(
@@ -91,6 +108,7 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   children: [
@@ -111,14 +129,14 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
                             'Vendre',
                             style: TextStyle(
                               fontSize: 23,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           Text(
-                            'Bot prépare votre fiche.',
+                            'Bot recherche des acheteurs et négocie au-dessus de votre plancher. Vous validez la vente.',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF718099),
+                              fontSize: 11,
+                              color: Color(0xFF8996AF),
                             ),
                           ),
                         ],
@@ -126,28 +144,64 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
                     ),
                     IconButton(
                       tooltip: 'Fermer',
-                      onPressed: _starting ? null : () => Navigator.pop(context),
+                      onPressed: _starting
+                          ? null
+                          : () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  title: const Text('Confier la vente à Bot'),
-                  subtitle: const Text('Bot cherche des acheteurs. Vous validez la vente.'),
-                  value: _delegate,
-                  onChanged: _starting ? null : (value) => setState(() { _delegate = value; _error = null; }),
+                const SizedBox(height: 17),
+                Material(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                  child: CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    title: const Text(
+                      'Confier la vente à Bot',
+                      style: TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    activeColor: const Color(0xFF2563EB),
+                    value: _delegate,
+                    onChanged: _starting
+                        ? null
+                        : (value) => setState(() {
+                            _delegate = value ?? false;
+                            _error = null;
+                          }),
+                  ),
                 ),
                 if (_delegate)
                   TextField(
                     controller: _floor,
                     enabled: !_starting,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Prix plancher privé (FCFA)'),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      hintText: 'Prix plancher privé (FCFA)',
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                    ),
                   ),
-                if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                if (_starting) const LinearProgressIndicator(),
-                const SizedBox(height: 18),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                if (_starting) const Text('Activation du mandat…'),
                 StreamBuilder(
                   stream: legacy.supabase.auth.onAuthStateChange,
                   builder: (context, snapshot) => LiveSmartSale(
@@ -166,13 +220,13 @@ class _LiveSmartSaleSheetState extends State<LiveSmartSaleSheet> {
   }
 }
 
-typedef SaleAnalyze =
-    Future<Map<String, dynamic>> Function(
-      Map<String, dynamic> draft,
-      bool visual,
-    );
-typedef SalePublish =
-    Future<Map<String, dynamic>> Function(Map<String, dynamic> draft);
+typedef SaleAnalyze = Future<Map<String, dynamic>> Function(
+  Map<String, dynamic> draft,
+  bool visual,
+);
+typedef SalePublish = Future<Map<String, dynamic>> Function(
+  Map<String, dynamic> draft,
+);
 
 class LiveSmartSale extends StatefulWidget {
   const LiveSmartSale({
@@ -321,9 +375,8 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
       try {
         final s =
             await (widget.analyze?.call(Map.from(_draft), visual) ??
-                LiveNexusService(
-                  legacy.supabase,
-                ).analyzeSale(_owner!, Map.from(_draft), visual));
+                LiveNexusService(legacy.supabase)
+                    .analyzeSale(_owner!, Map.from(_draft), visual));
         if (!_valid || version != _generation) return;
         setState(() {
           if (visual) _photoKey = photo;
@@ -421,7 +474,11 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
   }
 
   Future<void> _submit() async {
-    if (_publishing || _uploading || !_valid || widget.beforePublish?.call() == false) return;
+    if (_publishing ||
+        _uploading ||
+        !_valid ||
+        widget.beforePublish?.call() == false)
+      return;
     if (_published != null) {
       _openPublished();
       return;
@@ -451,9 +508,8 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
     try {
       final article =
           await (widget.publish?.call(submitted) ??
-              LiveNexusService(
-                legacy.supabase,
-              ).publishSale(_owner!, submitted));
+              LiveNexusService(legacy.supabase)
+                  .publishSale(_owner!, submitted));
       if (_valid) {
         _published = LivePublishedSale(_owner!, {
           ...submitted,
@@ -526,7 +582,11 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
           if (_notice.isNotEmpty) Text(_notice),
           FilledButton(
             onPressed: _openPublished,
-            child: const Text('Reprendre la recherche'),
+            child: Text(
+              widget.publishLabel == null
+                  ? 'Reprendre la recherche'
+                  : 'Réessayer le mandat',
+            ),
           ),
         ],
       );
@@ -562,7 +622,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      color: const Color(0xFFEDF3FF),
+                      color: const Color(0xFFF5F7FC),
                       child: i < photos.length
                           ? Stack(
                               fit: StackFit.expand,
@@ -664,9 +724,8 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
             controller: _title,
             enabled: !_publishing && _published == null,
             maxLength: 200,
-            decoration: _dec(
-              'Ex. Samsung S25, moto, soja…',
-            ).copyWith(counterText: ''),
+            decoration: _dec('Ex. Samsung S25, moto, soja…')
+                .copyWith(counterText: ''),
             onChanged: (v) => _edit('title', v),
           ),
         ),
@@ -804,9 +863,8 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                 enabled: !_publishing && _published == null,
                 maxLines: 3,
                 maxLength: 2000,
-                decoration: _dec(
-                  'Modèle, défaut à signaler, accessoires…',
-                ).copyWith(counterText: ''),
+                decoration: _dec('Modèle, défaut à signaler, accessoires…')
+                    .copyWith(counterText: ''),
                 onChanged: (v) => _edit('description', v),
               ),
               const SizedBox(height: 10),
@@ -857,7 +915,7 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                 ? null
                 : _submit,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF3867EA),
+              backgroundColor: const Color(0xFF4767E9),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(17),
               ),
@@ -873,7 +931,9 @@ class _LiveSmartSaleState extends State<LiveSmartSale> {
                 : Text(
                     _published == null
                         ? (widget.publishLabel ?? 'Publier et trouver')
-                        : (widget.publishLabel == null ? 'Reprendre la recherche' : 'Réessayer le mandat'),
+                        : (widget.publishLabel == null
+                              ? 'Reprendre la recherche'
+                              : 'Réessayer le mandat'),
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
           ),

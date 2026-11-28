@@ -55,11 +55,13 @@ class LiveCityField extends StatefulWidget {
     this.hint = 'Ville ou quartier',
     this.autoLocate = true,
     this.onChanged,
+    this.decoration,
     this.onCoordinatesChanged,
   });
 
   final TextEditingController controller;
   final String hint;
+  final InputDecoration? decoration;
   final bool autoLocate;
   final VoidCallback? onChanged;
   final void Function(double? latitude,double? longitude)? onCoordinatesChanged;
@@ -157,8 +159,10 @@ class _LiveCityFieldState extends State<LiveCityField> {
             controller: controller,
             focusNode: focusNode,
             onChanged: (_) => _manual(),
-            decoration: InputDecoration(
-              hintText: widget.hint,
+            style: widget.decoration == null ? null : const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
+            decoration: (widget.decoration ?? InputDecoration(hintText: widget.hint)).copyWith(
+              prefixIconConstraints: widget.decoration == null ? null : const BoxConstraints(minWidth: 32),
+              suffixIconConstraints: widget.decoration == null ? null : const BoxConstraints(minWidth: 32),
               prefixIcon: const Icon(Icons.place_outlined, size: 18),
               suffixIcon: _locating
                   ? const Padding(
@@ -170,6 +174,8 @@ class _LiveCityFieldState extends State<LiveCityField> {
                     )
                   : IconButton(
                       tooltip: 'Utiliser ma position',
+                      padding: widget.decoration == null ? null : EdgeInsets.zero,
+                      constraints: widget.decoration == null ? null : const BoxConstraints(minWidth: 32, minHeight: 44),
                       icon: const Icon(Icons.my_location_rounded, size: 20),
                       onPressed: () => _locate(),
                     ),

@@ -6,6 +6,7 @@ void main() {
     test('keeps discovery routes public and personal actions private', () {
       expect(requiresWaouhAuthentication('/app/chat'), isFalse);
       expect(requiresWaouhAuthentication('/app/avatar'), isFalse);
+      expect(requiresWaouhAuthentication(waouhGuidedHomePath), isFalse);
       expect(requiresWaouhAuthentication('/app/nexus'), isFalse);
       expect(requiresWaouhAuthentication('/app/presence/checkin'), isFalse);
       expect(requiresWaouhAuthentication('/app/chat/waouh'), isTrue);
